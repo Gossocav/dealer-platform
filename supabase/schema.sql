@@ -1,7 +1,5 @@
--- ==========================================
 -- DEALER PLATFORM - DATABASE SCHEMA MVP
 -- Versione 1.0
--- ==========================================
 
 create extension if not exists "pgcrypto";
 
@@ -19,4 +17,3 @@ create table dealers (
   plan text default 'starter',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
-);
