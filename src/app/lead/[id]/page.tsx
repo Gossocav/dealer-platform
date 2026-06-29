@@ -43,7 +43,16 @@ export default function LeadDetailPage() {
         .maybeSingle();
 
       if (!error && data) {
-        setLead(data as Lead);
+        const normalizedVehicle = Array.isArray(data.vehicle)
+          ? data.vehicle[0] ?? null
+          : data.vehicle;
+
+        const normalizedLead: Lead = {
+          ...data,
+          vehicle: normalizedVehicle,
+        };
+
+        setLead(normalizedLead);
       }
 
       setLoading(false);
