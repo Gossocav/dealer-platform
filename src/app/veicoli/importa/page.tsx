@@ -22,7 +22,7 @@ export default function VehiclesImportRoutePage() {
 
       const analysisSections = Array.from(root.querySelectorAll("section")).filter((section) => {
         return (section.textContent ?? "").includes("Analisi feed");
-      }) as HTMLSectionElement[];
+      }) as HTMLElement[];
 
       const importButton = Array.from(root.querySelectorAll("button")).find((button) => {
         return (button.textContent ?? "").includes("Importa Stock");
