@@ -189,7 +189,7 @@ export default function RegistrazionePage() {
                       value={values.dealerName}
                       onChange={handleChange("dealerName")}
                       placeholder="Nome concessionaria"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.dealerName ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -204,7 +204,7 @@ export default function RegistrazionePage() {
                       value={values.companyName}
                       onChange={handleChange("companyName")}
                       placeholder="Ragione sociale"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.companyName ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -221,7 +221,7 @@ export default function RegistrazionePage() {
                       value={values.vatNumber}
                       onChange={handleChange("vatNumber")}
                       placeholder="IT12345678901"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.vatNumber ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -236,7 +236,7 @@ export default function RegistrazionePage() {
                       value={values.taxCode}
                       onChange={handleChange("taxCode")}
                       placeholder="Codice fiscale"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.taxCode ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -253,7 +253,7 @@ export default function RegistrazionePage() {
                       value={values.contactName}
                       onChange={handleChange("contactName")}
                       placeholder="Nome referente"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.contactName ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -268,7 +268,7 @@ export default function RegistrazionePage() {
                       value={values.email}
                       onChange={handleChange("email")}
                       placeholder="referente@azienda.it"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.email ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -285,7 +285,7 @@ export default function RegistrazionePage() {
                       value={values.phone}
                       onChange={handleChange("phone")}
                       placeholder="+39 333 123 4567"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.phone ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -300,7 +300,7 @@ export default function RegistrazionePage() {
                       value={values.password}
                       onChange={handleChange("password")}
                       placeholder="Password"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                         errors.password ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                       }`}
                     />
@@ -316,7 +316,7 @@ export default function RegistrazionePage() {
                     value={values.confirmPassword}
                     onChange={handleChange("confirmPassword")}
                     placeholder="Conferma password"
-                    className={`w-full rounded-3xl border px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                    className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
                       errors.confirmPassword ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
                     }`}
                   />
