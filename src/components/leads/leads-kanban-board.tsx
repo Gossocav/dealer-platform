@@ -8,19 +8,21 @@ import {
   type LeadItem,
   type LeadPriority,
   type LeadStage,
-} from "@/lib/mock/leads";
+} from "@/lib/leads";
 
 type LeadsKanbanBoardProps = {
   items: LeadItem[];
+  onStageChange: (leadId: string, nextStage: LeadStage) => Promise<void>;
+  pendingLeadId: string | null;
 };
 
 const stageDescriptions: Record<LeadStage, string> = {
-  new: "Nuovo",
-  contacted: "Contattato",
-  quote: "Preventivo",
-  negotiation: "Trattativa",
-  won: "Venduto",
-  lost: "Perso",
+  nuovo: "Nuovo",
+  contattato: "Contattato",
+  preventivo: "Preventivo",
+  trattativa: "Trattativa",
+  venduto: "Venduto",
+  perso: "Perso",
 };
 
 function priorityClasses(priority: LeadPriority): string {
@@ -29,7 +31,7 @@ function priorityClasses(priority: LeadPriority): string {
   return "bg-slate-200 text-slate-700";
 }
 
-export function LeadsKanbanBoard({ items }: LeadsKanbanBoardProps) {
+export function LeadsKanbanBoard({ items, onStageChange, pendingLeadId }: LeadsKanbanBoardProps) {
   const grouped = leadStages.map((stage) => ({
     stage,
     leads: items.filter((lead) => lead.stage === stage),
@@ -76,6 +78,25 @@ export function LeadsKanbanBoard({ items }: LeadsKanbanBoardProps) {
 
                   <p className="mt-3 text-sm font-medium text-slate-700">{lead.vehicle}</p>
                   <p className="mt-1 line-clamp-2 text-sm text-slate-600">{lead.message}</p>
+
+                  <label className="mt-3 block">
+                    <span className="text-xs uppercase tracking-[0.14em] text-slate-400">Stato</span>
+                    <select
+                      value={lead.stage}
+                      onChange={(event) => {
+                        const nextStage = event.target.value as LeadStage;
+                        void onStageChange(lead.id, nextStage);
+                      }}
+                      disabled={pendingLeadId === lead.id}
+                      className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none transition focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {leadStages.map((stage) => (
+                        <option key={stage} value={stage}>
+                          {leadStageLabels[stage]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
                   <p className="mt-3 text-xs uppercase tracking-[0.14em] text-slate-400">Richiesta: {formatLeadDate(lead.requestDate)}</p>
 

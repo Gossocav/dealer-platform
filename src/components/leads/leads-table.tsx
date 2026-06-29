@@ -4,13 +4,16 @@ import {
   formatLeadDate,
   leadPriorityLabels,
   leadStageLabels,
+  leadStages,
   type LeadItem,
   type LeadPriority,
   type LeadStage,
-} from "@/lib/mock/leads";
+} from "@/lib/leads";
 
 type LeadsTableProps = {
   items: LeadItem[];
+  onStageChange: (leadId: string, nextStage: LeadStage) => Promise<void>;
+  pendingLeadId: string | null;
 };
 
 function priorityClasses(priority: LeadPriority): string {
@@ -20,15 +23,15 @@ function priorityClasses(priority: LeadPriority): string {
 }
 
 function stageClasses(stage: LeadStage): string {
-  if (stage === "new") return "bg-blue-100 text-blue-700";
-  if (stage === "contacted") return "bg-sky-100 text-sky-700";
-  if (stage === "quote") return "bg-violet-100 text-violet-700";
-  if (stage === "negotiation") return "bg-amber-100 text-amber-700";
-  if (stage === "won") return "bg-emerald-100 text-emerald-700";
+  if (stage === "nuovo") return "bg-blue-100 text-blue-700";
+  if (stage === "contattato") return "bg-sky-100 text-sky-700";
+  if (stage === "preventivo") return "bg-violet-100 text-violet-700";
+  if (stage === "trattativa") return "bg-amber-100 text-amber-700";
+  if (stage === "venduto") return "bg-emerald-100 text-emerald-700";
   return "bg-rose-100 text-rose-700";
 }
 
-export function LeadsTable({ items }: LeadsTableProps) {
+export function LeadsTable({ items, onStageChange, pendingLeadId }: LeadsTableProps) {
   return (
     <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
       <div className="overflow-x-auto">
@@ -73,6 +76,23 @@ export function LeadsTable({ items }: LeadsTableProps) {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${stageClasses(lead.stage)}`}>
                       {leadStageLabels[lead.stage]}
                     </span>
+                    <div className="mt-2">
+                      <select
+                        value={lead.stage}
+                        onChange={(event) => {
+                          const nextStage = event.target.value as LeadStage;
+                          void onStageChange(lead.id, nextStage);
+                        }}
+                        disabled={pendingLeadId === lead.id}
+                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none transition focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {leadStages.map((stage) => (
+                          <option key={stage} value={stage}>
+                            {leadStageLabels[stage]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </td>
                   <td className="px-3 py-3">{formatLeadDate(lead.requestDate)}</td>
                   <td className="rounded-r-2xl px-3 py-3">

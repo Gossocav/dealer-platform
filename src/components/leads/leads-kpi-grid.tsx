@@ -1,5 +1,5 @@
 import { CircleCheck, CircleDashed, Handshake, PhoneCall, type LucideIcon } from "lucide-react";
-import type { LeadKpi } from "@/lib/mock/leads";
+import type { LeadKpi } from "@/lib/leads";
 
 type LeadsKpiGridProps = {
   items: LeadKpi[];

@@ -1,5 +1,5 @@
 import { LayoutGrid, Search, SlidersHorizontal, Table2 } from "lucide-react";
-import type { LeadFilters, LeadPriority, LeadSource, LeadStage } from "@/lib/mock/leads";
+import type { LeadFilters, LeadPriority, LeadStage } from "@/lib/leads";
 
 type ViewMode = "kanban" | "table";
 
@@ -7,19 +7,19 @@ type LeadsToolbarProps = {
   filters: LeadFilters;
   onFiltersChange: (next: LeadFilters) => void;
   vehicleOptions: string[];
-  sourceOptions: LeadSource[];
+  sourceOptions: string[];
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 };
 
 const stageOptions: Array<{ value: "all" | LeadStage; label: string }> = [
   { value: "all", label: "Tutti gli stati" },
-  { value: "new", label: "Nuovo" },
-  { value: "contacted", label: "Contattato" },
-  { value: "quote", label: "Preventivo" },
-  { value: "negotiation", label: "Trattativa" },
-  { value: "won", label: "Venduto" },
-  { value: "lost", label: "Perso" },
+  { value: "nuovo", label: "Nuovo" },
+  { value: "contattato", label: "Contattato" },
+  { value: "preventivo", label: "Preventivo" },
+  { value: "trattativa", label: "Trattativa" },
+  { value: "venduto", label: "Venduto" },
+  { value: "perso", label: "Perso" },
 ];
 
 const priorityOptions: Array<{ value: "all" | LeadPriority; label: string }> = [
