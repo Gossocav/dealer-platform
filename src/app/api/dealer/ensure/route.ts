@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type EnsureDealerBody = {
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 }
 
 type EnsureDealerAssociationInput = {
-  supabaseAdmin: ReturnType<typeof createClient>;
+  supabaseAdmin: SupabaseClient<any, any, any>;
   userId: string;
   companyName: string;
   legalCompanyName: string;
@@ -198,7 +198,7 @@ async function ensureDealerAssociation({
   return dealerId;
 }
 
-async function findDealerIdByUserId(supabaseAdmin: ReturnType<typeof createClient>, userId: string) {
+async function findDealerIdByUserId(supabaseAdmin: SupabaseClient<any, any, any>, userId: string) {
   const { data, error } = await supabaseAdmin
     .from("dealers")
     .select("id")
@@ -218,7 +218,7 @@ async function findDealerIdByUserId(supabaseAdmin: ReturnType<typeof createClien
 }
 
 async function updateDealerBestEffort(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseClient<any, any, any>,
   dealerId: string,
   values: {
     companyName: string;
@@ -260,7 +260,7 @@ async function updateDealerBestEffort(
 }
 
 async function upsertProfile(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseClient<any, any, any>,
   input: {
     userId: string;
     dealerId: string;
