@@ -17,12 +17,13 @@ type Vehicle = {
 
 type Lead = {
   id: string;
+  vehicle_id?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
   phone?: string | null;
+  message?: string | null;
   status?: string | null;
-  source?: string | null;
   created_at?: string | null;
 };
 
@@ -30,18 +31,18 @@ type Customer = {
   id: string;
   first_name?: string | null;
   last_name?: string | null;
-  name?: string | null;
+  company?: string | null;
   email?: string | null;
   phone?: string | null;
-  customer_type?: string | null;
   created_at?: string | null;
 };
 
 type Appointment = {
   id: string;
   title?: string | null;
-  appointment_type?: string | null;
-  appointment_date?: string | null;
+  description?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
   status?: string | null;
   created_at?: string | null;
 };
@@ -87,13 +88,13 @@ export default function StatistichePage() {
           .select("id, brand, model, version, year, price, status, published, created_at"),
         supabase
           .from("leads")
-          .select("id, first_name, last_name, email, phone, status, source, created_at"),
+          .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at"),
         supabase
           .from("customers")
-          .select("id, first_name, last_name, email, phone, customer_type, created_at"),
+          .select("id, first_name, last_name, company, email, phone, created_at"),
         supabase
           .from("appointments")
-          .select("id, title, appointment_type, appointment_date, status, created_at"),
+          .select("id, title, description, start_at, end_at, status, created_at"),
       ]);
 
       setLoading(false);
@@ -141,13 +142,13 @@ export default function StatistichePage() {
   const upcomingAppointments = useMemo(() => {
     return appointments
       .filter((item) => {
-        if (!item.appointment_date) return false;
-        const date = new Date(item.appointment_date);
+        if (!item.start_at) return false;
+        const date = new Date(item.start_at);
         return !Number.isNaN(date.getTime()) && date >= new Date();
       })
       .sort((a, b) => {
-        const dateA = a.appointment_date ? new Date(a.appointment_date).getTime() : 0;
-        const dateB = b.appointment_date ? new Date(b.appointment_date).getTime() : 0;
+        const dateA = a.start_at ? new Date(a.start_at).getTime() : 0;
+        const dateB = b.start_at ? new Date(b.start_at).getTime() : 0;
         return dateA - dateB;
       })
       .slice(0, 5);
@@ -297,6 +298,7 @@ export default function StatistichePage() {
                     <div key={lead.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <p className="font-semibold text-slate-900">{`${lead.first_name ?? ""} ${lead.last_name ?? ""}`.trim() || "-"}</p>
                       <p className="text-sm text-slate-600">{lead.email ?? "-"} • {lead.phone ?? "-"}</p>
+                      <p className="mt-1 text-xs text-slate-500">Veicolo: {lead.vehicle_id ?? "-"}</p>
                     </div>
                   ))
                 )}
@@ -313,7 +315,9 @@ export default function StatistichePage() {
                 ) : (
                   latestCustomers.map((customer) => (
                     <div key={customer.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="font-semibold text-slate-900">{customer.first_name ?? customer.name ?? "-"} {customer.last_name ?? ""}</p>
+                      <p className="font-semibold text-slate-900">
+                        {customer.company?.trim() || `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim() || "-"}
+                      </p>
                       <p className="text-sm text-slate-600">{customer.email ?? "-"} • {customer.phone ?? "-"}</p>
                     </div>
                   ))
@@ -330,7 +334,7 @@ export default function StatistichePage() {
                   upcomingAppointments.map((appointment) => (
                     <div key={appointment.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <p className="font-semibold text-slate-900">{appointment.title ?? "-"}</p>
-                      <p className="text-sm text-slate-600">{appointment.appointment_type ?? "-"} • {formatDate(appointment.appointment_date)}</p>
+                      <p className="text-sm text-slate-600">{appointment.description ?? "-"} • {formatDate(appointment.start_at)}</p>
                     </div>
                   ))
                 )}

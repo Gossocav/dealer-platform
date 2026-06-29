@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 type VehicleState = {
   brand: string;
@@ -32,6 +35,20 @@ type VehicleState = {
   city: string;
 };
 
+type PhotoItem = {
+  id: string;
+  kind: "new" | "existing";
+  vehicleImageId?: string;
+  file?: File;
+  previewUrl?: string;
+  publicUrl?: string;
+  path?: string;
+  mimeType?: string;
+};
+
+const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+
 const TABS = [
   "Dati principali",
   "Foto",
@@ -45,17 +62,30 @@ const TABS = [
 type Tab = (typeof TABS)[number];
 
 const sidebarItems = [
-  "Dashboard",
-  "Veicoli",
-  "Nuovo veicolo",
-  "Lead",
-  "Clienti",
-  "Agenda",
-  "Statistiche",
-  "Impostazioni",
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Veicoli", href: "/veicoli" },
+  { label: "Nuovo veicolo", href: "/veicoli/nuovo" },
+  { label: "Lead", href: "/lead" },
+  { label: "Clienti", href: "/clienti" },
+  { label: "Agenda", href: "/agenda" },
+  { label: "Statistiche", href: "/statistiche" },
+  { label: "Impostazioni", href: "/registrazione" },
 ];
 
 export default function NewVehiclePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-slate-600">Caricamento...</div>}>
+      <NewVehiclePageContent />
+    </Suspense>
+  );
+}
+
+function NewVehiclePageContent() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const hasIdParam = searchParams.has("id");
+  const urlVehicleId = searchParams.get("id")?.trim() || null;
   const [vehicle, setVehicle] = useState<VehicleState>({
     brand: "Volkswagen",
     model: "Golf",
@@ -86,29 +116,520 @@ export default function NewVehiclePage() {
     city: "Milano",
   });
   const [activeTab, setActiveTab] = useState<Tab>("Dati principali");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [photoDragId, setPhotoDragId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessageType, setStatusMessageType] = useState<"success" | "error" | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingVehicle, setIsLoadingVehicle] = useState(false);
+  const [vehicleId, setVehicleId] = useState<string | null>(() => searchParams.get("id"));
+  const isEditMode = hasIdParam;
+  const coverPhoto = getFirstValidPhoto(photos);
+
+  useEffect(() => {
+    const currentVehicleId = urlVehicleId;
+    if (!currentVehicleId) {
+      return;
+    }
+
+    const fetchVehicle = async () => {
+      setIsLoadingVehicle(true);
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*, vehicle_images(id, vehicle_id, image_url, position, is_cover)")
+        .eq("id", currentVehicleId)
+        .maybeSingle();
+      setIsLoadingVehicle(false);
+
+      if (error) {
+        setStatusMessage(error.message || "Errore nel caricamento del veicolo.");
+        setStatusMessageType("error");
+        return;
+      }
+
+      if (!data) {
+        setStatusMessage("Veicolo non trovato.");
+        setStatusMessageType("error");
+        return;
+      }
+
+      setVehicleId(currentVehicleId);
+      setVehicle({
+        brand: String(data.brand ?? ""),
+        model: String(data.model ?? ""),
+        trim: String(data.version ?? data.trim ?? ""),
+        year: String(data.year ?? ""),
+        registrationMonth: String(data.registration_month ?? ""),
+        mileage: String(data.mileage ?? ""),
+        fuelType: String(data.fuel ?? ""),
+        transmission: String(data.transmission ?? ""),
+        bodyType: String(data.body_type ?? ""),
+        color: String(data.color ?? ""),
+        price: String(data.price ?? ""),
+        vatIncluded: data.vat_exposed === true ? "Sì" : data.vat_exposed === false ? "No" : "",
+        licensePlate: String(data.plate ?? ""),
+        vin: String(data.vin ?? ""),
+        description: String(data.description ?? ""),
+        listingStatus: data.status === "published" ? "Pubblicato" : "Bozza",
+        doors: String(data.doors ?? ""),
+        seats: String(data.seats ?? ""),
+        horsepower: String(data.power_cv ?? ""),
+        engine: String(data.engine_size ?? ""),
+        co2: String(data.co2_emissions ?? ""),
+        emissionClass: String(data.emission_class ?? ""),
+        previousOwners: String(data.previous_owners ?? ""),
+        warranty: String(data.warranty ?? ""),
+        availability: String(data.availability ?? ""),
+        province: String(data.province ?? ""),
+        city: String(data.city ?? ""),
+      });
+
+      const vehicleImages = Array.isArray(data.vehicle_images)
+        ? [...data.vehicle_images].sort((a, b) => {
+            const aCover = a.is_cover ? 1 : 0;
+            const bCover = b.is_cover ? 1 : 0;
+            if (aCover !== bCover) {
+              return bCover - aCover;
+            }
+
+            const aPosition = typeof a.position === "number" ? a.position : Number.MAX_SAFE_INTEGER;
+            const bPosition = typeof b.position === "number" ? b.position : Number.MAX_SAFE_INTEGER;
+            if (aPosition !== bPosition) {
+              return aPosition - bPosition;
+            }
+
+            return 0;
+          })
+        : [];
+
+      setPhotos(
+        vehicleImages
+          .map((image) => {
+            const storagePath = getStoragePathFromPublicUrl(String(image.image_url ?? ""));
+            const persistedPublicUrl = getPublicUrlFromImageRow({
+              publicUrl: null,
+              imageUrl: typeof image.image_url === "string" ? image.image_url : null,
+              storagePath,
+            });
+
+            return {
+              ...image,
+              storagePath,
+              persistedPublicUrl,
+            };
+          })
+          .filter((image) => typeof image.persistedPublicUrl === "string" && image.persistedPublicUrl.length > 0)
+          .map((image) => ({
+            id: String(image.id ?? `${currentVehicleId}-${Math.random().toString(36).slice(2, 8)}`),
+            vehicleImageId: typeof image.id === "string" ? image.id : undefined,
+            kind: "existing" as const,
+            publicUrl: image.persistedPublicUrl,
+            path: image.storagePath,
+            mimeType: inferMimeTypeFromUrl(image.persistedPublicUrl ?? ""),
+          }))
+      );
+    };
+
+    void fetchVehicle();
+  }, [urlVehicleId]);
+
+  const validateVehicle = () => {
+    const requiredFields = [
+      { key: "marca", value: vehicle.brand.trim() },
+      { key: "modello", value: vehicle.model.trim() },
+      { key: "anno", value: vehicle.year.trim() },
+      { key: "prezzo", value: vehicle.price.trim() },
+    ];
+
+    const missing = requiredFields.filter((field) => !field.value);
+    if (missing.length > 0) {
+      const missingLabel = missing.map((field) => field.key).join(", ");
+      setStatusMessage(`Compila i campi obbligatori: ${missingLabel}.`);
+      setStatusMessageType("error");
+      return false;
+    }
+
+    return true;
+  };
+
+  const createVehicleRecord = async (status: "draft" | "published", published: boolean) => {
+    setIsSaving(true);
+    setStatusMessage(null);
+    setStatusMessageType(null);
+
+    if (!validateVehicle()) {
+      setIsSaving(false);
+      return;
+    }
+
+    const parseInteger = (value: string) => {
+      const digits = value.replace(/\D/g, "");
+      return digits ? parseInt(digits, 10) : null;
+    };
+
+    const parseBoolean = (value: string) => {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "si" || normalized === "sì" || normalized === "yes" || normalized === "true") {
+        return true;
+      }
+      if (normalized === "no" || normalized === "false") {
+        return false;
+      }
+      return null;
+    };
+
+    const basePayload = {
+      brand: vehicle.brand,
+      model: vehicle.model,
+      version: vehicle.trim,
+      year: vehicle.year,
+      registration_month: vehicle.registrationMonth,
+      mileage: parseInteger(vehicle.mileage),
+      fuel: vehicle.fuelType,
+      transmission: vehicle.transmission,
+      body_type: vehicle.bodyType,
+      color: vehicle.color,
+      price: vehicle.price,
+      vat_exposed: parseBoolean(vehicle.vatIncluded),
+      plate: vehicle.licensePlate,
+      vin: vehicle.vin,
+      description: vehicle.description,
+      status,
+      published,
+      doors: parseInteger(vehicle.doors),
+      seats: parseInteger(vehicle.seats),
+      power_cv: parseInteger(vehicle.horsepower),
+      engine_size: parseInteger(vehicle.engine),
+      co2_emissions: parseInteger(vehicle.co2),
+      emission_class: vehicle.emissionClass,
+      previous_owners: parseInteger(vehicle.previousOwners),
+      warranty: vehicle.warranty,
+      availability: vehicle.availability,
+      province: vehicle.province,
+      city: vehicle.city,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Utente non autenticato.");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("dealer_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const dealerId = profile?.dealer_id ?? null;
+      if (!dealerId) {
+        throw new Error("dealer_id non trovato nel profilo utente.");
+      }
+
+      let currentVehicleId: string | null = null;
+
+      if (isEditMode) {
+        if (!urlVehicleId) {
+          setStatusMessage("ID veicolo mancante: impossibile aggiornare.");
+          setStatusMessageType("error");
+          return;
+        }
+
+        console.log("EDIT VEHICLE ID", urlVehicleId);
+
+        const updatePayload = {
+          ...basePayload,
+          dealer_id: dealerId,
+        };
+
+        const { data: updatedVehicles, error } = await supabase
+          .from("vehicles")
+          .update(updatePayload)
+          .eq("id", urlVehicleId)
+          .select();
+
+        if (error) {
+          setStatusMessage(error.message || "Errore durante l'aggiornamento del veicolo.");
+          setStatusMessageType("error");
+          return;
+        }
+
+        if (!updatedVehicles || updatedVehicles.length === 0) {
+          setStatusMessage("Nessun veicolo aggiornato: ID non trovato o non autorizzato");
+          setStatusMessageType("error");
+          return;
+        }
+
+        currentVehicleId = String(updatedVehicles[0]?.id ?? urlVehicleId);
+        setVehicleId(currentVehicleId);
+      } else {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .insert([{ ...basePayload, dealer_id: dealerId, created_at: new Date().toISOString() }])
+          .select("id")
+          .single();
+        if (error) {
+          throw error;
+        }
+        currentVehicleId = data?.id ?? null;
+        if (currentVehicleId) {
+          setVehicleId(currentVehicleId);
+        }
+      }
+
+      if (!currentVehicleId) {
+        throw new Error("Impossibile recuperare l'identificativo del veicolo.");
+      }
+
+      const newPhotos = photos.filter((photo) => photo.kind === "new" && photo.file);
+      const uploadedPhotoResults: Array<{ id: string; publicUrl: string; path: string; mimeType: string }> = [];
+
+      for (const photo of newPhotos) {
+        if (!photo.file) continue;
+        const safeFileName = `${Date.now()}-${photo.file.name.replace(/\s+/g, "-").toLowerCase()}`;
+        const storagePath = `${currentVehicleId}/${safeFileName}`;
+        const { error: uploadError } = await supabase.storage.from("vehicle-images").upload(storagePath, photo.file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage.from("vehicle-images").getPublicUrl(storagePath);
+        uploadedPhotoResults.push({
+          id: photo.id,
+          publicUrl: publicUrlData.publicUrl,
+          path: storagePath,
+          mimeType: String(photo.file.type || "image/jpeg"),
+        });
+      }
+
+      const finalImageRows = photos.flatMap((photo) => {
+        if (photo.kind === "existing" && photo.publicUrl) {
+          const storagePath = photo.path ?? getStoragePathFromPublicUrl(photo.publicUrl);
+          const publicUrl = getPublicUrlFromImageRow({
+            publicUrl: photo.publicUrl,
+            imageUrl: photo.publicUrl,
+            storagePath,
+          });
+
+          if (!publicUrl || !isSupportedImageReference(publicUrl)) {
+            return [];
+          }
+
+          return [{
+            image_url: publicUrl,
+          }];
+        }
+
+        if (photo.kind === "new") {
+          const uploadedPhoto = uploadedPhotoResults.find((item) => item.id === photo.id);
+          if (!uploadedPhoto || !isSupportedImageReference(uploadedPhoto.publicUrl)) {
+            return [];
+          }
+
+          return [{
+            image_url: uploadedPhoto.publicUrl,
+          }];
+        }
+
+        return [];
+      });
+
+      const { error: deleteVehicleImagesError } = await supabase
+        .from("vehicle_images")
+        .delete()
+        .eq("vehicle_id", currentVehicleId);
+
+      if (deleteVehicleImagesError) {
+        throw deleteVehicleImagesError;
+      }
+
+      if (finalImageRows.length > 0) {
+        const imageRows = finalImageRows.map((image, index) => ({
+          vehicle_id: currentVehicleId,
+          image_url: image.image_url,
+          position: index,
+          is_cover: index === 0,
+        }));
+
+        const { error: insertVehicleImagesError } = await supabase.from("vehicle_images").insert(imageRows);
+        if (insertVehicleImagesError) {
+          throw insertVehicleImagesError;
+        }
+      }
+
+      setPhotos((current) =>
+        current.map((photo) => {
+          const uploadedPhoto = uploadedPhotoResults.find((item) => item.id === photo.id);
+          if (!uploadedPhoto) {
+            return photo;
+          }
+          const nextId = uploadedPhoto.path || uploadedPhoto.publicUrl || photo.id;
+          return {
+            ...photo,
+            id: nextId,
+            vehicleImageId: undefined,
+            kind: "existing" as const,
+            publicUrl: uploadedPhoto.publicUrl,
+            path: uploadedPhoto.path,
+            mimeType: uploadedPhoto.mimeType,
+            file: undefined,
+            previewUrl: undefined,
+          };
+        })
+      );
+
+      if (isEditMode) {
+        setStatusMessage("Veicolo aggiornato con successo");
+        setStatusMessageType("success");
+        setTimeout(() => {
+          router.push("/veicoli");
+        }, 700);
+        return;
+      }
+
+      setStatusMessage("Veicolo salvato con successo");
+      setStatusMessageType("success");
+    } catch (error) {
+      console.error("SAVE VEHICLE ERROR", error);
+      setStatusMessage(formatSaveVehicleError(error));
+      setStatusMessageType("error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveDraft = () => createVehicleRecord("draft", false);
+  const handlePublishVehicle = () => createVehicleRecord("published", true);
 
   const handleChange = (field: keyof VehicleState) =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       setVehicle({ ...vehicle, [field]: event.target.value });
     };
 
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
-    const fileNames = Array.from(files).map((file) => file.name);
-    setPhotos((current) => [...current, ...fileNames]);
+
+    const { nextPhotos, hasUnsupported, hasConversionFailure } = await buildSupportedPhotoItems(Array.from(files));
+
+    if (hasConversionFailure) {
+      setStatusMessage("Errore nella conversione HEIC/HEIF. Riprova con un file JPG, PNG o WEBP.");
+      setStatusMessageType("error");
+    } else if (hasUnsupported) {
+      setStatusMessage("Formato non supportato. Converti la foto in JPG, PNG o WEBP.");
+      setStatusMessageType("error");
+    }
+
+    setPhotos((current) => [...current, ...nextPhotos]);
+    event.target.value = "";
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragActive(false);
     const files = event.dataTransfer.files;
     if (!files) return;
-    const fileNames = Array.from(files).map((file) => file.name);
-    setPhotos((current) => [...current, ...fileNames]);
+
+    const { nextPhotos, hasUnsupported, hasConversionFailure } = await buildSupportedPhotoItems(Array.from(files));
+
+    if (hasConversionFailure) {
+      setStatusMessage("Errore nella conversione HEIC/HEIF. Riprova con un file JPG, PNG o WEBP.");
+      setStatusMessageType("error");
+    } else if (hasUnsupported) {
+      setStatusMessage("Formato non supportato. Converti la foto in JPG, PNG o WEBP.");
+      setStatusMessageType("error");
+    }
+
+    setPhotos((current) => [...current, ...nextPhotos]);
   };
+
+  const handleMovePhoto = (photoId: string, direction: -1 | 1) => {
+    setPhotos((current) => {
+      const index = current.findIndex((photo) => photo.id === photoId);
+      if (index < 0) return current;
+
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) return current;
+
+      const nextPhotos = [...current];
+      const [movedPhoto] = nextPhotos.splice(index, 1);
+      nextPhotos.splice(nextIndex, 0, movedPhoto);
+      return nextPhotos;
+    });
+  };
+
+  const handleReorderPhoto = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setPhotos((current) => {
+      const sourceIndex = current.findIndex((photo) => photo.id === sourceId);
+      const targetIndex = current.findIndex((photo) => photo.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+
+      const nextPhotos = [...current];
+      const [movedPhoto] = nextPhotos.splice(sourceIndex, 1);
+      nextPhotos.splice(targetIndex, 0, movedPhoto);
+      return nextPhotos;
+    });
+    setPhotoDragId(null);
+  };
+
+  const handleRemovePhoto = async (photoId: string) => {
+    const photo = photos.find((item) => item.id === photoId);
+    if (!photo) return;
+
+    if (photo.kind === "existing" && vehicleId && photo.vehicleImageId) {
+      const { error: deleteImageRowError } = await supabase
+        .from("vehicle_images")
+        .delete()
+        .eq("id", photo.vehicleImageId)
+        .eq("vehicle_id", vehicleId);
+
+      if (deleteImageRowError) {
+        setStatusMessage(deleteImageRowError.message || "Impossibile rimuovere l'immagine dal database.");
+        setStatusMessageType("error");
+        return;
+      }
+    }
+
+    if (photo.kind === "existing" && photo.path) {
+      const { error } = await supabase.storage.from("vehicle-images").remove([photo.path]);
+      if (error) {
+        setStatusMessage(error.message || "Impossibile rimuovere l'immagine dallo storage.");
+        setStatusMessageType("error");
+        return;
+      }
+    }
+
+    setPhotos((current) => current.filter((item) => item.id !== photoId));
+  };
+
+  useEffect(() => {
+    return () => {
+      photos.forEach((photo) => {
+        if (photo.previewUrl) {
+          URL.revokeObjectURL(photo.previewUrl);
+        }
+      });
+    };
+  }, [photos]);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -119,19 +640,23 @@ export default function NewVehiclePage() {
             <h2 className="mt-4 text-2xl font-semibold text-slate-900">Concessionaria</h2>
           </div>
           <nav className="space-y-2">
-            {sidebarItems.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`w-full rounded-3xl px-4 py-3 text-left text-sm font-medium transition ${
-                  item === "Nuovo veicolo"
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/10"
-                    : "bg-slate-50 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
+            {sidebarItems.map((item) => {
+              const isActive = pathname === item.href || (item.href === "/veicoli/nuovo" && pathname.startsWith("/veicoli/nuovo"));
+
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`block rounded-3xl px-4 py-3 text-left text-sm font-medium transition ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-600/10"
+                      : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
           <div className="mt-10 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
             <p className="text-sm font-semibold text-slate-900">Riepilogo</p>
@@ -154,15 +679,37 @@ export default function NewVehiclePage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={isSaving}
+                  className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                   Salva bozza
                 </button>
-                <button className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700">
-                  Pubblica veicolo
+                <button
+                  type="button"
+                  onClick={handlePublishVehicle}
+                  disabled={isSaving}
+                  className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isEditMode ? "Aggiorna veicolo" : "Pubblica veicolo"}
                 </button>
               </div>
             </div>
           </header>
+
+          {statusMessage ? (
+            <div
+              className={`rounded-3xl border px-5 py-4 text-sm ${
+                statusMessageType === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-red-200 bg-red-50 text-red-800"
+              }`}
+            >
+              {statusMessage}
+            </div>
+          ) : null}
 
           <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
             <div className="space-y-6">
@@ -238,25 +785,37 @@ export default function NewVehiclePage() {
                     >
                       <p className="text-sm font-semibold uppercase tracking-[0.26em] text-slate-700">Drag & Drop</p>
                       <p className="mt-4 text-sm text-slate-600">Trascina qui le foto del veicolo oppure selezionale dal tuo dispositivo.</p>
-                      <p className="mt-2 text-xs text-slate-500">Minimo 8 foto consigliate per massimizzare l’impatto dell’annuncio.</p>
+                      <p className="mt-2 text-xs text-slate-500">Le immagini verranno caricate nel bucket vehicle-images e collegate al veicolo al salvataggio.</p>
                       <label className="mt-6 inline-flex cursor-pointer items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
                         Seleziona foto
                         <input
                           type="file"
-                          accept="image/*"
+                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                           multiple
                           onChange={handlePhotoUpload}
                           className="hidden"
                         />
                       </label>
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                       <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
                         <p className="text-sm font-semibold text-slate-900">Copertina</p>
-                        {photos.length > 0 ? (
+                        {coverPhoto ? (
                           <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="mb-3 h-40 rounded-3xl bg-slate-200" />
-                            <p className="text-sm font-semibold text-slate-900">{photos[0]}</p>
+                            <div className="mb-3 h-48 overflow-hidden rounded-3xl bg-slate-200">
+                              {coverPhoto.previewUrl || coverPhoto.publicUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={coverPhoto.publicUrl ?? coverPhoto.previewUrl}
+                                  alt="Preview copertina"
+                                  className="h-full w-full object-cover"
+                                  onError={handleImageLoadError}
+                                />
+                              ) : null}
+                            </div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {coverPhoto.file?.name ?? "Immagine caricata"}
+                            </p>
                             <p className="mt-1 text-xs text-slate-500">Questa foto sarà mostrata come immagine principale.</p>
                           </div>
                         ) : (
@@ -265,14 +824,65 @@ export default function NewVehiclePage() {
                       </div>
                       <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
                         <p className="text-sm font-semibold text-slate-900">Foto selezionate</p>
-                        {photos.length > 0 ? (
+                        {isLoadingVehicle ? (
+                          <p className="mt-4 text-sm text-slate-500">Caricamento immagini esistenti...</p>
+                        ) : photos.length > 0 ? (
                           <ul className="mt-4 space-y-3">
                             {photos.map((photo, index) => (
-                              <li key={`${photo}-${index}`} className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                <span>{photo}</span>
-                                <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-slate-500">
-                                  {index === 0 ? "Copertina" : `#${index + 1}`}
-                                </span>
+                              <li
+                                key={photo.id}
+                                draggable
+                                onDragStart={() => setPhotoDragId(photo.id)}
+                                onDragOver={(event) => event.preventDefault()}
+                                onDrop={() => handleReorderPhoto(photoDragId ?? photo.id, photo.id)}
+                                className="rounded-3xl border border-slate-200 bg-slate-50 p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
+                                      {(photo.previewUrl || photo.publicUrl) && (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={photo.publicUrl ?? photo.previewUrl}
+                                          alt={photo.file?.name ?? "Foto veicolo"}
+                                          className="h-full w-full object-cover"
+                                          onError={handleImageLoadError}
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-semibold text-slate-900">
+                                        {photo.file?.name ?? "Immagine esistente"}
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-500">
+                                        {index === 0 ? "Copertina" : `#${index + 1}`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMovePhoto(photo.id, -1)}
+                                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                                    >
+                                      Su
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMovePhoto(photo.id, 1)}
+                                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                                    >
+                                      Giù
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemovePhoto(photo.id)}
+                                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                                    >
+                                      Elimina
+                                    </button>
+                                  </div>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -418,6 +1028,27 @@ export default function NewVehiclePage() {
   );
 }
 
+function getStoragePathFromPublicUrl(url: string) {
+  try {
+    const parsedUrl = new URL(url);
+    const publicPrefix = "/storage/v1/object/public/vehicle-images/";
+    const signPrefix = "/storage/v1/object/sign/vehicle-images/";
+    const publicPath = parsedUrl.pathname.split(publicPrefix)[1];
+    if (publicPath) {
+      return decodeURIComponent(publicPath);
+    }
+
+    const signedPath = parsedUrl.pathname.split(signPrefix)[1];
+    if (signedPath) {
+      return decodeURIComponent(signedPath);
+    }
+
+    return "";
+  } catch {
+    return url.replace(/^\/+/, "").replace(/^vehicle-images\//, "");
+  }
+}
+
 function Field({
   label,
   value,
@@ -511,4 +1142,172 @@ function PreviewStat({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-base font-semibold text-slate-900">{value}</p>
     </div>
   );
+}
+
+async function buildSupportedPhotoItems(files: File[]) {
+  const nextPhotos: PhotoItem[] = [];
+  let hasUnsupported = false;
+  let hasConversionFailure = false;
+
+  for (const file of files) {
+    const normalized = await normalizeImageFileForUpload(file);
+    if (!normalized.file) {
+      hasUnsupported = true;
+      if (normalized.reason === "conversion-failed") {
+        hasConversionFailure = true;
+      }
+      continue;
+    }
+
+    nextPhotos.push({
+      id: `${normalized.file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: "new",
+      file: normalized.file,
+      previewUrl: URL.createObjectURL(normalized.file),
+      mimeType: normalized.file.type,
+    });
+  }
+
+  return { nextPhotos, hasUnsupported, hasConversionFailure };
+}
+
+async function normalizeImageFileForUpload(file: File) {
+  type NormalizeResult = {
+    file: File | null;
+    reason: "conversion-failed" | "unsupported" | null;
+  };
+
+  const mime = (file.type || "").toLowerCase();
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const isHeicOrHeif = mime === "image/heic" || mime === "image/heif" || extension === "heic" || extension === "heif";
+
+  if (isHeicOrHeif) {
+    try {
+      const heic2anyModule = await import("heic2any");
+      const heic2any = heic2anyModule.default;
+      const converted = await heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.9,
+      });
+
+      const convertedBlob = Array.isArray(converted) ? converted[0] : converted;
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const convertedFile = new File([convertedBlob as BlobPart], `${baseName}.jpg`, { type: "image/jpeg" });
+      const successResult: NormalizeResult = { file: convertedFile, reason: null };
+      return successResult;
+    } catch {
+      return { file: null, reason: "conversion-failed" as const };
+    }
+  }
+
+  if (!isSupportedImageFile(file)) {
+    return { file: null, reason: "unsupported" as const };
+  }
+
+  const passthroughResult: NormalizeResult = { file, reason: null };
+  return passthroughResult;
+}
+
+function isSupportedImageFile(file: File) {
+  if (SUPPORTED_IMAGE_MIME_TYPES.has(file.type.toLowerCase())) {
+    return true;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return SUPPORTED_IMAGE_EXTENSIONS.has(extension);
+}
+
+function isSupportedImageReference(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const directExt = trimmed.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase() ?? "";
+  if (SUPPORTED_IMAGE_EXTENSIONS.has(directExt)) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const ext = parsed.pathname.split(".").pop()?.toLowerCase() ?? "";
+    return SUPPORTED_IMAGE_EXTENSIONS.has(ext);
+  } catch {
+    return false;
+  }
+}
+
+function getFirstValidPhoto(photos: PhotoItem[]) {
+  return photos.find((photo) => {
+    const src = photo.publicUrl ?? photo.previewUrl ?? "";
+    return src.length > 0 && isSupportedImageReference(src);
+  }) ?? null;
+}
+
+function getPublicUrlFromImageRow({
+  publicUrl,
+  imageUrl,
+  storagePath,
+}: {
+  publicUrl: string | null;
+  imageUrl: string | null;
+  storagePath: string | null;
+}) {
+  if (publicUrl && publicUrl.length > 0) {
+    return publicUrl;
+  }
+
+  if (storagePath && storagePath.length > 0) {
+    const { data } = supabase.storage.from("vehicle-images").getPublicUrl(storagePath);
+    if (data.publicUrl) {
+      return data.publicUrl;
+    }
+  }
+
+  return imageUrl && imageUrl.length > 0 ? imageUrl : null;
+}
+
+function inferMimeTypeFromUrl(url: string) {
+  const ext = url.split("?")[0].split("#")[0].split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  return "image/jpeg";
+}
+
+function handleImageLoadError(event: React.SyntheticEvent<HTMLImageElement>) {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied === "true") {
+    return;
+  }
+
+  image.dataset.fallbackApplied = "true";
+  image.src = getImageFallbackDataUri();
+}
+
+function getImageFallbackDataUri() {
+  return "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#e2e8f0"/><path d="M29 44a13 13 0 0 0-13 13v20a13 13 0 0 0 13 13h8.5a10.5 10.5 0 1 0 21 0h4a10.5 10.5 0 1 0 21 0H91a13 13 0 0 0 13-13V57a13 13 0 0 0-13-13h-9.8a4 4 0 0 1-3.3-1.8l-2.6-4A8 8 0 0 0 68.9 34H48.4a8 8 0 0 0-6.6 3.5l-2.6 4A4 4 0 0 1 35.9 44H29Zm16 38a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm28 0a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" fill="#64748b"/></svg>');
+}
+
+function formatSaveVehicleError(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeError = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof maybeError.message === "string" ? maybeError.message : null,
+      typeof maybeError.details === "string" ? `details: ${maybeError.details}` : null,
+      typeof maybeError.hint === "string" ? `hint: ${maybeError.hint}` : null,
+      typeof maybeError.code === "string" ? `code: ${maybeError.code}` : null,
+    ].filter((part): part is string => Boolean(part));
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+  }
+
+  return "Errore durante il salvataggio del veicolo.";
 }

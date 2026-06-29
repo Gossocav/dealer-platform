@@ -3,136 +3,167 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type Lead = {
-  id: string;
-  customer_name: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
-  vehicle_id: string | null;
-  source: string | null;
-  status: string | null;
-  created_at: string | null;
+type LeadStatus = "nuovo" | "contattato" | "trattativa" | "venduto" | "perso";
+
+type DealerProfile = {
+  dealer_id: string | null;
 };
 
-const FILTERS = [
-  { key: "all", label: "Tutti" },
-  { key: "new", label: "Nuovi" },
-  { key: "contacted", label: "Contattati" },
-  { key: "appointment", label: "Appuntamento" },
-  { key: "negotiation", label: "Trattativa" },
-  { key: "sold", label: "Venduto" },
-  { key: "lost", label: "Perso" },
-] as const;
+type LeadRow = {
+  id: string;
+  vehicle_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  message: string | null;
+  status: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  vehicle: {
+    id: string;
+    brand: string | null;
+    model: string | null;
+    version: string | null;
+    year: string | null;
+    dealer_id: string | null;
+  } | null;
+};
 
-type FilterKey = (typeof FILTERS)[number]["key"];
+type LeadRowRaw = Omit<LeadRow, "vehicle"> & {
+  vehicle: Array<{
+    id: string;
+    brand: string | null;
+    model: string | null;
+    version: string | null;
+    year: string | null;
+    dealer_id: string | null;
+  }> | null;
+};
+
+const STATUS_OPTIONS: LeadStatus[] = ["nuovo", "contattato", "trattativa", "venduto", "perso"];
+
+const STATUS_LABELS: Record<LeadStatus, string> = {
+  nuovo: "Nuovo",
+  contattato: "Contattato",
+  trattativa: "Trattativa",
+  venduto: "Venduto",
+  perso: "Perso",
+};
+
+const STATUS_STYLES: Record<LeadStatus, string> = {
+  nuovo: "bg-blue-100 text-blue-700",
+  contattato: "bg-sky-100 text-sky-700",
+  trattativa: "bg-amber-100 text-amber-700",
+  venduto: "bg-emerald-100 text-emerald-700",
+  perso: "bg-rose-100 text-rose-700",
+};
 
 export default function LeadPage() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [statusMessageType, setStatusMessageType] = useState<"success" | "error" | null>(null);
-
-  const fetchLeads = async () => {
-    setLoading(true);
-    setStatusMessage(null);
-
-    const { data, error } = await supabase
-      .from("leads")
-      .select("id, customer_name, customer_email, customer_phone, vehicle_id, source, status, created_at")
-      .order("created_at", { ascending: false });
-
-    setLoading(false);
-
-    if (error) {
-      setStatusMessage(error.message || "Errore nel recupero dei lead.");
-      setStatusMessageType("error");
-      return;
-    }
-
-    if (data) {
-      setLeads(data as Lead[]);
-    }
-  };
+  const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<"all" | LeadStatus>("all");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const loadLeads = async () => {
-      await fetchLeads();
+      setLoading(true);
+      setErrorMessage(null);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!mounted) return;
+
+      if (userError || !user) {
+        setLoading(false);
+        setErrorMessage(userError?.message || "Utente non autenticato.");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("dealer_id")
+        .eq("id", user.id)
+        .maybeSingle<DealerProfile>();
+
+      if (!mounted) return;
+
+      if (profileError) {
+        setLoading(false);
+        setErrorMessage(profileError.message || "Errore nel recupero del dealer.");
+        return;
+      }
+
+      if (!profile?.dealer_id) {
+        setLoading(false);
+        setErrorMessage("Dealer non associato al profilo utente.");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("leads")
+        .select(
+          "id, vehicle_id, first_name, last_name, email, phone, message, status, created_at, updated_at, vehicle:vehicles!inner(id, brand, model, version, year, dealer_id)"
+        )
+        .eq("vehicle.dealer_id", profile.dealer_id)
+        .order("created_at", { ascending: false });
+
+      if (!mounted) return;
+
+      setLoading(false);
+
+      if (error) {
+        setErrorMessage(error.message || "Errore nel recupero dei lead.");
+        return;
+      }
+
+      const normalized = ((data ?? []) as LeadRowRaw[]).map((row) => ({
+        ...row,
+        vehicle: Array.isArray(row.vehicle) ? row.vehicle[0] ?? null : null,
+        status: normalizeStatus(row.status),
+      }));
+
+      setLeads(normalized);
     };
 
-    loadLeads();
+    void loadLeads();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const handleDelete = async (id: string) => {
-    const confirmed = window.confirm("Sei sicuro di voler eliminare questo lead?");
-    if (!confirmed) return;
+  const filteredLeads = useMemo(() => {
+    if (filterStatus === "all") return leads;
+    return leads.filter((lead) => normalizeStatus(lead.status) === filterStatus);
+  }, [filterStatus, leads]);
 
-    setLoading(true);
-    setStatusMessage(null);
+  const handleStatusChange = async (leadId: string, nextStatus: LeadStatus) => {
+    setUpdatingLeadId(leadId);
+    setErrorMessage(null);
+    setSuccessMessage(null);
 
-    const { error } = await supabase.from("leads").delete().eq("id", id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq("id", leadId);
 
-    setLoading(false);
+    setUpdatingLeadId(null);
 
     if (error) {
-      setStatusMessage(error.message || "Errore durante l'eliminazione del lead.");
-      setStatusMessageType("error");
+      setErrorMessage(error.message || "Errore durante l'aggiornamento dello stato.");
       return;
     }
 
-    setLeads((current) => current.filter((lead) => lead.id !== id));
-    setStatusMessage("Lead eliminato correttamente.");
-    setStatusMessageType("success");
-  };
-
-  const normalizedSearch = search.trim().toLowerCase();
-  const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
-
-  const statusMatchesFilter = (status: string | null, filterKey: FilterKey) => {
-    const normalizedStatus = status?.toLowerCase() ?? "";
-
-    if (filterKey === "all") return true;
-    if (filterKey === "new") return normalizedStatus.includes("nuov") || normalizedStatus.includes("new");
-    if (filterKey === "contacted") return normalizedStatus.includes("contatt") || normalizedStatus.includes("contact");
-    if (filterKey === "appointment") return normalizedStatus.includes("appunt");
-    if (filterKey === "negotiation") return normalizedStatus.includes("tratt");
-    if (filterKey === "sold") return normalizedStatus.includes("vend");
-    if (filterKey === "lost") return normalizedStatus.includes("pers");
-    return true;
-  };
-
-  const filteredLeads = useMemo(() => {
-    return leads.filter((lead) => {
-      const matchesFilter = statusMatchesFilter(lead.status, filter);
-      if (!matchesFilter) return false;
-
-      if (!normalizedSearch) return true;
-
-      const searchable = [
-        lead.customer_name,
-        lead.customer_email,
-        lead.customer_phone,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return searchTerms.every((term) => searchable.includes(term));
-    });
-  }, [leads, normalizedSearch, searchTerms, filter]);
-
-  const formatDate = (timestamp: string | null) => {
-    if (!timestamp) return "-";
-    try {
-      return new Intl.DateTimeFormat("it-IT", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(new Date(timestamp));
-    } catch {
-      return timestamp;
-    }
+    setLeads((current) => current.map((lead) => (lead.id === leadId ? { ...lead, status: nextStatus } : lead)));
+    setSuccessMessage("Stato lead aggiornato correttamente.");
   };
 
   return (
@@ -142,138 +173,106 @@ export default function LeadPage() {
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.35em] text-blue-600">Lead</p>
-              <h1 className="mt-3 text-3xl font-semibold text-slate-900">Gestione Lead</h1>
+              <h1 className="mt-3 text-3xl font-semibold text-slate-900">Gestione richieste concessionario</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Monitora e gestisci tutte le richieste dei clienti in un unico pannello.
+                Visualizza tutte le richieste ricevute dai veicoli della tua concessionaria e aggiorna lo stato commerciale.
               </p>
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-            >
-              Nuovo Lead
-            </button>
           </div>
         </div>
 
-        {statusMessage ? (
-          <div
-            className={`mb-6 rounded-3xl border px-5 py-4 text-sm ${
-              statusMessageType === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-red-200 bg-red-50 text-red-800"
-            }`}
-          >
-            {statusMessage}
-          </div>
-        ) : null}
+        {errorMessage ? <Banner tone="error" text={errorMessage} /> : null}
+        {successMessage ? <Banner tone="success" text={successMessage} /> : null}
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto]">
-          <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-sm">
-            <label className="block text-sm font-medium text-slate-700">Ricerca</label>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Cerca per nome, cognome, telefono o email"
-              className="mt-3 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+        <div className="mb-6 rounded-[32px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-700">Filtro stato</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <FilterButton
+              active={filterStatus === "all"}
+              label="Tutti"
+              onClick={() => setFilterStatus("all")}
             />
-          </div>
-          <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-700">Filtri</p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              {FILTERS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setFilter(item.key)}
-                  className={`rounded-3xl px-5 py-3 text-sm font-semibold transition ${
-                    filter === item.key
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            {STATUS_OPTIONS.map((status) => (
+              <FilterButton
+                key={status}
+                active={filterStatus === status}
+                label={STATUS_LABELS[status]}
+                onClick={() => setFilterStatus(status)}
+              />
+            ))}
           </div>
         </div>
 
         <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-500">Elenco lead</p>
-              <p className="mt-2 text-sm text-slate-600">
-                {filteredLeads.length} lead trovato{filteredLeads.length === 1 ? "" : "i"}.
-              </p>
-            </div>
-            <div className="rounded-3xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Stato: {FILTERS.find((item) => item.key === filter)?.label}
-            </div>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-slate-600">
+              {filteredLeads.length} lead trovato{filteredLeads.length === 1 ? "" : "i"}, ordinati dal piu recente al piu vecchio.
+            </p>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-y-3 text-left text-sm">
               <thead>
                 <tr>
+                  <th className="px-4 py-3 text-slate-500">Data richiesta</th>
                   <th className="px-4 py-3 text-slate-500">Nome</th>
-                  <th className="px-4 py-3 text-slate-500">Telefono</th>
+                  <th className="px-4 py-3 text-slate-500">Cognome</th>
                   <th className="px-4 py-3 text-slate-500">Email</th>
-                  <th className="px-4 py-3 text-slate-500">Veicolo</th>
-                  <th className="px-4 py-3 text-slate-500">Provenienza</th>
-                  <th className="px-4 py-3 text-slate-500">Stato</th>
-                  <th className="px-4 py-3 text-slate-500">Data</th>
-                  <th className="px-4 py-3 text-slate-500">Azioni</th>
+                  <th className="px-4 py-3 text-slate-500">Telefono</th>
+                  <th className="px-4 py-3 text-slate-500">Messaggio</th>
+                  <th className="px-4 py-3 text-slate-500">Veicolo richiesto</th>
+                  <th className="px-4 py-3 text-slate-500">Stato lead</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                      Caricamento in corso...
+                      Caricamento lead...
                     </td>
                   </tr>
                 ) : filteredLeads.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                      Nessun lead corrispondente.
+                      Nessun lead disponibile con il filtro selezionato.
                     </td>
                   </tr>
                 ) : (
-                  filteredLeads.map((lead) => (
-                    <tr key={lead.id} className="rounded-[28px] border border-slate-200 bg-slate-50">
-                      <td className="px-4 py-4 font-semibold text-slate-900">{lead.customer_name ?? "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{lead.customer_phone ?? "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{lead.customer_email ?? "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{lead.vehicle_id ?? "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{lead.source ?? "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{lead.status ?? "-"}</td>
-                      <td className="px-4 py-4 text-slate-700">{formatDate(lead.created_at)}</td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="rounded-3xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                          >
-                            Visualizza
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-3xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-                          >
-                            Modifica
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(lead.id)}
-                            className="rounded-3xl bg-red-100 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-200"
-                          >
-                            Elimina
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  filteredLeads.map((lead) => {
+                    const normalizedStatus = normalizeStatus(lead.status);
+                    return (
+                      <tr key={lead.id} className="rounded-[28px] border border-slate-200 bg-slate-50">
+                        <td className="px-4 py-4 text-slate-700">{formatDate(lead.created_at)}</td>
+                        <td className="px-4 py-4 text-slate-700">{lead.first_name || "-"}</td>
+                        <td className="px-4 py-4 text-slate-700">{lead.last_name || "-"}</td>
+                        <td className="px-4 py-4 text-slate-700">{lead.email || "-"}</td>
+                        <td className="px-4 py-4 text-slate-700">{lead.phone || "-"}</td>
+                        <td className="px-4 py-4 text-slate-700">{lead.message?.trim() || "-"}</td>
+                        <td className="px-4 py-4 text-slate-700">{formatVehicleLabel(lead.vehicle)}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_STYLES[normalizedStatus]}`}
+                            >
+                              {STATUS_LABELS[normalizedStatus]}
+                            </span>
+                            <select
+                              value={normalizedStatus}
+                              onChange={(event) => void handleStatusChange(lead.id, event.target.value as LeadStatus)}
+                              disabled={updatingLeadId === lead.id}
+                              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                            >
+                              {STATUS_OPTIONS.map((status) => (
+                                <option key={status} value={status}>
+                                  {STATUS_LABELS[status]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -281,5 +280,75 @@ export default function LeadPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function normalizeStatus(value: string | null): LeadStatus {
+  switch ((value || "").toLowerCase()) {
+    case "contattato":
+    case "contacted":
+      return "contattato";
+    case "trattativa":
+    case "negotiation":
+    case "appointment":
+      return "trattativa";
+    case "venduto":
+    case "won":
+      return "venduto";
+    case "perso":
+    case "lost":
+      return "perso";
+    case "nuovo":
+    case "created":
+    default:
+      return "nuovo";
+  }
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "-";
+  try {
+    return new Intl.DateTimeFormat("it-IT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function formatVehicleLabel(vehicle: LeadRow["vehicle"]) {
+  if (!vehicle) return "-";
+  return [vehicle.brand, vehicle.model, vehicle.version, vehicle.year].filter(Boolean).join(" ") || vehicle.id;
+}
+
+function Banner({ tone, text }: { tone: "error" | "success"; text: string }) {
+  return (
+    <div
+      className={`mb-6 rounded-3xl border px-5 py-4 text-sm ${
+        tone === "success"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-red-200 bg-red-50 text-red-800"
+      }`}
+    >
+      {text}
+    </div>
+  );
+}
+
+function FilterButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-3xl px-5 py-3 text-sm font-semibold transition ${
+        active ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
