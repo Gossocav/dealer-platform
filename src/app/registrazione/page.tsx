@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type FormState = {
@@ -18,6 +19,7 @@ type FormState = {
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
 export default function RegistrazionePage() {
+  const router = useRouter();
   const [values, setValues] = useState<FormState>({
     dealerName: "",
     companyName: "",
@@ -122,20 +124,58 @@ export default function RegistrazionePage() {
       return;
     }
 
-    setSuccessMessage("Account creato con successo. Controlla la tua email per confermare.");
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (loginError) {
+      setSuccessMessage("Account creato con successo. Effettua il login per completare la configurazione.");
+      setServerMessage("");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      setServerMessage(sessionError?.message || "Sessione non valida dopo la registrazione.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const ensureResponse = await fetch("/api/dealer/ensure", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        company_name: values.dealerName,
+        legal_company_name: values.companyName,
+        vat_number: values.vatNumber,
+        tax_code: values.taxCode,
+        contact_person: values.contactName,
+        email,
+        phone: values.phone,
+      }),
+    });
+
+    if (!ensureResponse.ok) {
+      const payload = (await ensureResponse.json().catch(() => ({}))) as { error?: string };
+      setServerMessage(payload.error || "Registrazione completata ma associazione concessionaria non riuscita.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    setSuccessMessage("Account creato con successo. Reindirizzamento alla dashboard...");
     setServerMessage("");
     setIsSubmitting(false);
-    setValues({
-      dealerName: "",
-      companyName: "",
-      vatNumber: "",
-      taxCode: "",
-      contactName: "",
-      email: "",
-      phone: "",
-      password: "",
-      confirmPassword: "",
-    });
+    router.replace("/dashboard");
+    router.refresh();
   };
 
   return (

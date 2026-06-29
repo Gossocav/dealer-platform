@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { resolveDealerIdForUser } from "@/lib/dealer-association";
 import { supabase } from "@/lib/supabaseClient";
 
 type NotificationItem = {
@@ -34,15 +35,10 @@ export function NotificationBell() {
 
       setUserId(user.id);
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("dealer_id")
-        .eq("id", user.id)
-        .maybeSingle<{ dealer_id: string | null }>();
+      const currentDealerId = await resolveDealerIdForUser(user.id);
 
       if (!mounted) return;
 
-      const currentDealerId = profile?.dealer_id ?? null;
       setDealerId(currentDealerId);
 
       if (!currentDealerId) return;

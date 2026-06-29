@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { resolveDealerIdForUser } from "@/lib/dealer-association";
 import { supabase } from "@/lib/supabaseClient";
 
 type DealerProfile = {
@@ -19,6 +20,7 @@ type DealerProfile = {
   description: string | null;
   opening_hours: string | null;
   social_links: string | null;
+  user_id?: string | null;
 };
 
 type ProfileFormState = {
@@ -92,25 +94,22 @@ export default function ProfiloPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("dealer_id")
-        .eq("id", user.id)
-        .maybeSingle<{ dealer_id: string | null }>();
-
-      if (!mounted) return;
-
-      if (profileError) {
+      let currentDealerId: string | null = null;
+      try {
+        currentDealerId = await resolveDealerIdForUser(user.id);
+      } catch (error) {
+        if (!mounted) return;
         setLoading(false);
-        setStatusMessage(profileError.message || "Errore nel recupero profilo utente.");
+        setStatusMessage(error instanceof Error ? error.message : "Errore nel recupero profilo utente.");
         setStatusType("error");
         return;
       }
 
-      const currentDealerId = profile?.dealer_id ?? null;
+      if (!mounted) return;
+
       if (!currentDealerId) {
         setLoading(false);
-        setStatusMessage("Concessionaria non associata all'account.");
+        setStatusMessage("Nessuna concessionaria associata all'account.");
         setStatusType("error");
         return;
       }
