@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CarFront, Plus } from "lucide-react";
+import { CarFront, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { VehiclesCardGrid } from "@/components/vehicles/vehicles-card-grid";
@@ -405,12 +405,20 @@ export function VehiclesManagementPage() {
             </p>
           </div>
 
-          <Link
-            href="/veicoli/nuovo"
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            <Plus className="h-4 w-4" /> Nuovo Veicolo
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/veicoli/importa"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <Upload className="h-4 w-4" /> Importa veicoli
+            </Link>
+            <Link
+              href="/veicoli/nuovo"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" /> Nuovo Veicolo
+            </Link>
+          </div>
         </div>
       </section>
 
