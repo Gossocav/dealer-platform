@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatMileage, formatPrice, formatText, normalizeVehicleDealerName, publicSupabase, resolveDealerLogo, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerLogo, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +7,7 @@ export default async function MarketplaceCatalogPage() {
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
-    .eq("status", "published")
+    .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
   if (error) {

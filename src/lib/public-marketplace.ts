@@ -15,6 +15,30 @@ export const publicSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+const MARKETPLACE_PUBLISHABLE_STATUSES = new Set([
+  "published",
+  "pubblicato",
+  "active",
+  "attivo",
+]);
+
+export function getMarketplaceStatusFilter() {
+  return "status.is.null,status.eq.published,status.eq.pubblicato,status.eq.active,status.eq.attivo";
+}
+
+export function isMarketplacePublishableStatus(status: string | null | undefined) {
+  const normalized = String(status ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  if (normalized === "draft" || normalized === "bozza") {
+    return false;
+  }
+
+  return MARKETPLACE_PUBLISHABLE_STATUSES.has(normalized);
+}
+
 export type MarketplaceVehicleImage = {
   image_url: string | null;
   position: number | null;
