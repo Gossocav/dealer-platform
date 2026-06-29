@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 export type VehicleImportField =
+  | "vin"
   | "brand"
   | "model"
   | "version"
@@ -11,7 +12,8 @@ export type VehicleImportField =
   | "transmission"
   | "color"
   | "description"
-  | "status";
+  | "status"
+  | "images";
 
 export type VehicleImportStatus = "draft" | "published";
 
@@ -25,6 +27,7 @@ export type VehicleImportRawRow = {
 export type VehicleImportMappedRow = Record<VehicleImportField, string>;
 
 const FIELDS: VehicleImportField[] = [
+  "vin",
   "brand",
   "model",
   "version",
@@ -36,9 +39,11 @@ const FIELDS: VehicleImportField[] = [
   "color",
   "description",
   "status",
+  "images",
 ];
 
 const ALIASES: Record<VehicleImportField, string[]> = {
+  vin: ["vin", "telaio", "numero telaio", "chassis", "numero di telaio"],
   brand: ["brand", "marca", "costruttore", "manufacturer", "make"],
   model: ["model", "modello"],
   version: ["version", "versione", "allestimento"],
@@ -50,6 +55,17 @@ const ALIASES: Record<VehicleImportField, string[]> = {
   color: ["color", "colore", "col esterno", "col. esterno"],
   description: ["description", "descrizione", "note"],
   status: ["status", "stato"],
+  images: [
+    "photo",
+    "photos",
+    "image",
+    "images",
+    "image_url",
+    "image_urls",
+    "foto",
+    "url foto",
+    "url immagini",
+  ],
 };
 
 function normalizeKey(value: string) {
@@ -80,6 +96,7 @@ export function getVehicleImportFields() {
 
 export function getVehicleImportFieldLabel(field: VehicleImportField) {
   const labels: Record<VehicleImportField, string> = {
+    vin: "VIN",
     brand: "Marca",
     model: "Modello",
     version: "Versione",
@@ -91,6 +108,7 @@ export function getVehicleImportFieldLabel(field: VehicleImportField) {
     color: "Colore",
     description: "Descrizione",
     status: "Stato",
+    images: "Immagini",
   };
 
   return labels[field];
@@ -98,6 +116,7 @@ export function getVehicleImportFieldLabel(field: VehicleImportField) {
 
 export function createEmptyVehicleImportMapping(): VehicleImportColumnMapping {
   return {
+    vin: null,
     brand: null,
     model: null,
     version: null,
@@ -109,6 +128,7 @@ export function createEmptyVehicleImportMapping(): VehicleImportColumnMapping {
     color: null,
     description: null,
     status: null,
+    images: null,
   };
 }
 
@@ -263,6 +283,37 @@ export function validateVehicleImportRow(mappedRow: VehicleImportMappedRow) {
   return errors;
 }
 
+export function extractVehicleImageUrls(values: Record<string, string>) {
+  const imageAliases = ALIASES.images.map(normalizeKey);
+  const collected: string[] = [];
+
+  for (const [key, value] of Object.entries(values)) {
+    const normalizedKey = normalizeKey(key);
+    if (!imageAliases.some((alias) => normalizedKey === alias || normalizedKey.includes(alias) || alias.includes(normalizedKey))) {
+      continue;
+    }
+
+    const raw = String(value ?? "").trim();
+    if (!raw) {
+      continue;
+    }
+
+    const chunks = raw
+      .split(/\r?\n|,|;|\|/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    for (const chunk of chunks) {
+      const normalizedUrl = chunk.replace(/^"|"$/g, "").trim();
+      if (/^https?:\/\//i.test(normalizedUrl)) {
+        collected.push(normalizedUrl);
+      }
+    }
+  }
+
+  return Array.from(new Set(collected));
+}
+
 function parseOptionalNumber(value: string) {
   const text = String(value ?? "").trim();
   if (!text) {
@@ -300,6 +351,7 @@ export function buildVehicleInsertPayload(mappedRow: VehicleImportMappedRow, def
   const status = normalizeStatus(mappedRow.status, defaultStatus);
 
   return {
+    vin: mappedRow.vin.trim() || null,
     brand: mappedRow.brand.trim(),
     model: mappedRow.model.trim(),
     version: mappedRow.version.trim() || null,
