@@ -39,15 +39,15 @@ const FIELDS: VehicleImportField[] = [
 ];
 
 const ALIASES: Record<VehicleImportField, string[]> = {
-  brand: ["brand", "marca"],
+  brand: ["brand", "marca", "costruttore", "manufacturer", "make"],
   model: ["model", "modello"],
   version: ["version", "versione", "allestimento"],
-  year: ["year", "anno"],
-  price: ["price", "prezzo"],
-  mileage: ["mileage", "chilometri", "chilometro", "km", "percorrenza"],
+  year: ["year", "anno", "immatricolazione"],
+  price: ["price", "prezzo", "listino"],
+  mileage: ["mileage", "chilometri", "chilometro", "kilometri", "kilometers", "km", "percorrenza"],
   fuel: ["fuel", "alimentazione", "carburante"],
   transmission: ["transmission", "cambio"],
-  color: ["color", "colore"],
+  color: ["color", "colore", "col esterno", "col. esterno"],
   description: ["description", "descrizione", "note"],
   status: ["status", "stato"],
 };
@@ -115,18 +115,47 @@ export function createEmptyVehicleImportMapping(): VehicleImportColumnMapping {
 export function buildInitialVehicleImportMapping(headers: string[]): VehicleImportColumnMapping {
   const mapping = createEmptyVehicleImportMapping();
   const usedHeaders = new Set<string>();
-  const headerByNormalized = new Map(headers.map((header) => [normalizeKey(header), header]));
+  const normalizedHeaders = headers
+    .map((header) => ({
+      original: header,
+      normalized: normalizeKey(header),
+    }))
+    .filter((entry) => entry.normalized.length > 0);
+
+  const matchHeaderForAliases = (aliases: string[]) => {
+    const normalizedAliases = aliases.map(normalizeKey).filter((alias) => alias.length > 0);
+
+    for (const alias of normalizedAliases) {
+      const exactMatch = normalizedHeaders.find((entry) => entry.normalized === alias && !usedHeaders.has(entry.original));
+      if (exactMatch) {
+        return exactMatch.original;
+      }
+    }
+
+    for (const alias of normalizedAliases) {
+      if (alias.length < 2) {
+        continue;
+      }
+
+      const fuzzyMatch = normalizedHeaders.find(
+        (entry) =>
+          !usedHeaders.has(entry.original) &&
+          (entry.normalized.includes(alias) || alias.includes(entry.normalized)),
+      );
+
+      if (fuzzyMatch) {
+        return fuzzyMatch.original;
+      }
+    }
+
+    return null;
+  };
 
   for (const field of FIELDS) {
-    const aliases = ALIASES[field].map(normalizeKey);
-
-    for (const alias of aliases) {
-      const header = headerByNormalized.get(alias);
-      if (header && !usedHeaders.has(header)) {
-        mapping[field] = header;
-        usedHeaders.add(header);
-        break;
-      }
+    const header = matchHeaderForAliases(ALIASES[field]);
+    if (header) {
+      mapping[field] = header;
+      usedHeaders.add(header);
     }
   }
 
