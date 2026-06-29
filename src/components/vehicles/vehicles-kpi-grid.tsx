@@ -1,5 +1,5 @@
 import { CarFront, FileText, Target, Users } from "lucide-react";
-import type { VehicleKpi } from "@/lib/mock/vehicles";
+import type { VehicleKpi } from "@/lib/vehicles";
 
 type VehiclesKpiGridProps = {
   items: VehicleKpi[];

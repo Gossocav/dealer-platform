@@ -2,46 +2,406 @@
 
 import Link from "next/link";
 import { CarFront, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { VehiclesCardGrid } from "@/components/vehicles/vehicles-card-grid";
 import { VehiclesKpiGrid } from "@/components/vehicles/vehicles-kpi-grid";
+import { VehiclesPagination } from "@/components/vehicles/vehicles-pagination";
 import { VehiclesTable } from "@/components/vehicles/vehicles-table";
 import { VehiclesToolbar } from "@/components/vehicles/vehicles-toolbar";
+import { supabase } from "@/lib/supabaseClient";
 import {
+  applyPriceBandFilters,
   defaultVehicleFilters,
-  filterVehicles,
+  extractVehicleImagePath,
+  formatCurrency,
+  formatVehicleStatus,
+  normalizeVehicleStatus,
   priceBandOptions,
+  safeText,
   statusOptions,
-  vehicleKpis,
-  vehicleOptionSets,
-  vehiclesInventoryMock,
-} from "@/lib/mock/vehicles";
+  type VehicleFilters,
+  type VehicleKpi,
+  type VehicleListItem,
+  type VehicleRow,
+  type VehicleSortState,
+  resolveCoverImage,
+} from "@/lib/vehicles";
 
 type ViewMode = "card" | "table";
 
-export function VehiclesManagementPage() {
-  const [filters, setFilters] = useState(defaultVehicleFilters);
-  const [viewMode, setViewMode] = useState<ViewMode>("card");
+type SelectOptions = {
+  brands: string[];
+  models: string[];
+  fuelTypes: string[];
+  transmissionTypes: string[];
+};
 
-  const optionSets = useMemo(() => vehicleOptionSets(vehiclesInventoryMock), []);
-  const filteredVehicles = useMemo(() => filterVehicles(vehiclesInventoryMock, filters), [filters]);
-  const kpis = useMemo(() => vehicleKpis(vehiclesInventoryMock), []);
+const PAGE_SIZE = 9;
+
+export function VehiclesManagementPage() {
+  const [filters, setFilters] = useState<VehicleFilters>(defaultVehicleFilters);
+  const [viewMode, setViewMode] = useState<ViewMode>("card");
+  const [sort, setSort] = useState<VehicleSortState>({ field: "created_at", direction: "desc" });
+  const [page, setPage] = useState(1);
+
+  const [items, setItems] = useState<VehicleListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [kpis, setKpis] = useState<VehicleKpi[]>([]);
+  const [options, setOptions] = useState<SelectOptions>({ brands: [], models: [], fuelTypes: [], transmissionTypes: [] });
+
+  const [dealerName, setDealerName] = useState("Dealer Console");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busyVehicleId, setBusyVehicleId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshData = useCallback(() => {
+    setRefreshKey((prev) => prev + 1);
+  }, []);
+
+  const updateFilters = useCallback((next: VehicleFilters) => {
+    setFilters(next);
+    setPage(1);
+  }, []);
+
+  const handleSortChange = useCallback((field: VehicleSortState["field"]) => {
+    setSort((prev) => {
+      if (prev.field === field) {
+        return { field, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      return { field, direction: "asc" };
+    });
+    setPage(1);
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setFilters(defaultVehicleFilters);
+    setPage(1);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
+    const fetchDealerName = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
+
+      if (!userId) {
+        return;
+      }
+
+      const { data, error: dealersError } = await supabase
+        .from("dealers")
+        .select("name, legal_name")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle<{ name: string | null; legal_name: string | null }>();
+
+      if (dealersError || !alive) {
+        return;
+      }
+
+      const resolved = String(data?.name ?? data?.legal_name ?? "").trim();
+      if (resolved) {
+        setDealerName(resolved);
+      }
+    };
+
+    void fetchDealerName();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
+    const timeoutId = setTimeout(() => {
+      void fetchVehicles();
+    }, 250);
+
+    async function fetchVehicles() {
+      setLoading(true);
+      setError(null);
+
+      const { minPrice, maxPrice } = applyPriceBandFilters({ minPrice: null, maxPrice: null }, filters.priceBand);
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let query = supabase
+        .from("vehicles")
+        .select(
+          "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
+          { count: "exact" }
+        )
+        .range(from, to)
+        .order(sort.field, { ascending: sort.direction === "asc" });
+
+      if (filters.query.trim().length > 0) {
+        const q = filters.query.trim();
+        query = query.or(`brand.ilike.%${q}%,model.ilike.%${q}%,version.ilike.%${q}%`);
+      }
+
+      if (filters.brand !== "all") query = query.eq("brand", filters.brand);
+      if (filters.model !== "all") query = query.eq("model", filters.model);
+      if (filters.fuel !== "all") query = query.eq("fuel", filters.fuel);
+      if (filters.transmission !== "all") query = query.eq("transmission", filters.transmission);
+
+      if (filters.status === "published") {
+        query = query.or("status.eq.published,published.eq.true");
+      } else if (filters.status === "draft") {
+        query = query.or("status.eq.draft,published.eq.false,status.is.null");
+      } else if (filters.status !== "all") {
+        query = query.eq("status", filters.status);
+      }
+
+      if (typeof minPrice === "number") query = query.gte("price", minPrice);
+      if (typeof maxPrice === "number") query = query.lte("price", maxPrice);
+
+      const { data, error: vehiclesError, count } = await query;
+
+      if (vehiclesError) {
+        if (alive) {
+          setError(vehiclesError.message || "Errore nel caricamento veicoli.");
+          setItems([]);
+          setTotalCount(0);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const rows = (data ?? []) as VehicleRow[];
+      const ids = rows.map((row) => row.id);
+
+      let leadsMap = new Map<string, number>();
+      if (ids.length > 0) {
+        const { data: leadsRows } = await supabase.from("leads").select("vehicle_id").in("vehicle_id", ids);
+        leadsMap = new Map<string, number>();
+        for (const row of leadsRows ?? []) {
+          const vehicleId = String((row as { vehicle_id?: string | null }).vehicle_id ?? "").trim();
+          if (!vehicleId) continue;
+          leadsMap.set(vehicleId, (leadsMap.get(vehicleId) ?? 0) + 1);
+        }
+      }
+
+      const imageMap = new Map<string, string | null>();
+      await Promise.all(
+        rows.map(async (row) => {
+          const cover = resolveCoverImage(row.vehicle_images);
+          if (!cover) {
+            imageMap.set(row.id, null);
+            return;
+          }
+
+          const path = extractVehicleImagePath(cover);
+          if (!path) {
+            imageMap.set(row.id, cover);
+            return;
+          }
+
+          const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
+          if (!signedError && signed?.signedUrl) {
+            imageMap.set(row.id, signed.signedUrl);
+            return;
+          }
+
+          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+          imageMap.set(row.id, publicData.publicUrl || cover);
+        })
+      );
+
+      const nextItems = rows.map((row) => {
+        const priceValue = Number(row.price ?? 0);
+        const normalizedPrice = Number.isFinite(priceValue) ? priceValue : 0;
+        const status = normalizeVehicleStatus(row.status, row.published);
+
+        return {
+          id: row.id,
+          brand: safeText(row.brand),
+          model: safeText(row.model),
+          version: safeText(row.version),
+          year: safeText(row.year),
+          priceValue: normalizedPrice,
+          priceLabel: formatCurrency(normalizedPrice),
+          status,
+          statusLabel: formatVehicleStatus(row.status, row.published),
+          badge: status === "published" ? "Pubblicato" : status === "sold" ? "Venduto" : "Bozza",
+          fuel: safeText(row.fuel),
+          transmission: safeText(row.transmission),
+          mainImageUrl: imageMap.get(row.id) ?? null,
+          leadCount: leadsMap.get(row.id) ?? 0,
+          viewsCount: 0,
+          insertedAt: String(row.created_at ?? ""),
+          raw: row,
+        } as VehicleListItem;
+      });
+
+      if (!alive) {
+        return;
+      }
+
+      setItems(nextItems);
+      setTotalCount(count ?? 0);
+      setLoading(false);
+    }
+
+    return () => {
+      alive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [filters, page, refreshKey, sort]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const fetchOptionsAndKpis = async () => {
+      const [optionRowsRes, publishedRes, draftRes, soldRes, leadsRes] = await Promise.all([
+        supabase.from("vehicles").select("brand, model, fuel, transmission").limit(1000),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).or("status.eq.published,published.eq.true"),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).or("status.eq.draft,published.eq.false,status.is.null"),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("status", "sold"),
+        supabase.from("leads").select("id", { count: "exact", head: true }),
+      ]);
+
+      if (!alive) return;
+
+      const rawOptions = optionRowsRes.data ?? [];
+      const brands = Array.from(new Set(rawOptions.map((row) => String((row as { brand?: string | null }).brand ?? "").trim()).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, "it-IT")
+      );
+      const models = Array.from(new Set(rawOptions.map((row) => String((row as { model?: string | null }).model ?? "").trim()).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, "it-IT")
+      );
+      const fuelTypes = Array.from(new Set(rawOptions.map((row) => String((row as { fuel?: string | null }).fuel ?? "").trim()).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, "it-IT")
+      );
+      const transmissionTypes = Array.from(
+        new Set(rawOptions.map((row) => String((row as { transmission?: string | null }).transmission ?? "").trim()).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b, "it-IT"));
+
+      setOptions({ brands, models, fuelTypes, transmissionTypes });
+
+      setKpis([
+        { id: "published", label: "Veicoli pubblicati", value: String(publishedRes.count ?? 0), delta: "Totale live" },
+        { id: "drafts", label: "Bozze", value: String(draftRes.count ?? 0), delta: "Da completare" },
+        { id: "sold", label: "Venduti", value: String(soldRes.count ?? 0), delta: "Storico" },
+        { id: "leads", label: "Lead ricevuti", value: String(leadsRes.count ?? 0), delta: "Su inventario" },
+      ]);
+    };
+
+    void fetchOptionsAndKpis();
+
+    return () => {
+      alive = false;
+    };
+  }, [refreshKey]);
+
+  const handleDelete = useCallback(async (vehicleId: string) => {
+    const confirmed = globalThis.confirm("Confermi l'eliminazione del veicolo?");
+    if (!confirmed) return;
+
+    setBusyVehicleId(vehicleId);
+
+    const { error: deleteError } = await supabase.from("vehicles").delete().eq("id", vehicleId);
+
+    if (deleteError) {
+      setError(deleteError.message || "Errore durante eliminazione veicolo.");
+      setBusyVehicleId(null);
+      return;
+    }
+
+    setBusyVehicleId(null);
+    refreshData();
+  }, [refreshData]);
+
+  const handleDuplicate = useCallback(async (vehicleId: string) => {
+    setBusyVehicleId(vehicleId);
+    setError(null);
+
+    const { data: source, error: sourceError } = await supabase.from("vehicles").select("*").eq("id", vehicleId).maybeSingle<VehicleRow>();
+
+    if (sourceError || !source) {
+      setError(sourceError?.message || "Veicolo da duplicare non trovato.");
+      setBusyVehicleId(null);
+      return;
+    }
+
+    const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...payload } = source;
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("vehicles")
+      .insert({
+        ...payload,
+        status: "draft",
+        published: false,
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (insertError || !inserted?.id) {
+      setError(insertError?.message || "Errore nella duplicazione del veicolo.");
+      setBusyVehicleId(null);
+      return;
+    }
+
+    const { data: sourceImages } = await supabase
+      .from("vehicle_images")
+      .select("image_url, position, is_cover")
+      .eq("vehicle_id", vehicleId)
+      .order("position", { ascending: true });
+
+    if (Array.isArray(sourceImages) && sourceImages.length > 0) {
+      await supabase.from("vehicle_images").insert(
+        sourceImages.map((image, index) => ({
+          vehicle_id: inserted.id,
+          image_url: image.image_url,
+          position: typeof image.position === "number" ? image.position : index,
+          is_cover: Boolean(image.is_cover) && index === 0,
+        }))
+      );
+    }
+
+    setBusyVehicleId(null);
+    refreshData();
+  }, [refreshData]);
+
+  const handleTogglePublished = useCallback(async (vehicle: VehicleListItem) => {
+    setBusyVehicleId(vehicle.id);
+    setError(null);
+
+    const nextPublished = vehicle.status !== "published";
+
+    const { error: updateError } = await supabase
+      .from("vehicles")
+      .update({
+        status: nextPublished ? "published" : "draft",
+        published: nextPublished,
+      })
+      .eq("id", vehicle.id);
+
+    if (updateError) {
+      setError(updateError.message || "Errore aggiornamento stato veicolo.");
+      setBusyVehicleId(null);
+      return;
+    }
+
+    setBusyVehicleId(null);
+    refreshData();
+  }, [refreshData]);
+
+  const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
 
   return (
-    <DealerDashboardShell
-      title="Gestione Veicoli"
-      dealerName="Gossocar Premium Motors"
-      avatarInitials="GP"
-      unreadNotifications={3}
-    >
+    <DealerDashboardShell title="Gestione Veicoli" dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory Hub</p>
             <h2 className="mt-1 text-2xl font-semibold text-slate-900">Gestisci il tuo parco auto</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Ricerca istantanea, filtri evoluti e doppia vista per un controllo operativo completo.
+              Ricerca istantanea, filtri evoluti, ordinamento e paginazione collegati a Supabase.
             </p>
           </div>
 
@@ -58,8 +418,8 @@ export function VehiclesManagementPage() {
 
       <VehiclesToolbar
         filters={filters}
-        onFiltersChange={setFilters}
-        options={optionSets}
+        onFiltersChange={updateFilters}
+        options={options}
         statusOptions={statusOptions}
         priceBandOptions={priceBandOptions}
         viewMode={viewMode}
@@ -69,11 +429,56 @@ export function VehiclesManagementPage() {
       <section className="dashboard-fade-up rounded-3xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-600">
         <span className="inline-flex items-center gap-2">
           <CarFront className="h-4 w-4 text-sky-600" />
-          {filteredVehicles.length} veicoli trovati con i filtri correnti.
+          {totalCount} veicoli totali, {items.length} visualizzati in pagina.
         </span>
       </section>
 
-      {viewMode === "card" ? <VehiclesCardGrid items={filteredVehicles} /> : <VehiclesTable items={filteredVehicles} />}
+      {error ? (
+        <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</section>
+      ) : null}
+
+      {loading ? (
+        <section className="rounded-3xl border border-slate-200/70 bg-white px-4 py-6 text-sm text-slate-600">Caricamento veicoli in corso...</section>
+      ) : null}
+
+      {emptyState ? (
+        <section className="rounded-3xl border border-slate-200/70 bg-white px-4 py-8 text-center text-sm text-slate-600">
+          Nessun veicolo trovato con i filtri correnti.
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Reset filtri
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {!loading && items.length > 0 ? (
+        viewMode === "card" ? (
+          <VehiclesCardGrid
+            items={items}
+            onDuplicate={handleDuplicate}
+            onTogglePublished={handleTogglePublished}
+            onDelete={handleDelete}
+            busyVehicleId={busyVehicleId}
+          />
+        ) : (
+          <VehiclesTable
+            items={items}
+            sort={sort}
+            onSortChange={handleSortChange}
+            onDuplicate={handleDuplicate}
+            onTogglePublished={handleTogglePublished}
+            onDelete={handleDelete}
+            busyVehicleId={busyVehicleId}
+          />
+        )
+      ) : null}
+
+      <VehiclesPagination page={page} pageSize={PAGE_SIZE} totalCount={totalCount} onPageChange={setPage} />
     </DealerDashboardShell>
   );
 }

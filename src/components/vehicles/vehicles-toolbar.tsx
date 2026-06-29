@@ -1,5 +1,5 @@
 import { Funnel, LayoutGrid, Search, SlidersHorizontal, Table2 } from "lucide-react";
-import type { VehicleFilters } from "@/lib/mock/vehicles";
+import type { VehicleFilters } from "@/lib/vehicles";
 
 type ViewMode = "card" | "table";
 
