@@ -39,6 +39,25 @@ type SelectOptions = {
 
 const PAGE_SIZE = 9;
 
+function mapImageUrlForDisplay(imageUrl: string): string {
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    return imageUrl;
+  }
+
+  try {
+    const parsed = new URL(imageUrl);
+    const isSupabaseDomain = parsed.hostname === "supabase.co" || parsed.hostname.endsWith(".supabase.co");
+
+    if (isSupabaseDomain) {
+      return imageUrl;
+    }
+  } catch {
+    return imageUrl;
+  }
+
+  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
 export function VehiclesManagementPage() {
   const [filters, setFilters] = useState<VehicleFilters>(defaultVehicleFilters);
   const [viewMode, setViewMode] = useState<ViewMode>("card");
@@ -199,7 +218,7 @@ export function VehiclesManagementPage() {
 
           // If DB already provides a full URL (public or signed), keep it as-is.
           if (cover.startsWith("http://") || cover.startsWith("https://")) {
-            imageMap.set(row.id, cover);
+            imageMap.set(row.id, mapImageUrlForDisplay(cover));
             return;
           }
 
@@ -210,7 +229,7 @@ export function VehiclesManagementPage() {
           }
 
           if (path.startsWith("http://") || path.startsWith("https://")) {
-            imageMap.set(row.id, path);
+            imageMap.set(row.id, mapImageUrlForDisplay(path));
             return;
           }
 

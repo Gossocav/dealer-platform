@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const CONTENT_SECURITY_POLICY =
+  "default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; font-src 'self' data:; frame-ancestors 'none';";
+
 export function proxy(request: NextRequest) {
   void request;
   const response = NextResponse.next();
-  const imgSrcPolicy = "img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co";
-  const existingPolicy = response.headers.get("Content-Security-Policy");
-
-  if (!existingPolicy) {
-    response.headers.set("Content-Security-Policy", imgSrcPolicy);
-  } else if (!existingPolicy.includes("img-src")) {
-    response.headers.set("Content-Security-Policy", `${existingPolicy}; ${imgSrcPolicy}`);
-  }
+  response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
 
   return response;
 }
