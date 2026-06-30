@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Link2, Loader2, UploadCloud } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
@@ -38,10 +39,9 @@ type FeedAnalysisResult = {
 };
 
 type FeedImportResult = {
-  importedCount: number;
-  skippedCount: number;
+  imported: number;
+  updated: number;
   errors: string[];
-  durationMs: number;
 };
 
 type FeedHistoryItem = {
@@ -83,6 +83,7 @@ async function insertVehicleWithFallback(vehiclePayload: Record<string, unknown>
 }
 
 export function VehiclesImportPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("file");
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -326,40 +327,64 @@ export function VehiclesImportPage() {
   };
 
   const handleImportFeed = async () => {
-    if (!sessionToken) {
-      setFeedError("Sessione non valida. Effettua di nuovo il login.");
-      return;
-    }
-
     setFeedImporting(true);
     setFeedError(null);
 
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+
+    if (authError || !userId) {
+      setFeedError(authError?.message ?? "Utente non autenticato.");
+      setFeedImporting(false);
+      return;
+    }
+
+    let dealerId: string | null = null;
     try {
-      const response = await fetch("/api/vehicles/import-feed", {
+      dealerId = await resolveDealerIdForUser(userId);
+    } catch (dealerError) {
+      setFeedError(dealerError instanceof Error ? dealerError.message : "Errore risoluzione dealer.");
+      setFeedImporting(false);
+      return;
+    }
+
+    if (!dealerId) {
+      setFeedError("Dealer non associato al profilo utente.");
+      setFeedImporting(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/vehicles/feed", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({
-          mode: "import",
-          feedUrl,
-          format: feedFormat,
-          status: feedVehicleStatus,
-          frequency: feedFrequency,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import", url: feedUrl, dealer_id: dealerId }),
       });
 
-      const payload = (await response.json()) as FeedImportResult & { error?: string };
-      if (!response.ok) {
-        setFeedError(payload.error ?? "Errore durante importazione feed.");
+      const payload = (await response.json()) as {
+        success: boolean;
+        message?: string;
+        imported?: number;
+        updated?: number;
+        errors?: string[];
+      };
+
+      if (!payload.success) {
+        setFeedError(payload.message ?? "Errore durante l'importazione.");
         return;
       }
 
-      setFeedImportResult(payload);
-      await loadSyncHistory();
+      setFeedImportResult({
+        imported: payload.imported ?? 0,
+        updated: payload.updated ?? 0,
+        errors: payload.errors ?? [],
+      });
+
+      setTimeout(() => {
+        router.push("/veicoli");
+      }, 1500);
     } catch {
-      setFeedError("Errore di rete durante importazione feed.");
+      setFeedError("Errore di rete durante l'importazione.");
     } finally {
       setFeedImporting(false);
     }
@@ -697,7 +722,7 @@ export function VehiclesImportPage() {
                 </div>
                 {feedImportResult ? (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                    Importati {feedImportResult.importedCount} · Saltati {feedImportResult.skippedCount} · Durata {formatDuration(feedImportResult.durationMs)}
+                    Importazione completata · Importati {feedImportResult.imported} · Aggiornati {feedImportResult.updated}
                   </div>
                 ) : null}
               </div>
