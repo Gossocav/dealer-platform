@@ -212,30 +212,42 @@ const ids = rows.map((row) => row.id);
         rows.map(async (row) => {
           const vehicleImages = Array.isArray(row.vehicle_images) ? row.vehicle_images : [];
           const cover = resolveCoverImage(vehicleImages);
+          console.log("COVER", cover);
           if (!cover) {
-            imageMap.set(row.id, null);
+            const finalUrl = null;
+            console.log("FINAL URL", finalUrl);
+            imageMap.set(row.id, finalUrl);
             return;
           }
 
-          const path = extractVehicleImagePath(cover);
-          if (!path) {
-            imageMap.set(row.id, cover);
+          const imagePath = extractVehicleImagePath(cover);
+          console.log("IMAGE PATH", imagePath);
+          if (!imagePath) {
+            const finalUrl = cover;
+            console.log("FINAL URL", finalUrl);
+            imageMap.set(row.id, finalUrl);
             return;
           }
 
-          if (path.startsWith("http://") || path.startsWith("https://")) {
-            imageMap.set(row.id, path);
+          if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+            const finalUrl = imagePath;
+            console.log("FINAL URL", finalUrl);
+            imageMap.set(row.id, finalUrl);
             return;
           }
 
-          const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
+          const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(imagePath, 3600);
           if (!signedError && signed?.signedUrl) {
-            imageMap.set(row.id, signed.signedUrl);
+            const finalUrl = signed.signedUrl;
+            console.log("FINAL URL", finalUrl);
+            imageMap.set(row.id, finalUrl);
             return;
           }
 
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-          imageMap.set(row.id, publicData.publicUrl || cover);
+          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(imagePath);
+          const finalUrl = publicData.publicUrl || cover;
+          console.log("FINAL URL", finalUrl);
+          imageMap.set(row.id, finalUrl);
         })
       );
 
