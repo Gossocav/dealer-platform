@@ -31,26 +31,13 @@ type TabId = "file" | "feed" | "dms";
 type FeedFormatOption = "auto" | "csv" | "xml" | "json";
 type FeedFrequencyOption = "manual" | "nightly" | "weekly";
 
-type FeedAnalysisPreview = {
-  rowNumber: number;
-  brand: string;
-  model: string;
-  version: string;
-  year: string;
-  price: string;
-  status: string;
-  images: string[];
-  errors: string[];
-};
-
 type FeedAnalysisResult = {
-  format: "csv" | "xml" | "json";
-  vehicleCount: number;
-  errorCount: number;
-  preview: FeedAnalysisPreview[];
+  detectedType: "csv" | "xml" | "json";
+  rowsCount: number;
+  preview: (Record<string, unknown> | string)[];
 };
 
-type FeedImportResult = FeedAnalysisResult & {
+type FeedImportResult = {
   importedCount: number;
   skippedCount: number;
   errors: string[];
@@ -301,47 +288,38 @@ export function VehiclesImportPage() {
   };
 
   const handleAnalyzeFeed = async () => {
-    if (!sessionToken) {
-      setFeedError("Sessione non valida. Effettua di nuovo il login.");
-      return;
-    }
-
     setFeedLoading(true);
     setFeedError(null);
+    setFeedAnalysis(null);
     setFeedImportResult(null);
 
     try {
-      const response = await fetch("/api/vehicles/import-feed", {
+      const response = await fetch("/api/vehicles/feed", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({
-          mode: "analyze",
-          feedUrl,
-          format: feedFormat,
-          status: feedVehicleStatus,
-          frequency: feedFrequency,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: feedUrl, type: feedFormat }),
       });
 
-      const payload = (await response.json()) as FeedAnalysisResult & { error?: string };
-      if (!response.ok) {
-        setFeedError(payload.error ?? "Errore durante analisi feed.");
-        setFeedAnalysis(null);
+      const payload = (await response.json()) as {
+        success: boolean;
+        message?: string;
+        detectedType?: "csv" | "xml" | "json";
+        rowsCount?: number;
+        preview?: (Record<string, unknown> | string)[];
+      };
+
+      if (!payload.success) {
+        setFeedError(payload.message ?? "Errore durante l'analisi del feed.");
         return;
       }
 
       setFeedAnalysis({
-        format: payload.format,
-        vehicleCount: payload.vehicleCount,
-        errorCount: payload.errorCount,
-        preview: payload.preview,
+        detectedType: payload.detectedType!,
+        rowsCount: payload.rowsCount ?? 0,
+        preview: payload.preview ?? [],
       });
     } catch {
-      setFeedError("Errore di rete durante analisi feed.");
-      setFeedAnalysis(null);
+      setFeedError("Errore di rete durante l'analisi del feed.");
     } finally {
       setFeedLoading(false);
     }
@@ -379,12 +357,6 @@ export function VehiclesImportPage() {
       }
 
       setFeedImportResult(payload);
-      setFeedAnalysis({
-        format: payload.format,
-        vehicleCount: payload.vehicleCount,
-        errorCount: payload.errorCount,
-        preview: payload.preview,
-      });
       await loadSyncHistory();
     } catch {
       setFeedError("Errore di rete durante importazione feed.");
@@ -703,7 +675,7 @@ export function VehiclesImportPage() {
                   onClick={() => {
                     void handleImportFeed();
                   }}
-                  disabled={!feedUrl.trim() || feedImporting}
+                  disabled={!feedAnalysis || feedAnalysis.rowsCount === 0 || feedImporting}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {feedImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />} Importa Stock
@@ -720,7 +692,7 @@ export function VehiclesImportPage() {
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">Analisi feed</h3>
                   <p className="mt-1 text-sm text-slate-600">
-                    Formato rilevato: <strong>{feedAnalysis.format.toUpperCase()}</strong> · Veicoli: <strong>{feedAnalysis.vehicleCount}</strong> · Errori: <strong>{feedAnalysis.errorCount}</strong>
+                    Formato rilevato: <strong>{feedAnalysis.detectedType.toUpperCase()}</strong> · Veicoli trovati: <strong>{feedAnalysis.rowsCount}</strong>
                   </p>
                 </div>
                 {feedImportResult ? (
@@ -734,27 +706,26 @@ export function VehiclesImportPage() {
                 <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-500">
                     <tr>
-                      <th className="px-3 py-2 font-semibold">Riga</th>
-                      <th className="px-3 py-2 font-semibold">Veicolo</th>
-                      <th className="px-3 py-2 font-semibold">Anno</th>
-                      <th className="px-3 py-2 font-semibold">Prezzo</th>
-                      <th className="px-3 py-2 font-semibold">Immagini</th>
-                      <th className="px-3 py-2 font-semibold">Esito</th>
+                      <th className="w-12 px-3 py-2 font-semibold">N°</th>
+                      <th className="px-3 py-2 font-semibold">Anteprima dati</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
-                    {feedAnalysis.preview.map((entry) => (
-                      <tr key={entry.rowNumber}>
-                        <td className="px-3 py-2 text-slate-500">{entry.rowNumber}</td>
-                        <td className="px-3 py-2">
-                          {entry.brand || "-"} {entry.model || ""} {entry.version ? `(${entry.version})` : ""}
-                        </td>
-                        <td className="px-3 py-2">{entry.year || "-"}</td>
-                        <td className="px-3 py-2">{entry.price || "-"}</td>
-                        <td className="px-3 py-2 text-xs text-slate-500">{entry.images.length > 0 ? `${entry.images.length} URL` : "Placeholder"}</td>
-                        <td className="px-3 py-2">{statusBadge(entry.errors)}</td>
-                      </tr>
-                    ))}
+                    {feedAnalysis.preview.map((item, index) => {
+                      const preview =
+                        typeof item === "string"
+                          ? item.replace(/\s+/g, " ").trim().slice(0, 200)
+                          : Object.entries(item)
+                              .slice(0, 6)
+                              .map(([k, v]) => `${k}: ${String(v ?? "").slice(0, 40)}`)
+                              .join(" · ");
+                      return (
+                        <tr key={index}>
+                          <td className="px-3 py-2 text-slate-500">{index + 1}</td>
+                          <td className="break-all px-3 py-2 text-xs text-slate-600">{preview || "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

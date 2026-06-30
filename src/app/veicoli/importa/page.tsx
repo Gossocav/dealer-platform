@@ -14,7 +14,18 @@ export default function VehiclesImportRoutePage() {
 
     const errorSignals = ["Il feed è valido ma non contiene dati di veicoli.", "Errore durante analisi feed.", "Errore durante l'analisi del feed"];
 
+    const isFeedTabActive = (): boolean => {
+      const feedButton = Array.from(root.querySelectorAll("button")).find(
+        (btn) => (btn.textContent ?? "").trim().toUpperCase().includes("SINCRONIZZA FEED"),
+      ) as HTMLButtonElement | undefined;
+      return feedButton?.className.includes("shadow-sm") ?? false;
+    };
+
     const syncFeedAnalysisUi = () => {
+      if (!isFeedTabActive()) {
+        return;
+      }
+
       const hasFeedError = Array.from(root.querySelectorAll("p, div, span")).some((element) => {
         const text = element.textContent?.trim() ?? "";
         return errorSignals.some((signal) => text.includes(signal));
@@ -51,9 +62,7 @@ export default function VehiclesImportRoutePage() {
 
     syncFeedAnalysisUi();
 
-    const observer = new MutationObserver(() => {
-      syncFeedAnalysisUi();
-    });
+    const observer = new MutationObserver(syncFeedAnalysisUi);
 
     observer.observe(root, {
       childList: true,
