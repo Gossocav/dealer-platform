@@ -174,18 +174,7 @@ export function VehiclesManagementPage() {
 
       const rows = (data ?? []) as VehicleRow[];
 
-console.log(rows);
-
-  
-  
-  
-    
-    
-
-
-
-const ids = rows.map((row) => row.id);
-    
+      const ids = rows.map((row) => row.id);
 
       let leadsMap = new Map<string, number>();
       if (ids.length > 0) {
@@ -198,56 +187,35 @@ const ids = rows.map((row) => row.id);
         }
       }
 
-      console.log(
-        "DEBUG_IMAGES",
-        rows.map((r) => ({
-          brand: r.brand,
-          model: r.model,
-          vehicle_images: r.vehicle_images,
-        }))
-      );
-
       const imageMap = new Map<string, string | null>();
       await Promise.all(
         rows.map(async (row) => {
           const vehicleImages = Array.isArray(row.vehicle_images) ? row.vehicle_images : [];
           const cover = resolveCoverImage(vehicleImages);
-          console.log("COVER", cover);
           if (!cover) {
-            const finalUrl = null;
-            console.log("FINAL URL", finalUrl);
-            imageMap.set(row.id, finalUrl);
+            imageMap.set(row.id, null);
             return;
           }
 
-          const imagePath = extractVehicleImagePath(cover);
-          console.log("IMAGE PATH", imagePath);
-          if (!imagePath) {
-            const finalUrl = cover;
-            console.log("FINAL URL", finalUrl);
-            imageMap.set(row.id, finalUrl);
+          const path = extractVehicleImagePath(cover);
+          if (!path) {
+            imageMap.set(row.id, cover);
             return;
           }
 
-          if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-            const finalUrl = imagePath;
-            console.log("FINAL URL", finalUrl);
-            imageMap.set(row.id, finalUrl);
+          if (path.startsWith("http://") || path.startsWith("https://")) {
+            imageMap.set(row.id, path);
             return;
           }
 
-          const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(imagePath, 3600);
+          const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
           if (!signedError && signed?.signedUrl) {
-            const finalUrl = signed.signedUrl;
-            console.log("FINAL URL", finalUrl);
-            imageMap.set(row.id, finalUrl);
+            imageMap.set(row.id, signed.signedUrl);
             return;
           }
 
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(imagePath);
-          const finalUrl = publicData.publicUrl || cover;
-          console.log("FINAL URL", finalUrl);
-          imageMap.set(row.id, finalUrl);
+          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+          imageMap.set(row.id, publicData.publicUrl || cover);
         })
       );
 
