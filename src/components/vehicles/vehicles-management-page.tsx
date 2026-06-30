@@ -175,17 +175,6 @@ export function VehiclesManagementPage() {
       const rows = (data ?? []) as VehicleRow[];
 
 console.log(rows);
-  JSON.stringify(
-    rows.map((r) => ({
-      id: r.id,
-      brand: r.brand,
-      model: r.model,
-      images: r.vehicle_images,
-    })),
-    null,
-    2
-  )
-);
 
   
   
