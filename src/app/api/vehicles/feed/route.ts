@@ -964,10 +964,6 @@ export async function POST(request: Request) {
       imageUrls: string[] | undefined,
       createdAt: string,
     ) {
-      if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
-        return;
-      }
-
       const { error: deleteError } = await supabaseAdmin
         .from("vehicle_images")
         .delete()
@@ -977,14 +973,67 @@ export async function POST(request: Request) {
         throw new Error(deleteError.message);
       }
 
-      const imagesToInsert = imageUrls.map((imageUrl, index) => ({
-        vehicle_id: vehicleId,
-        dealer_id: imageDealerId,
-        image_url: imageUrl,
-        position: index,
-        is_cover: index === 0,
-        created_at: createdAt,
-      }));
+      if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+        return;
+      }
+
+      const imagesToInsert: Array<{
+        vehicle_id: string;
+        dealer_id: string;
+        image_url: string;
+        position: number;
+        is_cover: boolean;
+        created_at: string;
+      }> = [];
+
+      let position = 0;
+      for (let index = 0; index < imageUrls.length; index += 1) {
+        const imageUrl = imageUrls[index];
+        let finalImageUrl = imageUrl;
+
+        if (/^https?:\/\//i.test(imageUrl)) {
+          try {
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+              continue;
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            const filename = `${Date.now()}-${index}.jpg`;
+            const storagePath = `${vehicleId}/${filename}`;
+            const contentType = response.headers.get("content-type") ?? "image/jpeg";
+
+            const { error: uploadError } = await supabaseAdmin.storage
+              .from("vehicle-images")
+              .upload(storagePath, arrayBuffer, {
+                contentType,
+                upsert: true,
+              });
+
+            if (uploadError) {
+              continue;
+            }
+
+            finalImageUrl = storagePath;
+          } catch {
+            continue;
+          }
+        }
+
+        imagesToInsert.push({
+          vehicle_id: vehicleId,
+          dealer_id: imageDealerId,
+          image_url: finalImageUrl,
+          position,
+          is_cover: position === 0,
+          created_at: createdAt,
+        });
+        position += 1;
+      }
+
+      if (imagesToInsert.length === 0) {
+        return;
+      }
 
       const { error: insertError } = await supabaseAdmin.from("vehicle_images").insert(imagesToInsert);
       if (insertError) {
