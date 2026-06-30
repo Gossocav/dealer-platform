@@ -679,8 +679,7 @@ const DEMO_VEHICLES_WITH_IMAGES: VehicleRecord[] = [
     transmission: "Automatico",
     color: "Rosso Competizione",
     image_urls: [
-      "https://upload.wikimedia.org/wikipedia/commons/8/8b/Alfa_Romeo_Giulia_Veloce_2.2_TD_2017_%2835900721646%29.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/c/c5/Alfa_Romeo_Giulia_2.2_JTDM_Super_%2845291729974%29.jpg",
+      "https://picsum.photos/seed/alfa-giulia/900/600",
     ],
   },
   {
@@ -694,8 +693,7 @@ const DEMO_VEHICLES_WITH_IMAGES: VehicleRecord[] = [
     transmission: "Automatico",
     color: "Grigio Daytona",
     image_urls: [
-      "https://upload.wikimedia.org/wikipedia/commons/7/78/Audi_A3_Sportback_35_TFSI_S_line_%28IV%29_%E2%80%93_f_06012021.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/0/0d/Audi_A3_Sportback_35_TFSI_S_line_%28IV%29_%E2%80%93_h_06012021.jpg",
+      "https://picsum.photos/seed/audi-a3/900/600",
     ],
   },
   {
@@ -709,8 +707,7 @@ const DEMO_VEHICLES_WITH_IMAGES: VehicleRecord[] = [
     transmission: "Automatico",
     color: "Blu Celebes",
     image_urls: [
-      "https://upload.wikimedia.org/wikipedia/commons/4/43/2018_Peugeot_3008_Allure_Blue_HDi_S-A_1.5.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/f/f1/Peugeot_3008_II_Facelift_1X7A6993.jpg",
+      "https://picsum.photos/seed/peugeot-3008/900/600",
     ],
   },
 ];
