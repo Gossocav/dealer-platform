@@ -174,14 +174,26 @@ export function VehiclesManagementPage() {
 
       const rows = (data ?? []) as VehicleRow[];
 
-console.log(
-  "VEHICLE IMAGES",
-  rows.map((r) => ({
-    id: r.id,
-    brand: r.brand,
-    images: r.vehicle_images,
-  }))
+console.log(rows);
+  JSON.stringify(
+    rows.map((r) => ({
+      id: r.id,
+      brand: r.brand,
+      model: r.model,
+      images: r.vehicle_images,
+    })),
+    null,
+    2
+  )
 );
+
+  
+  
+  
+    
+    
+
+
 
 const ids = rows.map((row) => row.id);
     
@@ -196,6 +208,15 @@ const ids = rows.map((row) => row.id);
           leadsMap.set(vehicleId, (leadsMap.get(vehicleId) ?? 0) + 1);
         }
       }
+
+      console.log(
+        "DEBUG_IMAGES",
+        rows.map((r) => ({
+          brand: r.brand,
+          model: r.model,
+          vehicle_images: r.vehicle_images,
+        }))
+      );
 
       const imageMap = new Map<string, string | null>();
       await Promise.all(
