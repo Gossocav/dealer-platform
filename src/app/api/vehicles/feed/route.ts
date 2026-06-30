@@ -276,6 +276,51 @@ function detectFeedType(content: string, requestedType: FeedType) {
   return "csv" as const;
 }
 
+const DEMO_FEED_URL = "demo://automotive-feed";
+
+const DEMO_VEHICLES = [
+  {
+    brand: "Jeep",
+    model: "Avenger",
+    version: "1.2 Turbo Altitude",
+    year: "2024",
+    price: "29900",
+    mileage: "0",
+    fuel: "Benzina",
+    transmission: "Automatico",
+    color: "Bianco Alpino",
+    image_urls: ["https://example.com/jeep-avenger-1.jpg", "https://example.com/jeep-avenger-2.jpg"],
+  },
+  {
+    brand: "Fiat",
+    model: "600",
+    version: "1.2 Hybrid Red",
+    year: "2024",
+    price: "24500",
+    mileage: "1200",
+    fuel: "Ibrido",
+    transmission: "Automatico",
+    color: "Rosso Passione",
+    image_urls: ["https://example.com/fiat-600-1.jpg"],
+  },
+  {
+    brand: "BMW",
+    model: "X1",
+    version: "xDrive20d xLine",
+    year: "2023",
+    price: "49800",
+    mileage: "15000",
+    fuel: "Diesel",
+    transmission: "Automatico",
+    color: "Grigio Mineral",
+    image_urls: [
+      "https://example.com/bmw-x1-1.jpg",
+      "https://example.com/bmw-x1-2.jpg",
+      "https://example.com/bmw-x1-3.jpg",
+    ],
+  },
+];
+
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     url?: string;
@@ -293,6 +338,16 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+
+  if (url === DEMO_FEED_URL) {
+    return NextResponse.json({
+      success: true,
+      message: "Feed demo automotive analizzato correttamente",
+      detectedType: "json",
+      rowsCount: DEMO_VEHICLES.length,
+      preview: DEMO_VEHICLES,
+    });
   }
 
   if (!/^https?:\/\//i.test(url)) {
