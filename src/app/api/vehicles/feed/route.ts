@@ -977,19 +977,83 @@ export async function POST(request: Request) {
             errors.push(`${vehicleLabel}: ${error.message}`);
           } else {
             updated += 1;
+
+            // Salva immagini se presenti
+            if (vehicle.image_urls && vehicle.image_urls.length > 0) {
+              try {
+                // Elimina vecchie immagini
+                await supabaseAdmin
+                  .from("vehicle_images")
+                  .delete()
+                  .eq("dealer_id", dealerId)
+                  .eq("vehicle_id", existingVehicle.id);
+
+                // Inserisci nuove immagini
+                const imagesToInsert = vehicle.image_urls.map((url, index) => ({
+                  dealer_id: dealerId,
+                  vehicle_id: existingVehicle.id,
+                  image_url: url,
+                  position: index,
+                  is_cover: index === 0,
+                  created_at: now,
+                }));
+
+                const { error: imageError } = await supabaseAdmin
+                  .from("vehicle_images")
+                  .insert(imagesToInsert);
+
+                if (imageError) {
+                  errors.push(`${vehicleLabel} (immagini): ${imageError.message}`);
+                }
+              } catch (err) {
+                errors.push(
+                  `${vehicleLabel} (immagini): ${err instanceof Error ? err.message : "Errore sconosciuto"}`
+                );
+              }
+            }
           }
         } else {
           // Step 4: Crea nuovo se non trovato
-          const { error } = await supabaseAdmin.from("vehicles").insert({
-            ...vehicleData,
-            created_at: now,
-            updated_at: now,
-          });
+          const { data, error } = await supabaseAdmin
+            .from("vehicles")
+            .insert({
+              ...vehicleData,
+              created_at: now,
+              updated_at: now,
+            })
+            .select("id");
 
           if (error) {
             errors.push(`${vehicleLabel}: ${error.message}`);
-          } else {
+          } else if (data && data.length > 0) {
             imported += 1;
+            const insertedVehicleId = data[0].id as string;
+
+            // Salva immagini se presenti
+            if (vehicle.image_urls && vehicle.image_urls.length > 0) {
+              try {
+                const imagesToInsert = vehicle.image_urls.map((url, index) => ({
+                  dealer_id: dealerId,
+                  vehicle_id: insertedVehicleId,
+                  image_url: url,
+                  position: index,
+                  is_cover: index === 0,
+                  created_at: now,
+                }));
+
+                const { error: imageError } = await supabaseAdmin
+                  .from("vehicle_images")
+                  .insert(imagesToInsert);
+
+                if (imageError) {
+                  errors.push(`${vehicleLabel} (immagini): ${imageError.message}`);
+                }
+              } catch (err) {
+                errors.push(
+                  `${vehicleLabel} (immagini): ${err instanceof Error ? err.message : "Errore sconosciuto"}`
+                );
+              }
+            }
           }
         }
       } catch (err) {
