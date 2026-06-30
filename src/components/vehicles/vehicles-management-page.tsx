@@ -218,12 +218,29 @@ export function VehiclesManagementPage() {
             return;
           }
 
-          // Qualsiasi URL HTTP/HTTPS passa SEMPRE dal proxy
           if (cover.startsWith("http://") || cover.startsWith("https://")) {
-            imageMap.set(
-              row.id,
-              `/api/image-proxy?url=${encodeURIComponent(cover)}`
-            );
+            if (cover.includes(".supabase.co")) {
+              const path = extractVehicleImagePath(cover);
+
+              if (!path) {
+                imageMap.set(row.id, null);
+                return;
+              }
+
+              const { data: signed, error } = await supabase.storage
+                .from("vehicle-images")
+                .createSignedUrl(path, 3600);
+
+              if (!error && signed?.signedUrl) {
+                imageMap.set(row.id, signed.signedUrl);
+                return;
+              }
+
+              imageMap.set(row.id, null);
+              return;
+            }
+
+            imageMap.set(row.id, `/api/image-proxy?url=${encodeURIComponent(cover)}`);
             return;
           }
 
