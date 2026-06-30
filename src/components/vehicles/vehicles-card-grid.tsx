@@ -34,17 +34,17 @@ export function VehiclesCardGrid({ items, onDuplicate, onTogglePublished, onDele
                 <img
                   src={vehicle.mainImageUrl}
                   alt={`${vehicle.brand} ${vehicle.model}`}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                  className="absolute inset-0 z-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                <div className="absolute inset-0 z-0 flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Nessuna foto
                 </div>
               )}
-              <span className="absolute left-3 top-3 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
+              <span className="absolute left-3 top-3 z-10 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
                 {vehicle.badge}
               </span>
-              <span className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(vehicle.status)}`}>
+              <span className={`absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-semibold ${statusClasses(vehicle.status)}`}>
                 {vehicle.statusLabel}
               </span>
             </div>
