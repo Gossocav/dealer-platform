@@ -426,6 +426,101 @@ function normalizeVehicleRecord(record: VehicleRecord): VehicleRecord {
   return normalized;
 }
 
+function extractImageUrls(record: Record<string, unknown>): string[] {
+  const imageFieldNames = [
+    "image",
+    "images",
+    "image_url",
+    "image_urls",
+    "photo",
+    "photos",
+    "foto",
+    "fotos",
+    "immagine",
+    "immagini",
+    "gallery",
+    "gallery_images",
+    "picture",
+    "pictures",
+  ];
+
+  const urls: string[] = [];
+
+  // Cerca tutti i campi che potrebbero contenere immagini
+  for (const [key, value] of Object.entries(record)) {
+    const lowerKey = key.toLowerCase();
+    const isImageField = imageFieldNames.some((name) => lowerKey === name || lowerKey.includes(name));
+
+    if (!isImageField) continue;
+
+    // Supporta stringa singola con potenziali URL separati da virgola
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+
+      // Se contiene virgola, splittare e estrarre URL
+      if (trimmed.includes(",")) {
+        const parts = trimmed.split(",").map((p) => p.trim());
+        for (const part of parts) {
+          if ((part.startsWith("http://") || part.startsWith("https://")) && !urls.includes(part)) {
+            urls.push(part);
+          }
+        }
+      } else if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        if (!urls.includes(trimmed)) {
+          urls.push(trimmed);
+        }
+      }
+    }
+
+    // Supporta array
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        // Caso 1: array di stringhe
+        if (typeof item === "string") {
+          const trimmed = item.trim();
+          if ((trimmed.startsWith("http://") || trimmed.startsWith("https://")) && !urls.includes(trimmed)) {
+            urls.push(trimmed);
+          }
+        }
+
+        // Caso 2: array di oggetti - estrai url/src/href/image/etc
+        if (item && typeof item === "object") {
+          const urlFieldNames = ["url", "src", "href", "link", "image", "uri"];
+          for (const urlField of urlFieldNames) {
+            if (urlField in item) {
+              const urlValue = (item as Record<string, unknown>)[urlField];
+              if (typeof urlValue === "string") {
+                const trimmed = urlValue.trim();
+                if ((trimmed.startsWith("http://") || trimmed.startsWith("https://")) && !urls.includes(trimmed)) {
+                  urls.push(trimmed);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Caso 3: oggetto singolo - estrai url/src/href/etc
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const urlFieldNames = ["url", "src", "href", "link", "image", "uri"];
+      for (const urlField of urlFieldNames) {
+        if (urlField in (value as Record<string, unknown>)) {
+          const urlValue = (value as Record<string, unknown>)[urlField];
+          if (typeof urlValue === "string") {
+            const trimmed = urlValue.trim();
+            if ((trimmed.startsWith("http://") || trimmed.startsWith("https://")) && !urls.includes(trimmed)) {
+              urls.push(trimmed);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return urls;
+}
+
 function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecord | null {
   const brand = findFieldValue(record, ["brand", "marca", "make", "manufacturer", "marque"]);
   const model = findFieldValue(record, ["model", "modello", "model_name", "name"]);
@@ -441,23 +536,8 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
   const transmission = findFieldValue(record, ["transmission", "cambio", "trasmissione", "gearbox", "gear"]);
   const version = findFieldValue(record, ["version", "versione", "trim", "trim_level"]);
 
-  const imageUrlsKey = Object.keys(record).find(
-    (k) => k.toLowerCase().includes("image") || k.toLowerCase().includes("foto") || k.toLowerCase().includes("picture"),
-  );
-  let imageUrls: string[] = [];
-  if (imageUrlsKey) {
-    const imageValue = record[imageUrlsKey];
-    if (Array.isArray(imageValue)) {
-      imageUrls = imageValue
-        .map((v) => extractStringFromValue(v))
-        .filter((v): v is string => v !== null && (v.startsWith("http://") || v.startsWith("https://")));
-    } else {
-      const extracted = extractStringFromValue(imageValue);
-      if (extracted && (extracted.startsWith("http://") || extracted.startsWith("https://"))) {
-        imageUrls = [extracted];
-      }
-    }
-  }
+  // Estrai immagini con la nuova logica
+  const imageUrls = extractImageUrls(record);
 
   const vehicle: VehicleRecord = {
     brand,
