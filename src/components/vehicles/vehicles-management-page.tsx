@@ -207,40 +207,43 @@ export function VehiclesManagementPage() {
       }
 
       const imageMap = new Map<string, string | null>();
+
       await Promise.all(
         rows.map(async (row) => {
           const vehicleImages = Array.isArray(row.vehicle_images) ? row.vehicle_images : [];
           const cover = resolveCoverImage(vehicleImages);
+
           if (!cover) {
             imageMap.set(row.id, null);
             return;
           }
 
+          // Qualsiasi URL HTTP/HTTPS passa SEMPRE dal proxy
           if (cover.startsWith("http://") || cover.startsWith("https://")) {
-            const finalCover = cover.includes(".supabase.co") ? cover : `/api/image-proxy?url=${encodeURIComponent(cover)}`;
-            imageMap.set(row.id, finalCover);
+            imageMap.set(
+              row.id,
+              `/api/image-proxy?url=${encodeURIComponent(cover)}`
+            );
             return;
           }
 
           const path = extractVehicleImagePath(cover);
+
           if (!path) {
-            imageMap.set(row.id, cover);
+            imageMap.set(row.id, null);
             return;
           }
 
-          if (path.startsWith("http://") || path.startsWith("https://")) {
-            imageMap.set(row.id, mapImageUrlForDisplay(path));
-            return;
-          }
+          const { data: signed, error } = await supabase.storage
+            .from("vehicle-images")
+            .createSignedUrl(path, 3600);
 
-          const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
-          if (!signedError && signed?.signedUrl) {
+          if (!error && signed?.signedUrl) {
             imageMap.set(row.id, signed.signedUrl);
             return;
           }
 
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-          imageMap.set(row.id, publicData.publicUrl || cover);
+          imageMap.set(row.id, null);
         })
       );
 
