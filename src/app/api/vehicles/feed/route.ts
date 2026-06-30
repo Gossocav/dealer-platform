@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
@@ -325,10 +326,14 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     url?: string;
     type?: FeedType;
+    action?: string;
+    dealer_id?: string;
   };
 
   const url = body.url?.trim();
   const requestedType = body.type ?? "auto";
+  const action = body.action ?? "analyze";
+  const dealerId = body.dealer_id?.trim() ?? null;
 
   if (!url) {
     return NextResponse.json(
@@ -341,6 +346,67 @@ export async function POST(request: Request) {
   }
 
   if (url === DEMO_FEED_URL) {
+    if (action === "import") {
+      if (!dealerId) {
+        return NextResponse.json(
+          { success: false, message: "dealer_id obbligatorio per l'importazione." },
+          { status: 400 },
+        );
+      }
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!supabaseUrl || !supabaseServiceRoleKey) {
+        return NextResponse.json(
+          { success: false, message: "Configurazione Supabase incompleta." },
+          { status: 500 },
+        );
+      }
+
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      });
+
+      const now = new Date().toISOString();
+      const errors: string[] = [];
+      let imported = 0;
+
+      for (const vehicle of DEMO_VEHICLES) {
+        const { error } = await supabaseAdmin.from("vehicles").insert({
+          brand: vehicle.brand,
+          model: vehicle.model,
+          version: vehicle.version,
+          year: parseInt(vehicle.year, 10),
+          price: parseFloat(vehicle.price),
+          mileage: parseInt(vehicle.mileage, 10),
+          fuel: vehicle.fuel,
+          transmission: vehicle.transmission,
+          color: vehicle.color,
+          vin: null,
+          description: null,
+          status: "published",
+          published: true,
+          dealer_id: dealerId,
+          created_at: now,
+          updated_at: now,
+        });
+
+        if (error) {
+          errors.push(`${vehicle.brand} ${vehicle.model}: ${error.message}`);
+        } else {
+          imported += 1;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        imported,
+        updated: 0,
+        errors,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       message: "Feed demo automotive analizzato correttamente",
