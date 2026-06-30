@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
   void request;
-  return NextResponse.next();
+  const response = NextResponse.next();
+  const imgSrcPolicy = "img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co";
+  const existingPolicy = response.headers.get("Content-Security-Policy");
+
+  if (!existingPolicy) {
+    response.headers.set("Content-Security-Policy", imgSrcPolicy);
+  } else if (!existingPolicy.includes("img-src")) {
+    response.headers.set("Content-Security-Policy", `${existingPolicy}; ${imgSrcPolicy}`);
+  }
+
+  return response;
 }
 
 export const config = {
