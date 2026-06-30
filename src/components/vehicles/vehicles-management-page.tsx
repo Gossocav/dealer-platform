@@ -173,7 +173,18 @@ export function VehiclesManagementPage() {
       }
 
       const rows = (data ?? []) as VehicleRow[];
-      const ids = rows.map((row) => row.id);
+
+console.log(
+  "VEHICLE IMAGES",
+  rows.map((r) => ({
+    id: r.id,
+    brand: r.brand,
+    images: r.vehicle_images,
+  }))
+);
+
+const ids = rows.map((row) => row.id);
+    
 
       let leadsMap = new Map<string, number>();
       if (ids.length > 0) {
@@ -189,7 +200,8 @@ export function VehiclesManagementPage() {
       const imageMap = new Map<string, string | null>();
       await Promise.all(
         rows.map(async (row) => {
-          const cover = resolveCoverImage(row.vehicle_images);
+          const vehicleImages = Array.isArray(row.vehicle_images) ? row.vehicle_images : [];
+          const cover = resolveCoverImage(vehicleImages);
           if (!cover) {
             imageMap.set(row.id, null);
             return;
