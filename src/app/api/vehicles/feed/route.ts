@@ -295,6 +295,7 @@ type VehicleRecord = {
   mileage?: string | number;
   fuel?: string;
   transmission?: string;
+  color?: string | number | null;
   image_urls?: string[];
 };
 
@@ -808,12 +809,12 @@ export async function POST(request: Request) {
     });
   }
 
-  let detectedType: "json" | "xml" | "csv";
+  let detectedType: "json" | "xml" | "csv" | null = null;
   let analysis: {
     rowsCount: number;
     preview: VehicleRecord[];
     firstRawRecord?: unknown;
-  };
+  } | null = null;
 
   if (url === DEMO_FEED_IMAGES_URL) {
     detectedType = "json";
@@ -921,6 +922,13 @@ export async function POST(request: Request) {
 
   // Gestisci l'import di feed reali
   if (action === "import") {
+    if (!analysis) {
+      return NextResponse.json(
+        { success: false, message: "Errore durante l'analisi del feed." },
+        { status: 400 },
+      );
+    }
+
     if (!dealerId) {
       return NextResponse.json(
         { success: false, message: "dealer_id obbligatorio per l'importazione." },
@@ -1129,16 +1137,23 @@ export async function POST(request: Request) {
     });
   }
 
+  if (!analysis || !detectedType) {
+    return NextResponse.json(
+      { success: false, message: "Errore durante l'analisi del feed." },
+      { status: 400 },
+    );
+  }
+
   const isDebugUrl = url.includes("https://gist.githubusercontent.com/bertwagner/356bf47732b9e35d2156daa943e049e9/raw/");
   const responseBody: Record<string, unknown> = {
     success: true,
     message: "Feed analizzato correttamente",
     detectedType,
-    rowsCount: analysis.rowsCount,
-    preview: analysis.preview,
+    rowsCount: analysis?.rowsCount ?? 0,
+    preview: analysis?.preview ?? [],
   };
 
-  if (isDebugUrl && analysis.firstRawRecord) {
+  if (isDebugUrl && analysis?.firstRawRecord) {
     responseBody.debugFirstVehicle = analysis.firstRawRecord;
   }
 
