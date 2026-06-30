@@ -792,6 +792,12 @@ export async function POST(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
 
+    // Funzione di normalizzazione: trim, lowercase, spazi multipli -> singolo
+    function normalizeForComparison(value: string | null | undefined): string | null {
+      if (!value) return null;
+      return value.trim().toLowerCase().replace(/\s+/g, " ");
+    }
+
     const now = new Date().toISOString();
     const errors: string[] = [];
     let imported = 0;
@@ -799,9 +805,9 @@ export async function POST(request: Request) {
 
     for (const vehicle of analysis.preview) {
       const vehicleLabel = `${vehicle.brand} ${vehicle.model}`;
-      
+
       try {
-        // Prepara i dati comuni per insert/update
+        // Prepara i dati per insert/update
         const vehicleData = {
           brand: vehicle.brand,
           model: vehicle.model,
@@ -819,48 +825,70 @@ export async function POST(request: Request) {
           dealer_id: dealerId,
         };
 
-        // Logica di upsert: cerca il veicolo esistente
         let existingVehicle: { id: string } | null = null;
 
-        // Se ha VIN, cerca per (dealer_id, vin)
+        // Step 1: Cerca per VIN se presente
         if (vehicleData.vin) {
           const { data } = await supabaseAdmin
             .from("vehicles")
             .select("id")
             .eq("dealer_id", dealerId)
             .eq("vin", vehicleData.vin)
-            .single();
+            .maybeSingle();
 
           existingVehicle = data as { id: string } | null;
         }
 
-        // Se non ha VIN o non trovato per VIN, cerca per (dealer_id, brand, model, version, year)
+        // Step 2: Se non trovato per VIN, cerca per (dealer_id + brand + model + year)
         if (!existingVehicle) {
-          const query = supabaseAdmin
-            .from("vehicles")
-            .select("id")
-            .eq("dealer_id", dealerId)
-            .eq("brand", vehicleData.brand)
-            .eq("model", vehicleData.model);
+          const normalizedBrand = normalizeForComparison(vehicleData.brand);
+          const normalizedModel = normalizeForComparison(vehicleData.model);
 
-          // Aggiungi filtri opzionali se presenti
-          if (vehicleData.version) {
-            query.eq("version", vehicleData.version);
-          }
-          if (vehicleData.year) {
-            query.eq("year", vehicleData.year);
-          }
+          if (normalizedBrand && normalizedModel) {
+            // Query per ricerca normalizzata
+            // Nota: Supabase non ha LOWER() nativo ma i dati nel DB devono essere normalizzati
+            // o usiamo un approccio di ricerca con filtering post-query
+            let query = supabaseAdmin
+              .from("vehicles")
+              .select("id, brand, model, year")
+              .eq("dealer_id", dealerId);
 
-          const { data } = await query.single();
-          existingVehicle = data as { id: string } | null;
+            const { data: candidates } = await query;
+
+            // Filtra manualmente con normalizzazione
+            if (candidates && Array.isArray(candidates)) {
+              const match = candidates.find((record) => {
+                const recordBrand = normalizeForComparison(record.brand);
+                const recordModel = normalizeForComparison(record.model);
+                const recordYear = record.year || null;
+
+                return (
+                  recordBrand === normalizedBrand &&
+                  recordModel === normalizedModel &&
+                  recordYear === vehicleData.year
+                );
+              });
+
+              if (match) {
+                existingVehicle = { id: match.id };
+              }
+            }
+          }
         }
 
-        // Aggiorna il veicolo esistente
+        // Step 3: Aggiorna se trovato
         if (existingVehicle) {
           const { error } = await supabaseAdmin
             .from("vehicles")
             .update({
-              ...vehicleData,
+              price: vehicleData.price,
+              mileage: vehicleData.mileage,
+              fuel: vehicleData.fuel,
+              transmission: vehicleData.transmission,
+              color: vehicleData.color,
+              version: vehicleData.version,
+              status: vehicleData.status,
+              published: vehicleData.published,
               updated_at: now,
             })
             .eq("id", existingVehicle.id);
@@ -871,7 +899,7 @@ export async function POST(request: Request) {
             updated += 1;
           }
         } else {
-          // Crea un nuovo veicolo
+          // Step 4: Crea nuovo se non trovato
           const { error } = await supabaseAdmin.from("vehicles").insert({
             ...vehicleData,
             created_at: now,
