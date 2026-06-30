@@ -384,6 +384,48 @@ function findFieldValue(obj: Record<string, unknown>, fieldPatterns: string[]): 
   return null;
 }
 
+function normalizeVehicleRecord(record: VehicleRecord): VehicleRecord {
+  const normalized: VehicleRecord = {};
+
+  // Normalizza tutti i campi stringa
+  const stringFields: (keyof VehicleRecord)[] = ["brand", "model", "version", "fuel", "transmission"];
+  for (const field of stringFields) {
+    const value = record[field];
+    if (value !== undefined && value !== null) {
+      const extracted = extractStringFromValue(value);
+      if (extracted) {
+        (normalized as Record<string, unknown>)[field] = extracted;
+      }
+    }
+  }
+
+  // Normalizza campi numerici
+  const numericFields: (keyof VehicleRecord)[] = ["year", "price", "mileage"];
+  for (const field of numericFields) {
+    const value = record[field];
+    if (value !== undefined && value !== null) {
+      if (typeof value === "number") {
+        (normalized as Record<string, unknown>)[field] = value;
+      } else if (typeof value === "string") {
+        const extracted = extractStringFromValue(value);
+        if (extracted) {
+          (normalized as Record<string, unknown>)[field] = extracted;
+        }
+      }
+    }
+  }
+
+  // Normalizza image_urls
+  if (record.image_urls && Array.isArray(record.image_urls)) {
+    const urls = record.image_urls.filter((url) => typeof url === "string");
+    if (urls.length > 0) {
+      normalized.image_urls = urls;
+    }
+  }
+
+  return normalized;
+}
+
 function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecord | null {
   const brand = findFieldValue(record, ["brand", "marca", "make", "manufacturer", "marque"]);
   const model = findFieldValue(record, ["model", "modello", "model_name", "name"]);
@@ -417,7 +459,7 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
     }
   }
 
-  return {
+  const vehicle: VehicleRecord = {
     brand,
     model,
     version: version ?? undefined,
@@ -428,6 +470,8 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
     transmission: transmission ?? undefined,
     image_urls: imageUrls.length > 0 ? imageUrls : undefined,
   };
+
+  return normalizeVehicleRecord(vehicle);
 }
 
 function extractVehiclesFromXmlContent(content: string): { vehicles: VehicleRecord[]; firstRawXml?: string } {
@@ -723,6 +767,68 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+
+  // Gestisci l'import di feed reali
+  if (action === "import") {
+    if (!dealerId) {
+      return NextResponse.json(
+        { success: false, message: "dealer_id obbligatorio per l'importazione." },
+        { status: 400 },
+      );
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return NextResponse.json(
+        { success: false, message: "Configurazione Supabase incompleta." },
+        { status: 500 },
+      );
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+
+    const now = new Date().toISOString();
+    const errors: string[] = [];
+    let imported = 0;
+
+    for (const vehicle of analysis.preview) {
+      const { error } = await supabaseAdmin.from("vehicles").insert({
+        brand: vehicle.brand,
+        model: vehicle.model,
+        version: vehicle.version ?? null,
+        year: vehicle.year ? parseInt(String(vehicle.year), 10) : null,
+        price: vehicle.price ? parseFloat(String(vehicle.price)) : null,
+        mileage: vehicle.mileage ? parseInt(String(vehicle.mileage), 10) : null,
+        fuel: vehicle.fuel ?? null,
+        transmission: vehicle.transmission ?? null,
+        color: null,
+        vin: null,
+        description: null,
+        status: "published",
+        published: true,
+        dealer_id: dealerId,
+        created_at: now,
+        updated_at: now,
+      });
+
+      if (error) {
+        errors.push(`${vehicle.brand} ${vehicle.model}: ${error.message}`);
+      } else {
+        imported += 1;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      imported,
+      updated: 0,
+      errors,
+    });
   }
 
   const isDebugUrl = url.includes("https://gist.githubusercontent.com/bertwagner/356bf47732b9e35d2156daa943e049e9/raw/");
