@@ -216,9 +216,9 @@ export function VehiclesManagementPage() {
             return;
           }
 
-          // If DB already provides a full URL (public or signed), keep it as-is.
           if (cover.startsWith("http://") || cover.startsWith("https://")) {
-            imageMap.set(row.id, mapImageUrlForDisplay(cover));
+            const finalCover = cover.includes(".supabase.co") ? cover : `/api/image-proxy?url=${encodeURIComponent(cover)}`;
+            imageMap.set(row.id, finalCover);
             return;
           }
 
