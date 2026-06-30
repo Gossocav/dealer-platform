@@ -157,9 +157,9 @@ export function extractVehicleImagePath(value: string) {
         return path ? decodeURIComponent(path) : null;
       }
 
-      return null;
+      return value;
     } catch {
-      return null;
+      return value;
     }
   }
 
@@ -181,8 +181,14 @@ export function resolveCoverImage(images: VehicleImageRow[] | null | undefined):
     return aPosition - bPosition;
   });
 
-  const cover = String(sorted[0]?.image_url ?? "").trim();
-  return cover || null;
+  for (const image of sorted) {
+    const cover = String(image.image_url ?? "").trim();
+    if (cover) {
+      return cover;
+    }
+  }
+
+  return null;
 }
 
 export function applyPriceBandFilters(

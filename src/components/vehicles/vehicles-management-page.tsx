@@ -213,6 +213,11 @@ const ids = rows.map((row) => row.id);
             return;
           }
 
+          if (path.startsWith("http://") || path.startsWith("https://")) {
+            imageMap.set(row.id, path);
+            return;
+          }
+
           const { data: signed, error: signedError } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
           if (!signedError && signed?.signedUrl) {
             imageMap.set(row.id, signed.signedUrl);
