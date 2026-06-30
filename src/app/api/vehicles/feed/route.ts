@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
 
-type FeedPreviewItem = Record<string, unknown> | string;
-
 const MAX_FEED_BYTES = 1_000_000;
 const MAX_PREVIEW_ITEMS = 10;
 const COMMON_JSON_ARRAY_KEYS = ["vehicles", "cars", "data", "items", "stock"];
@@ -116,14 +114,16 @@ function parseCsv(content: string) {
   if (lines.length === 0) {
     return {
       rowsCount: 0,
-      preview: [] as FeedPreviewItem[],
+      preview: [],
     };
   }
 
   const delimiter = detectDelimiter(lines.slice(0, 5).join("\n"));
   const header = parseCsvLine(lines[0], delimiter);
   const rows = lines.slice(1);
-  const preview = rows.slice(0, MAX_PREVIEW_ITEMS).map((line) => {
+  const vehicles: VehicleRecord[] = [];
+
+  for (const line of rows) {
     const values = parseCsvLine(line, delimiter);
     const entry: Record<string, unknown> = {};
 
@@ -131,12 +131,15 @@ function parseCsv(content: string) {
       entry[column || `col_${index + 1}`] = values[index] ?? "";
     });
 
-    return entry;
-  });
+    const vehicle = extractVehicleFromRecord(entry);
+    if (vehicle) {
+      vehicles.push(vehicle);
+    }
+  }
 
   return {
-    rowsCount: rows.length,
-    preview,
+    rowsCount: vehicles.length,
+    preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
   };
 }
 
@@ -150,31 +153,10 @@ function abbreviateText(value: string, maxLength = 220) {
 }
 
 function parseXml(content: string) {
-  const preview: string[] = [];
-  let rowsCount = 0;
-
-  for (const tag of XML_REPEAT_TAGS) {
-    const tagPattern = new RegExp(`<${tag}\\b[\\s\\S]*?<\/${tag}>`, "gi");
-    const matches = content.match(tagPattern) ?? [];
-    if (matches.length > 0) {
-      rowsCount += matches.length;
-      for (const match of matches.slice(0, MAX_PREVIEW_ITEMS - preview.length)) {
-        preview.push(abbreviateText(match));
-      }
-    }
-  }
-
-  if (rowsCount === 0) {
-    const genericMatches = content.match(/<([a-zA-Z][\w:-]*)\b[\s\S]*?<\/\1>/g) ?? [];
-    rowsCount = genericMatches.length;
-    for (const match of genericMatches.slice(0, MAX_PREVIEW_ITEMS)) {
-      preview.push(abbreviateText(match));
-    }
-  }
-
+  const vehicles = extractVehiclesFromXmlContent(content);
   return {
-    rowsCount,
-    preview,
+    rowsCount: vehicles.length,
+    preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
   };
 }
 
@@ -206,34 +188,41 @@ function findFirstArrayInObject(value: Record<string, unknown>) {
 
 function parseJson(content: string) {
   const parsed = JSON.parse(content) as unknown;
+  const vehicles: VehicleRecord[] = [];
 
   if (Array.isArray(parsed)) {
-    return {
-      rowsCount: parsed.length,
-      preview: parsed.slice(0, MAX_PREVIEW_ITEMS) as FeedPreviewItem[],
-    };
-  }
-
-  if (parsed && typeof parsed === "object") {
+    for (const item of parsed) {
+      if (item && typeof item === "object") {
+        const vehicle = extractVehicleFromRecord(item as Record<string, unknown>);
+        if (vehicle) {
+          vehicles.push(vehicle);
+        }
+      }
+    }
+  } else if (parsed && typeof parsed === "object") {
     const objectValue = parsed as Record<string, unknown>;
     const arrayValue = findFirstArrayInObject(objectValue);
 
     if (arrayValue) {
-      return {
-        rowsCount: arrayValue.length,
-        preview: arrayValue.slice(0, MAX_PREVIEW_ITEMS) as FeedPreviewItem[],
-      };
+      for (const item of arrayValue) {
+        if (item && typeof item === "object") {
+          const vehicle = extractVehicleFromRecord(item as Record<string, unknown>);
+          if (vehicle) {
+            vehicles.push(vehicle);
+          }
+        }
+      }
+    } else {
+      const vehicle = extractVehicleFromRecord(objectValue);
+      if (vehicle) {
+        vehicles.push(vehicle);
+      }
     }
-
-    return {
-      rowsCount: 1,
-      preview: [objectValue],
-    };
   }
 
   return {
-    rowsCount: 1,
-    preview: [parsed as FeedPreviewItem],
+    rowsCount: vehicles.length,
+    preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
   };
 }
 
@@ -275,6 +264,138 @@ function detectFeedType(content: string, requestedType: FeedType) {
   }
 
   return "csv" as const;
+}
+
+type VehicleRecord = {
+  brand?: string;
+  model?: string;
+  version?: string;
+  year?: string | number;
+  price?: string | number;
+  mileage?: string | number;
+  fuel?: string;
+  transmission?: string;
+  image_urls?: string[];
+};
+
+function findFieldValue(obj: Record<string, unknown>, fieldPatterns: string[]): string | null {
+  const lowerObj: Record<string, unknown> = {};
+  Object.entries(obj).forEach(([k, v]) => {
+    lowerObj[k.toLowerCase().replace(/[_-]/g, "")] = v;
+  });
+
+  for (const pattern of fieldPatterns) {
+    const normalized = pattern.toLowerCase().replace(/[_-]/g, "");
+    const value = lowerObj[normalized];
+    if (value !== null && value !== undefined && value !== "") {
+      return String(value).trim();
+    }
+  }
+
+  return null;
+}
+
+function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecord | null {
+  const brand = findFieldValue(record, ["brand", "marca", "make", "manufacturer", "marque"]);
+  const model = findFieldValue(record, ["model", "modello", "model_name", "name"]);
+
+  if (!brand || !model) {
+    return null;
+  }
+
+  const year = findFieldValue(record, ["year", "anno", "year_of_manufacture", "manufacturing_year"]);
+  const price = findFieldValue(record, ["price", "prezzo", "prezzo_vendita", "cost", "selling_price"]);
+  const mileage = findFieldValue(record, ["mileage", "km", "chilometri", "kilometers", "odometer"]);
+  const fuel = findFieldValue(record, ["fuel", "alimentazione", "carburante", "fuel_type", "petrol_diesel"]);
+  const transmission = findFieldValue(record, ["transmission", "cambio", "trasmissione", "gearbox", "gear"]);
+  const version = findFieldValue(record, ["version", "versione", "trim", "trim_level"]);
+
+  const imageUrlsKey = Object.keys(record).find(
+    (k) => k.toLowerCase().includes("image") || k.toLowerCase().includes("foto") || k.toLowerCase().includes("picture"),
+  );
+  let imageUrls: string[] = [];
+  if (imageUrlsKey) {
+    const imageValue = record[imageUrlsKey];
+    if (Array.isArray(imageValue)) {
+      imageUrls = imageValue
+        .map((v) => String(v ?? "").trim())
+        .filter((v) => v.length > 0 && (v.startsWith("http://") || v.startsWith("https://")));
+    } else if (typeof imageValue === "string" && imageValue.trim()) {
+      imageUrls = [imageValue.trim()];
+    }
+  }
+
+  return {
+    brand,
+    model,
+    version: version ?? undefined,
+    year: year ?? undefined,
+    price: price ?? undefined,
+    mileage: mileage ?? undefined,
+    fuel: fuel ?? undefined,
+    transmission: transmission ?? undefined,
+    image_urls: imageUrls.length > 0 ? imageUrls : undefined,
+  };
+}
+
+function extractVehiclesFromXmlContent(content: string): VehicleRecord[] {
+  const vehicles: VehicleRecord[] = [];
+
+  for (const tag of XML_REPEAT_TAGS) {
+    const tagPattern = new RegExp(`<${tag}\\b[\\s\\S]*?<\/${tag}>`, "gi");
+    const matches = content.match(tagPattern) ?? [];
+
+    for (const match of matches) {
+      const vehicle: VehicleRecord = {};
+
+      const fieldPatterns = {
+        brand: [
+          { patterns: ["brand", "marca", "make", "manufacturer"], single: true },
+          { patterns: ["brand", "marca", "make", "manufacturer"], single: true },
+        ],
+        model: [{ patterns: ["model", "modello", "model_name", "name"], single: true }],
+        year: [{ patterns: ["year", "anno", "year_of_manufacture", "manufacturing_year"], single: true }],
+        price: [{ patterns: ["price", "prezzo", "prezzo_vendita", "cost", "selling_price"], single: true }],
+        mileage: [{ patterns: ["mileage", "km", "chilometri", "kilometers", "odometer"], single: true }],
+        fuel: [{ patterns: ["fuel", "alimentazione", "carburante", "fuel_type"], single: true }],
+        transmission: [{ patterns: ["transmission", "cambio", "trasmissione", "gearbox"], single: true }],
+        version: [{ patterns: ["version", "versione", "trim", "trim_level"], single: true }],
+      };
+
+      for (const [key, items] of Object.entries(fieldPatterns)) {
+        for (const item of items) {
+          for (const pattern of item.patterns) {
+            const tagRegex = new RegExp(`<${pattern}[^>]*>([^<]+)<\/${pattern}>`, "i");
+            const tagMatch = match.match(tagRegex);
+            if (tagMatch && tagMatch[1]) {
+              const value = tagMatch[1].trim();
+              if (value) {
+                (vehicle as Record<string, unknown>)[key] = value;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Extract images
+      const imageMatches = match.match(/<image[^>]*>([^<]+)<\/image>/gi) || [];
+      if (imageMatches.length > 0) {
+        vehicle.image_urls = imageMatches
+          .map((m) => {
+            const urlMatch = m.match(/>([^<]+)</);
+            return urlMatch ? urlMatch[1].trim() : null;
+          })
+          .filter((url): url is string => url !== null && (url.startsWith("http://") || url.startsWith("https://")));
+      }
+
+      if (vehicle.brand && vehicle.model) {
+        vehicles.push(vehicle);
+      }
+    }
+  }
+
+  return vehicles;
 }
 
 const DEMO_FEED_URL = "demo://automotive-feed";
@@ -462,7 +583,7 @@ export async function POST(request: Request) {
   let detectedType: "json" | "xml" | "csv";
   let analysis: {
     rowsCount: number;
-    preview: FeedPreviewItem[];
+    preview: VehicleRecord[];
   };
 
   try {
@@ -485,11 +606,21 @@ export async function POST(request: Request) {
     } else {
       analysis = parseCsv(content);
     }
+
+    if (analysis.rowsCount === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Il feed non contiene veicoli.",
+        },
+        { status: 400 },
+      );
+    }
   } catch {
     return NextResponse.json(
       {
         success: false,
-        message: "Feed non raggiungibile",
+        message: "Errore durante l'analisi del feed.",
       },
       { status: 400 },
     );
