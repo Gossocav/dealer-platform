@@ -883,6 +883,40 @@ export async function POST(request: Request) {
     let imported = 0;
     let updated = 0;
 
+    async function saveVehicleImages(
+      vehicleId: string,
+      imageDealerId: string,
+      imageUrls: string[] | undefined,
+      createdAt: string,
+    ) {
+      if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+        return;
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from("vehicle_images")
+        .delete()
+        .eq("vehicle_id", vehicleId);
+
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
+
+      const imagesToInsert = imageUrls.map((imageUrl, index) => ({
+        vehicle_id: vehicleId,
+        dealer_id: imageDealerId,
+        image_url: imageUrl,
+        position: index,
+        is_cover: index === 0,
+        created_at: createdAt,
+      }));
+
+      const { error: insertError } = await supabaseAdmin.from("vehicle_images").insert(imagesToInsert);
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+    }
+
     for (const vehicle of analysis.preview) {
       const vehicleLabel = `${vehicle.brand} ${vehicle.model}`;
 
@@ -977,82 +1011,38 @@ export async function POST(request: Request) {
             errors.push(`${vehicleLabel}: ${error.message}`);
           } else {
             updated += 1;
-
-            // Salva immagini se presenti
-            if (vehicle.image_urls && vehicle.image_urls.length > 0) {
-              try {
-                // Elimina vecchie immagini
-                await supabaseAdmin
-                  .from("vehicle_images")
-                  .delete()
-                  .eq("dealer_id", dealerId)
-                  .eq("vehicle_id", existingVehicle.id);
-
-                // Inserisci nuove immagini
-                const imagesToInsert = vehicle.image_urls.map((url, index) => ({
-                  dealer_id: dealerId,
-                  vehicle_id: existingVehicle.id,
-                  image_url: url,
-                  position: index,
-                  is_cover: index === 0,
-                  created_at: now,
-                }));
-
-                const { error: imageError } = await supabaseAdmin
-                  .from("vehicle_images")
-                  .insert(imagesToInsert);
-
-                if (imageError) {
-                  errors.push(`${vehicleLabel} (immagini): ${imageError.message}`);
-                }
-              } catch (err) {
-                errors.push(
-                  `${vehicleLabel} (immagini): ${err instanceof Error ? err.message : "Errore sconosciuto"}`
-                );
-              }
+            const vehicleId = existingVehicle.id;
+            try {
+              await saveVehicleImages(vehicleId, dealerId, vehicle.image_urls, now);
+            } catch (err) {
+              errors.push(
+                `${vehicleLabel} (immagini): ${err instanceof Error ? err.message : "Errore sconosciuto"}`,
+              );
             }
           }
         } else {
           // Step 4: Crea nuovo se non trovato
-          const { data, error } = await supabaseAdmin
+          const { data: inserted, error } = await supabaseAdmin
             .from("vehicles")
             .insert({
               ...vehicleData,
               created_at: now,
               updated_at: now,
             })
-            .select("id");
+            .select("id")
+            .single<{ id: string }>();
 
           if (error) {
             errors.push(`${vehicleLabel}: ${error.message}`);
-          } else if (data && data.length > 0) {
+          } else if (inserted?.id) {
             imported += 1;
-            const insertedVehicleId = data[0].id as string;
-
-            // Salva immagini se presenti
-            if (vehicle.image_urls && vehicle.image_urls.length > 0) {
-              try {
-                const imagesToInsert = vehicle.image_urls.map((url, index) => ({
-                  dealer_id: dealerId,
-                  vehicle_id: insertedVehicleId,
-                  image_url: url,
-                  position: index,
-                  is_cover: index === 0,
-                  created_at: now,
-                }));
-
-                const { error: imageError } = await supabaseAdmin
-                  .from("vehicle_images")
-                  .insert(imagesToInsert);
-
-                if (imageError) {
-                  errors.push(`${vehicleLabel} (immagini): ${imageError.message}`);
-                }
-              } catch (err) {
-                errors.push(
-                  `${vehicleLabel} (immagini): ${err instanceof Error ? err.message : "Errore sconosciuto"}`
-                );
-              }
+            const vehicleId = inserted.id;
+            try {
+              await saveVehicleImages(vehicleId, dealerId, vehicle.image_urls, now);
+            } catch (err) {
+              errors.push(
+                `${vehicleLabel} (immagini): ${err instanceof Error ? err.message : "Errore sconosciuto"}`,
+              );
             }
           }
         }
