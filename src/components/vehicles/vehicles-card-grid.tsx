@@ -1,5 +1,8 @@
+"use client";
+
 import { CalendarDays, Copy, Eye, Gauge, Pencil, Rocket, Trash2, Users } from "lucide-react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { formatDate, type VehicleListItem } from "@/lib/vehicles";
 
 type VehiclesCardGridProps = {
@@ -17,6 +20,49 @@ function statusClasses(status: VehicleListItem["status"]) {
   return "bg-sky-100 text-sky-700";
 }
 
+type VehicleCoverImageProps = {
+  vehicle: VehicleListItem;
+};
+
+function VehicleCoverImage({ vehicle }: VehicleCoverImageProps) {
+  const [hasError, setHasError] = useState(false);
+
+  const initials = useMemo(() => {
+    const parts = `${vehicle.brand} ${vehicle.model}`
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2);
+
+    if (parts.length === 0) {
+      return "NA";
+    }
+
+    return parts.map((part) => part.charAt(0).toUpperCase()).join("");
+  }, [vehicle.brand, vehicle.model]);
+
+  if (vehicle.mainImageUrl && !hasError) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={vehicle.mainImageUrl}
+        alt={`${vehicle.brand} ${vehicle.model}`}
+        className="absolute inset-0 z-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        onError={() => setHasError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 z-0 flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 text-slate-700">
+      <span className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-base font-bold tracking-[0.1em] text-slate-800 shadow-sm">
+        {initials}
+      </span>
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Foto non disponibile</span>
+    </div>
+  );
+}
+
 export function VehiclesCardGrid({ items, onDuplicate, onTogglePublished, onDelete, busyVehicleId }: VehiclesCardGridProps) {
   return (
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -29,18 +75,7 @@ export function VehiclesCardGrid({ items, onDuplicate, onTogglePublished, onDele
             className="dashboard-fade-up group overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_-16px_rgba(15,23,42,0.4)]"
           >
             <div className="relative h-48 overflow-hidden bg-slate-100">
-              {vehicle.mainImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={vehicle.mainImageUrl}
-                  alt={`${vehicle.brand} ${vehicle.model}`}
-                  className="absolute inset-0 z-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
-              ) : (
-                <div className="absolute inset-0 z-0 flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Nessuna foto
-                </div>
-              )}
+              <VehicleCoverImage vehicle={vehicle} />
               <span className="absolute left-3 top-3 z-10 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
                 {vehicle.badge}
               </span>
