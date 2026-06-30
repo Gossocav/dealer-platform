@@ -621,6 +621,7 @@ function extractVehiclesFromXmlContent(content: string): { vehicles: VehicleReco
 }
 
 const DEMO_FEED_URL = "demo://automotive-feed";
+const DEMO_FEED_IMAGES_URL = "demo://automotive-feed-images";
 
 const DEMO_VEHICLES = [
   {
@@ -661,6 +662,54 @@ const DEMO_VEHICLES = [
       "https://example.com/bmw-x1-1.jpg",
       "https://example.com/bmw-x1-2.jpg",
       "https://example.com/bmw-x1-3.jpg",
+    ],
+  },
+];
+
+const DEMO_VEHICLES_WITH_IMAGES: VehicleRecord[] = [
+  {
+    brand: "Alfa Romeo",
+    model: "Giulia",
+    version: "2.2 Turbo Diesel 190 AT8 Veloce",
+    year: "2022",
+    price: "36900",
+    mileage: "48200",
+    fuel: "Diesel",
+    transmission: "Automatico",
+    color: "Rosso Competizione",
+    image_urls: [
+      "https://upload.wikimedia.org/wikipedia/commons/8/8b/Alfa_Romeo_Giulia_Veloce_2.2_TD_2017_%2835900721646%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/c/c5/Alfa_Romeo_Giulia_2.2_JTDM_Super_%2845291729974%29.jpg",
+    ],
+  },
+  {
+    brand: "Audi",
+    model: "A3 Sportback",
+    version: "35 TFSI S tronic Business",
+    year: "2023",
+    price: "31900",
+    mileage: "22800",
+    fuel: "Benzina",
+    transmission: "Automatico",
+    color: "Grigio Daytona",
+    image_urls: [
+      "https://upload.wikimedia.org/wikipedia/commons/7/78/Audi_A3_Sportback_35_TFSI_S_line_%28IV%29_%E2%80%93_f_06012021.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/0/0d/Audi_A3_Sportback_35_TFSI_S_line_%28IV%29_%E2%80%93_h_06012021.jpg",
+    ],
+  },
+  {
+    brand: "Peugeot",
+    model: "3008",
+    version: "1.5 BlueHDi 130 EAT8 GT",
+    year: "2021",
+    price: "27400",
+    mileage: "61500",
+    fuel: "Diesel",
+    transmission: "Automatico",
+    color: "Blu Celebes",
+    image_urls: [
+      "https://upload.wikimedia.org/wikipedia/commons/4/43/2018_Peugeot_3008_Allure_Blue_HDi_S-A_1.5.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/f/f1/Peugeot_3008_II_Facelift_1X7A6993.jpg",
     ],
   },
 ];
@@ -759,49 +808,6 @@ export async function POST(request: Request) {
     });
   }
 
-  if (!/^https?:\/\//i.test(url)) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "URL feed non valido",
-      },
-      { status: 400 },
-    );
-  }
-
-  let response: Response;
-
-  try {
-    response = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      headers: {
-        "user-agent": "DealerPlatformFeedAnalyzer/1.0",
-        accept: "application/json, text/xml, application/xml, text/csv, text/plain, */*",
-      },
-    });
-  } catch {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Feed non raggiungibile",
-      },
-      { status: 400 },
-    );
-  }
-
-  if (!response.ok) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Feed non raggiungibile",
-      },
-      { status: 400 },
-    );
-  }
-
-  const content = await readLimitedText(response, MAX_FEED_BYTES);
-
   let detectedType: "json" | "xml" | "csv";
   let analysis: {
     rowsCount: number;
@@ -809,44 +815,108 @@ export async function POST(request: Request) {
     firstRawRecord?: unknown;
   };
 
-  try {
-    detectedType = detectFeedType(content, requestedType);
+  if (url === DEMO_FEED_IMAGES_URL) {
+    detectedType = "json";
+    analysis = {
+      rowsCount: DEMO_VEHICLES_WITH_IMAGES.length,
+      preview: DEMO_VEHICLES_WITH_IMAGES,
+      firstRawRecord: DEMO_VEHICLES_WITH_IMAGES[0],
+    };
 
-    if (detectedType === "json") {
-      analysis = parseJson(content);
-    } else if (detectedType === "xml") {
-      if (!isAutomotiveXmlFeed(content)) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Il feed è valido ma non contiene dati di veicoli.",
-          },
-          { status: 400 },
-        );
-      }
-
-      analysis = parseXml(content);
-    } else {
-      analysis = parseCsv(content);
+    if (action !== "import") {
+      return NextResponse.json({
+        success: true,
+        message: "Feed demo automotive con immagini analizzato correttamente",
+        detectedType,
+        rowsCount: analysis.rowsCount,
+        preview: analysis.preview,
+      });
     }
+  }
 
-    if (analysis.rowsCount === 0) {
+  if (url !== DEMO_FEED_IMAGES_URL) {
+    if (!/^https?:\/\//i.test(url)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Il feed non contiene veicoli.",
+          message: "URL feed non valido",
         },
         { status: 400 },
       );
     }
-  } catch {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Errore durante l'analisi del feed.",
-      },
-      { status: 400 },
-    );
+
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        headers: {
+          "user-agent": "DealerPlatformFeedAnalyzer/1.0",
+          accept: "application/json, text/xml, application/xml, text/csv, text/plain, */*",
+        },
+      });
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Feed non raggiungibile",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Feed non raggiungibile",
+        },
+        { status: 400 },
+      );
+    }
+
+    const content = await readLimitedText(response, MAX_FEED_BYTES);
+
+    try {
+      detectedType = detectFeedType(content, requestedType);
+
+      if (detectedType === "json") {
+        analysis = parseJson(content);
+      } else if (detectedType === "xml") {
+        if (!isAutomotiveXmlFeed(content)) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Il feed è valido ma non contiene dati di veicoli.",
+            },
+            { status: 400 },
+          );
+        }
+
+        analysis = parseXml(content);
+      } else {
+        analysis = parseCsv(content);
+      }
+
+      if (analysis.rowsCount === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Il feed non contiene veicoli.",
+          },
+          { status: 400 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Errore durante l'analisi del feed.",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   // Gestisci l'import di feed reali
