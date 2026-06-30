@@ -115,6 +115,7 @@ function parseCsv(content: string) {
     return {
       rowsCount: 0,
       preview: [],
+      firstRawRecord: undefined,
     };
   }
 
@@ -122,14 +123,20 @@ function parseCsv(content: string) {
   const header = parseCsvLine(lines[0], delimiter);
   const rows = lines.slice(1);
   const vehicles: VehicleRecord[] = [];
+  let firstRawRecord: Record<string, unknown> | undefined;
 
-  for (const line of rows) {
+  for (let index = 0; index < rows.length; index += 1) {
+    const line = rows[index];
     const values = parseCsvLine(line, delimiter);
     const entry: Record<string, unknown> = {};
 
-    header.forEach((column, index) => {
-      entry[column || `col_${index + 1}`] = values[index] ?? "";
+    header.forEach((column, columnIndex) => {
+      entry[column || `col_${columnIndex + 1}`] = values[columnIndex] ?? "";
     });
+
+    if (index === 0) {
+      firstRawRecord = entry;
+    }
 
     const vehicle = extractVehicleFromRecord(entry);
     if (vehicle) {
@@ -140,6 +147,7 @@ function parseCsv(content: string) {
   return {
     rowsCount: vehicles.length,
     preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
+    firstRawRecord,
   };
 }
 
@@ -153,10 +161,11 @@ function abbreviateText(value: string, maxLength = 220) {
 }
 
 function parseXml(content: string) {
-  const vehicles = extractVehiclesFromXmlContent(content);
+  const result = extractVehiclesFromXmlContent(content);
   return {
-    rowsCount: vehicles.length,
-    preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
+    rowsCount: result.vehicles.length,
+    preview: result.vehicles.slice(0, MAX_PREVIEW_ITEMS),
+    firstRawRecord: result.firstRawXml,
   };
 }
 
@@ -189,10 +198,15 @@ function findFirstArrayInObject(value: Record<string, unknown>) {
 function parseJson(content: string) {
   const parsed = JSON.parse(content) as unknown;
   const vehicles: VehicleRecord[] = [];
+  let firstRawRecord: unknown;
 
   if (Array.isArray(parsed)) {
-    for (const item of parsed) {
+    for (let index = 0; index < parsed.length; index += 1) {
+      const item = parsed[index];
       if (item && typeof item === "object") {
+        if (index === 0) {
+          firstRawRecord = item;
+        }
         const vehicle = extractVehicleFromRecord(item as Record<string, unknown>);
         if (vehicle) {
           vehicles.push(vehicle);
@@ -204,8 +218,12 @@ function parseJson(content: string) {
     const arrayValue = findFirstArrayInObject(objectValue);
 
     if (arrayValue) {
-      for (const item of arrayValue) {
+      for (let index = 0; index < arrayValue.length; index += 1) {
+        const item = arrayValue[index];
         if (item && typeof item === "object") {
+          if (index === 0) {
+            firstRawRecord = item;
+          }
           const vehicle = extractVehicleFromRecord(item as Record<string, unknown>);
           if (vehicle) {
             vehicles.push(vehicle);
@@ -213,6 +231,7 @@ function parseJson(content: string) {
         }
       }
     } else {
+      firstRawRecord = objectValue;
       const vehicle = extractVehicleFromRecord(objectValue);
       if (vehicle) {
         vehicles.push(vehicle);
@@ -223,6 +242,7 @@ function parseJson(content: string) {
   return {
     rowsCount: vehicles.length,
     preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
+    firstRawRecord,
   };
 }
 
@@ -278,6 +298,75 @@ type VehicleRecord = {
   image_urls?: string[];
 };
 
+function extractStringFromValue(value: unknown, depth = 0): string | null {
+  const MAX_DEPTH = 10;
+
+  // Protezione contro la ricorsione infinita
+  if (depth > MAX_DEPTH) {
+    return null;
+  }
+
+  // Stringa: ritorna se non vuota
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  // Numeri e booleani: converti a stringa
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  // null o undefined
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  // Array: estrai il primo valore utile
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const extracted = extractStringFromValue(item, depth + 1);
+      if (extracted) {
+        return extracted;
+      }
+    }
+    return null;
+  }
+
+  // Oggetto: cerca ricorsivamente
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const priorityKeys = ["name", "value", "label", "title", "text", "model", "make"];
+
+    // Primo: prova i campi prioritari
+    for (const key of priorityKeys) {
+      if (key in obj) {
+        const extracted = extractStringFromValue(obj[key], depth + 1);
+        if (extracted) {
+          return extracted;
+        }
+      }
+    }
+
+    // Secondo: prova tutti i valori in ordine
+    const entries = Object.entries(obj);
+    const sortedEntries = entries.sort(([keyA], [keyB]) => {
+      const aScore = keyA.toLowerCase().includes("name") || keyA.toLowerCase().includes("value") ? 0 : 1;
+      const bScore = keyB.toLowerCase().includes("name") || keyB.toLowerCase().includes("value") ? 0 : 1;
+      return aScore - bScore;
+    });
+
+    for (const [, val] of sortedEntries) {
+      const extracted = extractStringFromValue(val, depth + 1);
+      if (extracted) {
+        return extracted;
+      }
+    }
+  }
+
+  return null;
+}
+
 function findFieldValue(obj: Record<string, unknown>, fieldPatterns: string[]): string | null {
   const lowerObj: Record<string, unknown> = {};
   Object.entries(obj).forEach(([k, v]) => {
@@ -288,7 +377,7 @@ function findFieldValue(obj: Record<string, unknown>, fieldPatterns: string[]): 
     const normalized = pattern.toLowerCase().replace(/[_-]/g, "");
     const value = lowerObj[normalized];
     if (value !== null && value !== undefined && value !== "") {
-      return String(value).trim();
+      return extractStringFromValue(value);
     }
   }
 
@@ -318,10 +407,13 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
     const imageValue = record[imageUrlsKey];
     if (Array.isArray(imageValue)) {
       imageUrls = imageValue
-        .map((v) => String(v ?? "").trim())
-        .filter((v) => v.length > 0 && (v.startsWith("http://") || v.startsWith("https://")));
-    } else if (typeof imageValue === "string" && imageValue.trim()) {
-      imageUrls = [imageValue.trim()];
+        .map((v) => extractStringFromValue(v))
+        .filter((v): v is string => v !== null && (v.startsWith("http://") || v.startsWith("https://")));
+    } else {
+      const extracted = extractStringFromValue(imageValue);
+      if (extracted && (extracted.startsWith("http://") || extracted.startsWith("https://"))) {
+        imageUrls = [extracted];
+      }
     }
   }
 
@@ -338,14 +430,20 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
   };
 }
 
-function extractVehiclesFromXmlContent(content: string): VehicleRecord[] {
+function extractVehiclesFromXmlContent(content: string): { vehicles: VehicleRecord[]; firstRawXml?: string } {
   const vehicles: VehicleRecord[] = [];
+  let firstRawXml: string | undefined;
 
   for (const tag of XML_REPEAT_TAGS) {
     const tagPattern = new RegExp(`<${tag}\\b[\\s\\S]*?<\/${tag}>`, "gi");
     const matches = content.match(tagPattern) ?? [];
 
-    for (const match of matches) {
+    for (let matchIndex = 0; matchIndex < matches.length; matchIndex += 1) {
+      const match = matches[matchIndex];
+      if (matchIndex === 0 && !firstRawXml) {
+        firstRawXml = match;
+      }
+
       const vehicle: VehicleRecord = {};
 
       const fieldPatterns = {
@@ -395,7 +493,7 @@ function extractVehiclesFromXmlContent(content: string): VehicleRecord[] {
     }
   }
 
-  return vehicles;
+  return { vehicles, firstRawXml };
 }
 
 const DEMO_FEED_URL = "demo://automotive-feed";
@@ -584,6 +682,7 @@ export async function POST(request: Request) {
   let analysis: {
     rowsCount: number;
     preview: VehicleRecord[];
+    firstRawRecord?: unknown;
   };
 
   try {
@@ -626,11 +725,18 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({
+  const isDebugUrl = url.includes("https://gist.githubusercontent.com/bertwagner/356bf47732b9e35d2156daa943e049e9/raw/");
+  const responseBody: Record<string, unknown> = {
     success: true,
     message: "Feed analizzato correttamente",
     detectedType,
     rowsCount: analysis.rowsCount,
     preview: analysis.preview,
-  });
+  };
+
+  if (isDebugUrl && analysis.firstRawRecord) {
+    responseBody.debugFirstVehicle = analysis.firstRawRecord;
+  }
+
+  return NextResponse.json(responseBody);
 }
