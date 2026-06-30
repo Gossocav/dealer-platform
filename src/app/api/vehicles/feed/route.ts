@@ -795,38 +795,104 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const errors: string[] = [];
     let imported = 0;
+    let updated = 0;
 
     for (const vehicle of analysis.preview) {
-      const { error } = await supabaseAdmin.from("vehicles").insert({
-        brand: vehicle.brand,
-        model: vehicle.model,
-        version: vehicle.version ?? null,
-        year: vehicle.year ? parseInt(String(vehicle.year), 10) : null,
-        price: vehicle.price ? parseFloat(String(vehicle.price)) : null,
-        mileage: vehicle.mileage ? parseInt(String(vehicle.mileage), 10) : null,
-        fuel: vehicle.fuel ?? null,
-        transmission: vehicle.transmission ?? null,
-        color: null,
-        vin: null,
-        description: null,
-        status: "published",
-        published: true,
-        dealer_id: dealerId,
-        created_at: now,
-        updated_at: now,
-      });
+      const vehicleLabel = `${vehicle.brand} ${vehicle.model}`;
+      
+      try {
+        // Prepara i dati comuni per insert/update
+        const vehicleData = {
+          brand: vehicle.brand,
+          model: vehicle.model,
+          version: vehicle.version ?? null,
+          year: vehicle.year ? parseInt(String(vehicle.year), 10) : null,
+          price: vehicle.price ? parseFloat(String(vehicle.price)) : null,
+          mileage: vehicle.mileage ? parseInt(String(vehicle.mileage), 10) : null,
+          fuel: vehicle.fuel ?? null,
+          transmission: vehicle.transmission ?? null,
+          color: null,
+          vin: null,
+          description: null,
+          status: "published" as const,
+          published: true,
+          dealer_id: dealerId,
+        };
 
-      if (error) {
-        errors.push(`${vehicle.brand} ${vehicle.model}: ${error.message}`);
-      } else {
-        imported += 1;
+        // Logica di upsert: cerca il veicolo esistente
+        let existingVehicle: { id: string } | null = null;
+
+        // Se ha VIN, cerca per (dealer_id, vin)
+        if (vehicleData.vin) {
+          const { data } = await supabaseAdmin
+            .from("vehicles")
+            .select("id")
+            .eq("dealer_id", dealerId)
+            .eq("vin", vehicleData.vin)
+            .single();
+
+          existingVehicle = data as { id: string } | null;
+        }
+
+        // Se non ha VIN o non trovato per VIN, cerca per (dealer_id, brand, model, version, year)
+        if (!existingVehicle) {
+          const query = supabaseAdmin
+            .from("vehicles")
+            .select("id")
+            .eq("dealer_id", dealerId)
+            .eq("brand", vehicleData.brand)
+            .eq("model", vehicleData.model);
+
+          // Aggiungi filtri opzionali se presenti
+          if (vehicleData.version) {
+            query.eq("version", vehicleData.version);
+          }
+          if (vehicleData.year) {
+            query.eq("year", vehicleData.year);
+          }
+
+          const { data } = await query.single();
+          existingVehicle = data as { id: string } | null;
+        }
+
+        // Aggiorna il veicolo esistente
+        if (existingVehicle) {
+          const { error } = await supabaseAdmin
+            .from("vehicles")
+            .update({
+              ...vehicleData,
+              updated_at: now,
+            })
+            .eq("id", existingVehicle.id);
+
+          if (error) {
+            errors.push(`${vehicleLabel}: ${error.message}`);
+          } else {
+            updated += 1;
+          }
+        } else {
+          // Crea un nuovo veicolo
+          const { error } = await supabaseAdmin.from("vehicles").insert({
+            ...vehicleData,
+            created_at: now,
+            updated_at: now,
+          });
+
+          if (error) {
+            errors.push(`${vehicleLabel}: ${error.message}`);
+          } else {
+            imported += 1;
+          }
+        }
+      } catch (err) {
+        errors.push(`${vehicleLabel}: ${err instanceof Error ? err.message : "Errore sconosciuto"}`);
       }
     }
 
     return NextResponse.json({
       success: true,
       imported,
-      updated: 0,
+      updated,
       errors,
     });
   }
