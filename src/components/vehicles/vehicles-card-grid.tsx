@@ -22,6 +22,7 @@ export function VehiclesCardGrid({ items, onDuplicate, onTogglePublished, onDele
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {items.map((vehicle) => {
         const isBusy = busyVehicleId === vehicle.id;
+        console.log("CARD IMAGE", vehicle.brand, vehicle.model, vehicle.mainImageUrl);
 
         return (
           <article
