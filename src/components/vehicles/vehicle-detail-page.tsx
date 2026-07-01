@@ -38,7 +38,7 @@ function mapImageUrlForDisplay(imageUrl: string): string {
     return imageUrl;
   }
 
-  return imageUrl;
+  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
 }
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
@@ -49,6 +49,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coverImageFailed, setCoverImageFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -148,6 +149,10 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
   const coverUrl = useMemo(() => images.find((image) => image.is_cover)?.previewUrl ?? images[0]?.previewUrl ?? null, [images]);
 
+  useEffect(() => {
+    setCoverImageFailed(false);
+  }, [coverUrl]);
+
   const togglePublished = async () => {
     if (!vehicle) return;
 
@@ -217,11 +222,16 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <article className="dashboard-fade-up overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)]">
               <div className="h-72 bg-slate-200">
-                {coverUrl ? (
+                {coverUrl && !coverImageFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverUrl} alt={`${safeText(vehicle.brand)} ${safeText(vehicle.model)}`} className="h-full w-full object-cover" />
+                  <img
+                    src={coverUrl}
+                    alt={`${safeText(vehicle.brand)} ${safeText(vehicle.model)}`}
+                    className="h-full w-full object-cover"
+                    onError={() => setCoverImageFailed(true)}
+                  />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">Nessuna foto disponibile</div>
+                  <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">Foto non disponibile</div>
                 )}
               </div>
               {images.length > 1 ? (
