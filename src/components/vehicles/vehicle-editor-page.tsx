@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { supabase } from "@/lib/supabaseClient";
@@ -47,6 +47,7 @@ type ViewImage = VehicleImageRow & { previewUrl: string | null };
 
 export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const router = useRouter();
+  const imageInputId = useId();
 
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [state, setState] = useState<EditorState>(INITIAL_STATE);
@@ -359,12 +360,24 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 Upload immagini
               </p>
               <input
+                id={imageInputId}
                 type="file"
                 accept="image/*"
                 multiple
                 onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
-                className="mt-3 block w-full text-sm text-slate-700"
+                className="sr-only"
               />
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <label
+                  htmlFor={imageInputId}
+                  className="inline-flex cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  Scegli i file
+                </label>
+                <span className="text-sm text-slate-500">
+                  {pendingFiles.length > 0 ? `${pendingFiles.length} file selezionati` : "Nessun file selezionato"}
+                </span>
+              </div>
               <p className="mt-2 text-xs text-slate-500">{pendingFiles.length} file pronti al caricamento.</p>
             </div>
 
