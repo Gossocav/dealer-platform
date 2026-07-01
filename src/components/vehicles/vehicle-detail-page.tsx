@@ -221,7 +221,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
           <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <article className="dashboard-fade-up overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)]">
-              <div className="relative h-72 overflow-hidden bg-slate-200 md:h-[420px]">
+              <div className="relative h-56 overflow-hidden bg-slate-200 md:h-72">
                 {coverUrl && !coverImageFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
