@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URL feed non valido." }, { status: 400 });
     }
 
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    if (!["http:", "https:", "demo:"].includes(parsedUrl.protocol)) {
       return NextResponse.json({ error: "Sono supportati solo URL HTTP/HTTPS." }, { status: 400 });
     }
 
