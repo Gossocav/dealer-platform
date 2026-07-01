@@ -192,22 +192,39 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         body: JSON.stringify({ licensePlate }),
       });
 
-      const payload = (await response.json()) as { error?: string; vehicle?: PlateLookupVehicle };
+      const payload = (await response.json()) as {
+        error?: string;
+        message?: string;
+        vehicle?: PlateLookupVehicle;
+        data?: Record<string, unknown>;
+      };
 
-      if (!response.ok || !payload.vehicle) {
-        setError(payload.error || "Ricerca targa non disponibile.");
-        setPlateLookupLoading(false);
+      if (!response.ok) {
+        setError(payload.error || payload.message || "Ricerca targa non disponibile.");
         return;
       }
 
+      const source = ((payload.vehicle as Record<string, unknown> | undefined) ?? payload.data ?? payload) as Record<string, unknown>;
+      const pick = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = source[key];
+          const normalized = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
+          if (normalized) {
+            return normalized;
+          }
+        }
+
+        return "";
+      };
+
       setState((prev) => ({
         ...prev,
-        brand: String(payload.vehicle?.brand ?? "").trim() || prev.brand,
-        model: String(payload.vehicle?.model ?? "").trim() || prev.model,
-        version: String(payload.vehicle?.version ?? "").trim() || prev.version,
-        year: String(payload.vehicle?.year ?? "").trim() || prev.year,
-        fuel: String(payload.vehicle?.fuel ?? "").trim() || prev.fuel,
-        transmission: String(payload.vehicle?.transmission ?? "").trim() || prev.transmission,
+        brand: pick("brand", "Brand", "CarMake", "MakeDescription", "make") || prev.brand,
+        model: pick("model", "Model", "CarModel", "ModelDescription") || prev.model,
+        version: pick("version", "Version", "trim") || prev.version,
+        year: pick("year", "Year", "RegistrationYear", "modelYear") || prev.year,
+        fuel: pick("fuel", "Fuel", "FuelType", "fuelType") || prev.fuel,
+        transmission: pick("transmission", "Transmission", "Gearbox", "gearbox") || prev.transmission,
       }));
 
       setSuccess("Dati veicolo compilati da targa.");
