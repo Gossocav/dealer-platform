@@ -5,6 +5,10 @@ import { formatDate, type VehicleListItem, type VehicleSortState } from "@/lib/v
 type VehiclesTableProps = {
   items: VehicleListItem[];
   sort: VehicleSortState;
+  selectedVehicleIds: string[];
+  allVisibleSelected: boolean;
+  onToggleSelect: (vehicleId: string) => void;
+  onToggleSelectAll: () => void;
   onSortChange: (field: VehicleSortState["field"]) => void;
   onDuplicate: (vehicleId: string) => void;
   onTogglePublished: (vehicle: VehicleListItem) => void;
@@ -49,6 +53,10 @@ function SortHeader({
 export function VehiclesTable({
   items,
   sort,
+  selectedVehicleIds,
+  allVisibleSelected,
+  onToggleSelect,
+  onToggleSelectAll,
   onSortChange,
   onDuplicate,
   onTogglePublished,
@@ -61,6 +69,15 @@ export function VehiclesTable({
         <table className="min-w-[980px] w-full border-separate border-spacing-y-2 p-2 text-sm">
           <thead>
             <tr>
+              <th className="px-3 py-2 text-left">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={onToggleSelectAll}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                  aria-label="Seleziona tutti i veicoli visibili"
+                />
+              </th>
               <th className="px-3 py-2 text-left">
                 <SortHeader label="Veicolo" field="brand" sort={sort} onSortChange={onSortChange} />
               </th>
@@ -85,10 +102,20 @@ export function VehiclesTable({
           <tbody>
             {items.map((vehicle) => {
               const isBusy = busyVehicleId === vehicle.id;
+              const isSelected = selectedVehicleIds.includes(vehicle.id);
 
               return (
                 <tr key={vehicle.id} className="rounded-2xl bg-slate-50 text-slate-700">
-                  <td className="rounded-l-2xl px-3 py-3">
+                  <td className="rounded-l-2xl px-3 py-3 align-top">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleSelect(vehicle.id)}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                      aria-label={`Seleziona ${vehicle.brand} ${vehicle.model}`}
+                    />
+                  </td>
+                  <td className="px-3 py-3">
                     <div className="flex items-center gap-3">
                       {vehicle.mainImageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element

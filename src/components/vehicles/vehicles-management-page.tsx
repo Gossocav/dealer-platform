@@ -73,6 +73,8 @@ export function VehiclesManagementPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyVehicleId, setBusyVehicleId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refreshData = useCallback(() => {
@@ -98,6 +100,32 @@ export function VehiclesManagementPage() {
     setFilters(defaultVehicleFilters);
     setPage(1);
   }, []);
+
+  const toggleVehicleSelection = useCallback((vehicleId: string) => {
+    setSelectedVehicleIds((prev) => {
+      if (prev.includes(vehicleId)) {
+        return prev.filter((id) => id !== vehicleId);
+      }
+      return [...prev, vehicleId];
+    });
+  }, []);
+
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedVehicleIds((prev) => {
+      const visibleIds = items.map((item) => item.id);
+      if (visibleIds.length === 0) {
+        return prev;
+      }
+
+      const everyVisibleSelected = visibleIds.every((id) => prev.includes(id));
+      if (everyVisibleSelected) {
+        return prev.filter((id) => !visibleIds.includes(id));
+      }
+
+      const merged = new Set([...prev, ...visibleIds]);
+      return Array.from(merged);
+    });
+  }, [items]);
 
   useEffect(() => {
     let alive = true;
@@ -295,6 +323,7 @@ export function VehiclesManagementPage() {
       }
 
       setItems(nextItems);
+      setSelectedVehicleIds((prev) => prev.filter((id) => nextItems.some((item) => item.id === id)));
       setTotalCount(count ?? 0);
       setLoading(false);
     }
@@ -367,6 +396,41 @@ export function VehiclesManagementPage() {
     setBusyVehicleId(null);
     refreshData();
   }, [refreshData]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    const ids = [...selectedVehicleIds];
+    if (ids.length === 0) {
+      return;
+    }
+
+    const confirmed = globalThis.confirm(`Vuoi eliminare ${ids.length} veicoli selezionati?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    setError(null);
+
+    const { error: imagesError } = await supabase.from("vehicle_images").delete().in("vehicle_id", ids);
+
+    if (imagesError) {
+      setError(imagesError.message || "Errore durante eliminazione immagini dei veicoli selezionati.");
+      setBulkDeleting(false);
+      return;
+    }
+
+    const { error: vehiclesError } = await supabase.from("vehicles").delete().in("id", ids);
+
+    if (vehiclesError) {
+      setError(vehiclesError.message || "Errore durante eliminazione veicoli selezionati.");
+      setBulkDeleting(false);
+      return;
+    }
+
+    setSelectedVehicleIds([]);
+    setBulkDeleting(false);
+    refreshData();
+  }, [refreshData, selectedVehicleIds]);
 
   const handleDuplicate = useCallback(async (vehicleId: string) => {
     setBusyVehicleId(vehicleId);
@@ -444,6 +508,14 @@ export function VehiclesManagementPage() {
   }, [refreshData]);
 
   const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
+  const visibleIds = useMemo(() => items.map((item) => item.id), [items]);
+  const selectedCount = selectedVehicleIds.length;
+  const everyVisibleSelected = useMemo(() => {
+    if (visibleIds.length === 0) {
+      return false;
+    }
+    return visibleIds.every((id) => selectedVehicleIds.includes(id));
+  }, [selectedVehicleIds, visibleIds]);
 
   return (
     <DealerDashboardShell title="Gestione Veicoli" dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
@@ -487,10 +559,23 @@ export function VehiclesManagementPage() {
       />
 
       <section className="dashboard-fade-up rounded-3xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-600">
-        <span className="inline-flex items-center gap-2">
-          <CarFront className="h-4 w-4 text-sky-600" />
-          {totalCount} veicoli totali, {items.length} visualizzati in pagina.
-        </span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2">
+            <CarFront className="h-4 w-4 text-sky-600" />
+            {totalCount} veicoli totali, {items.length} visualizzati in pagina.
+          </span>
+
+          {selectedCount > 0 ? (
+            <button
+              type="button"
+              onClick={handleDeleteSelected}
+              disabled={bulkDeleting}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Elimina selezionati ({selectedCount})
+            </button>
+          ) : null}
+        </div>
       </section>
 
       {error ? (
@@ -520,6 +605,8 @@ export function VehiclesManagementPage() {
         viewMode === "card" ? (
           <VehiclesCardGrid
             items={items}
+            selectedVehicleIds={selectedVehicleIds}
+            onToggleSelect={toggleVehicleSelection}
             onDuplicate={handleDuplicate}
             onTogglePublished={handleTogglePublished}
             onDelete={handleDelete}
@@ -529,6 +616,10 @@ export function VehiclesManagementPage() {
           <VehiclesTable
             items={items}
             sort={sort}
+            selectedVehicleIds={selectedVehicleIds}
+            allVisibleSelected={everyVisibleSelected}
+            onToggleSelect={toggleVehicleSelection}
+            onToggleSelectAll={toggleSelectAllVisible}
             onSortChange={handleSortChange}
             onDuplicate={handleDuplicate}
             onTogglePublished={handleTogglePublished}

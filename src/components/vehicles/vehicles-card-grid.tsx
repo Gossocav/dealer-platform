@@ -7,6 +7,8 @@ import { formatDate, type VehicleListItem } from "@/lib/vehicles";
 
 type VehiclesCardGridProps = {
   items: VehicleListItem[];
+  selectedVehicleIds: string[];
+  onToggleSelect: (vehicleId: string) => void;
   onDuplicate: (vehicleId: string) => void;
   onTogglePublished: (vehicle: VehicleListItem) => void;
   onDelete: (vehicleId: string) => void;
@@ -63,11 +65,12 @@ function VehicleCoverImage({ vehicle }: VehicleCoverImageProps) {
   );
 }
 
-export function VehiclesCardGrid({ items, onDuplicate, onTogglePublished, onDelete, busyVehicleId }: VehiclesCardGridProps) {
+export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, onDuplicate, onTogglePublished, onDelete, busyVehicleId }: VehiclesCardGridProps) {
   return (
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {items.map((vehicle) => {
         const isBusy = busyVehicleId === vehicle.id;
+        const isSelected = selectedVehicleIds.includes(vehicle.id);
 
         return (
           <article
@@ -76,6 +79,16 @@ export function VehiclesCardGrid({ items, onDuplicate, onTogglePublished, onDele
           >
             <div className="relative h-48 overflow-hidden bg-slate-100">
               <VehicleCoverImage vehicle={vehicle} />
+              <label className="absolute left-3 bottom-3 z-10 inline-flex items-center gap-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => onToggleSelect(vehicle.id)}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                  aria-label={`Seleziona ${vehicle.brand} ${vehicle.model}`}
+                />
+                Seleziona
+              </label>
               <span className="absolute left-3 top-3 z-10 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
                 {vehicle.badge}
               </span>
