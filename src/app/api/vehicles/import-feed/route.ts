@@ -36,7 +36,6 @@ type FeedHistoryItem = {
 };
 
 const PREVIEW_LIMIT = 20;
-const IMAGE_PLACEHOLDER = "https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=1200&q=80";
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
@@ -225,8 +224,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const imagesToSave = entry.imageUrls.length > 0 ? entry.imageUrls : [IMAGE_PLACEHOLDER];
-      await upsertVehicleImages(supabase, dealerId, targetVehicleId, imagesToSave);
+      await upsertVehicleImages(supabase, dealerId, targetVehicleId, entry.imageUrls);
       importedCount += 1;
     }
 

@@ -62,6 +62,11 @@ type PreviewRow = {
 
 const IMPORT_FIELDS = getVehicleImportFields();
 
+async function resolveAccessToken(previousToken: string | null) {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? previousToken;
+}
+
 function isMissingColumn(message: string, columnName: string) {
   const lower = message.toLowerCase();
   return lower.includes("column") && lower.includes(columnName.toLowerCase()) && lower.includes("does not exist");
@@ -295,28 +300,44 @@ export function VehiclesImportPage() {
     setFeedImportResult(null);
 
     try {
-      const response = await fetch("/api/vehicles/feed", {
+      const token = await resolveAccessToken(sessionToken);
+      if (!token) {
+        setFeedError("Sessione non valida.");
+        return;
+      }
+
+      setSessionToken(token);
+
+      const response = await fetch("/api/vehicles/import-feed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: feedUrl, type: feedFormat }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          mode: "analyze",
+          feedUrl,
+          format: feedFormat,
+          status: feedVehicleStatus,
+          frequency: feedFrequency,
+        }),
       });
 
       const payload = (await response.json()) as {
-        success: boolean;
-        message?: string;
-        detectedType?: "csv" | "xml" | "json";
-        rowsCount?: number;
+        error?: string;
+        format?: "csv" | "xml" | "json";
+        vehicleCount?: number;
         preview?: (Record<string, unknown> | string)[];
       };
 
-      if (!payload.success) {
-        setFeedError(payload.message ?? "Errore durante l'analisi del feed.");
+      if (!response.ok || payload.error) {
+        setFeedError(payload.error ?? "Errore durante l'analisi del feed.");
         return;
       }
 
       setFeedAnalysis({
-        detectedType: payload.detectedType!,
-        rowsCount: payload.rowsCount ?? 0,
+        detectedType: payload.format ?? "csv",
+        rowsCount: payload.vehicleCount ?? 0,
         preview: payload.preview ?? [],
       });
     } catch {
@@ -330,55 +351,49 @@ export function VehiclesImportPage() {
     setFeedImporting(true);
     setFeedError(null);
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    const userId = authData.user?.id;
-
-    if (authError || !userId) {
-      setFeedError(authError?.message ?? "Utente non autenticato.");
-      setFeedImporting(false);
-      return;
-    }
-
-    let dealerId: string | null = null;
     try {
-      dealerId = await resolveDealerIdForUser(userId);
-    } catch (dealerError) {
-      setFeedError(dealerError instanceof Error ? dealerError.message : "Errore risoluzione dealer.");
-      setFeedImporting(false);
-      return;
-    }
+      const token = await resolveAccessToken(sessionToken);
+      if (!token) {
+        setFeedError("Sessione non valida.");
+        return;
+      }
 
-    if (!dealerId) {
-      setFeedError("Dealer non associato al profilo utente.");
-      setFeedImporting(false);
-      return;
-    }
+      setSessionToken(token);
 
-    try {
-      const response = await fetch("/api/vehicles/feed", {
+      const response = await fetch("/api/vehicles/import-feed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "import", url: feedUrl, dealer_id: dealerId }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          mode: "import",
+          feedUrl,
+          format: feedFormat,
+          status: feedVehicleStatus,
+          frequency: feedFrequency,
+        }),
       });
 
       const payload = (await response.json()) as {
-        success: boolean;
-        message?: string;
-        imported?: number;
-        updated?: number;
+        error?: string;
+        importedCount?: number;
+        skippedCount?: number;
         errors?: string[];
       };
 
-      if (!payload.success) {
-        setFeedError(payload.message ?? "Errore durante l'importazione.");
+      if (!response.ok || payload.error) {
+        setFeedError(payload.error ?? "Errore durante l'importazione.");
         return;
       }
 
       setFeedImportResult({
-        imported: payload.imported ?? 0,
-        updated: payload.updated ?? 0,
+        imported: payload.importedCount ?? 0,
+        updated: 0,
         errors: payload.errors ?? [],
       });
+
+      void loadSyncHistory(token);
 
       setTimeout(() => {
         router.push("/veicoli");
