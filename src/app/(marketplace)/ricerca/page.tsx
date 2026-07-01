@@ -8,6 +8,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 type SearchState = {
   q: string;
   brand: string;
+  model: string;
   priceBand: string;
   city: string;
   fuel: string;
@@ -20,6 +21,7 @@ type SearchState = {
 const DEFAULT_STATE: SearchState = {
   q: "",
   brand: "",
+  model: "",
   priceBand: "",
   city: "",
   fuel: "",
@@ -54,6 +56,10 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const vehicles = (data ?? []) as MarketplaceVehicle[];
   const results = vehicles.filter((vehicle) => matchesFilters(vehicle, filters));
   const brandOptions = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
+  const modelSource = filters.brand
+    ? vehicles.filter((vehicle) => formatText(vehicle.brand).toLowerCase() === filters.brand.toLowerCase())
+    : vehicles;
+  const modelOptions = uniqueValues(modelSource.map((vehicle) => vehicle.model));
   const cityOptions = uniqueValues(vehicles.map((vehicle) => vehicle.city));
   const fuelOptions = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissionOptions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
@@ -80,6 +86,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SearchField label="Cerca" name="q" defaultValue={filters.q} placeholder="Marca, modello, versione" />
             <SearchSelect label="Marca" name="brand" defaultValue={filters.brand} options={brandOptions} />
+            <SearchSelect label="Modello" name="model" defaultValue={filters.model} options={modelOptions} />
             <SearchSelect label="Prezzo" name="priceBand" defaultValue={filters.priceBand} options={priceBandOptions.map((option) => option.label)} values={priceBandOptions.map((option) => option.value)} />
             <SearchSelect label="Città" name="city" defaultValue={filters.city} options={cityOptions} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
@@ -224,6 +231,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
   return {
     q: asValue(searchParams.q),
     brand: asValue(searchParams.brand),
+    model: asValue(searchParams.model),
     priceBand: asValue(searchParams.priceBand),
     city: asValue(searchParams.city),
     fuel: asValue(searchParams.fuel),
@@ -243,6 +251,7 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
 
   const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
   const matchesBrand = !filters.brand || formatText(vehicle.brand).toLowerCase() === filters.brand.toLowerCase();
+  const matchesModel = !filters.model || formatText(vehicle.model).toLowerCase() === filters.model.toLowerCase();
   const matchesBand = !filters.priceBand || matchesPriceBand(Number(vehicle.price ?? 0), filters.priceBand);
   const matchesCity = !filters.city || formatText(vehicle.city).toLowerCase() === filters.city.toLowerCase();
   const matchesFuel = !filters.fuel || formatText(vehicle.fuel).toLowerCase() === filters.fuel.toLowerCase();
@@ -253,7 +262,7 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : Number.POSITIVE_INFINITY;
   const matchesPrice = Number.isFinite(priceValue) && priceValue >= minPrice && priceValue <= maxPrice;
 
-  return matchesQuery && matchesBrand && matchesBand && matchesCity && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
+  return matchesQuery && matchesBrand && matchesModel && matchesBand && matchesCity && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {
