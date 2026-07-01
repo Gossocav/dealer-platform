@@ -28,6 +28,15 @@ type EditorState = {
   status: string;
 };
 
+type PlateLookupVehicle = {
+  brand?: string;
+  model?: string;
+  version?: string;
+  year?: string;
+  fuel?: string;
+  transmission?: string;
+};
+
 const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
@@ -56,6 +65,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  const [plateLookupLoading, setPlateLookupLoading] = useState(false);
+  const [licensePlate, setLicensePlate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -165,6 +176,46 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const updateField = <K extends keyof EditorState>(key: K, value: EditorState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handlePlateLookup = async () => {
+    setPlateLookupLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/vehicles/plate-lookup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ licensePlate }),
+      });
+
+      const payload = (await response.json()) as { error?: string; vehicle?: PlateLookupVehicle };
+
+      if (!response.ok || !payload.vehicle) {
+        setError(payload.error || "Ricerca targa non disponibile.");
+        setPlateLookupLoading(false);
+        return;
+      }
+
+      setState((prev) => ({
+        ...prev,
+        brand: String(payload.vehicle?.brand ?? "").trim() || prev.brand,
+        model: String(payload.vehicle?.model ?? "").trim() || prev.model,
+        version: String(payload.vehicle?.version ?? "").trim() || prev.version,
+        year: String(payload.vehicle?.year ?? "").trim() || prev.year,
+        fuel: String(payload.vehicle?.fuel ?? "").trim() || prev.fuel,
+        transmission: String(payload.vehicle?.transmission ?? "").trim() || prev.transmission,
+      }));
+
+      setSuccess("Dati veicolo compilati da targa.");
+    } catch {
+      setError("Errore durante la ricerca targa.");
+    } finally {
+      setPlateLookupLoading(false);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -351,6 +402,28 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       ) : (
         <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+            <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Ricerca da targa</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  type="text"
+                  value={licensePlate}
+                  onChange={(event) => setLicensePlate(event.target.value.toUpperCase())}
+                  placeholder="AA123BB"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                />
+                <button
+                  type="button"
+                  onClick={handlePlateLookup}
+                  disabled={plateLookupLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {plateLookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Compila da targa
+                </button>
+              </div>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <EditorField label="Marca" value={state.brand} onChange={(value) => updateField("brand", value)} required />
               <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required />
