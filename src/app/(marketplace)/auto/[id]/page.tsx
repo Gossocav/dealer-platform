@@ -89,19 +89,19 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
       <div className="mx-auto w-full max-w-7xl space-y-6">
         <section className="rounded-[36px] border border-slate-200 bg-slate-950 px-8 py-10 text-white shadow-[0_40px_120px_-40px_rgba(15,23,42,0.55)] sm:px-10 sm:py-12 lg:px-12 lg:py-14">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">Scheda veicolo pubblica</p>
-          <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl">{resolveVehicleLabel(vehicle)}</h1>
-          <p className="mt-4 text-base leading-7 text-slate-300 sm:text-lg">
+          <h1 className="mt-4 max-w-4xl min-w-0 break-words text-4xl font-semibold tracking-tight sm:text-5xl">{resolveVehicleLabel(vehicle)}</h1>
+          <p className="mt-4 min-w-0 break-words text-base leading-7 text-slate-300 sm:text-lg">
             {formatText(vehicle.year)} • {formatText(vehicle.fuel)} • {formatText(vehicle.transmission)} • {dealerDisplayName}
           </p>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="space-y-6">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <section className="min-w-0 space-y-6">
             <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-              <div className="h-[420px] bg-slate-200">
+              <div className="h-[420px] max-w-full overflow-hidden bg-slate-200">
                 {coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full object-cover" />
+                  <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full max-w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-slate-500">
                     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-14 w-14 fill-current">
@@ -112,25 +112,25 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               </div>
 
               {resolvedImages.length > 1 ? (
-                <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid min-w-0 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
                   {resolvedImages.slice(0, 8).map((image, index) => (
                     <a
                       key={`${image}-${index}`}
                       href={image}
                       target="_blank"
                       rel="noreferrer"
-                      className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
+                      className="max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
                       aria-label={`Apri immagine ${index + 1}`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={image} alt={`Immagine ${index + 1}`} className="h-32 w-full object-cover" />
+                      <img src={image} alt={`Immagine ${index + 1}`} className="h-32 w-full max-w-full object-cover" />
                     </a>
                   ))}
                 </div>
               ) : null}
             </div>
 
-            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
+            <div className="min-w-0 rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
               <h2 className="text-2xl font-semibold text-slate-900">Dettagli veicolo</h2>
               <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Marca" value={formatText(vehicle.brand)} />
@@ -145,15 +145,17 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
 
               <div className="mt-6 rounded-2xl bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Descrizione</p>
-                <p className="mt-3 text-sm leading-7 text-slate-700">{formatText(vehicle.description)}</p>
+                <p className="mt-3 min-w-0 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">
+                  {formatText(vehicle.description)}
+                </p>
               </div>
 
               <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Dotazioni</p>
                 {equipmentList.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex min-w-0 flex-wrap gap-2">
                     {equipmentList.map((item) => (
-                      <span key={item} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                      <span key={item} className="max-w-full break-words rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 [overflow-wrap:anywhere]">
                         {item}
                       </span>
                     ))}
@@ -165,20 +167,20 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
             </div>
           </section>
 
-          <aside className="space-y-6">
+          <aside className="min-w-0 space-y-6">
             <div className="sticky top-24">
               <RequestInformationForm vehicleId={vehicle.id} vehicleLabel={resolveVehicleLabel(vehicle)} />
             </div>
 
-            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
+            <div className="min-w-0 overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
               <p className="text-sm font-semibold uppercase tracking-[0.32em] text-slate-500">Concessionaria</p>
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex min-w-0 items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-xs font-semibold text-slate-500">
                   DP
                 </div>
-                <h2 className="text-2xl font-semibold text-slate-900">{dealerDisplayName}</h2>
+                <h2 className="min-w-0 max-w-full break-words text-2xl font-semibold text-slate-900 [overflow-wrap:anywhere]">{dealerDisplayName}</h2>
               </div>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{dealershipLocality || "-"}</p>
+              <p className="mt-3 min-w-0 max-w-full break-words text-sm leading-7 text-slate-600 [overflow-wrap:anywhere]">{dealershipLocality || "-"}</p>
               <div className="mt-4 space-y-3">
                 <InfoRow label="Nome" value={dealerDisplayName} />
                 <InfoRow label="Citta" value={dealerCity} />
@@ -212,18 +214,18 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>
-      <p className="mt-2 font-semibold text-slate-900">{value}</p>
+      <p className="mt-2 min-w-0 max-w-full break-words font-semibold text-slate-900 [overflow-wrap:anywhere]">{value}</p>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
+    <div className="flex min-w-0 items-center justify-between gap-4 overflow-hidden rounded-2xl bg-slate-50 px-4 py-3">
       <span className="text-sm text-slate-600">{label}</span>
-      <span className="text-sm font-semibold text-slate-900">{value}</span>
+      <span className="min-w-0 max-w-full break-words text-right text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">{value}</span>
     </div>
   );
 }

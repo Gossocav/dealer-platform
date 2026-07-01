@@ -76,9 +76,9 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
   };
 
   return (
-    <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
       <p className="text-sm font-semibold uppercase tracking-[0.32em] text-blue-600">Richiedi informazioni</p>
-      <h2 className="mt-3 text-2xl font-semibold text-slate-900">{vehicleLabel}</h2>
+      <h2 className="mt-3 min-w-0 max-w-full break-words text-2xl font-semibold text-slate-900 [overflow-wrap:anywhere]">{vehicleLabel}</h2>
       <p className="mt-3 text-sm leading-7 text-slate-600">Compila il form per essere ricontattato dalla concessionaria.</p>
 
       {successMessage ? (
