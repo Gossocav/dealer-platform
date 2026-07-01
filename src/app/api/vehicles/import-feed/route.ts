@@ -36,6 +36,42 @@ type FeedHistoryItem = {
 };
 
 const PREVIEW_LIMIT = 20;
+const DEMO_FEED_IMAGES_URL = "demo://automotive-feed-images";
+const DEMO_FEED_RECORDS: FeedRecord[] = [
+  {
+    brand: "Audi",
+    model: "A3 Sportback",
+    version: "35 TFSI S tronic Business",
+    year: "2023",
+    price: "31900",
+    mileage: "22800",
+    fuel: "Benzina",
+    transmission: "Automatico",
+    images: "https://picsum.photos/seed/audi-a3/900/600",
+  },
+  {
+    brand: "Alfa Romeo",
+    model: "Giulia",
+    version: "2.2 Turbo Diesel 190 AT8 Veloce",
+    year: "2022",
+    price: "36900",
+    mileage: "48200",
+    fuel: "Diesel",
+    transmission: "Automatico",
+    images: "https://picsum.photos/seed/alfa-giulia/900/600",
+  },
+  {
+    brand: "Peugeot",
+    model: "3008",
+    version: "1.5 BlueHDi 130 EAT8 GT",
+    year: "2021",
+    price: "27400",
+    mileage: "61500",
+    fuel: "Diesel",
+    transmission: "Automatico",
+    images: "https://picsum.photos/seed/peugeot-3008/900/600",
+  },
+];
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
@@ -101,27 +137,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 400 });
     }
 
-    const feedResponse = await fetch(feedUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json, text/csv, application/xml, text/xml, */*",
-      },
-      cache: "no-store",
-    });
+    let detectedFormat: FeedFormat;
+    let records: FeedRecord[];
 
-    if (!feedResponse.ok) {
-      return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
+    if (feedUrl === DEMO_FEED_IMAGES_URL) {
+      detectedFormat = "json";
+      records = DEMO_FEED_RECORDS;
+    } else {
+      const feedResponse = await fetch(feedUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json, text/csv, application/xml, text/xml, */*",
+        },
+        cache: "no-store",
+      });
+
+      if (!feedResponse.ok) {
+        return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
+      }
+
+      const rawText = await feedResponse.text();
+      detectedFormat = detectFeedFormat(
+        preferredFormat,
+        feedUrl,
+        String(feedResponse.headers.get("content-type") ?? ""),
+        rawText
+      );
+
+      records = parseFeedRecords(rawText, detectedFormat);
     }
 
-    const rawText = await feedResponse.text();
-    const detectedFormat = detectFeedFormat(
-      preferredFormat,
-      feedUrl,
-      String(feedResponse.headers.get("content-type") ?? ""),
-      rawText
-    );
-
-    const records = parseFeedRecords(rawText, detectedFormat);
     if (records.length === 0) {
       return NextResponse.json({
         mode,
