@@ -273,10 +273,18 @@ export function formatText(value: string | number | null | undefined) {
 
 export async function resolveVehicleImageUrl(rawValue?: string | null) {
   const value = String(rawValue ?? "").trim();
-  const storagePath = value ? extractVehicleImagePath(value) : null;
+  if (!value) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(value) && !isSupabaseStorageUrl(value)) {
+    return `/api/image-proxy?url=${encodeURIComponent(value)}`;
+  }
+
+  const storagePath = extractVehicleImagePath(value);
 
   if (!storagePath) {
-    return value || null;
+    return null;
   }
 
   const { data: signedData, error: signedError } = await publicSupabase.storage
@@ -288,7 +296,7 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
   }
 
   const { data: publicUrlData } = publicSupabase.storage.from("vehicle-images").getPublicUrl(storagePath);
-  return publicUrlData.publicUrl || value;
+  return publicUrlData.publicUrl || null;
 }
 
 function extractVehicleImagePath(value: string) {
@@ -317,6 +325,15 @@ function extractVehicleImagePath(value: string) {
   }
 
   return value.replace(/^\/+/, "").replace(/^vehicle-images\//, "");
+}
+
+function isSupabaseStorageUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "supabase.co" || parsed.hostname.endsWith(".supabase.co");
+  } catch {
+    return false;
+  }
 }
 
 function normalizePhoneDigits(phone: string | null | undefined) {
