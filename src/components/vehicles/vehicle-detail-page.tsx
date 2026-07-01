@@ -20,6 +20,17 @@ type VehicleDetailPageProps = {
   vehicleId: string;
 };
 
+type VehicleWithEquipment = VehicleRow & {
+  body_type?: string | null;
+  color?: string | null;
+  power_cv?: number | null;
+  doors?: number | null;
+  seats?: number | null;
+  warranty?: string | null;
+  availability?: string | null;
+  emission_class?: string | null;
+};
+
 type ViewImage = VehicleImageRow & { previewUrl: string | null };
 
 function mapImageUrlForDisplay(imageUrl: string): string {
@@ -43,7 +54,7 @@ function mapImageUrlForDisplay(imageUrl: string): string {
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [dealerName, setDealerName] = useState("Dealer Console");
-  const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
+  const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
   const [leadCount, setLeadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -75,9 +86,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
       const [{ data: vehicleData, error: vehicleError }, { data: leadRows }, { data: imageRows }] = await Promise.all([
         supabase
           .from("vehicles")
-          .select("id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at")
+          .select(
+            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, color, power_cv, doors, seats, warranty, availability, emission_class, created_at, updated_at"
+          )
           .eq("id", vehicleId)
-          .maybeSingle<VehicleRow>(),
+          .maybeSingle<VehicleWithEquipment>(),
         supabase.from("leads").select("id").eq("vehicle_id", vehicleId),
         supabase.from("vehicle_images").select("id, image_url, position, is_cover").eq("vehicle_id", vehicleId).order("position", { ascending: true }),
       ]);
@@ -148,6 +161,22 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   }, [vehicleId]);
 
   const coverUrl = useMemo(() => images.find((image) => image.is_cover)?.previewUrl ?? images[0]?.previewUrl ?? null, [images]);
+  const equipmentList = useMemo(
+    () =>
+      vehicle
+        ? [
+            vehicle.body_type ? `Carrozzeria ${vehicle.body_type}` : null,
+            vehicle.color ? `Colore ${vehicle.color}` : null,
+            typeof vehicle.power_cv === "number" ? `${vehicle.power_cv} CV` : null,
+            typeof vehicle.doors === "number" ? `${vehicle.doors} porte` : null,
+            typeof vehicle.seats === "number" ? `${vehicle.seats} posti` : null,
+            vehicle.warranty ? `Garanzia ${vehicle.warranty}` : null,
+            vehicle.availability ? `Disponibilita ${vehicle.availability}` : null,
+            vehicle.emission_class ? `Classe ${vehicle.emission_class}` : null,
+          ].filter(Boolean)
+        : [],
+    [vehicle]
+  );
 
   useEffect(() => {
     setCoverImageFailed(false);
@@ -266,6 +295,24 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               <div className="mt-4 rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Descrizione</p>
                 <p className="mt-2 text-sm text-slate-700">{safeText(vehicle.description)}</p>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Dotazioni</p>
+                {equipmentList.length > 0 ? (
+                  <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                    {equipmentList.map((item) => (
+                      <span
+                        key={item}
+                        className="max-w-full break-words rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 [overflow-wrap:anywhere]"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-600">-</p>
+                )}
               </div>
             </article>
           </section>
