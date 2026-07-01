@@ -68,10 +68,28 @@ export async function POST(request: Request) {
       },
     });
 
-    // 1) Salvataggio lead: questo e il passo critico e non deve dipendere dall'email.
+    // 1) Recupero veicolo (e quindi dealer_id) prima dell'insert lead.
+    const { data: vehicleData, error: vehicleError } = await supabase
+      .from("vehicles")
+      .select("id, dealer_id, brand, model, version")
+      .eq("id", vehicleId)
+      .maybeSingle<VehicleRow>();
+
+    if (vehicleError || !vehicleData) {
+      console.error("Vehicle lookup before lead insert error", vehicleError);
+      return NextResponse.json({ error: "Veicolo non trovato." }, { status: 400 });
+    }
+
+    if (!vehicleData.dealer_id) {
+      console.error("Vehicle has null dealer_id, cannot create marketplace lead.", { vehicleId: vehicleData.id });
+      return NextResponse.json({ error: "Veicolo non associato a un concessionario." }, { status: 400 });
+    }
+
+    // 2) Salvataggio lead: include dealer_id del veicolo per garantire visibilita dealer-scoped.
     const { data: leadInsertData, error: insertError } = await supabase.from("leads").insert([
       {
         vehicle_id: vehicleId,
+        dealer_id: vehicleData.dealer_id,
         first_name: firstName,
         last_name: lastName,
         email: customerEmail,
@@ -88,18 +106,6 @@ export async function POST(request: Request) {
 
     if (!leadInsertData) {
       return NextResponse.json({ error: "Lead salvata ma risposta incompleta dal database." }, { status: 500 });
-    }
-
-    // 2) Recupero veicolo (e quindi dealer_id).
-    const { data: vehicleData, error: vehicleError } = await supabase
-      .from("vehicles")
-      .select("id, dealer_id, brand, model, version")
-      .eq("id", leadInsertData.vehicle_id)
-      .maybeSingle<VehicleRow>();
-
-    if (vehicleError || !vehicleData) {
-      console.error("Vehicle lookup after lead insert error", vehicleError);
-      return NextResponse.json({ message: "Richiesta inviata correttamente." }, { status: 200 });
     }
 
     const vehicleLabel = [vehicleData.brand, vehicleData.model, vehicleData.version].filter(Boolean).join(" ") || vehicleData.id;
