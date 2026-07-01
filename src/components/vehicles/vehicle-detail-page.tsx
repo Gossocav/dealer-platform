@@ -221,17 +221,17 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
           <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <article className="dashboard-fade-up overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)]">
-              <div className="relative h-56 overflow-hidden bg-slate-200 md:h-72">
+              <div className="h-[420px] max-w-full overflow-hidden bg-slate-200">
                 {coverUrl && !coverImageFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={coverUrl}
                     alt={`${safeText(vehicle.brand)} ${safeText(vehicle.model)}`}
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="h-full w-full max-w-full object-cover"
                     onError={() => setCoverImageFailed(true)}
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">Foto non disponibile</div>
+                  <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">Foto non disponibile</div>
                 )}
               </div>
               {images.length > 1 ? (
