@@ -220,7 +220,44 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         return;
       }
 
-      const uploadedRows: Array<{ vehicle_id: string; image_url: string; position: number; is_cover: boolean }> = [];
+      const { data: vehicleForImages, error: vehicleForImagesError } = await supabase
+        .from("vehicles")
+        .select("dealer_id")
+        .eq("id", targetVehicleId)
+        .maybeSingle<{ dealer_id: string | null }>();
+
+      if (vehicleForImagesError) {
+        setError(vehicleForImagesError.message || "Errore nel recupero dealer per immagini veicolo.");
+        setSaving(false);
+        return;
+      }
+
+      let imageDealerId = String(vehicleForImages?.dealer_id ?? "").trim();
+
+      if (!imageDealerId) {
+        const { data: dealerData, error: dealerError } = await supabase
+          .from("dealers")
+          .select("id")
+          .eq("user_id", userId)
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+
+        if (dealerError) {
+          setError(dealerError.message || "Errore nel recupero concessionario per upload immagini.");
+          setSaving(false);
+          return;
+        }
+
+        imageDealerId = String(dealerData?.id ?? "").trim();
+      }
+
+      if (!imageDealerId) {
+        setError("Impossibile caricare immagini: dealer non associato al veicolo o all'utente.");
+        setSaving(false);
+        return;
+      }
+
+      const uploadedRows: Array<{ vehicle_id: string; dealer_id: string; image_url: string; position: number; is_cover: boolean }> = [];
 
       for (let index = 0; index < pendingFiles.length; index += 1) {
         const file = pendingFiles[index];
@@ -238,6 +275,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
         uploadedRows.push({
           vehicle_id: targetVehicleId,
+          dealer_id: imageDealerId,
           image_url: path,
           position: images.length + index,
           is_cover: images.length === 0 && index === 0,
