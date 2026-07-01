@@ -22,6 +22,25 @@ type VehicleDetailPageProps = {
 
 type ViewImage = VehicleImageRow & { previewUrl: string | null };
 
+function mapImageUrlForDisplay(imageUrl: string): string {
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    return imageUrl;
+  }
+
+  try {
+    const parsed = new URL(imageUrl);
+    const isSupabaseDomain = parsed.hostname === "supabase.co" || parsed.hostname.endsWith(".supabase.co");
+
+    if (isSupabaseDomain) {
+      return imageUrl;
+    }
+  } catch {
+    return imageUrl;
+  }
+
+  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
@@ -73,6 +92,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
       const resolvedImages = await Promise.all(
         (imageRows ?? []).map(async (row) => {
           const raw = String(row.image_url ?? "").trim();
+
+          if (raw.startsWith("http://") || raw.startsWith("https://")) {
+            return { ...row, previewUrl: mapImageUrlForDisplay(raw) } as ViewImage;
+          }
+
           const path = extractVehicleImagePath(raw);
 
           if (!path) {
