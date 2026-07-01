@@ -38,7 +38,7 @@ function mapImageUrlForDisplay(imageUrl: string): string {
     return imageUrl;
   }
 
-  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+  return imageUrl;
 }
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
@@ -93,14 +93,34 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         (imageRows ?? []).map(async (row) => {
           const raw = String(row.image_url ?? "").trim();
 
+          if (!raw) {
+            return { ...row, previewUrl: null } as ViewImage;
+          }
+
           if (raw.startsWith("http://") || raw.startsWith("https://")) {
+            if (raw.includes(".supabase.co")) {
+              const path = extractVehicleImagePath(raw);
+
+              if (!path) {
+                return { ...row, previewUrl: null } as ViewImage;
+              }
+
+              const { data: signed, error } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
+              if (!error && signed?.signedUrl) {
+                return { ...row, previewUrl: signed.signedUrl } as ViewImage;
+              }
+
+              const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+              return { ...row, previewUrl: publicData.publicUrl || null } as ViewImage;
+            }
+
             return { ...row, previewUrl: mapImageUrlForDisplay(raw) } as ViewImage;
           }
 
           const path = extractVehicleImagePath(raw);
 
           if (!path) {
-            return { ...row, previewUrl: raw || null } as ViewImage;
+            return { ...row, previewUrl: null } as ViewImage;
           }
 
           const { data: signed } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
