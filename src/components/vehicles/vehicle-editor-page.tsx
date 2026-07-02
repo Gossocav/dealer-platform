@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
-import { ITALIAN_PROVINCES } from "@/lib/italian-provinces";
+import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { supabase } from "@/lib/supabaseClient";
 import { extractVehicleImagePath, formatVehicleStatus, safeText, type VehicleImageRow, type VehicleRow } from "@/lib/vehicles";
 
@@ -241,6 +241,7 @@ type ViewImage = VehicleImageRow & { previewUrl: string | null };
 export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const router = useRouter();
   const imageInputId = useId();
+  const cityDatalistId = useId();
 
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [state, setState] = useState<EditorState>(INITIAL_STATE);
@@ -281,8 +282,15 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   );
   const selectedFuel = state.fuel.trim();
   const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
-  const selectedProvince = state.province.trim();
+  const selectedProvince = normalizeProvinceCode(state.province) || state.province.trim().toUpperCase();
   const hasCustomSelectedProvince = selectedProvince.length > 0 && !ITALIAN_PROVINCES.some((province) => province.code === selectedProvince.toUpperCase());
+  const cityOptions = useMemo(() => {
+    if (!selectedProvince || !(selectedProvince in ITALIAN_CITIES_BY_PROVINCE)) {
+      return [];
+    }
+
+    return ITALIAN_CITIES_BY_PROVINCE[selectedProvince as ItalianProvinceCode];
+  }, [selectedProvince]);
   const interiorTypeOptions = useMemo(
     () => ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"],
     []
@@ -408,6 +416,18 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     if (REQUIRED_EDITOR_FIELDS.includes(key as RequiredEditorFieldKey)) {
       setMissingFields((prev) => prev.filter((field) => field !== key));
     }
+  };
+
+  const handleProvinceChange = (value: string) => {
+    const normalized = normalizeProvinceCode(value) || value.trim().toUpperCase();
+
+    setState((prev) => ({
+      ...prev,
+      province: normalized,
+      city: normalizeProvinceCode(prev.province) === normalized ? prev.city : "",
+    }));
+
+    setMissingFields((prev) => prev.filter((field) => field !== "province" && field !== "city"));
   };
 
   const toggleEquipment = (item: string) => {
@@ -853,16 +873,33 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   <option value="Manuale">Manuale</option>
                 </select>
               </label>
-              <EditorField label="Citta" value={state.city} onChange={(value) => updateField("city", value)} required missing={missingFieldSet.has("city")} />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("city"))}>Citta *</span>
+                <input
+                  type="text"
+                  list={cityDatalistId}
+                  required
+                  disabled={!selectedProvince}
+                  value={state.city}
+                  onChange={(event) => updateField("city", event.target.value)}
+                  placeholder={selectedProvince ? "Seleziona o cerca comune" : "Seleziona prima la provincia"}
+                  className={getFieldInputClass(missingFieldSet.has("city"))}
+                />
+                <datalist id={cityDatalistId}>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city} />
+                  ))}
+                </datalist>
+              </label>
               <label className="block space-y-2">
                 <span className={getFieldLabelClass(missingFieldSet.has("province"))}>Provincia *</span>
                 <select
                   value={state.province}
-                  onChange={(event) => updateField("province", event.target.value)}
+                  onChange={(event) => handleProvinceChange(event.target.value)}
                   className={getFieldInputClass(missingFieldSet.has("province"))}
                 >
                   <option value="">Seleziona provincia</option>
-                  {hasCustomSelectedProvince ? <option value={state.province}>{state.province}</option> : null}
+                  {hasCustomSelectedProvince ? <option value={selectedProvince}>{selectedProvince}</option> : null}
                   {ITALIAN_PROVINCES.map((province) => (
                     <option key={province.code} value={province.code}>
                       {province.name} ({province.code})
