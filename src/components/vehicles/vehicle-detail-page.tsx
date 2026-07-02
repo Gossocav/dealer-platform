@@ -111,7 +111,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, created_at, updated_at"
+            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, created_at, updated_at"
           )
           .eq("id", vehicleId)
           .maybeSingle<VehicleWithEquipment>(),
