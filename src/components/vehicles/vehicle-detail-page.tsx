@@ -291,7 +291,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               ) : null}
             </article>
 
-            <article className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+            <article className="dashboard-fade-up min-w-0 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Detail label="Marca" value={safeText(vehicle.brand)} />
                 <Detail label="Modello" value={safeText(vehicle.model)} />
