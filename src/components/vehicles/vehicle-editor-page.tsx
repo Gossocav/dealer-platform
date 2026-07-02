@@ -38,6 +38,63 @@ type EditorState = {
   status: string;
 };
 
+const REQUIRED_EDITOR_FIELDS = [
+  "brand",
+  "model",
+  "version",
+  "year",
+  "price",
+  "mileage",
+  "fuel",
+  "transmission",
+  "engineSize",
+  "powerKw",
+  "powerCv",
+  "doors",
+  "registrationDate",
+  "color",
+  "city",
+  "province",
+  "status",
+  "description",
+] as const satisfies ReadonlyArray<keyof EditorState>;
+
+type RequiredEditorFieldKey = (typeof REQUIRED_EDITOR_FIELDS)[number];
+type RequiredFieldKey = RequiredEditorFieldKey | "images" | "equipment";
+
+const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
+  brand: "Marca",
+  model: "Modello",
+  version: "Versione",
+  year: "Anno",
+  price: "Prezzo",
+  mileage: "Chilometri",
+  fuel: "Alimentazione",
+  transmission: "Cambio",
+  engineSize: "Cilindrata",
+  powerKw: "Potenza kW",
+  powerCv: "Potenza CV",
+  doors: "Porte",
+  registrationDate: "Data immatricolazione",
+  color: "Colore",
+  city: "Citta",
+  province: "Provincia",
+  status: "Stato",
+  description: "Descrizione",
+  images: "Immagini",
+  equipment: "Dotazioni",
+};
+
+function getFieldInputClass(missing: boolean): string {
+  return `h-11 w-full rounded-xl border px-3 text-sm text-slate-900 outline-none transition ${
+    missing ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-sky-300"
+  }`;
+}
+
+function getFieldLabelClass(missing: boolean): string {
+  return `text-xs font-semibold uppercase tracking-[0.14em] ${missing ? "text-red-600" : "text-slate-500"}`;
+}
+
 function normalizeEquipment(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -171,6 +228,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [saving, setSaving] = useState(false);
   const [plateLookupLoading, setPlateLookupLoading] = useState(false);
   const [licensePlate, setLicensePlate] = useState("");
+  const [missingFields, setMissingFields] = useState<RequiredFieldKey[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -200,6 +258,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   );
   const selectedFuel = state.fuel.trim();
   const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
+  const missingFieldSet = useMemo(() => new Set(missingFields), [missingFields]);
 
   useEffect(() => {
     let alive = true;
@@ -316,6 +375,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const updateField = <K extends keyof EditorState>(key: K, value: EditorState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
+    if (REQUIRED_EDITOR_FIELDS.includes(key as RequiredEditorFieldKey)) {
+      setMissingFields((prev) => prev.filter((field) => field !== key));
+    }
   };
 
   const toggleEquipment = (item: string) => {
@@ -326,6 +388,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         equipment: exists ? prev.equipment.filter((value) => value !== item) : [...prev.equipment, item],
       };
     });
+    setMissingFields((prev) => prev.filter((field) => field !== "equipment"));
   };
 
   const handlePlateLookup = async () => {
@@ -403,9 +466,33 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSaving(true);
     setError(null);
     setSuccess(null);
+
+    const nextMissing: RequiredFieldKey[] = [];
+
+    for (const field of REQUIRED_EDITOR_FIELDS) {
+      if (!state[field].trim()) {
+        nextMissing.push(field);
+      }
+    }
+
+    if (state.equipment.length === 0) {
+      nextMissing.push("equipment");
+    }
+
+    if (images.length + pendingFiles.length === 0) {
+      nextMissing.push("images");
+    }
+
+    if (nextMissing.length > 0) {
+      setMissingFields(nextMissing);
+      setError(`Compila i campi obbligatori mancanti:\n- ${nextMissing.map((field) => REQUIRED_FIELD_LABELS[field]).join("\n- ")}`);
+      return;
+    }
+
+    setMissingFields([]);
+    setSaving(true);
 
     const vehiclePayload = {
       brand: state.brand.trim() || null,
@@ -617,15 +704,15 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <EditorField label="Marca" value={state.brand} onChange={(value) => updateField("brand", value)} required />
-              <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required />
-              <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} />
+              <EditorField label="Marca" value={state.brand} onChange={(value) => updateField("brand", value)} required missing={missingFieldSet.has("brand")} />
+              <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required missing={missingFieldSet.has("model")} />
+              <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} required missing={missingFieldSet.has("version")} />
               <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Anno</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("year"))}>Anno *</span>
                 <select
                   value={state.year}
                   onChange={(event) => updateField("year", event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className={getFieldInputClass(missingFieldSet.has("year"))}
                 >
                   <option value="">Seleziona anno</option>
                   {hasCustomSelectedYear ? <option value={state.year}>{state.year}</option> : null}
@@ -636,32 +723,74 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   ))}
                 </select>
               </label>
-              <EditorField label="Cilindrata" value={state.engineSize} onChange={(value) => updateField("engineSize", value)} inputMode="numeric" />
-              <EditorField label="Potenza kW" value={state.powerKw} onChange={(value) => updateField("powerKw", value)} inputMode="numeric" />
-              <EditorField label="Potenza CV" value={state.powerCv} onChange={(value) => updateField("powerCv", value)} inputMode="numeric" />
-              <EditorField label="Porte" value={state.doors} onChange={(value) => updateField("doors", value)} inputMode="numeric" />
+              <EditorField
+                label="Cilindrata"
+                value={state.engineSize}
+                onChange={(value) => updateField("engineSize", value)}
+                inputMode="numeric"
+                required
+                missing={missingFieldSet.has("engineSize")}
+              />
+              <EditorField
+                label="Potenza kW"
+                value={state.powerKw}
+                onChange={(value) => updateField("powerKw", value)}
+                inputMode="numeric"
+                required
+                missing={missingFieldSet.has("powerKw")}
+              />
+              <EditorField
+                label="Potenza CV"
+                value={state.powerCv}
+                onChange={(value) => updateField("powerCv", value)}
+                inputMode="numeric"
+                required
+                missing={missingFieldSet.has("powerCv")}
+              />
+              <EditorField
+                label="Porte"
+                value={state.doors}
+                onChange={(value) => updateField("doors", value)}
+                inputMode="numeric"
+                required
+                missing={missingFieldSet.has("doors")}
+              />
               <EditorField label="Classe Euro" value={state.emissionClass} onChange={(value) => updateField("emissionClass", value)} />
               <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Data immatricolazione</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("registrationDate"))}>Data immatricolazione *</span>
                 <input
                   type="date"
                   value={state.registrationDate}
                   min="1950-01-01"
                   max={maxRegistrationDate}
                   onChange={(event) => updateField("registrationDate", event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className={getFieldInputClass(missingFieldSet.has("registrationDate"))}
                 />
               </label>
-              <EditorField label="Colore" value={state.color} onChange={(value) => updateField("color", value)} />
+              <EditorField label="Colore" value={state.color} onChange={(value) => updateField("color", value)} required missing={missingFieldSet.has("color")} />
               <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
-              <EditorField label="Prezzo" value={state.price} onChange={(value) => updateField("price", value)} inputMode="numeric" />
-              <EditorField label="Chilometri" value={state.mileage} onChange={(value) => updateField("mileage", value)} inputMode="numeric" />
+              <EditorField
+                label="Prezzo"
+                value={state.price}
+                onChange={(value) => updateField("price", value)}
+                inputMode="numeric"
+                required
+                missing={missingFieldSet.has("price")}
+              />
+              <EditorField
+                label="Chilometri"
+                value={state.mileage}
+                onChange={(value) => updateField("mileage", value)}
+                inputMode="numeric"
+                required
+                missing={missingFieldSet.has("mileage")}
+              />
               <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Alimentazione</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("fuel"))}>Alimentazione *</span>
                 <select
                   value={state.fuel}
                   onChange={(event) => updateField("fuel", event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className={getFieldInputClass(missingFieldSet.has("fuel"))}
                 >
                   <option value="">Seleziona alimentazione</option>
                   {hasCustomSelectedFuel ? <option value={state.fuel}>{state.fuel}</option> : null}
@@ -673,11 +802,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 </select>
               </label>
               <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Cambio</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("transmission"))}>Cambio *</span>
                 <select
                   value={state.transmission}
                   onChange={(event) => updateField("transmission", event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className={getFieldInputClass(missingFieldSet.has("transmission"))}
                 >
                   <option value="">Seleziona cambio</option>
                   {state.transmission && state.transmission !== "Automatico" && state.transmission !== "Manuale" ? (
@@ -687,15 +816,21 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   <option value="Manuale">Manuale</option>
                 </select>
               </label>
-              <EditorField label="Citta" value={state.city} onChange={(value) => updateField("city", value)} />
-              <EditorField label="Provincia" value={state.province} onChange={(value) => updateField("province", value)} />
+              <EditorField label="Citta" value={state.city} onChange={(value) => updateField("city", value)} required missing={missingFieldSet.has("city")} />
+              <EditorField
+                label="Provincia"
+                value={state.province}
+                onChange={(value) => updateField("province", value)}
+                required
+                missing={missingFieldSet.has("province")}
+              />
 
               <label className="block space-y-2 sm:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Stato</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("status"))}>Stato *</span>
                 <select
                   value={state.status}
                   onChange={(event) => updateField("status", event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className={getFieldInputClass(missingFieldSet.has("status"))}
                 >
                   <option value="draft">Bozza</option>
                   <option value="published">Pubblicato</option>
@@ -707,18 +842,20 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             </div>
 
             <label className="mt-3 block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Descrizione</span>
+              <span className={getFieldLabelClass(missingFieldSet.has("description"))}>Descrizione *</span>
               <textarea
                 rows={5}
                 value={state.description}
                 onChange={(event) => updateField("description", event.target.value)}
                 placeholder="Descrizione commerciale del veicolo"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                className={`w-full rounded-xl border px-3 py-2.5 text-sm text-slate-900 outline-none transition ${
+                  missingFieldSet.has("description") ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-sky-300"
+                }`}
               />
             </label>
 
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Dotazioni</p>
+            <div className={`mt-4 rounded-2xl border bg-slate-50 p-4 ${missingFieldSet.has("equipment") ? "border-red-300" : "border-slate-200"}`}>
+              <p className={getFieldLabelClass(missingFieldSet.has("equipment"))}>Dotazioni *</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {VEHICLE_EQUIPMENT_OPTIONS.map((item) => {
                   const checked = state.equipment.includes(item);
@@ -740,17 +877,24 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
           </section>
 
           <section className="dashboard-fade-up space-y-4 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-              <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+            <div
+              className={`rounded-2xl border border-dashed bg-slate-50 p-4 ${
+                missingFieldSet.has("images") ? "border-red-300" : "border-slate-300"
+              }`}
+            >
+              <p className={`inline-flex items-center gap-2 text-sm font-medium ${missingFieldSet.has("images") ? "text-red-700" : "text-slate-700"}`}>
                 <ImagePlus className="h-4 w-4 text-sky-600" />
-                Upload immagini
+                Upload immagini *
               </p>
               <input
                 id={imageInputId}
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
+                onChange={(event) => {
+                  setPendingFiles(Array.from(event.target.files ?? []));
+                  setMissingFields((prev) => prev.filter((field) => field !== "images"));
+                }}
                 className="sr-only"
               />
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -802,7 +946,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             ) : null}
 
             <div className="space-y-2">
-              {error ? <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              {error ? <p className="whitespace-pre-line rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
               {success ? (
                 <p className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                   <CheckCircle2 className="h-4 w-4" /> {success}
@@ -838,17 +982,22 @@ function EditorField({
   value,
   onChange,
   required,
+  missing,
   inputMode,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  missing?: boolean;
   inputMode?: "text" | "numeric";
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+      <span className={getFieldLabelClass(Boolean(missing))}>
+        {label}
+        {required ? " *" : ""}
+      </span>
       <input
         type="text"
         required={required}
@@ -856,7 +1005,7 @@ function EditorField({
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         placeholder={`Inserisci ${label.toLowerCase()}`}
-        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+        className={getFieldInputClass(Boolean(missing))}
       />
     </label>
   );
