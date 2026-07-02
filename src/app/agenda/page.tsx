@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { supabase } from "@/lib/supabaseClient";
 
 type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled";
@@ -369,8 +370,9 @@ export default function AgendaPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
-      <div className="px-4 py-6 lg:px-8">
+    <DealerDashboardShell title="Appuntamenti" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={3}>
+      <main className="min-h-screen bg-slate-100 text-slate-900">
+        <div className="px-4 py-6 lg:px-8">
         <div className="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
@@ -517,10 +519,10 @@ export default function AgendaPage() {
             <ListView appointments={filteredAppointments} loading={loading} onEdit={openEditModal} onDelete={handleDelete} />
           ) : null}
         </section>
-      </div>
+        </div>
 
-      {isModalOpen ? (
-        <Modal title={draft.id ? "Modifica appuntamento" : "Nuovo appuntamento"} onClose={() => setIsModalOpen(false)}>
+        {isModalOpen ? (
+          <Modal title={draft.id ? "Modifica appuntamento" : "Nuovo appuntamento"} onClose={() => setIsModalOpen(false)}>
           <div className="grid gap-4 md:grid-cols-2">
             <Input label="Titolo" value={draft.title} onChange={(value) => setDraft((current) => ({ ...current, title: value }))} />
             <Select
@@ -588,9 +590,10 @@ export default function AgendaPage() {
               {saving ? "Salvataggio..." : "Salva appuntamento"}
             </button>
           </div>
-        </Modal>
-      ) : null}
-    </main>
+          </Modal>
+        ) : null}
+      </main>
+    </DealerDashboardShell>
   );
 }
 
