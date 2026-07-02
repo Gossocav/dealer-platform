@@ -18,7 +18,29 @@ type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   power_kw?: number | null;
   registration_date?: string | null;
   vin?: string | null;
+  options?: string[] | string | null;
+  equipment?: string[] | string | null;
+  features?: string[] | string | null;
 };
+
+function normalizeEquipment(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return [];
+    return normalized
+      .split(/[,\n;|]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
 
 export default async function MarketplaceVehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -82,20 +104,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const dealershipLocality = [formatText(vehicle.city), formatText(vehicle.province)]
     .filter((value) => value !== "-")
     .join(" • ");
-  const equipmentList = [
-    vehicle.body_type ? `Carrozzeria ${vehicle.body_type}` : null,
-    vehicle.engine_size ? `Cilindrata ${vehicle.engine_size}` : null,
-    typeof vehicle.power_kw === "number" ? `${vehicle.power_kw} kW` : null,
-    vehicle.color ? `Colore ${vehicle.color}` : null,
-    typeof vehicle.power_cv === "number" ? `${vehicle.power_cv} CV` : null,
-    typeof vehicle.doors === "number" ? `${vehicle.doors} porte` : null,
-    typeof vehicle.seats === "number" ? `${vehicle.seats} posti` : null,
-    vehicle.warranty ? `Garanzia ${vehicle.warranty}` : null,
-    vehicle.availability ? `Disponibilita ${vehicle.availability}` : null,
-    vehicle.emission_class ? `Classe ${vehicle.emission_class}` : null,
-    vehicle.registration_date ? `Immatricolazione ${vehicle.registration_date}` : null,
-    vehicle.vin ? `Telaio ${vehicle.vin}` : null,
-  ].filter(Boolean) as string[];
+  const source = vehicle as Record<string, unknown>;
+  const equipmentList = normalizeEquipment(source.options ?? source.equipment ?? source.features);
 
   return (
     <main className="px-4 py-8 sm:px-6 lg:px-8">
@@ -171,9 +181,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 </p>
               </div>
 
-              <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Dotazioni</p>
-                {equipmentList.length > 0 ? (
+              {equipmentList.length > 0 ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Dotazioni</p>
                   <div className="mt-3 flex min-w-0 flex-wrap gap-2">
                     {equipmentList.map((item) => (
                       <span key={item} className="max-w-full break-words rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 [overflow-wrap:anywhere]">
@@ -181,10 +191,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                       </span>
                     ))}
                   </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-600">-</p>
-                )}
-              </div>
+                </div>
+              ) : null}
             </div>
           </section>
 

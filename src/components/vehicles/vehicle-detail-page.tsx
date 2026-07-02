@@ -33,6 +33,9 @@ type VehicleWithEquipment = VehicleRow & {
   emission_class?: string | null;
   registration_date?: string | null;
   vin?: string | null;
+  options?: string[] | string | null;
+  equipment?: string[] | string | null;
+  features?: string[] | string | null;
 };
 
 type ViewImage = VehicleImageRow & { previewUrl: string | null };
@@ -54,6 +57,25 @@ function mapImageUrlForDisplay(imageUrl: string): string {
   }
 
   return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
+function normalizeEquipment(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return [];
+    return normalized
+      .split(/[,\n;|]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
 }
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
@@ -165,26 +187,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   }, [vehicleId]);
 
   const coverUrl = useMemo(() => images.find((image) => image.is_cover)?.previewUrl ?? images[0]?.previewUrl ?? null, [images]);
-  const equipmentList = useMemo(
-    () =>
-      vehicle
-        ? [
-            vehicle.body_type ? `Carrozzeria ${vehicle.body_type}` : null,
-            vehicle.engine_size ? `Cilindrata ${vehicle.engine_size}` : null,
-            typeof vehicle.power_kw === "number" ? `${vehicle.power_kw} kW` : null,
-            vehicle.color ? `Colore ${vehicle.color}` : null,
-            typeof vehicle.power_cv === "number" ? `${vehicle.power_cv} CV` : null,
-            typeof vehicle.doors === "number" ? `${vehicle.doors} porte` : null,
-            typeof vehicle.seats === "number" ? `${vehicle.seats} posti` : null,
-            vehicle.warranty ? `Garanzia ${vehicle.warranty}` : null,
-            vehicle.availability ? `Disponibilita ${vehicle.availability}` : null,
-            vehicle.emission_class ? `Classe ${vehicle.emission_class}` : null,
-            vehicle.registration_date ? `Immatricolazione ${vehicle.registration_date}` : null,
-            vehicle.vin ? `Telaio ${vehicle.vin}` : null,
-          ].filter(Boolean)
-        : [],
-    [vehicle]
-  );
+  const equipmentList = useMemo(() => {
+    if (!vehicle) return [];
+
+    const source = vehicle as Record<string, unknown>;
+    return normalizeEquipment(source.options ?? source.equipment ?? source.features);
+  }, [vehicle]);
 
   useEffect(() => {
     setCoverImageFailed(false);
@@ -313,9 +321,9 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <p className="mt-2 text-sm text-slate-700">{safeText(vehicle.description)}</p>
               </div>
 
-              <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Dotazioni</p>
-                {equipmentList.length > 0 ? (
+              {equipmentList.length > 0 ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Dotazioni</p>
                   <div className="mt-3 flex min-w-0 flex-wrap gap-2">
                     {equipmentList.map((item) => (
                       <span
@@ -326,10 +334,8 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                       </span>
                     ))}
                   </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-600">-</p>
-                )}
-              </div>
+                </div>
+              ) : null}
             </article>
           </section>
         </>
