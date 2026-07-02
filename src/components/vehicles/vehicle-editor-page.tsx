@@ -204,13 +204,55 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         return;
       }
 
-      const source = ((payload.vehicle as Record<string, unknown> | undefined) ?? payload.data ?? payload) as Record<string, unknown>;
-      const pick = (...keys: string[]) => {
+      const toRecord = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, unknown>) : null);
+      const sources = [toRecord(payload.vehicle), toRecord(payload.data), toRecord(payload)].filter(
+        (value): value is Record<string, unknown> => Boolean(value)
+      );
+
+      const normalizeValue = (value: unknown) => {
+        if (typeof value === "number") {
+          return String(value);
+        }
+
+        if (typeof value === "string") {
+          return value.trim();
+        }
+
+        return "";
+      };
+
+      const findDeep = (source: unknown, keys: string[]): string => {
+        const dictionary = toRecord(source);
+        if (!dictionary) {
+          return "";
+        }
+
         for (const key of keys) {
-          const value = source[key];
-          const normalized = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
+          const normalized = normalizeValue(dictionary[key]);
           if (normalized) {
             return normalized;
+          }
+        }
+
+        for (const nested of Object.values(dictionary)) {
+          if (!nested || typeof nested !== "object") {
+            continue;
+          }
+
+          const nestedValue = findDeep(nested, keys);
+          if (nestedValue) {
+            return nestedValue;
+          }
+        }
+
+        return "";
+      };
+
+      const pick = (...keys: string[]) => {
+        for (const source of sources) {
+          const value = findDeep(source, keys);
+          if (value) {
+            return value;
           }
         }
 
@@ -219,12 +261,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
       setState((prev) => ({
         ...prev,
-        brand: pick("brand", "Brand", "CarMake", "MakeDescription", "make") || prev.brand,
-        model: pick("model", "Model", "CarModel", "ModelDescription") || prev.model,
-        version: pick("version", "Version", "trim") || prev.version,
-        year: pick("year", "Year", "RegistrationYear", "modelYear") || prev.year,
-        fuel: pick("fuel", "Fuel", "FuelType", "fuelType") || prev.fuel,
-        transmission: pick("transmission", "Transmission", "Gearbox", "gearbox") || prev.transmission,
+        brand: pick("brand", "Brand", "CarMake", "MakeDescription", "make", "marca") || prev.brand,
+        model: pick("model", "Model", "CarModel", "ModelDescription", "modello") || prev.model,
+        version: pick("version", "Version", "trim", "allestimento") || prev.version,
+        year: pick("year", "Year", "RegistrationYear", "modelYear", "anno") || prev.year,
+        fuel: pick("fuel", "Fuel", "FuelType", "fuelType", "alimentazione") || prev.fuel,
+        transmission: pick("transmission", "Transmission", "Gearbox", "gearbox", "cambio") || prev.transmission,
       }));
 
       setSuccess("Dati veicolo compilati da targa.");
