@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { supabase } from "@/lib/supabaseClient";
 import { extractVehicleImagePath, formatVehicleStatus, safeText, type VehicleImageRow, type VehicleRow } from "@/lib/vehicles";
 
@@ -36,44 +37,6 @@ type EditorState = {
   equipment: string[];
   status: string;
 };
-
-const EQUIPMENT_OPTIONS = [
-  "ABS",
-  "Airbag conducente",
-  "Airbag passeggero",
-  "Airbag laterali",
-  "Autoradio",
-  "Bluetooth",
-  "Apple CarPlay",
-  "Android Auto",
-  "Climatizzatore",
-  "Climatizzatore automatico",
-  "Cruise control",
-  "Adaptive Cruise Control",
-  "Sensori parcheggio",
-  "Telecamera posteriore",
-  "360° camera",
-  "Navigatore",
-  "Cerchi in lega",
-  "Fari LED",
-  "Fari Xenon",
-  "Fendinebbia",
-  "Chiusura centralizzata",
-  "Keyless Entry",
-  "Alzacristalli elettrici",
-  "Specchietti elettrici",
-  "Interni in pelle",
-  "Sedili riscaldati",
-  "Sedili elettrici",
-  "Isofix",
-  "ESP",
-  "Controllo trazione",
-  "Head-up display",
-  "Park Distance Control",
-  "Portellone elettrico",
-  "Gancio traino",
-  "Pneumatici quattro stagioni",
-] as const;
 
 function normalizeEquipment(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -620,7 +583,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Dotazioni</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {EQUIPMENT_OPTIONS.map((item) => {
+                {VEHICLE_EQUIPMENT_OPTIONS.map((item) => {
                   const checked = state.equipment.includes(item);
 
                   return (
