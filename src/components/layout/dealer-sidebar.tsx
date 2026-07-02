@@ -31,10 +31,10 @@ const sidebarItems: SidebarItem[] = [
   { label: "Lead", href: "/lead", icon: Inbox },
   { label: "Clienti", href: "/clienti", icon: Users },
   { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
-  { label: "Email", href: "/profilo", icon: Mail },
+  { label: "Email", href: "/email", icon: Mail },
   { label: "Statistiche", href: "/statistiche", icon: BarChart3 },
-  { label: "Abbonamento", href: "/profilo", icon: ShieldCheck },
-  { label: "Impostazioni", href: "/profilo", icon: Settings },
+  { label: "Abbonamento", href: "/abbonamento", icon: ShieldCheck },
+  { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
 ];
 
