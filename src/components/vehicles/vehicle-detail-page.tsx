@@ -23,6 +23,7 @@ type VehicleDetailPageProps = {
 type VehicleWithEquipment = VehicleRow & {
   body_type?: string | null;
   engine_size?: string | number | null;
+  interior_type?: string | null;
   power_kw?: number | null;
   color?: string | null;
   power_cv?: number | null;
@@ -111,7 +112,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, created_at, updated_at"
+            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, created_at, updated_at"
           )
           .eq("id", vehicleId)
           .maybeSingle<VehicleWithEquipment>(),
@@ -308,6 +309,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Classe Euro" value={safeText(vehicle.emission_class)} />
                 <Detail label="Data immatricolazione" value={safeText(vehicle.registration_date)} />
                 <Detail label="Colore" value={safeText(vehicle.color)} />
+                <Detail label="Interni" value={safeText(vehicle.interior_type)} />
                 <Detail label="Telaio" value={safeText(vehicle.vin)} />
                 <Detail label="Citta" value={safeText(vehicle.city)} />
                 <Detail label="Provincia" value={safeText(vehicle.province)} />

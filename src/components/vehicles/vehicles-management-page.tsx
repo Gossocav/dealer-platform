@@ -187,7 +187,7 @@ export function VehiclesManagementPage() {
       let query = supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
+          "id, dealer_id, brand, model, version, interior_type, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
           { count: "exact" }
         )
         .range(from, to)
@@ -346,7 +346,7 @@ export function VehiclesManagementPage() {
 
     const fetchOptionsAndKpis = async () => {
       const [optionRowsRes, publishedRes, draftRes, soldRes, leadsRes] = await Promise.all([
-        supabase.from("vehicles").select("brand, model, fuel, transmission").limit(1000),
+        supabase.from("vehicles").select("brand, model, fuel, transmission, interior_type").limit(1000),
         supabase.from("vehicles").select("id", { count: "exact", head: true }).or("status.eq.published,published.eq.true"),
         supabase.from("vehicles").select("id", { count: "exact", head: true }).or("status.eq.draft,published.eq.false,status.is.null"),
         supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("status", "sold"),

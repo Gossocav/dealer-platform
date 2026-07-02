@@ -9,6 +9,7 @@ type SearchState = {
   q: string;
   brand: string;
   model: string;
+  interiorType: string;
   priceBand: string;
   city: string;
   fuel: string;
@@ -23,6 +24,7 @@ const DEFAULT_STATE: SearchState = {
   q: "",
   brand: "",
   model: "",
+  interiorType: "",
   priceBand: "",
   city: "",
   fuel: "",
@@ -39,7 +41,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, interior_type, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
     .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
@@ -65,6 +67,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const cityOptions = uniqueValues(vehicles.map((vehicle) => vehicle.city));
   const fuelOptions = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissionOptions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
+  const interiorTypeOptions = ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"];
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear - 1950 + 1 }, (_, index) => String(currentYear - index));
   const priceBandOptions = [
@@ -90,6 +93,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchField label="Cerca" name="q" defaultValue={filters.q} placeholder="Marca, modello, versione" />
             <SearchSelect label="Marca" name="brand" defaultValue={filters.brand} options={brandOptions} />
             <SearchSelect label="Modello" name="model" defaultValue={filters.model} options={modelOptions} />
+            <SearchSelect label="Interni" name="interiorType" defaultValue={filters.interiorType} options={interiorTypeOptions} />
             <SearchSelect label="Prezzo" name="priceBand" defaultValue={filters.priceBand} options={priceBandOptions.map((option) => option.label)} values={priceBandOptions.map((option) => option.value)} />
             <SearchSelect label="Città" name="city" defaultValue={filters.city} options={cityOptions} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
@@ -245,6 +249,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     q: asValue(searchParams.q),
     brand: asValue(searchParams.brand),
     model: asValue(searchParams.model),
+    interiorType: asValue(searchParams.interiorType),
     priceBand: asValue(searchParams.priceBand),
     city: asValue(searchParams.city),
     fuel: asValue(searchParams.fuel),
@@ -258,7 +263,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
 
 function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const normalizedQuery = filters.q.trim().toLowerCase();
-  const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.fuel, vehicle.transmission]
+  const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.fuel, vehicle.transmission, vehicle.interior_type]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -266,6 +271,7 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
   const matchesBrand = !filters.brand || formatText(vehicle.brand).toLowerCase() === filters.brand.toLowerCase();
   const matchesModel = !filters.model || formatText(vehicle.model).toLowerCase() === filters.model.toLowerCase();
+  const matchesInteriorType = !filters.interiorType || formatText(vehicle.interior_type).toLowerCase() === filters.interiorType.toLowerCase();
   const matchesBand = !filters.priceBand || matchesPriceBand(Number(vehicle.price ?? 0), filters.priceBand);
   const matchesCity = !filters.city || formatText(vehicle.city).toLowerCase() === filters.city.toLowerCase();
   const matchesFuel = !filters.fuel || formatText(vehicle.fuel).toLowerCase() === filters.fuel.toLowerCase();
@@ -279,7 +285,7 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : Number.POSITIVE_INFINITY;
   const matchesPrice = Number.isFinite(priceValue) && priceValue >= minPrice && priceValue <= maxPrice;
 
-  return matchesQuery && matchesBrand && matchesModel && matchesBand && matchesCity && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
+  return matchesQuery && matchesBrand && matchesModel && matchesInteriorType && matchesBand && matchesCity && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {

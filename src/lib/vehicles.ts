@@ -13,6 +13,7 @@ export type VehicleRow = {
   brand: string | null;
   model: string | null;
   version: string | null;
+  interior_type?: string | null;
   year: string | number | null;
   mileage: number | null;
   fuel: string | null;

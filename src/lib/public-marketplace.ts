@@ -69,6 +69,7 @@ export type MarketplaceVehicle = {
   brand: string | null;
   model: string | null;
   version: string | null;
+  interior_type: string | null;
   year: string | number | null;
   mileage: number | null;
   price: string | number | null;

@@ -18,6 +18,7 @@ type EditorState = {
   brand: string;
   model: string;
   version: string;
+  interiorType: string;
   year: string;
   engineSize: string;
   powerKw: string;
@@ -42,6 +43,7 @@ const REQUIRED_EDITOR_FIELDS = [
   "brand",
   "model",
   "version",
+  "interiorType",
   "year",
   "price",
   "mileage",
@@ -66,6 +68,7 @@ const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   brand: "Marca",
   model: "Modello",
   version: "Versione",
+  interiorType: "Interni",
   year: "Anno",
   price: "Prezzo",
   mileage: "Chilometri",
@@ -191,6 +194,7 @@ const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
   version: "",
+  interiorType: "",
   year: "",
   engineSize: "",
   powerKw: "",
@@ -256,6 +260,10 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   );
   const selectedFuel = state.fuel.trim();
   const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
+  const interiorTypeOptions = useMemo(
+    () => ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"],
+    []
+  );
   const missingFieldSet = useMemo(() => new Set(missingFields), [missingFields]);
 
   useEffect(() => {
@@ -297,7 +305,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, brand, model, version, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
+          "id, brand, model, version, interior_type, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .maybeSingle<VehicleRow>();
@@ -341,6 +349,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         brand: String(data.brand ?? ""),
         model: String(data.model ?? ""),
         version: String(data.version ?? ""),
+        interiorType: String((data as Record<string, unknown>).interior_type ?? ""),
         year: data.year === null || data.year === undefined ? "" : String(data.year),
         engineSize: String((data as Record<string, unknown>).engine_size ?? ""),
         powerKw: String((data as Record<string, unknown>).power_kw ?? ""),
@@ -487,6 +496,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       brand: state.brand.trim() || null,
       model: state.model.trim() || null,
       version: state.version.trim() || null,
+      interior_type: state.interiorType.trim() || null,
       year: state.year.trim() || null,
       engine_size: state.engineSize.trim() || null,
       power_kw: state.powerKw.trim() ? Number(state.powerKw) : null,
@@ -757,6 +767,21 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 />
               </label>
               <EditorField label="Colore" value={state.color} onChange={(value) => updateField("color", value)} required missing={missingFieldSet.has("color")} />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("interiorType"))}>Interni *</span>
+                <select
+                  value={state.interiorType}
+                  onChange={(event) => updateField("interiorType", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("interiorType"))}
+                >
+                  <option value="">Seleziona...</option>
+                  {interiorTypeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
               <EditorField
                 label="Prezzo"

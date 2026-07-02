@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   engine_size?: string | number | null;
+  interior_type?: string | null;
   power_kw?: number | null;
   registration_date?: string | null;
   vin?: string | null;
@@ -46,7 +47,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("status", "published")
@@ -167,6 +168,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Classe Euro" value={formatText(vehicle.emission_class)} />
                 <Field label="Data immatricolazione" value={formatText(vehicle.registration_date)} />
                 <Field label="Colore" value={formatText(vehicle.color)} />
+                <Field label="Interni" value={formatText(vehicle.interior_type)} />
                 <Field label="Telaio" value={formatText(vehicle.vin)} />
                 <Field label="Km" value={formatMileage(vehicle.mileage)} />
                 <Field label="Prezzo" value={formatPrice(vehicle.price)} />
@@ -228,6 +230,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <InfoRow label="Classe Euro" value={formatText(vehicle.emission_class)} />
                 <InfoRow label="Immatricolazione" value={formatText(vehicle.registration_date)} />
                 <InfoRow label="Colore" value={formatText(vehicle.color)} />
+                <InfoRow label="Interni" value={formatText(vehicle.interior_type)} />
                 <InfoRow label="Telaio" value={formatText(vehicle.vin)} />
                 <InfoRow label="Chilometri" value={formatMileage(vehicle.mileage)} />
                 <InfoRow label="Prezzo" value={formatPrice(vehicle.price)} />
