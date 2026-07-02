@@ -172,9 +172,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Prezzo" value={formatPrice(vehicle.price)} />
               </div>
 
-              <div className="mt-6 rounded-2xl bg-slate-50 px-4 py-4">
+              <div className="mt-6 min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Descrizione</p>
-                <p className="mt-3 min-w-0 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">
+                <p className="mt-3 min-w-0 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">
                   {formatText(vehicle.description)}
                 </p>
               </div>

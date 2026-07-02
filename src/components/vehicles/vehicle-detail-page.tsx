@@ -314,9 +314,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Lead" value={`${leadCount}`} icon={<Users className="h-3.5 w-3.5" />} />
               </div>
 
-              <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+              <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Descrizione</p>
-                <p className="mt-2 text-sm text-slate-700">{safeText(vehicle.description)}</p>
+                <p className="mt-2 min-w-0 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">
+                  {safeText(vehicle.description)}
+                </p>
               </div>
 
               {equipmentList.length > 0 ? (
