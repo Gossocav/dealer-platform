@@ -13,7 +13,8 @@ type SearchState = {
   city: string;
   fuel: string;
   transmission: string;
-  year: string;
+  yearFrom: string;
+  yearTo: string;
   minPrice: string;
   maxPrice: string;
 };
@@ -26,7 +27,8 @@ const DEFAULT_STATE: SearchState = {
   city: "",
   fuel: "",
   transmission: "",
-  year: "",
+  yearFrom: "",
+  yearTo: "",
   minPrice: "",
   maxPrice: "",
 };
@@ -63,7 +65,8 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const cityOptions = uniqueValues(vehicles.map((vehicle) => vehicle.city));
   const fuelOptions = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissionOptions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
-  const yearOptions = uniqueValues(vehicles.map((vehicle) => String(vehicle.year ?? "")));
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 1950 + 1 }, (_, index) => String(currentYear - index));
   const priceBandOptions = [
     { label: "Fino a 15.000 €", value: "0-15000" },
     { label: "15.000 - 25.000 €", value: "15000-25000" },
@@ -91,7 +94,8 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Città" name="city" defaultValue={filters.city} options={cityOptions} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
             <SearchSelect label="Cambio" name="transmission" defaultValue={filters.transmission} options={transmissionOptions} />
-            <SearchSelect label="Anno" name="year" defaultValue={filters.year} options={yearOptions} />
+            <SearchSelect label="Anno da" name="yearFrom" defaultValue={filters.yearFrom} options={yearOptions} />
+            <SearchSelect label="Anno a" name="yearTo" defaultValue={filters.yearTo} options={yearOptions} />
             <SearchField label="Prezzo minimo" name="minPrice" defaultValue={filters.minPrice} placeholder="Es. 10000" inputMode="numeric" />
             <SearchField label="Prezzo massimo" name="maxPrice" defaultValue={filters.maxPrice} placeholder="Es. 30000" inputMode="numeric" />
             <div className="flex items-end gap-3">
@@ -228,6 +232,15 @@ function Spec({ label, value }: { label: string; value: string }) {
 }
 
 function parseSearchState(searchParams: SearchParams): SearchState {
+  const yearFrom = asValue(searchParams.yearFrom);
+  const yearToRaw = asValue(searchParams.yearTo);
+  const yearFromValue = Number(yearFrom);
+  const yearToValue = Number(yearToRaw);
+  const yearTo =
+    yearFrom && yearToRaw && Number.isFinite(yearFromValue) && Number.isFinite(yearToValue) && yearFromValue > yearToValue
+      ? ""
+      : yearToRaw;
+
   return {
     q: asValue(searchParams.q),
     brand: asValue(searchParams.brand),
@@ -236,7 +249,8 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     city: asValue(searchParams.city),
     fuel: asValue(searchParams.fuel),
     transmission: asValue(searchParams.transmission),
-    year: asValue(searchParams.year),
+    yearFrom,
+    yearTo,
     minPrice: asValue(searchParams.minPrice),
     maxPrice: asValue(searchParams.maxPrice),
   };
@@ -256,7 +270,10 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const matchesCity = !filters.city || formatText(vehicle.city).toLowerCase() === filters.city.toLowerCase();
   const matchesFuel = !filters.fuel || formatText(vehicle.fuel).toLowerCase() === filters.fuel.toLowerCase();
   const matchesTransmission = !filters.transmission || formatText(vehicle.transmission).toLowerCase() === filters.transmission.toLowerCase();
-  const matchesYear = !filters.year || formatText(vehicle.year).toLowerCase() === filters.year.toLowerCase();
+  const vehicleYear = Number(formatText(vehicle.year));
+  const yearFrom = filters.yearFrom ? Number(filters.yearFrom) : Number.NEGATIVE_INFINITY;
+  const yearTo = filters.yearTo ? Number(filters.yearTo) : Number.POSITIVE_INFINITY;
+  const matchesYear = Number.isFinite(vehicleYear) && vehicleYear >= yearFrom && vehicleYear <= yearTo;
   const priceValue = Number(vehicle.price ?? 0);
   const minPrice = filters.minPrice ? Number(filters.minPrice) : Number.NEGATIVE_INFINITY;
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : Number.POSITIVE_INFINITY;
