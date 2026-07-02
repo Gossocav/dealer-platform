@@ -86,6 +86,33 @@ function normalizeTransmission(value: unknown): "Automatico" | "Manuale" | "" {
   return "";
 }
 
+function normalizeDateForInput(value: unknown): string {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim();
+  if (!normalized) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(normalized)) {
+    return normalized.slice(0, 10);
+  }
+
+  const ddMmYyyy = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddMmYyyy) {
+    return `${ddMmYyyy[3]}-${ddMmYyyy[2]}-${ddMmYyyy[1]}`;
+  }
+
+  const yyyyMmDdSlash = normalized.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (yyyyMmDdSlash) {
+    return `${yyyyMmDdSlash[1]}-${yyyyMmDdSlash[2]}-${yyyyMmDdSlash[3]}`;
+  }
+
+  return "";
+}
+
 const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
@@ -136,6 +163,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   }, []);
   const selectedYear = state.year.trim();
   const hasCustomSelectedYear = selectedYear.length > 0 && !yearOptions.includes(selectedYear);
+  const maxRegistrationDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
     let alive = true;
@@ -226,7 +254,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         powerCv: String((data as Record<string, unknown>).power_cv ?? ""),
         doors: String((data as Record<string, unknown>).doors ?? ""),
         emissionClass: String((data as Record<string, unknown>).emission_class ?? ""),
-        registrationDate: String((data as Record<string, unknown>).registration_date ?? ""),
+        registrationDate: normalizeDateForInput((data as Record<string, unknown>).registration_date),
         color: String((data as Record<string, unknown>).color ?? ""),
         vin: String((data as Record<string, unknown>).vin ?? ""),
         mileage: typeof data.mileage === "number" ? String(data.mileage) : "",
@@ -322,7 +350,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         powerCv: pick(vehicleSource.powerHp, dataSource.PowerCV) || prev.powerCv,
         doors: pick(vehicleSource.doors, dataSource.NumberOfDoors) || prev.doors,
         emissionClass: pick(vehicleSource.euroClass, dataSource.EuroClass, dataSource.EmissionClass) || prev.emissionClass,
-        registrationDate: pick(vehicleSource.registrationDate, dataSource.RegistrationDate) || prev.registrationDate,
+        registrationDate: normalizeDateForInput(pick(vehicleSource.registrationDate, dataSource.RegistrationDate)) || prev.registrationDate,
         color: pick(vehicleSource.color, dataSource.Color, dataSource.ExteriorColor) || prev.color,
         vin: pick(vehicleSource.vin, dataSource.VIN, dataSource.Vin) || prev.vin,
         fuel: pick(vehicleSource.fuel, dataSource.FuelType) || prev.fuel,
@@ -577,7 +605,17 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               <EditorField label="Potenza CV" value={state.powerCv} onChange={(value) => updateField("powerCv", value)} inputMode="numeric" />
               <EditorField label="Porte" value={state.doors} onChange={(value) => updateField("doors", value)} inputMode="numeric" />
               <EditorField label="Classe Euro" value={state.emissionClass} onChange={(value) => updateField("emissionClass", value)} />
-              <EditorField label="Data immatricolazione" value={state.registrationDate} onChange={(value) => updateField("registrationDate", value)} />
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Data immatricolazione</span>
+                <input
+                  type="date"
+                  value={state.registrationDate}
+                  min="1950-01-01"
+                  max={maxRegistrationDate}
+                  onChange={(event) => updateField("registrationDate", event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                />
+              </label>
               <EditorField label="Colore" value={state.color} onChange={(value) => updateField("color", value)} />
               <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
               <EditorField label="Prezzo" value={state.price} onChange={(value) => updateField("price", value)} inputMode="numeric" />
