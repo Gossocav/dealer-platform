@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveDealerIdForUser } from "@/lib/dealer-association";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -12,14 +12,15 @@ type DealerProfile = {
   address: string | null;
   city: string | null;
   province: string | null;
-  zip_code: string | null;
+  postal_code: string | null;
   phone: string | null;
   email: string | null;
   vat_number: string | null;
   website: string | null;
-  description: string | null;
   opening_hours: string | null;
-  social_links: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
   user_id?: string | null;
 };
 
@@ -118,7 +119,9 @@ export default function ProfiloPage() {
 
       const { data: dealer, error: dealerError } = await supabase
         .from("dealers")
-        .select("id, name, legal_name, logo_url, address, city, province, zip_code, phone, email, vat_number, website, description, opening_hours, social_links")
+        .select(
+          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, opening_hours, facebook_url, instagram_url, linkedin_url"
+        )
         .eq("id", currentDealerId)
         .maybeSingle<DealerProfile>();
 
@@ -132,7 +135,6 @@ export default function ProfiloPage() {
         return;
       }
 
-      const social = parseSocialLinks(dealer.social_links);
       setForm({
         name: dealer.name ?? "",
         legal_name: dealer.legal_name ?? "",
@@ -140,18 +142,18 @@ export default function ProfiloPage() {
         address: dealer.address ?? "",
         city: dealer.city ?? "",
         province: dealer.province ?? "",
-        zip_code: dealer.zip_code ?? "",
+        zip_code: dealer.postal_code ?? "",
         phone: dealer.phone ?? "",
         email: dealer.email ?? "",
         vat_number: dealer.vat_number ?? "",
         website: dealer.website ?? "",
-        description: dealer.description ?? "",
+        description: "",
         opening_hours: dealer.opening_hours ?? "",
-        facebook: social.facebook ?? "",
-        instagram: social.instagram ?? "",
-        linkedin: social.linkedin ?? "",
-        youtube: social.youtube ?? "",
-        tiktok: social.tiktok ?? "",
+        facebook: dealer.facebook_url ?? "",
+        instagram: dealer.instagram_url ?? "",
+        linkedin: dealer.linkedin_url ?? "",
+        youtube: "",
+        tiktok: "",
       });
     };
 
@@ -161,11 +163,6 @@ export default function ProfiloPage() {
       mounted = false;
     };
   }, []);
-
-  const hasSocial = useMemo(
-    () => Boolean(form.facebook || form.instagram || form.linkedin || form.youtube || form.tiktok),
-    [form.facebook, form.instagram, form.linkedin, form.youtube, form.tiktok]
-  );
 
   const handleSave = async () => {
     if (!dealerId) return;
@@ -179,14 +176,6 @@ export default function ProfiloPage() {
     setSaving(true);
     setStatusMessage(null);
 
-    const socialLinks = {
-      facebook: form.facebook.trim(),
-      instagram: form.instagram.trim(),
-      linkedin: form.linkedin.trim(),
-      youtube: form.youtube.trim(),
-      tiktok: form.tiktok.trim(),
-    };
-
     const payload = {
       name: form.name.trim(),
       legal_name: nullable(form.legal_name),
@@ -194,14 +183,15 @@ export default function ProfiloPage() {
       address: nullable(form.address),
       city: nullable(form.city),
       province: nullable(form.province),
-      zip_code: nullable(form.zip_code),
+      postal_code: nullable(form.zip_code),
       phone: nullable(form.phone),
       email: nullable(form.email),
       vat_number: nullable(form.vat_number),
       website: nullable(form.website),
-      description: nullable(form.description),
       opening_hours: nullable(form.opening_hours),
-      social_links: hasSocial ? JSON.stringify(socialLinks) : null,
+      facebook_url: nullable(form.facebook),
+      instagram_url: nullable(form.instagram),
+      linkedin_url: nullable(form.linkedin),
       updated_at: new Date().toISOString(),
     };
 
@@ -367,18 +357,4 @@ function TextArea({
 function nullable(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function parseSocialLinks(rawValue: string | null) {
-  const raw = String(rawValue ?? "").trim();
-  if (!raw) {
-    return {} as Record<string, string>;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, string>;
-    return parsed;
-  } catch {
-    return {} as Record<string, string>;
-  }
 }
