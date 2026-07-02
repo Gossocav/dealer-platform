@@ -117,6 +117,13 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [success, setSuccess] = useState<string | null>(null);
 
   const title = useMemo(() => (mode === "create" ? "Nuovo Veicolo" : "Modifica Veicolo"), [mode]);
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+
+    return Array.from({ length: currentYear - 1950 + 1 }, (_, index) => String(currentYear - index));
+  }, []);
+  const selectedYear = state.year.trim();
+  const hasCustomSelectedYear = selectedYear.length > 0 && !yearOptions.includes(selectedYear);
 
   useEffect(() => {
     let alive = true;
@@ -537,7 +544,22 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               <EditorField label="Marca" value={state.brand} onChange={(value) => updateField("brand", value)} required />
               <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required />
               <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} />
-              <EditorField label="Anno" value={state.year} onChange={(value) => updateField("year", value)} />
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Anno</span>
+                <select
+                  value={state.year}
+                  onChange={(event) => updateField("year", event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                >
+                  <option value="">Seleziona anno</option>
+                  {hasCustomSelectedYear ? <option value={state.year}>{state.year}</option> : null}
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <EditorField label="Cilindrata" value={state.engineSize} onChange={(value) => updateField("engineSize", value)} inputMode="numeric" />
               <EditorField label="Potenza kW" value={state.powerKw} onChange={(value) => updateField("powerKw", value)} inputMode="numeric" />
               <EditorField label="Potenza CV" value={state.powerCv} onChange={(value) => updateField("powerCv", value)} inputMode="numeric" />
