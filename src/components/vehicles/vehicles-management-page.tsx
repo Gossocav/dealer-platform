@@ -37,9 +37,10 @@ type SelectOptions = {
   transmissionTypes: string[];
 };
 
-type BrandModelPair = {
+type VehicleOptionKey = {
   brand: string;
   model: string;
+  fuel: string;
 };
 
 const PAGE_SIZE = 9;
@@ -73,7 +74,7 @@ export function VehiclesManagementPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [kpis, setKpis] = useState<VehicleKpi[]>([]);
   const [options, setOptions] = useState<SelectOptions>({ brands: [], models: [], fuelTypes: [], transmissionTypes: [] });
-  const [brandModelPairs, setBrandModelPairs] = useState<BrandModelPair[]>([]);
+  const [vehicleOptionKeys, setVehicleOptionKeys] = useState<VehicleOptionKey[]>([]);
 
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [loading, setLoading] = useState(false);
@@ -355,10 +356,11 @@ export function VehiclesManagementPage() {
       if (!alive) return;
 
       const rawOptions = optionRowsRes.data ?? [];
-      const pairs = rawOptions
+      const keys = rawOptions
         .map((row) => ({
           brand: String((row as { brand?: string | null }).brand ?? "").trim(),
           model: String((row as { model?: string | null }).model ?? "").trim(),
+          fuel: String((row as { fuel?: string | null }).fuel ?? "").trim(),
         }))
         .filter((row) => row.brand.length > 0 && row.model.length > 0);
       const brands = Array.from(new Set(rawOptions.map((row) => String((row as { brand?: string | null }).brand ?? "").trim()).filter(Boolean))).sort((a, b) =>
@@ -374,7 +376,7 @@ export function VehiclesManagementPage() {
         new Set(rawOptions.map((row) => String((row as { transmission?: string | null }).transmission ?? "").trim()).filter(Boolean))
       ).sort((a, b) => a.localeCompare(b, "it-IT"));
 
-      setBrandModelPairs(pairs);
+      setVehicleOptionKeys(keys);
       setOptions({ brands, models, fuelTypes, transmissionTypes });
 
       setKpis([
@@ -530,12 +532,45 @@ export function VehiclesManagementPage() {
 
     return Array.from(
       new Set(
-        brandModelPairs
+        vehicleOptionKeys
           .filter((pair) => pair.brand.trim().toLowerCase() === normalizedBrand)
           .map((pair) => pair.model)
       )
     ).sort((a, b) => a.localeCompare(b, "it-IT"));
-  }, [brandModelPairs, filters.brand, options.models]);
+  }, [filters.brand, options.models, vehicleOptionKeys]);
+
+  const filteredFuelOptions = useMemo(() => {
+    const normalizedBrand = filters.brand.trim().toLowerCase();
+    const normalizedModel = filters.model.trim().toLowerCase();
+
+    const scoped = vehicleOptionKeys.filter((key) => {
+      const matchesBrand = !normalizedBrand || normalizedBrand === "all" || key.brand.trim().toLowerCase() === normalizedBrand;
+      const matchesModel = !normalizedModel || normalizedModel === "all" || key.model.trim().toLowerCase() === normalizedModel;
+      return matchesBrand && matchesModel;
+    });
+
+    if (scoped.length === 0) {
+      return options.fuelTypes;
+    }
+
+    return Array.from(new Set(scoped.map((key) => key.fuel).filter(Boolean))).sort((a, b) => a.localeCompare(b, "it-IT"));
+  }, [filters.brand, filters.model, options.fuelTypes, vehicleOptionKeys]);
+
+  useEffect(() => {
+    const normalizedFuel = filters.fuel.trim().toLowerCase();
+
+    if (!normalizedFuel || normalizedFuel === "all") {
+      return;
+    }
+
+    const isValid = filteredFuelOptions.some((fuel) => fuel.trim().toLowerCase() === normalizedFuel);
+    if (isValid) {
+      return;
+    }
+
+    setFilters((current) => ({ ...current, fuel: "all" }));
+    setPage(1);
+  }, [filteredFuelOptions, filters.fuel]);
   const visibleIds = useMemo(() => items.map((item) => item.id), [items]);
   const selectedCount = selectedVehicleIds.length;
   const everyVisibleSelected = useMemo(() => {
@@ -579,7 +614,7 @@ export function VehiclesManagementPage() {
       <VehiclesToolbar
         filters={filters}
         onFiltersChange={updateFilters}
-        options={{ ...options, models: filteredModelOptions }}
+        options={{ ...options, models: filteredModelOptions, fuelTypes: filteredFuelOptions }}
         statusOptions={statusOptions}
         priceBandOptions={priceBandOptions}
         viewMode={viewMode}
