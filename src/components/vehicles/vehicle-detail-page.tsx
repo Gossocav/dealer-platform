@@ -22,6 +22,8 @@ type VehicleDetailPageProps = {
 
 type VehicleWithEquipment = VehicleRow & {
   body_type?: string | null;
+  engine_size?: string | number | null;
+  power_kw?: number | null;
   color?: string | null;
   power_cv?: number | null;
   doors?: number | null;
@@ -29,6 +31,8 @@ type VehicleWithEquipment = VehicleRow & {
   warranty?: string | null;
   availability?: string | null;
   emission_class?: string | null;
+  registration_date?: string | null;
+  vin?: string | null;
 };
 
 type ViewImage = VehicleImageRow & { previewUrl: string | null };
@@ -87,7 +91,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, color, power_cv, doors, seats, warranty, availability, emission_class, created_at, updated_at"
+            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price, status, published, city, province, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, created_at, updated_at"
           )
           .eq("id", vehicleId)
           .maybeSingle<VehicleWithEquipment>(),
@@ -166,6 +170,8 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
       vehicle
         ? [
             vehicle.body_type ? `Carrozzeria ${vehicle.body_type}` : null,
+            vehicle.engine_size ? `Cilindrata ${vehicle.engine_size}` : null,
+            typeof vehicle.power_kw === "number" ? `${vehicle.power_kw} kW` : null,
             vehicle.color ? `Colore ${vehicle.color}` : null,
             typeof vehicle.power_cv === "number" ? `${vehicle.power_cv} CV` : null,
             typeof vehicle.doors === "number" ? `${vehicle.doors} porte` : null,
@@ -173,6 +179,8 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
             vehicle.warranty ? `Garanzia ${vehicle.warranty}` : null,
             vehicle.availability ? `Disponibilita ${vehicle.availability}` : null,
             vehicle.emission_class ? `Classe ${vehicle.emission_class}` : null,
+            vehicle.registration_date ? `Immatricolazione ${vehicle.registration_date}` : null,
+            vehicle.vin ? `Telaio ${vehicle.vin}` : null,
           ].filter(Boolean)
         : [],
     [vehicle]
@@ -287,6 +295,14 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Stato" value={formatVehicleStatus(vehicle.status, vehicle.published)} />
                 <Detail label="Alimentazione" value={safeText(vehicle.fuel)} />
                 <Detail label="Cambio" value={safeText(vehicle.transmission)} />
+                <Detail label="Cilindrata" value={safeText(vehicle.engine_size)} />
+                <Detail label="Potenza kW" value={safeText(vehicle.power_kw)} />
+                <Detail label="Potenza CV" value={safeText(vehicle.power_cv)} />
+                <Detail label="Porte" value={safeText(vehicle.doors)} />
+                <Detail label="Classe Euro" value={safeText(vehicle.emission_class)} />
+                <Detail label="Data immatricolazione" value={safeText(vehicle.registration_date)} />
+                <Detail label="Colore" value={safeText(vehicle.color)} />
+                <Detail label="Telaio" value={safeText(vehicle.vin)} />
                 <Detail label="Citta" value={safeText(vehicle.city)} />
                 <Detail label="Provincia" value={safeText(vehicle.province)} />
                 <Detail label="Lead" value={`${leadCount}`} icon={<Users className="h-3.5 w-3.5" />} />

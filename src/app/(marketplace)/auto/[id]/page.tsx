@@ -13,12 +13,21 @@ import RequestInformationForm from "./request-information-form";
 
 export const dynamic = "force-dynamic";
 
+type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
+  engine_size?: string | number | null;
+  power_kw?: number | null;
+  registration_date?: string | null;
+  vin?: string | null;
+};
+
 export default async function MarketplaceVehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, color, power_cv, doors, seats, warranty, availability, emission_class, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)")
+    .select(
+      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)"
+    )
     .eq("id", id)
     .eq("status", "published")
     .maybeSingle();
@@ -60,7 +69,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     );
   }
 
-  const vehicle = data as MarketplaceVehicle;
+  const vehicle = data as MarketplaceVehicleWithTechnical;
   const images = resolveVehicleImages(vehicle.vehicle_images);
   const resolvedImages = (await Promise.all(images.map((image) => resolveVehicleImageUrl(image)))).filter(
     (value): value is string => typeof value === "string" && value.length > 0
@@ -75,6 +84,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     .join(" • ");
   const equipmentList = [
     vehicle.body_type ? `Carrozzeria ${vehicle.body_type}` : null,
+    vehicle.engine_size ? `Cilindrata ${vehicle.engine_size}` : null,
+    typeof vehicle.power_kw === "number" ? `${vehicle.power_kw} kW` : null,
     vehicle.color ? `Colore ${vehicle.color}` : null,
     typeof vehicle.power_cv === "number" ? `${vehicle.power_cv} CV` : null,
     typeof vehicle.doors === "number" ? `${vehicle.doors} porte` : null,
@@ -82,6 +93,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     vehicle.warranty ? `Garanzia ${vehicle.warranty}` : null,
     vehicle.availability ? `Disponibilita ${vehicle.availability}` : null,
     vehicle.emission_class ? `Classe ${vehicle.emission_class}` : null,
+    vehicle.registration_date ? `Immatricolazione ${vehicle.registration_date}` : null,
+    vehicle.vin ? `Telaio ${vehicle.vin}` : null,
   ].filter(Boolean) as string[];
 
   return (
@@ -139,6 +152,14 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Anno" value={formatText(vehicle.year)} />
                 <Field label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <Field label="Cambio" value={formatText(vehicle.transmission)} />
+                <Field label="Cilindrata" value={formatText(vehicle.engine_size)} />
+                <Field label="Potenza kW" value={formatText(vehicle.power_kw)} />
+                <Field label="Potenza CV" value={formatText(vehicle.power_cv)} />
+                <Field label="Porte" value={formatText(vehicle.doors)} />
+                <Field label="Classe Euro" value={formatText(vehicle.emission_class)} />
+                <Field label="Data immatricolazione" value={formatText(vehicle.registration_date)} />
+                <Field label="Colore" value={formatText(vehicle.color)} />
+                <Field label="Telaio" value={formatText(vehicle.vin)} />
                 <Field label="Km" value={formatMileage(vehicle.mileage)} />
                 <Field label="Prezzo" value={formatPrice(vehicle.price)} />
               </div>
@@ -194,6 +215,14 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               <div className="mt-4 space-y-3">
                 <InfoRow label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <InfoRow label="Cambio" value={formatText(vehicle.transmission)} />
+                <InfoRow label="Cilindrata" value={formatText(vehicle.engine_size)} />
+                <InfoRow label="Potenza kW" value={formatText(vehicle.power_kw)} />
+                <InfoRow label="Potenza CV" value={formatText(vehicle.power_cv)} />
+                <InfoRow label="Porte" value={formatText(vehicle.doors)} />
+                <InfoRow label="Classe Euro" value={formatText(vehicle.emission_class)} />
+                <InfoRow label="Immatricolazione" value={formatText(vehicle.registration_date)} />
+                <InfoRow label="Colore" value={formatText(vehicle.color)} />
+                <InfoRow label="Telaio" value={formatText(vehicle.vin)} />
                 <InfoRow label="Chilometri" value={formatMileage(vehicle.mileage)} />
                 <InfoRow label="Prezzo" value={formatPrice(vehicle.price)} />
                 <InfoRow label="Stato annuncio" value="Pubblicato" />

@@ -18,6 +18,8 @@ type VehicleLookupResponse = {
   seats: string;
   euroClass: string;
   registrationDate: string;
+  color: string;
+  vin: string;
 };
 
 const PLATE_PATTERN = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
@@ -101,8 +103,10 @@ function normalizeVehiclePayload(raw: unknown): VehicleLookupResponse {
     powerHp: findString(source, ["PowerCV", "powerHp", "hp", "cv", "potenzaCv"]) || "",
     doors: findString(source, ["NumberOfDoors", "doors", "doorCount", "porte"]) || "",
     seats: findString(source, ["seats", "seatCount", "posti"]) || "",
-    euroClass: findString(source, ["euroClass", "emissionClass", "classeEuro"]) || "",
-    registrationDate: findString(source, ["registrationDate", "firstRegistrationDate", "dataImmatricolazione"]) || "",
+    euroClass: findString(source, ["EuroClass", "euroClass", "emissionClass", "classeEuro"]) || "",
+    registrationDate: findString(source, ["RegistrationDate", "registrationDate", "firstRegistrationDate", "dataImmatricolazione"]) || "",
+    color: findString(source, ["Color", "ExteriorColor", "color", "colore"]) || "",
+    vin: findString(source, ["VIN", "Vin", "vin", "chassis", "numeroTelaio"]) || "",
   };
 }
 

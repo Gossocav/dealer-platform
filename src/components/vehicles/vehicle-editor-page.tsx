@@ -18,6 +18,14 @@ type EditorState = {
   model: string;
   version: string;
   year: string;
+  engineSize: string;
+  powerKw: string;
+  powerCv: string;
+  doors: string;
+  emissionClass: string;
+  registrationDate: string;
+  color: string;
+  vin: string;
   mileage: string;
   fuel: string;
   transmission: string;
@@ -35,6 +43,14 @@ type PlateLookupVehicle = {
   year?: string;
   fuel?: string;
   transmission?: string;
+  engineSize?: string;
+  powerKw?: string;
+  powerHp?: string;
+  doors?: string;
+  euroClass?: string;
+  registrationDate?: string;
+  color?: string;
+  vin?: string;
 };
 
 const INITIAL_STATE: EditorState = {
@@ -42,6 +58,14 @@ const INITIAL_STATE: EditorState = {
   model: "",
   version: "",
   year: "",
+  engineSize: "",
+  powerKw: "",
+  powerCv: "",
+  doors: "",
+  emissionClass: "",
+  registrationDate: "",
+  color: "",
+  vin: "",
   mileage: "",
   fuel: "",
   transmission: "",
@@ -110,7 +134,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
-        .select("id, brand, model, version, year, mileage, fuel, transmission, price, city, province, description, status, published")
+        .select(
+          "id, brand, model, version, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, status, published"
+        )
         .eq("id", vehicleId)
         .maybeSingle<VehicleRow>();
 
@@ -154,6 +180,14 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         model: String(data.model ?? ""),
         version: String(data.version ?? ""),
         year: data.year === null || data.year === undefined ? "" : String(data.year),
+        engineSize: String((data as Record<string, unknown>).engine_size ?? ""),
+        powerKw: String((data as Record<string, unknown>).power_kw ?? ""),
+        powerCv: String((data as Record<string, unknown>).power_cv ?? ""),
+        doors: String((data as Record<string, unknown>).doors ?? ""),
+        emissionClass: String((data as Record<string, unknown>).emission_class ?? ""),
+        registrationDate: String((data as Record<string, unknown>).registration_date ?? ""),
+        color: String((data as Record<string, unknown>).color ?? ""),
+        vin: String((data as Record<string, unknown>).vin ?? ""),
         mileage: typeof data.mileage === "number" ? String(data.mileage) : "",
         fuel: String(data.fuel ?? ""),
         transmission: String(data.transmission ?? ""),
@@ -204,55 +238,21 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         return;
       }
 
-      const toRecord = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, unknown>) : null);
-      const sources = [toRecord(payload.vehicle), toRecord(payload.data), toRecord(payload)].filter(
-        (value): value is Record<string, unknown> => Boolean(value)
-      );
+      const toRecord = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, unknown>) : {});
+      const vehicleSource = toRecord(payload.vehicle);
+      const dataSource = toRecord(payload.data);
 
-      const normalizeValue = (value: unknown) => {
-        if (typeof value === "number") {
-          return String(value);
-        }
-
-        if (typeof value === "string") {
-          return value.trim();
-        }
-
-        return "";
-      };
-
-      const findDeep = (source: unknown, keys: string[]): string => {
-        const dictionary = toRecord(source);
-        if (!dictionary) {
-          return "";
-        }
-
-        for (const key of keys) {
-          const normalized = normalizeValue(dictionary[key]);
-          if (normalized) {
-            return normalized;
-          }
-        }
-
-        for (const nested of Object.values(dictionary)) {
-          if (!nested || typeof nested !== "object") {
-            continue;
+      const pick = (...values: unknown[]) => {
+        for (const value of values) {
+          if (typeof value === "number") {
+            return String(value);
           }
 
-          const nestedValue = findDeep(nested, keys);
-          if (nestedValue) {
-            return nestedValue;
-          }
-        }
-
-        return "";
-      };
-
-      const pick = (...keys: string[]) => {
-        for (const source of sources) {
-          const value = findDeep(source, keys);
-          if (value) {
-            return value;
+          if (typeof value === "string") {
+            const normalized = value.trim();
+            if (normalized) {
+              return normalized;
+            }
           }
         }
 
@@ -261,12 +261,20 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
       setState((prev) => ({
         ...prev,
-        brand: pick("brand", "Brand", "CarMake", "MakeDescription", "make", "marca") || prev.brand,
-        model: pick("model", "Model", "CarModel", "ModelDescription", "modello") || prev.model,
-        version: pick("version", "Version", "trim", "allestimento") || prev.version,
-        year: pick("year", "Year", "RegistrationYear", "modelYear", "anno") || prev.year,
-        fuel: pick("fuel", "Fuel", "FuelType", "fuelType", "alimentazione") || prev.fuel,
-        transmission: pick("transmission", "Transmission", "Gearbox", "gearbox", "cambio") || prev.transmission,
+        brand: pick(vehicleSource.brand, dataSource.CarMake, dataSource.MakeDescription) || prev.brand,
+        model: pick(vehicleSource.model, dataSource.CarModel, dataSource.ModelDescription) || prev.model,
+        version: pick(vehicleSource.version, dataSource.Version, dataSource.Description) || prev.version,
+        year: pick(vehicleSource.year, dataSource.RegistrationYear) || prev.year,
+        engineSize: pick(vehicleSource.engineSize, dataSource.EngineSize) || prev.engineSize,
+        powerKw: pick(vehicleSource.powerKw, dataSource.PowerKW) || prev.powerKw,
+        powerCv: pick(vehicleSource.powerHp, dataSource.PowerCV) || prev.powerCv,
+        doors: pick(vehicleSource.doors, dataSource.NumberOfDoors) || prev.doors,
+        emissionClass: pick(vehicleSource.euroClass, dataSource.EuroClass, dataSource.EmissionClass) || prev.emissionClass,
+        registrationDate: pick(vehicleSource.registrationDate, dataSource.RegistrationDate) || prev.registrationDate,
+        color: pick(vehicleSource.color, dataSource.Color, dataSource.ExteriorColor) || prev.color,
+        vin: pick(vehicleSource.vin, dataSource.VIN, dataSource.Vin) || prev.vin,
+        fuel: pick(vehicleSource.fuel, dataSource.FuelType) || prev.fuel,
+        transmission: pick(vehicleSource.transmission, dataSource.TransmissionType, dataSource.Gearbox) || prev.transmission,
       }));
 
       setSuccess("Dati veicolo compilati da targa.");
@@ -288,6 +296,14 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       model: state.model.trim() || null,
       version: state.version.trim() || null,
       year: state.year.trim() || null,
+      engine_size: state.engineSize.trim() || null,
+      power_kw: state.powerKw.trim() ? Number(state.powerKw) : null,
+      power_cv: state.powerCv.trim() ? Number(state.powerCv) : null,
+      doors: state.doors.trim() ? Number(state.doors) : null,
+      emission_class: state.emissionClass.trim() || null,
+      registration_date: state.registrationDate.trim() || null,
+      color: state.color.trim() || null,
+      vin: state.vin.trim() || null,
       mileage: state.mileage.trim() ? Number(state.mileage) : null,
       fuel: state.fuel.trim() || null,
       transmission: state.transmission.trim() || null,
@@ -488,6 +504,14 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required />
               <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} />
               <EditorField label="Anno" value={state.year} onChange={(value) => updateField("year", value)} />
+              <EditorField label="Cilindrata" value={state.engineSize} onChange={(value) => updateField("engineSize", value)} inputMode="numeric" />
+              <EditorField label="Potenza kW" value={state.powerKw} onChange={(value) => updateField("powerKw", value)} inputMode="numeric" />
+              <EditorField label="Potenza CV" value={state.powerCv} onChange={(value) => updateField("powerCv", value)} inputMode="numeric" />
+              <EditorField label="Porte" value={state.doors} onChange={(value) => updateField("doors", value)} inputMode="numeric" />
+              <EditorField label="Classe Euro" value={state.emissionClass} onChange={(value) => updateField("emissionClass", value)} />
+              <EditorField label="Data immatricolazione" value={state.registrationDate} onChange={(value) => updateField("registrationDate", value)} />
+              <EditorField label="Colore" value={state.color} onChange={(value) => updateField("color", value)} />
+              <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
               <EditorField label="Prezzo" value={state.price} onChange={(value) => updateField("price", value)} inputMode="numeric" />
               <EditorField label="Chilometri" value={state.mileage} onChange={(value) => updateField("mileage", value)} inputMode="numeric" />
               <EditorField label="Alimentazione" value={state.fuel} onChange={(value) => updateField("fuel", value)} />
