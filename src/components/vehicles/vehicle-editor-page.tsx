@@ -74,6 +74,18 @@ type PlateLookupVehicle = {
   vin?: string;
 };
 
+function normalizeTransmission(value: unknown): "Automatico" | "Manuale" | "" {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+
+  if (normalized === "automatic" || normalized === "automatico") return "Automatico";
+  if (normalized === "manual" || normalized === "manuale") return "Manuale";
+
+  return "";
+}
+
 const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
@@ -314,7 +326,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         color: pick(vehicleSource.color, dataSource.Color, dataSource.ExteriorColor) || prev.color,
         vin: pick(vehicleSource.vin, dataSource.VIN, dataSource.Vin) || prev.vin,
         fuel: pick(vehicleSource.fuel, dataSource.FuelType) || prev.fuel,
-        transmission: pick(vehicleSource.transmission, dataSource.TransmissionType, dataSource.Gearbox) || prev.transmission,
+        transmission: normalizeTransmission(pick(vehicleSource.transmission, dataSource.TransmissionType, dataSource.Gearbox)) || prev.transmission,
       }));
 
       setSuccess("Dati veicolo compilati da targa.");
@@ -571,7 +583,21 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               <EditorField label="Prezzo" value={state.price} onChange={(value) => updateField("price", value)} inputMode="numeric" />
               <EditorField label="Chilometri" value={state.mileage} onChange={(value) => updateField("mileage", value)} inputMode="numeric" />
               <EditorField label="Alimentazione" value={state.fuel} onChange={(value) => updateField("fuel", value)} />
-              <EditorField label="Cambio" value={state.transmission} onChange={(value) => updateField("transmission", value)} />
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Cambio</span>
+                <select
+                  value={state.transmission}
+                  onChange={(event) => updateField("transmission", event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                >
+                  <option value="">Seleziona cambio</option>
+                  {state.transmission && state.transmission !== "Automatico" && state.transmission !== "Manuale" ? (
+                    <option value={state.transmission}>{state.transmission}</option>
+                  ) : null}
+                  <option value="Automatico">Automatico</option>
+                  <option value="Manuale">Manuale</option>
+                </select>
+              </label>
               <EditorField label="Citta" value={state.city} onChange={(value) => updateField("city", value)} />
               <EditorField label="Provincia" value={state.province} onChange={(value) => updateField("province", value)} />
 
