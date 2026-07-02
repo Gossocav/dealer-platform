@@ -113,6 +113,25 @@ function normalizeDateForInput(value: unknown): string {
   return "";
 }
 
+function normalizeFuelFromLookup(value: unknown): string {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+
+  if (normalized === "diesel") return "Diesel";
+  if (normalized === "benzina" || normalized === "petrol" || normalized === "gasoline") return "Benzina";
+  if (normalized === "gpl" || normalized === "lpg") return "GPL";
+  if (normalized === "metano" || normalized === "cng" || normalized === "natural gas") return "Metano";
+  if (normalized === "elettrica" || normalized === "electric") return "Elettrica";
+  if (normalized === "hybrid benzina" || normalized === "petrol hybrid") return "Elettrica/Benzina (Ibrida)";
+  if (normalized === "hybrid diesel") return "Elettrica/Diesel (Ibrida)";
+  if (normalized === "hydrogen") return "Idrogeno";
+  if (normalized === "ethanol" || normalized === "bioethanol") return "Etanolo";
+
+  return "Altro";
+}
+
 const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
@@ -164,6 +183,23 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const selectedYear = state.year.trim();
   const hasCustomSelectedYear = selectedYear.length > 0 && !yearOptions.includes(selectedYear);
   const maxRegistrationDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const fuelOptions = useMemo(
+    () => [
+      "Benzina",
+      "Diesel",
+      "GPL",
+      "Metano",
+      "Elettrica",
+      "Elettrica/Benzina (Ibrida)",
+      "Elettrica/Diesel (Ibrida)",
+      "Idrogeno",
+      "Etanolo",
+      "Altro",
+    ],
+    []
+  );
+  const selectedFuel = state.fuel.trim();
+  const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
 
   useEffect(() => {
     let alive = true;
@@ -353,7 +389,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         registrationDate: normalizeDateForInput(pick(vehicleSource.registrationDate, dataSource.RegistrationDate)) || prev.registrationDate,
         color: pick(vehicleSource.color, dataSource.Color, dataSource.ExteriorColor) || prev.color,
         vin: pick(vehicleSource.vin, dataSource.VIN, dataSource.Vin) || prev.vin,
-        fuel: pick(vehicleSource.fuel, dataSource.FuelType) || prev.fuel,
+        fuel: normalizeFuelFromLookup(pick(vehicleSource.fuel, dataSource.FuelType)) || prev.fuel,
         transmission: normalizeTransmission(pick(vehicleSource.transmission, dataSource.TransmissionType, dataSource.Gearbox)) || prev.transmission,
       }));
 
@@ -620,7 +656,22 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
               <EditorField label="Prezzo" value={state.price} onChange={(value) => updateField("price", value)} inputMode="numeric" />
               <EditorField label="Chilometri" value={state.mileage} onChange={(value) => updateField("mileage", value)} inputMode="numeric" />
-              <EditorField label="Alimentazione" value={state.fuel} onChange={(value) => updateField("fuel", value)} />
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Alimentazione</span>
+                <select
+                  value={state.fuel}
+                  onChange={(event) => updateField("fuel", event.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                >
+                  <option value="">Seleziona alimentazione</option>
+                  {hasCustomSelectedFuel ? <option value={state.fuel}>{state.fuel}</option> : null}
+                  {fuelOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="block space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Cambio</span>
                 <select
