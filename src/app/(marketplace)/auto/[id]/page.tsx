@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import ShareVehicleButton from "@/components/marketplace/share-vehicle-button";
 import {
   formatMileage,
   formatPrice,
@@ -43,6 +45,10 @@ function normalizeEquipment(value: unknown): string[] {
 
 export default async function MarketplaceVehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const requestHeaders = await headers();
+  const forwardedProto = requestHeaders.get("x-forwarded-proto") ?? "https";
+  const forwardedHost = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
+  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : "";
 
   const { data, error } = await publicSupabase
     .from("vehicles")
@@ -103,6 +109,16 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const dealershipLocality = [formatText(vehicle.city), formatText(vehicle.province)]
     .filter((value) => value !== "-")
     .join(" • ");
+  const shareUrl = origin ? `${origin}/auto/${vehicle.id}` : `/auto/${vehicle.id}`;
+  const shareTitle = resolveVehicleLabel(vehicle);
+  const shareText = [
+    `Marca: ${formatText(vehicle.brand)}`,
+    `Modello: ${formatText(vehicle.model)}`,
+    `Versione: ${formatText(vehicle.version)}`,
+    `Prezzo: ${formatPrice(vehicle.price)}`,
+    `Concessionaria: ${dealerDisplayName}`,
+    `URL annuncio: ${shareUrl}`,
+  ].join("\n");
   const source = vehicle as Record<string, unknown>;
   const equipmentList = normalizeEquipment(source.equipment);
 
@@ -197,8 +213,19 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           </section>
 
           <aside className="min-w-0 space-y-6">
-            <div className="sticky top-24">
-              <RequestInformationForm vehicleId={vehicle.id} vehicleLabel={resolveVehicleLabel(vehicle)} />
+            <div className="sticky top-24 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href="#contatta-venditore"
+                  className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+                >
+                  Contatta il venditore
+                </a>
+                <ShareVehicleButton title={shareTitle} text={shareText} url={shareUrl} />
+              </div>
+              <div id="contatta-venditore">
+                <RequestInformationForm vehicleId={vehicle.id} vehicleLabel={resolveVehicleLabel(vehicle)} />
+              </div>
             </div>
 
             <div className="min-w-0 overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
