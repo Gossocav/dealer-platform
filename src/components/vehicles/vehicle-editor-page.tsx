@@ -60,7 +60,7 @@ const REQUIRED_EDITOR_FIELDS = [
 ] as const satisfies ReadonlyArray<keyof EditorState>;
 
 type RequiredEditorFieldKey = (typeof REQUIRED_EDITOR_FIELDS)[number];
-type RequiredFieldKey = RequiredEditorFieldKey | "images" | "equipment";
+type RequiredFieldKey = RequiredEditorFieldKey;
 
 const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   brand: "Marca",
@@ -81,8 +81,6 @@ const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   province: "Provincia",
   status: "Stato",
   description: "Descrizione",
-  images: "Immagini",
-  equipment: "Dotazioni",
 };
 
 function getFieldInputClass(missing: boolean): string {
@@ -388,7 +386,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         equipment: exists ? prev.equipment.filter((value) => value !== item) : [...prev.equipment, item],
       };
     });
-    setMissingFields((prev) => prev.filter((field) => field !== "equipment"));
   };
 
   const handlePlateLookup = async () => {
@@ -475,14 +472,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       if (!state[field].trim()) {
         nextMissing.push(field);
       }
-    }
-
-    if (state.equipment.length === 0) {
-      nextMissing.push("equipment");
-    }
-
-    if (images.length + pendingFiles.length === 0) {
-      nextMissing.push("images");
     }
 
     if (nextMissing.length > 0) {
@@ -854,8 +843,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               />
             </label>
 
-            <div className={`mt-4 rounded-2xl border bg-slate-50 p-4 ${missingFieldSet.has("equipment") ? "border-red-300" : "border-slate-200"}`}>
-              <p className={getFieldLabelClass(missingFieldSet.has("equipment"))}>Dotazioni *</p>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Dotazioni</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {VEHICLE_EQUIPMENT_OPTIONS.map((item) => {
                   const checked = state.equipment.includes(item);
@@ -877,24 +866,17 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
           </section>
 
           <section className="dashboard-fade-up space-y-4 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
-            <div
-              className={`rounded-2xl border border-dashed bg-slate-50 p-4 ${
-                missingFieldSet.has("images") ? "border-red-300" : "border-slate-300"
-              }`}
-            >
-              <p className={`inline-flex items-center gap-2 text-sm font-medium ${missingFieldSet.has("images") ? "text-red-700" : "text-slate-700"}`}>
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+              <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                 <ImagePlus className="h-4 w-4 text-sky-600" />
-                Upload immagini *
+                Upload immagini
               </p>
               <input
                 id={imageInputId}
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(event) => {
-                  setPendingFiles(Array.from(event.target.files ?? []));
-                  setMissingFields((prev) => prev.filter((field) => field !== "images"));
-                }}
+                onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
                 className="sr-only"
               />
               <div className="mt-3 flex flex-wrap items-center gap-3">
