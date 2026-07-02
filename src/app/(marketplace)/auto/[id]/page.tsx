@@ -18,9 +18,7 @@ type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   power_kw?: number | null;
   registration_date?: string | null;
   vin?: string | null;
-  options?: string[] | string | null;
   equipment?: string[] | string | null;
-  features?: string[] | string | null;
 };
 
 function normalizeEquipment(value: unknown): string[] {
@@ -48,7 +46,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("status", "published")
@@ -105,7 +103,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     .filter((value) => value !== "-")
     .join(" • ");
   const source = vehicle as Record<string, unknown>;
-  const equipmentList = normalizeEquipment(source.options ?? source.equipment ?? source.features);
+  const equipmentList = normalizeEquipment(source.equipment);
 
   return (
     <main className="px-4 py-8 sm:px-6 lg:px-8">

@@ -33,9 +33,7 @@ type VehicleWithEquipment = VehicleRow & {
   emission_class?: string | null;
   registration_date?: string | null;
   vin?: string | null;
-  options?: string[] | string | null;
   equipment?: string[] | string | null;
-  features?: string[] | string | null;
 };
 
 type ViewImage = VehicleImageRow & { previewUrl: string | null };
@@ -191,7 +189,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
     if (!vehicle) return [];
 
     const source = vehicle as Record<string, unknown>;
-    return normalizeEquipment(source.options ?? source.equipment ?? source.features);
+    return normalizeEquipment(source.equipment);
   }, [vehicle]);
 
   useEffect(() => {

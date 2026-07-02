@@ -33,8 +33,66 @@ type EditorState = {
   city: string;
   province: string;
   description: string;
+  equipment: string[];
   status: string;
 };
+
+const EQUIPMENT_OPTIONS = [
+  "ABS",
+  "Airbag conducente",
+  "Airbag passeggero",
+  "Airbag laterali",
+  "Autoradio",
+  "Bluetooth",
+  "Apple CarPlay",
+  "Android Auto",
+  "Climatizzatore",
+  "Climatizzatore automatico",
+  "Cruise control",
+  "Adaptive Cruise Control",
+  "Sensori parcheggio",
+  "Telecamera posteriore",
+  "360° camera",
+  "Navigatore",
+  "Cerchi in lega",
+  "Fari LED",
+  "Fari Xenon",
+  "Fendinebbia",
+  "Chiusura centralizzata",
+  "Keyless Entry",
+  "Alzacristalli elettrici",
+  "Specchietti elettrici",
+  "Interni in pelle",
+  "Sedili riscaldati",
+  "Sedili elettrici",
+  "Isofix",
+  "ESP",
+  "Controllo trazione",
+  "Head-up display",
+  "Park Distance Control",
+  "Portellone elettrico",
+  "Gancio traino",
+  "Pneumatici quattro stagioni",
+] as const;
+
+function normalizeEquipment(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? "").trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return [];
+    return normalized
+      .split(/[,\n;|]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
 
 type PlateLookupVehicle = {
   brand?: string;
@@ -73,6 +131,7 @@ const INITIAL_STATE: EditorState = {
   city: "",
   province: "",
   description: "",
+  equipment: [],
   status: "draft",
 };
 
@@ -135,7 +194,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, brand, model, version, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, status, published"
+          "id, brand, model, version, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .maybeSingle<VehicleRow>();
@@ -195,6 +254,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         city: String(data.city ?? ""),
         province: String(data.province ?? ""),
         description: String(data.description ?? ""),
+        equipment: normalizeEquipment((data as Record<string, unknown>).equipment),
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
       setImages(resolvedImages);
@@ -210,6 +270,16 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const updateField = <K extends keyof EditorState>(key: K, value: EditorState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleEquipment = (item: string) => {
+    setState((prev) => {
+      const exists = prev.equipment.includes(item);
+      return {
+        ...prev,
+        equipment: exists ? prev.equipment.filter((value) => value !== item) : [...prev.equipment, item],
+      };
+    });
   };
 
   const handlePlateLookup = async () => {
@@ -311,6 +381,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       city: state.city.trim() || null,
       province: state.province.trim() || null,
       description: state.description.trim() || null,
+      equipment: state.equipment,
       status: state.status,
       published: state.status === "published",
     };
@@ -545,6 +616,27 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-300"
               />
             </label>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Dotazioni</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {EQUIPMENT_OPTIONS.map((item) => {
+                  const checked = state.equipment.includes(item);
+
+                  return (
+                    <label key={item} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleEquipment(item)}
+                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                      />
+                      <span>{item}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           </section>
 
           <section className="dashboard-fade-up space-y-4 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
