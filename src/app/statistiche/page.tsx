@@ -159,7 +159,7 @@ export default function StatistichePage() {
 
   return (
     <DealerDashboardShell title="Statistiche" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={3}>
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
+      <div className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto w-full max-w-7xl">
         <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/40 sm:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -345,7 +345,7 @@ export default function StatistichePage() {
           </div>
         </div>
         </div>
-      </main>
+      </div>
     </DealerDashboardShell>
   );
 }
