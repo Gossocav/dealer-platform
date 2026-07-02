@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ITALIAN_PROVINCES } from "@/lib/italian-provinces";
 import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ type SearchState = {
   model: string;
   interiorType: string;
   priceBand: string;
-  city: string;
+  province: string;
   fuel: string;
   transmission: string;
   yearFrom: string;
@@ -26,7 +27,7 @@ const DEFAULT_STATE: SearchState = {
   model: "",
   interiorType: "",
   priceBand: "",
-  city: "",
+  province: "",
   fuel: "",
   transmission: "",
   yearFrom: "",
@@ -41,7 +42,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, interior_type, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, interior_type, year, mileage, price, fuel, transmission, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
     .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
@@ -64,7 +65,8 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
     ? vehicles.filter((vehicle) => formatText(vehicle.brand).toLowerCase() === filters.brand.toLowerCase())
     : vehicles;
   const modelOptions = uniqueValues(modelSource.map((vehicle) => vehicle.model));
-  const cityOptions = uniqueValues(vehicles.map((vehicle) => vehicle.city));
+  const provinceOptions = ITALIAN_PROVINCES.map((province) => `${province.name} (${province.code})`);
+  const provinceValues = ITALIAN_PROVINCES.map((province) => province.code);
   const fuelOptions = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissionOptions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
   const interiorTypeOptions = ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"];
@@ -84,7 +86,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">Ricerca avanzata</p>
           <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl">Trova il veicolo giusto in pochi secondi.</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
-            Filtra il marketplace per città, alimentazione, cambio, anno e fascia prezzo.
+            Filtra il marketplace per provincia, alimentazione, cambio, anno e fascia prezzo.
           </p>
         </section>
 
@@ -95,7 +97,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Modello" name="model" defaultValue={filters.model} options={modelOptions} />
             <SearchSelect label="Interni" name="interiorType" defaultValue={filters.interiorType} options={interiorTypeOptions} />
             <SearchSelect label="Prezzo" name="priceBand" defaultValue={filters.priceBand} options={priceBandOptions.map((option) => option.label)} values={priceBandOptions.map((option) => option.value)} />
-            <SearchSelect label="Città" name="city" defaultValue={filters.city} options={cityOptions} />
+            <SearchSelect label="Provincia" name="province" defaultValue={filters.province} options={provinceOptions} values={provinceValues} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
             <SearchSelect label="Cambio" name="transmission" defaultValue={filters.transmission} options={transmissionOptions} />
             <SearchSelect label="Anno da" name="yearFrom" defaultValue={filters.yearFrom} options={yearOptions} />
@@ -251,7 +253,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     model: asValue(searchParams.model),
     interiorType: asValue(searchParams.interiorType),
     priceBand: asValue(searchParams.priceBand),
-    city: asValue(searchParams.city),
+    province: normalizeProvinceCode(asValue(searchParams.province)),
     fuel: asValue(searchParams.fuel),
     transmission: asValue(searchParams.transmission),
     yearFrom,
@@ -263,7 +265,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
 
 function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const normalizedQuery = filters.q.trim().toLowerCase();
-  const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.fuel, vehicle.transmission, vehicle.interior_type]
+  const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.province, vehicle.fuel, vehicle.transmission, vehicle.interior_type]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -273,7 +275,9 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const matchesModel = !filters.model || formatText(vehicle.model).toLowerCase() === filters.model.toLowerCase();
   const matchesInteriorType = !filters.interiorType || formatText(vehicle.interior_type).toLowerCase() === filters.interiorType.toLowerCase();
   const matchesBand = !filters.priceBand || matchesPriceBand(Number(vehicle.price ?? 0), filters.priceBand);
-  const matchesCity = !filters.city || formatText(vehicle.city).toLowerCase() === filters.city.toLowerCase();
+  const selectedProvinceCode = normalizeProvinceCode(filters.province);
+  const vehicleProvinceCode = normalizeProvinceCode(formatText(vehicle.province));
+  const matchesProvince = !selectedProvinceCode || vehicleProvinceCode === selectedProvinceCode;
   const matchesFuel = !filters.fuel || formatText(vehicle.fuel).toLowerCase() === filters.fuel.toLowerCase();
   const matchesTransmission = !filters.transmission || formatText(vehicle.transmission).toLowerCase() === filters.transmission.toLowerCase();
   const vehicleYear = Number(formatText(vehicle.year));
@@ -285,7 +289,25 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : Number.POSITIVE_INFINITY;
   const matchesPrice = Number.isFinite(priceValue) && priceValue >= minPrice && priceValue <= maxPrice;
 
-  return matchesQuery && matchesBrand && matchesModel && matchesInteriorType && matchesBand && matchesCity && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
+  return matchesQuery && matchesBrand && matchesModel && matchesInteriorType && matchesBand && matchesProvince && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
+}
+
+function normalizeProvinceCode(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return "";
+
+  const upper = normalized.toUpperCase();
+  if (ITALIAN_PROVINCES.some((province) => province.code === upper)) {
+    return upper;
+  }
+
+  const fromBracket = upper.match(/\(([A-Z]{2})\)$/)?.[1] ?? "";
+  if (fromBracket && ITALIAN_PROVINCES.some((province) => province.code === fromBracket)) {
+    return fromBracket;
+  }
+
+  const byName = ITALIAN_PROVINCES.find((province) => province.name.toLowerCase() === normalized.toLowerCase());
+  return byName?.code ?? "";
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {
