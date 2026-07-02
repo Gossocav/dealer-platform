@@ -37,6 +37,11 @@ type SelectOptions = {
   transmissionTypes: string[];
 };
 
+type BrandModelPair = {
+  brand: string;
+  model: string;
+};
+
 const PAGE_SIZE = 9;
 
 function mapImageUrlForDisplay(imageUrl: string): string {
@@ -68,6 +73,7 @@ export function VehiclesManagementPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [kpis, setKpis] = useState<VehicleKpi[]>([]);
   const [options, setOptions] = useState<SelectOptions>({ brands: [], models: [], fuelTypes: [], transmissionTypes: [] });
+  const [brandModelPairs, setBrandModelPairs] = useState<BrandModelPair[]>([]);
 
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [loading, setLoading] = useState(false);
@@ -349,6 +355,12 @@ export function VehiclesManagementPage() {
       if (!alive) return;
 
       const rawOptions = optionRowsRes.data ?? [];
+      const pairs = rawOptions
+        .map((row) => ({
+          brand: String((row as { brand?: string | null }).brand ?? "").trim(),
+          model: String((row as { model?: string | null }).model ?? "").trim(),
+        }))
+        .filter((row) => row.brand.length > 0 && row.model.length > 0);
       const brands = Array.from(new Set(rawOptions.map((row) => String((row as { brand?: string | null }).brand ?? "").trim()).filter(Boolean))).sort((a, b) =>
         a.localeCompare(b, "it-IT")
       );
@@ -362,6 +374,7 @@ export function VehiclesManagementPage() {
         new Set(rawOptions.map((row) => String((row as { transmission?: string | null }).transmission ?? "").trim()).filter(Boolean))
       ).sort((a, b) => a.localeCompare(b, "it-IT"));
 
+      setBrandModelPairs(pairs);
       setOptions({ brands, models, fuelTypes, transmissionTypes });
 
       setKpis([
@@ -508,6 +521,21 @@ export function VehiclesManagementPage() {
   }, [refreshData]);
 
   const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
+  const filteredModelOptions = useMemo(() => {
+    const normalizedBrand = filters.brand.trim().toLowerCase();
+
+    if (!normalizedBrand || normalizedBrand === "all") {
+      return options.models;
+    }
+
+    return Array.from(
+      new Set(
+        brandModelPairs
+          .filter((pair) => pair.brand.trim().toLowerCase() === normalizedBrand)
+          .map((pair) => pair.model)
+      )
+    ).sort((a, b) => a.localeCompare(b, "it-IT"));
+  }, [brandModelPairs, filters.brand, options.models]);
   const visibleIds = useMemo(() => items.map((item) => item.id), [items]);
   const selectedCount = selectedVehicleIds.length;
   const everyVisibleSelected = useMemo(() => {
@@ -551,7 +579,7 @@ export function VehiclesManagementPage() {
       <VehiclesToolbar
         filters={filters}
         onFiltersChange={updateFilters}
-        options={options}
+        options={{ ...options, models: filteredModelOptions }}
         statusOptions={statusOptions}
         priceBandOptions={priceBandOptions}
         viewMode={viewMode}

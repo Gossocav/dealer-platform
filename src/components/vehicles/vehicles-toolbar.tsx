@@ -107,7 +107,7 @@ export function VehiclesToolbar({
           label="Marca"
           value={filters.brand}
           options={[{ value: "all", label: "Tutte le marche" }, ...options.brands.map((item) => ({ value: item, label: item }))]}
-          onChange={(next) => onFiltersChange({ ...filters, brand: next })}
+          onChange={(next) => onFiltersChange({ ...filters, brand: next, model: "all" })}
         />
 
         <SelectField
