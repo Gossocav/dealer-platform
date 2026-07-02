@@ -68,6 +68,7 @@ const EMPTY_FORM: ProfileFormState = {
 
 export default function ProfiloPage() {
   const [dealerId, setDealerId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -94,6 +95,8 @@ export default function ProfiloPage() {
         setStatusType("error");
         return;
       }
+
+      setUserId(user.id);
 
       let currentDealerId: string | null = null;
       try {
@@ -165,7 +168,11 @@ export default function ProfiloPage() {
   }, []);
 
   const handleSave = async () => {
-    if (!dealerId) return;
+    if (!dealerId && !userId) {
+      setStatusMessage("Impossibile identificare la concessionaria da aggiornare.");
+      setStatusType("error");
+      return;
+    }
 
     if (!form.name.trim()) {
       setStatusMessage("Il nome concessionaria è obbligatorio.");
@@ -195,14 +202,72 @@ export default function ProfiloPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("dealers").update(payload).eq("id", dealerId);
+    const { data: updatedById, error: updateByIdError } = dealerId
+      ? await supabase.from("dealers").update(payload).eq("id", dealerId).select("id").maybeSingle<{ id: string }>()
+      : { data: null, error: null };
+
+    let updatedDealerId = updatedById?.id ?? null;
+    let updateError = updateByIdError;
+
+    if (!updatedDealerId && userId) {
+      const { data: updatedByUser, error: updateByUserError } = await supabase
+        .from("dealers")
+        .update(payload)
+        .eq("user_id", userId)
+        .select("id")
+        .maybeSingle<{ id: string }>();
+
+      if (updatedByUser?.id) {
+        updatedDealerId = updatedByUser.id;
+        setDealerId(updatedByUser.id);
+        updateError = null;
+      } else if (!updateError) {
+        updateError = updateByUserError;
+      }
+    }
 
     setSaving(false);
 
-    if (error) {
-      setStatusMessage(error.message || "Errore nel salvataggio profilo concessionaria.");
+    if (updateError) {
+      const details = [updateError.message, updateError.details, updateError.hint].filter(Boolean).join(" | ");
+      setStatusMessage(details || "Errore nel salvataggio profilo concessionaria.");
       setStatusType("error");
       return;
+    }
+
+    if (!updatedDealerId) {
+      setStatusMessage("Nessun profilo aggiornato. Verifica associazione account-concessionaria e permessi RLS.");
+      setStatusType("error");
+      return;
+    }
+
+    const { data: dealerAfterSave, error: reloadError } = await supabase
+      .from("dealers")
+      .select(
+        "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, opening_hours, facebook_url, instagram_url, linkedin_url"
+      )
+      .eq("id", updatedDealerId)
+      .maybeSingle<DealerProfile>();
+
+    if (!reloadError && dealerAfterSave) {
+      setForm((prev) => ({
+        ...prev,
+        name: dealerAfterSave.name ?? "",
+        legal_name: dealerAfterSave.legal_name ?? "",
+        logo_url: dealerAfterSave.logo_url ?? "",
+        address: dealerAfterSave.address ?? "",
+        city: dealerAfterSave.city ?? "",
+        province: dealerAfterSave.province ?? "",
+        zip_code: dealerAfterSave.postal_code ?? "",
+        phone: dealerAfterSave.phone ?? "",
+        email: dealerAfterSave.email ?? "",
+        vat_number: dealerAfterSave.vat_number ?? "",
+        website: dealerAfterSave.website ?? "",
+        opening_hours: dealerAfterSave.opening_hours ?? "",
+        facebook: dealerAfterSave.facebook_url ?? "",
+        instagram: dealerAfterSave.instagram_url ?? "",
+        linkedin: dealerAfterSave.linkedin_url ?? "",
+      }));
     }
 
     setStatusMessage("Profilo concessionaria aggiornato con successo.");
