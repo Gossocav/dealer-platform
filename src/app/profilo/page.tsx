@@ -17,6 +17,7 @@ type DealerProfile = {
   email: string | null;
   vat_number: string | null;
   website: string | null;
+  description: string | null;
   opening_hours: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
@@ -123,7 +124,7 @@ export default function ProfiloPage() {
       const { data: dealer, error: dealerError } = await supabase
         .from("dealers")
         .select(
-          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, opening_hours, facebook_url, instagram_url, linkedin_url"
+          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url"
         )
         .eq("id", currentDealerId)
         .maybeSingle<DealerProfile>();
@@ -150,7 +151,7 @@ export default function ProfiloPage() {
         email: dealer.email ?? "",
         vat_number: dealer.vat_number ?? "",
         website: dealer.website ?? "",
-        description: "",
+        description: dealer.description ?? "",
         opening_hours: dealer.opening_hours ?? "",
         facebook: dealer.facebook_url ?? "",
         instagram: dealer.instagram_url ?? "",
@@ -195,6 +196,7 @@ export default function ProfiloPage() {
       email: nullable(form.email),
       vat_number: nullable(form.vat_number),
       website: nullable(form.website),
+      description: nullable(form.description),
       opening_hours: nullable(form.opening_hours),
       facebook_url: nullable(form.facebook),
       instagram_url: nullable(form.instagram),
@@ -244,7 +246,7 @@ export default function ProfiloPage() {
     const { data: dealerAfterSave, error: reloadError } = await supabase
       .from("dealers")
       .select(
-        "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, opening_hours, facebook_url, instagram_url, linkedin_url"
+          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url"
       )
       .eq("id", updatedDealerId)
       .maybeSingle<DealerProfile>();
@@ -263,6 +265,7 @@ export default function ProfiloPage() {
         email: dealerAfterSave.email ?? "",
         vat_number: dealerAfterSave.vat_number ?? "",
         website: dealerAfterSave.website ?? "",
+        description: dealerAfterSave.description ?? "",
         opening_hours: dealerAfterSave.opening_hours ?? "",
         facebook: dealerAfterSave.facebook_url ?? "",
         instagram: dealerAfterSave.instagram_url ?? "",
