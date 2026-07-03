@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Loader2, PencilLine, Rocket, Users } from "lucide-react";
+import { Loader2, PencilLine, Rocket, Send, Users } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { supabase } from "@/lib/supabaseClient";
 import {
   extractVehicleImagePath,
@@ -86,6 +87,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coverImageFailed, setCoverImageFailed] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -254,6 +256,13 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
                 {formatVehicleStatus(vehicle.status, vehicle.published) === "Pubblicato" ? "Passa a bozza" : "Pubblica"}
               </button>
+              <button
+                type="button"
+                onClick={() => setSendDialogOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Send className="h-4 w-4" /> Invia al cliente
+              </button>
               <Link
                 href="/veicoli"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -340,6 +349,18 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               ) : null}
             </article>
           </section>
+
+          <SendToClientDialog
+            open={sendDialogOpen}
+            onOpenChange={setSendDialogOpen}
+            vehicle={{
+              brand: vehicle.brand,
+              model: vehicle.model,
+              version: vehicle.version,
+              year: vehicle.year,
+              price: vehicle.price,
+            }}
+          />
         </>
       ) : null}
     </DealerDashboardShell>
