@@ -5,7 +5,6 @@ type EnsureDealerBody = {
   company_name?: string;
   legal_company_name?: string;
   vat_number?: string;
-  tax_code?: string;
   contact_person?: string;
   email?: string;
   phone?: string;
@@ -27,13 +26,12 @@ export async function POST(request: Request) {
     const companyName = normalizeText(body.company_name);
     const legalCompanyName = normalizeText(body.legal_company_name);
     const vatNumber = normalizeText(body.vat_number);
-    const taxCode = normalizeText(body.tax_code);
     const contactPerson = normalizeText(body.contact_person);
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
     const whatsappPhone = normalizeText(body.whatsapp_phone);
 
-    if (!companyName || !legalCompanyName || !vatNumber || !taxCode || !contactPerson || !email || !phone) {
+    if (!companyName || !legalCompanyName || !vatNumber || !contactPerson || !email || !phone) {
       return NextResponse.json({ error: "Dati registrazione non validi." }, { status: 400 });
     }
 
@@ -74,7 +72,6 @@ export async function POST(request: Request) {
       companyName,
       legalCompanyName,
       vatNumber,
-      taxCode,
       contactPerson,
       email,
       phone,
@@ -96,7 +93,6 @@ type EnsureDealerAssociationInput = {
   companyName: string;
   legalCompanyName: string;
   vatNumber: string;
-  taxCode: string;
   contactPerson: string;
   email: string;
   phone: string;
@@ -109,7 +105,6 @@ async function ensureDealerAssociation({
   companyName,
   legalCompanyName,
   vatNumber,
-  taxCode,
   contactPerson,
   email,
   phone,
@@ -138,7 +133,6 @@ async function ensureDealerAssociation({
       companyName,
       legalCompanyName,
       vatNumber,
-      taxCode,
       email,
       phone,
       whatsappPhone,
@@ -167,7 +161,6 @@ async function ensureDealerAssociation({
         name: companyName,
         legal_name: legalCompanyName,
         vat_number: vatNumber,
-        fiscal_code: taxCode,
         email,
         phone,
         whatsapp_phone: whatsappPhone,
@@ -187,7 +180,6 @@ async function ensureDealerAssociation({
     companyName,
     legalCompanyName,
     vatNumber,
-    taxCode,
     email,
     phone,
     whatsappPhone,
@@ -228,14 +220,13 @@ async function updateDealerBestEffort(
     companyName: string;
     legalCompanyName: string;
     vatNumber: string;
-    taxCode: string;
     email: string;
     phone: string;
     whatsappPhone: string | null;
     userId: string;
   }
 ) {
-  const { companyName, legalCompanyName, vatNumber, taxCode, email, phone, whatsappPhone, userId } = values;
+  const { companyName, legalCompanyName, vatNumber, email, phone, whatsappPhone, userId } = values;
 
   const { error: updateError } = await supabaseAdmin
     .from("dealers")
@@ -243,7 +234,6 @@ async function updateDealerBestEffort(
       name: companyName,
       legal_name: legalCompanyName,
       vat_number: vatNumber,
-      fiscal_code: taxCode,
       email,
       phone,
       whatsapp_phone: whatsappPhone,

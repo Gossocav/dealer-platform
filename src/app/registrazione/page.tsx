@@ -8,7 +8,6 @@ type FormState = {
   dealerName: string;
   companyName: string;
   vatNumber: string;
-  taxCode: string;
   contactName: string;
   email: string;
   phone: string;
@@ -25,7 +24,6 @@ export default function RegistrazionePage() {
     dealerName: "",
     companyName: "",
     vatNumber: "",
-    taxCode: "",
     contactName: "",
     email: "",
     phone: "",
@@ -48,12 +46,6 @@ export default function RegistrazionePage() {
       newErrors.vatNumber = "Inserisci la Partita IVA.";
     } else if (!/^IT\d{11}$/.test(state.vatNumber.trim())) {
       newErrors.vatNumber = "Inserisci una Partita IVA valida nel formato IT12345678901.";
-    }
-
-    if (!state.taxCode.trim()) {
-      newErrors.taxCode = "Inserisci il Codice Fiscale.";
-    } else if (!/^[A-Z0-9]{16}$/i.test(state.taxCode.trim())) {
-      newErrors.taxCode = "Inserisci un Codice Fiscale valido di 16 caratteri.";
     }
 
     if (!state.contactName.trim()) newErrors.contactName = "Inserisci il nome del referente.";
@@ -113,7 +105,6 @@ export default function RegistrazionePage() {
           dealer_name: values.dealerName.trim(),
           company_name: values.companyName.trim(),
           vat_number: values.vatNumber.trim(),
-          fiscal_code: values.taxCode.trim(),
           contact_name: values.contactName.trim(),
           phone: values.phone.trim(),
           whatsapp_phone: values.whatsappPhone.trim(),
@@ -160,7 +151,6 @@ export default function RegistrazionePage() {
         company_name: values.dealerName,
         legal_company_name: values.companyName,
         vat_number: values.vatNumber,
-        tax_code: values.taxCode,
         contact_person: values.contactName,
         email,
         phone: values.phone,
@@ -273,23 +263,6 @@ export default function RegistrazionePage() {
                   </div>
 
                   <div>
-                    <label htmlFor="taxCode" className="mb-2 block text-sm font-medium text-slate-700">Codice fiscale</label>
-                    <input
-                      id="taxCode"
-                      type="text"
-                      value={values.taxCode}
-                      onChange={handleChange("taxCode")}
-                      placeholder="Codice fiscale"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
-                        errors.taxCode ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
-                      }`}
-                    />
-                    {errors.taxCode ? <p className="mt-2 text-sm text-red-600">{errors.taxCode}</p> : null}
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
                     <label htmlFor="contactName" className="mb-2 block text-sm font-medium text-slate-700">Referente</label>
                     <input
                       id="contactName"
@@ -303,7 +276,9 @@ export default function RegistrazionePage() {
                     />
                     {errors.contactName ? <p className="mt-2 text-sm text-red-600">{errors.contactName}</p> : null}
                   </div>
+                </div>
 
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email commerciale</label>
                     <input
@@ -318,9 +293,7 @@ export default function RegistrazionePage() {
                     />
                     {errors.email ? <p className="mt-2 text-sm text-red-600">{errors.email}</p> : null}
                   </div>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono</label>
                     <input
@@ -335,7 +308,9 @@ export default function RegistrazionePage() {
                     />
                     {errors.phone ? <p className="mt-2 text-sm text-red-600">{errors.phone}</p> : null}
                   </div>
+                </div>
 
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="whatsappPhone" className="mb-2 block text-sm font-medium text-slate-700">Numero WhatsApp</label>
                     <input
