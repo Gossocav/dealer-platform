@@ -11,6 +11,7 @@ create table dealers (
   fiscal_code text,
   email text,
   phone text,
+  whatsapp_phone text,
   website text,
   logo_url text,
   status text default 'active',

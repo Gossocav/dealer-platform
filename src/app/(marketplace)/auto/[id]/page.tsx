@@ -11,6 +11,8 @@ import {
   resolveDealerDisplayName,
   resolveDealerEmail,
   resolveDealerPhone,
+  resolveDealerWebsite,
+  resolveDealerWhatsAppPhone,
   resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
@@ -58,7 +60,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("status", "published")
@@ -109,7 +111,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const coverUrl = resolvedImages[0] ?? null;
   const dealerDisplayName = resolveDealerDisplayName(vehicle.dealers);
   const dealerPhone = resolveDealerPhone(vehicle.dealers);
+  const dealerWhatsAppPhone = resolveDealerWhatsAppPhone(vehicle.dealers);
   const dealerEmail = resolveDealerEmail(vehicle.dealers);
+  const dealerWebsite = resolveDealerWebsite(vehicle.dealers);
   const dealerCity = [
     Array.isArray(vehicle.dealers) ? vehicle.dealers[0]?.city : vehicle.dealers?.city,
     Array.isArray(vehicle.dealers) ? vehicle.dealers[0]?.province : vehicle.dealers?.province,
@@ -124,8 +128,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     "",
     "Visualizzato su KeyPlan Rental.",
   ].join("\n");
-  const dealerWhatsAppLink = buildWhatsAppLink(dealerPhone, whatsappMessage);
+  const dealerWhatsAppLink = buildWhatsAppLink(dealerWhatsAppPhone, whatsappMessage);
   const contactUnavailableMessage = "Numero di telefono non disponibile.";
+  const whatsappUnavailableMessage = "Numero WhatsApp non disponibile.";
   const dealershipLocality = [formatText(dealerCity), formatText(vehicle.city), formatText(vehicle.province)]
     .filter((value) => value !== "-")
     .join(" • ");
@@ -264,11 +269,11 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                     WhatsApp
                   </a>
                 ) : (
-                  <span title={contactUnavailableMessage}>
+                  <span title={whatsappUnavailableMessage}>
                     <button
                       type="button"
                       disabled
-                      aria-label={contactUnavailableMessage}
+                      aria-label={whatsappUnavailableMessage}
                       className="inline-flex cursor-not-allowed items-center justify-center rounded-3xl bg-slate-300 px-5 py-3 text-sm font-semibold text-white opacity-70"
                     >
                       WhatsApp
@@ -295,7 +300,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <InfoRow label="Nome" value={dealerDisplayName} />
                 <InfoRow label="Citta" value={formatText(dealerCity)} />
                 <InfoRow label="Telefono" value={formatText(dealerPhone)} />
+                <InfoRow label="WhatsApp" value={formatText(dealerWhatsAppPhone)} />
                 <InfoRow label="Email" value={formatText(dealerEmail)} />
+                <InfoRow label="Sito web" value={formatText(dealerWebsite)} />
               </div>
             </div>
 

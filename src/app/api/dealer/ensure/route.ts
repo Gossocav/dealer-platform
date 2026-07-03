@@ -116,8 +116,6 @@ async function ensureDealerAssociation({
     await upsertProfile(supabaseAdmin, {
       userId,
       dealerId: byUserId,
-      contactPerson,
-      email,
     });
 
     return byUserId;
@@ -191,8 +189,6 @@ async function ensureDealerAssociation({
   await upsertProfile(supabaseAdmin, {
     userId,
     dealerId,
-    contactPerson,
-    email,
   });
 
   return dealerId;
@@ -264,22 +260,18 @@ async function upsertProfile(
   input: {
     userId: string;
     dealerId: string;
-    contactPerson: string;
-    email: string;
   }
 ) {
-  const { userId, dealerId, contactPerson, email } = input;
+  const { userId, dealerId } = input;
   const updatedAt = new Date().toISOString();
 
   const basePayload: Record<string, unknown> = {
     id: userId,
     dealer_id: dealerId,
-    contact_name: contactPerson,
-    email,
     updated_at: updatedAt,
   };
 
-  const attemptedColumns = ["contact_name", "email", "updated_at"];
+  const attemptedColumns = ["updated_at"];
 
   for (let index = 0; index <= attemptedColumns.length; index += 1) {
     const payload = { ...basePayload };

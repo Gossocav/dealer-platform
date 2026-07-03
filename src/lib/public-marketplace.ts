@@ -58,6 +58,7 @@ export type MarketplaceDealer = {
   zip_code: string | null;
   email: string | null;
   phone: string | null;
+  whatsapp_phone: string | null;
   vat_number: string | null;
   website: string | null;
   description: string | null;
@@ -129,6 +130,11 @@ export function resolveDealerEmail(dealer: MarketplaceDealer | MarketplaceDealer
 export function resolveDealerPhone(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
   return firstDealer?.phone?.trim() || null;
+}
+
+export function resolveDealerWhatsAppPhone(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
+  const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
+  return firstDealer?.whatsapp_phone?.trim() || null;
 }
 
 export function resolveDealerWebsite(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {

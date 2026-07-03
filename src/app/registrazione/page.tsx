@@ -301,7 +301,7 @@ export default function RegistrazionePage() {
                   </div>
 
                   <div>
-                    <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email</label>
+                    <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email commerciale</label>
                     <input
                       id="email"
                       type="email"

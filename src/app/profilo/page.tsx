@@ -14,6 +14,7 @@ type DealerProfile = {
   province: string | null;
   postal_code: string | null;
   phone: string | null;
+  whatsapp_phone: string | null;
   email: string | null;
   vat_number: string | null;
   website: string | null;
@@ -34,6 +35,7 @@ type ProfileFormState = {
   province: string;
   zip_code: string;
   phone: string;
+  whatsapp: string;
   email: string;
   vat_number: string;
   website: string;
@@ -55,6 +57,7 @@ const EMPTY_FORM: ProfileFormState = {
   province: "",
   zip_code: "",
   phone: "",
+  whatsapp: "",
   email: "",
   vat_number: "",
   website: "",
@@ -124,7 +127,7 @@ export default function ProfiloPage() {
       const { data: dealer, error: dealerError } = await supabase
         .from("dealers")
         .select(
-          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url"
+          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, whatsapp_phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url"
         )
         .eq("id", currentDealerId)
         .maybeSingle<DealerProfile>();
@@ -148,6 +151,7 @@ export default function ProfiloPage() {
         province: dealer.province ?? "",
         zip_code: dealer.postal_code ?? "",
         phone: dealer.phone ?? "",
+        whatsapp: dealer.whatsapp_phone ?? "",
         email: dealer.email ?? "",
         vat_number: dealer.vat_number ?? "",
         website: dealer.website ?? "",
@@ -193,6 +197,7 @@ export default function ProfiloPage() {
       province: nullable(form.province),
       postal_code: nullable(form.zip_code),
       phone: nullable(form.phone),
+      whatsapp_phone: nullable(form.whatsapp),
       email: nullable(form.email),
       vat_number: nullable(form.vat_number),
       website: nullable(form.website),
@@ -246,7 +251,7 @@ export default function ProfiloPage() {
     const { data: dealerAfterSave, error: reloadError } = await supabase
       .from("dealers")
       .select(
-          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url"
+          "id, name, legal_name, logo_url, address, city, province, postal_code, phone, whatsapp_phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url"
       )
       .eq("id", updatedDealerId)
       .maybeSingle<DealerProfile>();
@@ -262,6 +267,7 @@ export default function ProfiloPage() {
         province: dealerAfterSave.province ?? "",
         zip_code: dealerAfterSave.postal_code ?? "",
         phone: dealerAfterSave.phone ?? "",
+        whatsapp: dealerAfterSave.whatsapp_phone ?? "",
         email: dealerAfterSave.email ?? "",
         vat_number: dealerAfterSave.vat_number ?? "",
         website: dealerAfterSave.website ?? "",
@@ -310,10 +316,18 @@ export default function ProfiloPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Nome concessionaria" value={form.name} onChange={(value) => setForm((s) => ({ ...s, name: value }))} required />
                   <Field label="Ragione sociale" value={form.legal_name} onChange={(value) => setForm((s) => ({ ...s, legal_name: value }))} />
-                  <Field label="Email" type="email" value={form.email} onChange={(value) => setForm((s) => ({ ...s, email: value }))} />
-                  <Field label="Telefono commerciale" value={form.phone} onChange={(value) => setForm((s) => ({ ...s, phone: value }))} />
                   <Field label="Partita IVA" value={form.vat_number} onChange={(value) => setForm((s) => ({ ...s, vat_number: value }))} />
-                  <Field label="Sito web" value={form.website} onChange={(value) => setForm((s) => ({ ...s, website: value }))} />
+                </div>
+
+                <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">Contatti pubblici</p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Field label="Telefono commerciale" value={form.phone} onChange={(value) => setForm((s) => ({ ...s, phone: value }))} />
+                    <Field label="Numero WhatsApp" value={form.whatsapp} onChange={(value) => setForm((s) => ({ ...s, whatsapp: value }))} />
+                    <Field label="Email commerciale" type="email" value={form.email} onChange={(value) => setForm((s) => ({ ...s, email: value }))} />
+                    <Field label="Sito web" value={form.website} onChange={(value) => setForm((s) => ({ ...s, website: value }))} />
+                  </div>
+                  <p className="mt-4 text-sm text-slate-600">I dati inseriti saranno visibili agli utenti nel Marketplace.</p>
                 </div>
 
                 <Field label="Logo URL" value={form.logo_url} onChange={(value) => setForm((s) => ({ ...s, logo_url: value }))} />

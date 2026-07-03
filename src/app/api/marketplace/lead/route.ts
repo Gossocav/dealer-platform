@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     const vehicleLabel = [vehicleData.brand, vehicleData.model, vehicleData.version].filter(Boolean).join(" ") || vehicleData.id;
 
-    // 3) Recupero email concessionario da profiles.email via dealer_id.
+    // 3) Recupero email concessionario dai dati pubblici del dealer.
     let dealerEmail: string | null = null;
     if (vehicleData.dealer_id && supabaseServiceRoleKey) {
       const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -121,22 +121,22 @@ export async function POST(request: Request) {
         },
       });
 
-      const { data: profileRows, error: profileError } = await supabaseAdmin
-        .from("profiles")
+      const { data: dealerRows, error: dealerError } = await supabaseAdmin
+        .from("dealers")
         .select("email")
-        .eq("dealer_id", vehicleData.dealer_id)
+        .eq("id", vehicleData.dealer_id)
         .not("email", "is", null)
         .limit(1);
 
-      if (profileError) {
-        console.error("Dealer profile email lookup error", profileError);
+      if (dealerError) {
+        console.error("Dealer email lookup error", dealerError);
       } else {
-        dealerEmail = normalizeEmail(profileRows?.[0]?.email ?? null);
+        dealerEmail = normalizeEmail(dealerRows?.[0]?.email ?? null);
       }
     } else if (!vehicleData.dealer_id) {
       console.error("Dealer id missing on vehicle, dealer email cannot be resolved.");
     } else {
-      console.error("SUPABASE_SERVICE_ROLE_KEY missing: cannot resolve dealer email from profiles.");
+      console.error("SUPABASE_SERVICE_ROLE_KEY missing: cannot resolve dealer email from dealers.");
     }
 
     // Best effort email delivery: lead is already saved and must not fail due to email provider errors.
