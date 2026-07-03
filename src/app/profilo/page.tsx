@@ -322,7 +322,7 @@ export default function ProfiloPage() {
                 <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                   <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">Contatti pubblici</p>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field label="Telefono commerciale" value={form.phone} onChange={(value) => setForm((s) => ({ ...s, phone: value }))} />
+                    <Field label="Telefono" value={form.phone} onChange={(value) => setForm((s) => ({ ...s, phone: value }))} />
                     <Field label="Numero WhatsApp" value={form.whatsapp} onChange={(value) => setForm((s) => ({ ...s, whatsapp: value }))} />
                     <Field label="Email commerciale" type="email" value={form.email} onChange={(value) => setForm((s) => ({ ...s, email: value }))} />
                     <Field label="Sito web" value={form.website} onChange={(value) => setForm((s) => ({ ...s, website: value }))} />

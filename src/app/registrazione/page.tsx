@@ -12,6 +12,7 @@ type FormState = {
   contactName: string;
   email: string;
   phone: string;
+  whatsappPhone: string;
   password: string;
   confirmPassword: string;
 };
@@ -28,6 +29,7 @@ export default function RegistrazionePage() {
     contactName: "",
     email: "",
     phone: "",
+    whatsappPhone: "",
     password: "",
     confirmPassword: "",
   });
@@ -114,6 +116,7 @@ export default function RegistrazionePage() {
           fiscal_code: values.taxCode.trim(),
           contact_name: values.contactName.trim(),
           phone: values.phone.trim(),
+          whatsapp_phone: values.whatsappPhone.trim(),
         },
       },
     });
@@ -161,6 +164,7 @@ export default function RegistrazionePage() {
         contact_person: values.contactName,
         email,
         phone: values.phone,
+        whatsapp_phone: values.whatsappPhone,
       }),
     });
 
@@ -222,7 +226,7 @@ export default function RegistrazionePage() {
               <form className="space-y-6" onSubmit={handleSubmit} noValidate>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="dealerName" className="mb-2 block text-sm font-medium text-slate-700">Company Name</label>
+                    <label htmlFor="dealerName" className="mb-2 block text-sm font-medium text-slate-700">Nome concessionaria</label>
                     <input
                       id="dealerName"
                       type="text"
@@ -237,7 +241,7 @@ export default function RegistrazionePage() {
                   </div>
 
                   <div>
-                    <label htmlFor="companyName" className="mb-2 block text-sm font-medium text-slate-700">Legal Company Name</label>
+                    <label htmlFor="companyName" className="mb-2 block text-sm font-medium text-slate-700">Ragione sociale</label>
                     <input
                       id="companyName"
                       type="text"
@@ -254,7 +258,7 @@ export default function RegistrazionePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="vatNumber" className="mb-2 block text-sm font-medium text-slate-700">VAT Number</label>
+                    <label htmlFor="vatNumber" className="mb-2 block text-sm font-medium text-slate-700">Partita IVA</label>
                     <input
                       id="vatNumber"
                       type="text"
@@ -269,7 +273,7 @@ export default function RegistrazionePage() {
                   </div>
 
                   <div>
-                    <label htmlFor="taxCode" className="mb-2 block text-sm font-medium text-slate-700">Tax Code</label>
+                    <label htmlFor="taxCode" className="mb-2 block text-sm font-medium text-slate-700">Codice fiscale</label>
                     <input
                       id="taxCode"
                       type="text"
@@ -286,7 +290,7 @@ export default function RegistrazionePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="contactName" className="mb-2 block text-sm font-medium text-slate-700">Contact Person</label>
+                    <label htmlFor="contactName" className="mb-2 block text-sm font-medium text-slate-700">Referente</label>
                     <input
                       id="contactName"
                       type="text"
@@ -318,7 +322,7 @@ export default function RegistrazionePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono commerciale</label>
+                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono</label>
                     <input
                       id="phone"
                       type="tel"
@@ -330,6 +334,18 @@ export default function RegistrazionePage() {
                       }`}
                     />
                     {errors.phone ? <p className="mt-2 text-sm text-red-600">{errors.phone}</p> : null}
+                  </div>
+
+                  <div>
+                    <label htmlFor="whatsappPhone" className="mb-2 block text-sm font-medium text-slate-700">Numero WhatsApp</label>
+                    <input
+                      id="whatsappPhone"
+                      type="tel"
+                      value={values.whatsappPhone}
+                      onChange={handleChange("whatsappPhone")}
+                      placeholder="+39 333 123 4567"
+                      className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    />
                   </div>
 
                   <div>
@@ -349,7 +365,7 @@ export default function RegistrazionePage() {
                 </div>
 
                 <div>
-                  <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-slate-700">Confirm Password</label>
+                  <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-slate-700">Conferma password</label>
                   <input
                     id="confirmPassword"
                     type="password"

@@ -9,6 +9,7 @@ type EnsureDealerBody = {
   contact_person?: string;
   email?: string;
   phone?: string;
+  whatsapp_phone?: string;
 };
 
 type UserProfileRow = {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
     const contactPerson = normalizeText(body.contact_person);
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
+    const whatsappPhone = normalizeText(body.whatsapp_phone);
 
     if (!companyName || !legalCompanyName || !vatNumber || !taxCode || !contactPerson || !email || !phone) {
       return NextResponse.json({ error: "Dati registrazione non validi." }, { status: 400 });
@@ -76,9 +78,10 @@ export async function POST(request: Request) {
       contactPerson,
       email,
       phone,
+      whatsappPhone,
     });
 
-    await clearPhoneMetadataBestEffort(supabaseAdmin, user.id, user.user_metadata);
+    await clearContactMetadataBestEffort(supabaseAdmin, user.id, user.user_metadata);
 
     return NextResponse.json({ dealer_id: dealerId }, { status: 200 });
   } catch (error) {
@@ -97,6 +100,7 @@ type EnsureDealerAssociationInput = {
   contactPerson: string;
   email: string;
   phone: string;
+  whatsappPhone: string | null;
 };
 
 async function ensureDealerAssociation({
@@ -109,6 +113,7 @@ async function ensureDealerAssociation({
   contactPerson,
   email,
   phone,
+  whatsappPhone,
 }: EnsureDealerAssociationInput) {
   // 1) Prova associazione nativa dealers.user_id (se presente nello schema).
   const byUserId = await findDealerIdByUserId(supabaseAdmin, userId);
@@ -136,6 +141,7 @@ async function ensureDealerAssociation({
       taxCode,
       email,
       phone,
+      whatsappPhone,
       userId,
     });
 
@@ -164,6 +170,7 @@ async function ensureDealerAssociation({
         fiscal_code: taxCode,
         email,
         phone,
+        whatsapp_phone: whatsappPhone,
         status: "active",
       })
       .select("id")
@@ -183,6 +190,7 @@ async function ensureDealerAssociation({
     taxCode,
     email,
     phone,
+    whatsappPhone,
     userId,
   });
 
@@ -223,10 +231,11 @@ async function updateDealerBestEffort(
     taxCode: string;
     email: string;
     phone: string;
+    whatsappPhone: string | null;
     userId: string;
   }
 ) {
-  const { companyName, legalCompanyName, vatNumber, taxCode, email, phone, userId } = values;
+  const { companyName, legalCompanyName, vatNumber, taxCode, email, phone, whatsappPhone, userId } = values;
 
   const { error: updateError } = await supabaseAdmin
     .from("dealers")
@@ -237,6 +246,7 @@ async function updateDealerBestEffort(
       fiscal_code: taxCode,
       email,
       phone,
+      whatsapp_phone: whatsappPhone,
       updated_at: new Date().toISOString(),
     })
     .eq("id", dealerId);
@@ -322,25 +332,35 @@ function isMissingColumnError(message: string | undefined, columnName: string) {
   return text.includes(columnName.toLowerCase()) && (text.includes("column") || text.includes("schema cache"));
 }
 
-async function clearPhoneMetadataBestEffort(
+async function clearContactMetadataBestEffort(
   supabaseAdmin: SupabaseClient<any, any, any>,
   userId: string,
   userMetadata: unknown
 ) {
   const currentMetadata = isRecord(userMetadata) ? { ...userMetadata } : {};
 
-  if (!("phone" in currentMetadata)) {
-    return;
+  let changed = false;
+
+  if ("phone" in currentMetadata) {
+    delete currentMetadata.phone;
+    changed = true;
   }
 
-  delete currentMetadata.phone;
+  if ("whatsapp_phone" in currentMetadata) {
+    delete currentMetadata.whatsapp_phone;
+    changed = true;
+  }
+
+  if (!changed) {
+    return;
+  }
 
   const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
     user_metadata: currentMetadata,
   });
 
   if (error) {
-    console.warn("Dealer ensure API could not clear auth phone metadata", error);
+    console.warn("Dealer ensure API could not clear auth contact metadata", error);
   }
 }
 
