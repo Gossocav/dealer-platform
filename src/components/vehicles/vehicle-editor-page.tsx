@@ -7,6 +7,7 @@ import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
+import { resolveDealerIdForUser } from "@/lib/dealer-association";
 import { supabase } from "@/lib/supabaseClient";
 import { extractVehicleImagePath, formatVehicleStatus, safeText, type VehicleImageRow, type VehicleRow } from "@/lib/vehicles";
 
@@ -211,6 +212,20 @@ function normalizeFuelFromLookup(value: unknown): string {
   return "Altro";
 }
 
+function normalizeResolvedDealerId(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const lowered = normalized.toLowerCase();
+  if (lowered === "null" || lowered === "undefined") {
+    return null;
+  }
+
+  return normalized;
+}
+
 const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
@@ -255,6 +270,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [missingFields, setMissingFields] = useState<RequiredFieldKey[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [existingVehicleDealerId, setExistingVehicleDealerId] = useState<string | null>(null);
 
   const title = useMemo(() => (mode === "create" ? "Nuovo Veicolo" : "Modifica Veicolo"), [mode]);
   const yearOptions = useMemo(() => {
@@ -336,7 +352,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, brand, model, version, interior_type, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
+          "id, dealer_id, brand, model, version, interior_type, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .maybeSingle<VehicleRow>();
@@ -400,6 +416,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         equipment: normalizeEquipment((data as Record<string, unknown>).equipment),
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
+      setExistingVehicleDealerId(String(data.dealer_id ?? "").trim() || null);
       setImages(resolvedImages);
       setLoading(false);
     };
@@ -535,7 +552,59 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     setMissingFields([]);
     setSaving(true);
 
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+
+    if (!userId) {
+      setError("Sessione non valida.");
+      setSaving(false);
+      return;
+    }
+
+    let resolvedDealerId: string | null = null;
+    try {
+      resolvedDealerId = await resolveDealerIdForUser(userId);
+    } catch (dealerResolveError) {
+      const message = dealerResolveError instanceof Error ? dealerResolveError.message : "Errore risoluzione dealer.";
+      setError(message);
+      setSaving(false);
+      return;
+    }
+
+    let normalizedExistingDealerId = normalizeResolvedDealerId(existingVehicleDealerId);
+
+    if (mode === "edit" && !normalizedExistingDealerId && vehicleId) {
+      const { data: existingRow, error: existingRowError } = await supabase
+        .from("vehicles")
+        .select("dealer_id")
+        .eq("id", vehicleId)
+        .maybeSingle<{ dealer_id: string | null }>();
+
+      if (existingRowError) {
+        setError(existingRowError.message || "Errore nel recupero dealer del veicolo.");
+        setSaving(false);
+        return;
+      }
+
+      normalizedExistingDealerId = normalizeResolvedDealerId(existingRow?.dealer_id);
+      if (normalizedExistingDealerId) {
+        setExistingVehicleDealerId(normalizedExistingDealerId);
+      }
+    }
+
+    const resolvedDealerIdNormalized = normalizeResolvedDealerId(resolvedDealerId);
+    const vehicleDealerId = mode === "edit"
+      ? (normalizedExistingDealerId ?? resolvedDealerIdNormalized)
+      : resolvedDealerIdNormalized;
+
+    if (!vehicleDealerId) {
+      setError("Concessionaria non associata all’account.");
+      setSaving(false);
+      return;
+    }
+
     const vehiclePayload = {
+      dealer_id: vehicleDealerId,
       brand: state.brand.trim() || null,
       model: state.model.trim() || null,
       version: state.version.trim() || null,
@@ -564,12 +633,34 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     let targetVehicleId = vehicleId;
 
     if (mode === "create") {
-      const { data, error: createError } = await supabase.from("vehicles").insert(vehiclePayload).select("id").single<{ id: string }>();
+      const payload = vehiclePayload;
+      console.log("CREATE VEHICLE PAYLOAD", payload);
+
+      const { data, error: createError } = await supabase
+        .from("vehicles")
+        .insert(payload)
+        .select("id, dealer_id")
+        .single<{ id: string; dealer_id: string | null }>();
 
       if (createError || !data?.id) {
         setError(createError?.message || "Errore durante creazione veicolo.");
         setSaving(false);
         return;
+      }
+
+      const insertedDealerId = normalizeResolvedDealerId(data.dealer_id);
+
+      if (!insertedDealerId) {
+        const { error: recoverDealerError } = await supabase
+          .from("vehicles")
+          .update({ dealer_id: vehicleDealerId })
+          .eq("id", data.id);
+
+        if (recoverDealerError) {
+          setError("Concessionaria non associata all’account.");
+          setSaving(false);
+          return;
+        }
       }
 
       targetVehicleId = data.id;
@@ -583,15 +674,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     }
 
     if (targetVehicleId && pendingFiles.length > 0) {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
-
-      if (!userId) {
-        setError("Sessione non valida per upload immagini.");
-        setSaving(false);
-        return;
-      }
-
       const { data: vehicleForImages, error: vehicleForImagesError } = await supabase
         .from("vehicles")
         .select("dealer_id")
@@ -607,20 +689,13 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       let imageDealerId = String(vehicleForImages?.dealer_id ?? "").trim();
 
       if (!imageDealerId) {
-        const { data: dealerData, error: dealerError } = await supabase
-          .from("dealers")
-          .select("id")
-          .eq("user_id", userId)
-          .limit(1)
-          .maybeSingle<{ id: string }>();
-
-        if (dealerError) {
-          setError(dealerError.message || "Errore nel recupero concessionario per upload immagini.");
+        try {
+          imageDealerId = String((await resolveDealerIdForUser(userId)) ?? "").trim();
+        } catch (dealerResolveError) {
+          setError(dealerResolveError instanceof Error ? dealerResolveError.message : "Errore nel recupero concessionario per upload immagini.");
           setSaving(false);
           return;
         }
-
-        imageDealerId = String(dealerData?.id ?? "").trim();
       }
 
       if (!imageDealerId) {
