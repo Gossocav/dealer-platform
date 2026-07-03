@@ -11,10 +11,14 @@ type SendToClientDialogProps = {
   onOpenChange: (open: boolean) => void;
   vehicle: {
     id: string;
+    coverImageUrl?: string | null;
     brand?: string | null;
     model?: string | null;
     version?: string | null;
     year?: string | number | null;
+    mileage?: string | number | null;
+    fuel?: string | null;
+    transmission?: string | null;
     price?: string | number | null;
   };
 };
@@ -29,6 +33,7 @@ function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: st
   const model = safeText(vehicle.model);
   const version = safeText(vehicle.version);
   const year = safeText(vehicle.year);
+  const mileage = formatMileage(vehicle.mileage);
   const rawPrice = Number(vehicle.price ?? 0);
   const price = Number.isFinite(rawPrice) && rawPrice > 0 ? formatCurrency(rawPrice) : "Su richiesta";
 
@@ -44,6 +49,9 @@ function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: st
     "",
     "Anno:",
     year,
+    "",
+    "Km:",
+    mileage,
     "",
     "Prezzo:",
     price,
@@ -63,6 +71,10 @@ function getFieldClass(missing = false): string {
 
 function getTextAreaClass(): string {
   return "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300";
+}
+
+function getToastClass(kind: "success" | "error"): string {
+  return `pointer-events-none absolute right-5 top-5 z-20 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)] ${kind === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`;
 }
 
 function normalizeEmail(value: string): string {
@@ -99,6 +111,22 @@ async function copyTextToClipboard(value: string) {
   document.body.removeChild(textarea);
 }
 
+function formatMileage(value: string | number | null | undefined): string {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    const fallback = safeText(value);
+    return fallback === "-" ? "Non specificati" : fallback;
+  }
+
+  return `${new Intl.NumberFormat("it-IT").format(numericValue)} km`;
+}
+
+function isMobileShareAvailable() {
+  if (typeof navigator === "undefined") return false;
+  if (typeof navigator.share !== "function") return false;
+  return /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
 export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClientDialogProps) {
   const publicUrl = useMemo(() => {
     const relativeUrl = `/auto/${vehicle.id}`;
@@ -118,6 +146,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const firstNameValue = firstName.trim();
   const lastNameValue = lastName.trim();
@@ -134,16 +163,17 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
     const rawPrice = Number(vehicle.price ?? 0);
     const price = Number.isFinite(rawPrice) && rawPrice > 0 ? formatCurrency(rawPrice) : "Su richiesta";
     return [
-      `${safeText(vehicle.brand)} ${safeText(vehicle.model)} ${safeText(vehicle.version)}`.replace(/\s+/g, " ").trim(),
+      `Marca: ${safeText(vehicle.brand)}`,
+      `Modello: ${safeText(vehicle.model)}`,
+      `Versione: ${safeText(vehicle.version)}`,
       `Anno: ${safeText(vehicle.year)}`,
+      `Km: ${formatMileage(vehicle.mileage)}`,
       `Prezzo: ${price}`,
       `Link annuncio: ${publicUrl}`,
-      "",
-      message.trim(),
     ]
       .filter((item) => item.length > 0)
       .join("\n");
-  }, [message, publicUrl, vehicle]);
+  }, [publicUrl, vehicle]);
 
   useEffect(() => {
     if (!open) return;
@@ -157,7 +187,15 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
     setSubmitting(false);
     setErrorMessage(null);
     setSuccessMessage(null);
+    setToast(null);
   }, [defaultMessage, open]);
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timeoutId = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
 
   useEffect(() => {
     if (!open) return;
@@ -192,18 +230,29 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
     try {
       if (mode === "copy-link") {
         await copyTextToClipboard(publicUrl);
-        setSuccessMessage("Link copiato");
+        setSuccessMessage(null);
+        setToast({ kind: "success", message: "Link copiato negli appunti." });
         return;
       }
 
       if (mode === "whatsapp") {
+        if (isMobileShareAvailable()) {
+          await navigator.share({
+            title: `${safeText(vehicle.brand)} ${safeText(vehicle.model)}`.trim(),
+            text: shareMessage,
+            url: publicUrl,
+          });
+          setSuccessMessage("✓ Veicolo inviato con successo.");
+          return;
+        }
+
         const normalizedPhone = toWhatsAppNumber(phoneValue);
         const whatsappUrl = normalizedPhone.length > 0
           ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(shareMessage)}`
-          : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+          : `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
 
         window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-        setSuccessMessage("Veicolo inviato al cliente.");
+        setSuccessMessage("✓ Veicolo inviato con successo.");
         return;
       }
 
@@ -220,6 +269,15 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
           phone: phoneValue,
           message,
           publicUrl,
+          coverImageUrl: vehicle.coverImageUrl,
+          brand: safeText(vehicle.brand),
+          model: safeText(vehicle.model),
+          version: safeText(vehicle.version),
+          year: safeText(vehicle.year),
+          mileage: formatMileage(vehicle.mileage),
+          fuel: safeText(vehicle.fuel),
+          transmission: safeText(vehicle.transmission),
+          price: Number.isFinite(Number(vehicle.price ?? 0)) && Number(vehicle.price ?? 0) > 0 ? formatCurrency(Number(vehicle.price ?? 0)) : "Su richiesta",
         }),
       });
 
@@ -229,9 +287,13 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
         throw new Error(payload?.error || "Invio email non riuscito.");
       }
 
-      setSuccessMessage("Veicolo inviato al cliente.");
+      setSuccessMessage("✓ Veicolo inviato con successo.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Operazione non riuscita.");
+      if (error instanceof Error && error.name === "AbortError") {
+        setErrorMessage("Condivisione annullata.");
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : "Operazione non riuscita.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -243,6 +305,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="send-to-client-title">
       <div className="absolute inset-0" onClick={() => onOpenChange(false)} aria-hidden="true" />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_30px_80px_-30px_rgba(15,23,42,0.45)]">
+        {toast ? <div className={getToastClass(toast.kind)}>{toast.message}</div> : null}
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Invia al cliente</p>
@@ -330,6 +393,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
                     setMode("email");
                     setErrorMessage(null);
                     setSuccessMessage(null);
+                    setToast(null);
                   }}
                   className="h-4 w-4 border-slate-300 text-slate-900"
                 />
@@ -344,6 +408,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
                     setMode("whatsapp");
                     setErrorMessage(null);
                     setSuccessMessage(null);
+                    setToast(null);
                   }}
                   className="h-4 w-4 border-slate-300 text-slate-900"
                 />
@@ -358,6 +423,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
                     setMode("copy-link");
                     setErrorMessage(null);
                     setSuccessMessage(null);
+                    setToast(null);
                   }}
                   className="h-4 w-4 border-slate-300 text-slate-900"
                 />
