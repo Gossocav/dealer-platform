@@ -17,6 +17,49 @@ type FormState = {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
+function translateSupabaseAuthError(rawMessage: string | null | undefined) {
+  const message = String(rawMessage ?? "").trim();
+  const normalized = message.toLowerCase();
+
+  if (!normalized) {
+    return "Si e verificato un errore di autenticazione. Riprova tra qualche istante.";
+  }
+
+  if (normalized.includes("user already registered")) {
+    return "Esiste gia un account registrato con questo indirizzo email. Effettua il login oppure utilizza un'altra email.";
+  }
+
+  if (normalized.includes("invalid login credentials")) {
+    return "Credenziali non valide. Controlla email e password e riprova.";
+  }
+
+  if (normalized.includes("password should be at least")) {
+    return "La password e troppo corta. Usa almeno 8 caratteri.";
+  }
+
+  if (normalized.includes("email not confirmed")) {
+    return "Email non ancora confermata. Controlla la tua casella di posta.";
+  }
+
+  if (normalized.includes("signup is disabled")) {
+    return "La registrazione e temporaneamente disabilitata. Riprova piu tardi.";
+  }
+
+  if (normalized.includes("email rate limit exceeded") || normalized.includes("over_email_send_rate_limit")) {
+    return "Hai effettuato troppi tentativi in poco tempo. Attendi qualche minuto e riprova.";
+  }
+
+  if (normalized.includes("unable to validate email address") || normalized.includes("invalid email")) {
+    return "L'indirizzo email inserito non e valido.";
+  }
+
+  if (normalized.includes("network") || normalized.includes("failed to fetch")) {
+    return "Connessione non disponibile. Verifica la rete e riprova.";
+  }
+
+  return "Non e stato possibile completare la registrazione in questo momento. Riprova tra qualche minuto.";
+}
+
 export default function RegistrazionePage() {
   const router = useRouter();
   const [values, setValues] = useState<FormState>({
@@ -109,7 +152,7 @@ export default function RegistrazionePage() {
     });
 
     if (authError) {
-      setServerMessage(authError.message);
+      setServerMessage(translateSupabaseAuthError(authError.message));
       setIsSubmitting(false);
       return;
     }
@@ -132,7 +175,7 @@ export default function RegistrazionePage() {
     } = await supabase.auth.getSession();
 
     if (sessionError || !session?.access_token) {
-      setServerMessage(sessionError?.message || "Sessione non valida dopo la registrazione.");
+      setServerMessage(translateSupabaseAuthError(sessionError?.message || "Sessione non valida dopo la registrazione."));
       setIsSubmitting(false);
       return;
     }
