@@ -311,7 +311,7 @@ export default function ProfiloPage() {
                   <Field label="Nome concessionaria" value={form.name} onChange={(value) => setForm((s) => ({ ...s, name: value }))} required />
                   <Field label="Ragione sociale" value={form.legal_name} onChange={(value) => setForm((s) => ({ ...s, legal_name: value }))} />
                   <Field label="Email" type="email" value={form.email} onChange={(value) => setForm((s) => ({ ...s, email: value }))} />
-                  <Field label="Telefono" value={form.phone} onChange={(value) => setForm((s) => ({ ...s, phone: value }))} />
+                  <Field label="Telefono commerciale" value={form.phone} onChange={(value) => setForm((s) => ({ ...s, phone: value }))} />
                   <Field label="Partita IVA" value={form.vat_number} onChange={(value) => setForm((s) => ({ ...s, vat_number: value }))} />
                   <Field label="Sito web" value={form.website} onChange={(value) => setForm((s) => ({ ...s, website: value }))} />
                 </div>

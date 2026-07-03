@@ -338,10 +338,29 @@ function isSupabaseStorageUrl(value: string) {
 }
 
 function normalizePhoneDigits(phone: string | null | undefined) {
-  const digits = String(phone ?? "").replace(/[^\d+]/g, "");
+  const rawValue = String(phone ?? "").trim();
+  if (!rawValue) {
+    return null;
+  }
+
+  const hasInternationalPrefix = rawValue.startsWith("+");
+  const digits = rawValue.replace(/\D/g, "");
+
   if (!digits) {
     return null;
   }
 
-  return digits.startsWith("+") ? digits.slice(1) : digits;
+  if (hasInternationalPrefix) {
+    return digits;
+  }
+
+  if (digits.startsWith("00")) {
+    return digits.slice(2);
+  }
+
+  if (digits.startsWith("39")) {
+    return digits;
+  }
+
+  return `39${digits}`;
 }

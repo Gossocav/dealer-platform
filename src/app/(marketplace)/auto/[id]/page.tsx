@@ -2,10 +2,15 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import ShareVehicleButton from "@/components/marketplace/share-vehicle-button";
 import {
+  buildTelLink,
+  buildWhatsAppLink,
   formatMileage,
   formatPrice,
   formatText,
   publicSupabase,
+  resolveDealerDisplayName,
+  resolveDealerEmail,
+  resolveDealerPhone,
   resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
@@ -53,7 +58,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, legal_name, city, province, email, phone), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("status", "published")
@@ -102,11 +107,26 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     (value): value is string => typeof value === "string" && value.length > 0
   );
   const coverUrl = resolvedImages[0] ?? null;
-  const dealerDisplayName = "TEST AUTO";
-  const dealerCity = "Milano";
-  const dealerPhone = "non disponibile";
-  const dealerEmail = "non disponibile";
-  const dealershipLocality = [formatText(vehicle.city), formatText(vehicle.province)]
+  const dealerDisplayName = resolveDealerDisplayName(vehicle.dealers);
+  const dealerPhone = resolveDealerPhone(vehicle.dealers);
+  const dealerEmail = resolveDealerEmail(vehicle.dealers);
+  const dealerCity = [
+    Array.isArray(vehicle.dealers) ? vehicle.dealers[0]?.city : vehicle.dealers?.city,
+    Array.isArray(vehicle.dealers) ? vehicle.dealers[0]?.province : vehicle.dealers?.province,
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => value.length > 0)
+    .join(" • ");
+  const dealerTelLink = buildTelLink(dealerPhone);
+  const whatsappMessage = [
+    "Buongiorno, sono interessato al veicolo:",
+    resolveVehicleLabel(vehicle),
+    "",
+    "Visualizzato su KeyPlan Rental.",
+  ].join("\n");
+  const dealerWhatsAppLink = buildWhatsAppLink(dealerPhone, whatsappMessage);
+  const contactUnavailableMessage = "Numero di telefono non disponibile.";
+  const dealershipLocality = [formatText(dealerCity), formatText(vehicle.city), formatText(vehicle.province)]
     .filter((value) => value !== "-")
     .join(" • ");
   const shareUrl = origin ? `${origin}/auto/${vehicle.id}` : `/auto/${vehicle.id}`;
@@ -215,12 +235,46 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           <aside className="min-w-0 space-y-6">
             <div className="sticky top-24 space-y-3">
               <div className="flex flex-wrap items-center gap-3">
-                <a
-                  href="#contatta-venditore"
-                  className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-                >
-                  Contatta il venditore
-                </a>
+                {dealerTelLink ? (
+                  <a
+                    href={dealerTelLink}
+                    className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+                  >
+                    Contatta il venditore
+                  </a>
+                ) : (
+                  <span title={contactUnavailableMessage}>
+                    <button
+                      type="button"
+                      disabled
+                      aria-label={contactUnavailableMessage}
+                      className="inline-flex cursor-not-allowed items-center justify-center rounded-3xl bg-slate-300 px-5 py-3 text-sm font-semibold text-white opacity-70"
+                    >
+                      Contatta il venditore
+                    </button>
+                  </span>
+                )}
+                {dealerWhatsAppLink ? (
+                  <a
+                    href={dealerWhatsAppLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-3xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+                  >
+                    WhatsApp
+                  </a>
+                ) : (
+                  <span title={contactUnavailableMessage}>
+                    <button
+                      type="button"
+                      disabled
+                      aria-label={contactUnavailableMessage}
+                      className="inline-flex cursor-not-allowed items-center justify-center rounded-3xl bg-slate-300 px-5 py-3 text-sm font-semibold text-white opacity-70"
+                    >
+                      WhatsApp
+                    </button>
+                  </span>
+                )}
                 <ShareVehicleButton title={shareTitle} text={shareText} url={shareUrl} />
               </div>
               <div id="contatta-venditore">
@@ -239,9 +293,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               <p className="mt-3 min-w-0 max-w-full break-words text-sm leading-7 text-slate-600 [overflow-wrap:anywhere]">{dealershipLocality || "-"}</p>
               <div className="mt-4 space-y-3">
                 <InfoRow label="Nome" value={dealerDisplayName} />
-                <InfoRow label="Citta" value={dealerCity} />
-                <InfoRow label="Telefono" value={dealerPhone} />
-                <InfoRow label="Email" value={dealerEmail} />
+                <InfoRow label="Citta" value={formatText(dealerCity)} />
+                <InfoRow label="Telefono" value={formatText(dealerPhone)} />
+                <InfoRow label="Email" value={formatText(dealerEmail)} />
               </div>
             </div>
 
