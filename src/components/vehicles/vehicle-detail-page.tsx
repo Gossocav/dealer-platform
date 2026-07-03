@@ -354,6 +354,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
             open={sendDialogOpen}
             onOpenChange={setSendDialogOpen}
             vehicle={{
+              id: vehicle.id,
               brand: vehicle.brand,
               model: vehicle.model,
               version: vehicle.version,
