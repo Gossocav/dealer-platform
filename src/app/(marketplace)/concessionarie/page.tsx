@@ -62,7 +62,7 @@ async function DealerCard({ group }: { group: DealerGroup }) {
   const firstVehicle = group.vehicles[0];
   const cover = firstVehicle ? resolveVehicleImages(firstVehicle.vehicle_images)[0] ?? null : null;
   const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
-  const dealerName = group.dealer?.name ?? group.dealer?.legal_name ?? "Concessionaria";
+  const dealerName = group.dealer?.legal_name ?? group.dealer?.name ?? "Concessionaria";
   const dealerSlug = resolveDealerSlug(group.dealer ? [group.dealer] : null);
   const cities = Array.from(new Set(group.vehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
 

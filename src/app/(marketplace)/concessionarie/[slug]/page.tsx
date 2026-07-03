@@ -25,7 +25,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   }
 
   const dealer = Array.isArray(dealerVehicles[0].dealers) ? dealerVehicles[0].dealers[0] ?? null : dealerVehicles[0].dealers ?? null;
-  const dealerName = dealer?.name ?? dealer?.legal_name ?? "Concessionaria";
+  const dealerName = dealer?.legal_name ?? dealer?.name ?? "Concessionaria";
   const cities = Array.from(new Set(dealerVehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
   const totalVehicles = dealerVehicles.length;
 

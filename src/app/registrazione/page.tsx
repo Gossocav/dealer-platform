@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type FormState = {
-  dealerName: string;
   companyName: string;
   vatNumber: string;
   contactName: string;
@@ -21,7 +20,6 @@ type FormErrors = Partial<Record<keyof FormState, string>>;
 export default function RegistrazionePage() {
   const router = useRouter();
   const [values, setValues] = useState<FormState>({
-    dealerName: "",
     companyName: "",
     vatNumber: "",
     contactName: "",
@@ -39,7 +37,6 @@ export default function RegistrazionePage() {
   const validate = (state: FormState) => {
     const newErrors: FormErrors = {};
 
-    if (!state.dealerName.trim()) newErrors.dealerName = "Inserisci il nome della concessionaria.";
     if (!state.companyName.trim()) newErrors.companyName = "Inserisci la ragione sociale.";
 
     if (!state.vatNumber.trim()) {
@@ -102,8 +99,7 @@ export default function RegistrazionePage() {
       password,
       options: {
         data: {
-          dealer_name: values.dealerName.trim(),
-          company_name: values.companyName.trim(),
+          legal_company_name: values.companyName.trim(),
           vat_number: values.vatNumber.trim(),
           contact_name: values.contactName.trim(),
           phone: values.phone.trim(),
@@ -148,7 +144,6 @@ export default function RegistrazionePage() {
         authorization: `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
-        company_name: values.dealerName,
         legal_company_name: values.companyName,
         vat_number: values.vatNumber,
         contact_person: values.contactName,
@@ -216,21 +211,6 @@ export default function RegistrazionePage() {
               <form className="space-y-6" onSubmit={handleSubmit} noValidate>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="dealerName" className="mb-2 block text-sm font-medium text-slate-700">Nome concessionaria</label>
-                    <input
-                      id="dealerName"
-                      type="text"
-                      value={values.dealerName}
-                      onChange={handleChange("dealerName")}
-                      placeholder="Nome concessionaria"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
-                        errors.dealerName ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
-                      }`}
-                    />
-                    {errors.dealerName ? <p className="mt-2 text-sm text-red-600">{errors.dealerName}</p> : null}
-                  </div>
-
-                  <div>
                     <label htmlFor="companyName" className="mb-2 block text-sm font-medium text-slate-700">Ragione sociale</label>
                     <input
                       id="companyName"
@@ -244,9 +224,7 @@ export default function RegistrazionePage() {
                     />
                     {errors.companyName ? <p className="mt-2 text-sm text-red-600">{errors.companyName}</p> : null}
                   </div>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="vatNumber" className="mb-2 block text-sm font-medium text-slate-700">Partita IVA</label>
                     <input
@@ -261,7 +239,9 @@ export default function RegistrazionePage() {
                     />
                     {errors.vatNumber ? <p className="mt-2 text-sm text-red-600">{errors.vatNumber}</p> : null}
                   </div>
+                </div>
 
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="contactName" className="mb-2 block text-sm font-medium text-slate-700">Referente</label>
                     <input
@@ -276,9 +256,7 @@ export default function RegistrazionePage() {
                     />
                     {errors.contactName ? <p className="mt-2 text-sm text-red-600">{errors.contactName}</p> : null}
                   </div>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email commerciale</label>
                     <input
@@ -293,7 +271,9 @@ export default function RegistrazionePage() {
                     />
                     {errors.email ? <p className="mt-2 text-sm text-red-600">{errors.email}</p> : null}
                   </div>
+                </div>
 
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono</label>
                     <input
@@ -308,9 +288,7 @@ export default function RegistrazionePage() {
                     />
                     {errors.phone ? <p className="mt-2 text-sm text-red-600">{errors.phone}</p> : null}
                   </div>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="whatsappPhone" className="mb-2 block text-sm font-medium text-slate-700">Numero WhatsApp</label>
                     <input
@@ -322,7 +300,9 @@ export default function RegistrazionePage() {
                       className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                     />
                   </div>
+                </div>
 
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Password</label>
                     <input
@@ -337,21 +317,21 @@ export default function RegistrazionePage() {
                     />
                     {errors.password ? <p className="mt-2 text-sm text-red-600">{errors.password}</p> : null}
                   </div>
-                </div>
 
-                <div>
-                  <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-slate-700">Conferma password</label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    value={values.confirmPassword}
-                    onChange={handleChange("confirmPassword")}
-                    placeholder="Conferma password"
-                    className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
-                      errors.confirmPassword ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
-                    }`}
-                  />
-                  {errors.confirmPassword ? <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p> : null}
+                  <div>
+                    <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-slate-700">Conferma password</label>
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      value={values.confirmPassword}
+                      onChange={handleChange("confirmPassword")}
+                      placeholder="Conferma password"
+                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                        errors.confirmPassword ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
+                      }`}
+                    />
+                    {errors.confirmPassword ? <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p> : null}
+                  </div>
                 </div>
 
                 {successMessage ? (

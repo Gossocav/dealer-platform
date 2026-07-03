@@ -2,7 +2,6 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type EnsureDealerBody = {
-  company_name?: string;
   legal_company_name?: string;
   vat_number?: string;
   contact_person?: string;
@@ -23,7 +22,6 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as EnsureDealerBody;
 
-    const companyName = normalizeText(body.company_name);
     const legalCompanyName = normalizeText(body.legal_company_name);
     const vatNumber = normalizeText(body.vat_number);
     const contactPerson = normalizeText(body.contact_person);
@@ -31,7 +29,7 @@ export async function POST(request: Request) {
     const phone = normalizeText(body.phone);
     const whatsappPhone = normalizeText(body.whatsapp_phone);
 
-    if (!companyName || !legalCompanyName || !vatNumber || !contactPerson || !email || !phone) {
+    if (!legalCompanyName || !vatNumber || !contactPerson || !email || !phone) {
       return NextResponse.json({ error: "Dati registrazione non validi." }, { status: 400 });
     }
 
@@ -69,7 +67,6 @@ export async function POST(request: Request) {
     const dealerId = await ensureDealerAssociation({
       supabaseAdmin,
       userId: user.id,
-      companyName,
       legalCompanyName,
       vatNumber,
       contactPerson,
@@ -90,7 +87,6 @@ export async function POST(request: Request) {
 type EnsureDealerAssociationInput = {
   supabaseAdmin: SupabaseClient<any, any, any>;
   userId: string;
-  companyName: string;
   legalCompanyName: string;
   vatNumber: string;
   contactPerson: string;
@@ -102,7 +98,6 @@ type EnsureDealerAssociationInput = {
 async function ensureDealerAssociation({
   supabaseAdmin,
   userId,
-  companyName,
   legalCompanyName,
   vatNumber,
   contactPerson,
@@ -130,7 +125,6 @@ async function ensureDealerAssociation({
 
   if (profileRow?.dealer_id) {
     await updateDealerBestEffort(supabaseAdmin, profileRow.dealer_id, {
-      companyName,
       legalCompanyName,
       vatNumber,
       email,
@@ -158,7 +152,7 @@ async function ensureDealerAssociation({
     const { data: insertedDealer, error: insertDealerError } = await supabaseAdmin
       .from("dealers")
       .insert({
-        name: companyName,
+        name: legalCompanyName,
         legal_name: legalCompanyName,
         vat_number: vatNumber,
         email,
@@ -177,7 +171,6 @@ async function ensureDealerAssociation({
   }
 
   await updateDealerBestEffort(supabaseAdmin, dealerId, {
-    companyName,
     legalCompanyName,
     vatNumber,
     email,
@@ -217,7 +210,6 @@ async function updateDealerBestEffort(
   supabaseAdmin: SupabaseClient<any, any, any>,
   dealerId: string,
   values: {
-    companyName: string;
     legalCompanyName: string;
     vatNumber: string;
     email: string;
@@ -226,12 +218,12 @@ async function updateDealerBestEffort(
     userId: string;
   }
 ) {
-  const { companyName, legalCompanyName, vatNumber, email, phone, whatsappPhone, userId } = values;
+  const { legalCompanyName, vatNumber, email, phone, whatsappPhone, userId } = values;
 
   const { error: updateError } = await supabaseAdmin
     .from("dealers")
     .update({
-      name: companyName,
+      name: legalCompanyName,
       legal_name: legalCompanyName,
       vat_number: vatNumber,
       email,

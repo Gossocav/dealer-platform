@@ -97,7 +97,7 @@ export type MarketplaceVehicle = {
 
 export function normalizeVehicleDealerName(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
-  return firstDealer?.name?.trim() || "Concessionaria";
+  return firstDealer?.legal_name?.trim() || firstDealer?.name?.trim() || "Concessionaria";
 }
 
 export function createMarketplaceSlug(value: string | null | undefined) {
@@ -114,12 +114,12 @@ export function createMarketplaceSlug(value: string | null | undefined) {
 
 export function resolveDealerSlug(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
-  return createMarketplaceSlug(firstDealer?.name ?? firstDealer?.company_name ?? firstDealer?.legal_name ?? "concessionaria");
+  return createMarketplaceSlug(firstDealer?.legal_name ?? firstDealer?.name ?? firstDealer?.company_name ?? "concessionaria");
 }
 
 export function resolveDealerDisplayName(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
-  return firstDealer?.name?.trim() || firstDealer?.business_name?.trim() || firstDealer?.company_name?.trim() || firstDealer?.legal_name?.trim() || "Concessionaria";
+  return firstDealer?.legal_name?.trim() || firstDealer?.name?.trim() || firstDealer?.business_name?.trim() || firstDealer?.company_name?.trim() || "Concessionaria";
 }
 
 export function resolveDealerEmail(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {

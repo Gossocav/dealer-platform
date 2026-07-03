@@ -330,7 +330,7 @@ async function FeaturedVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle })
 }
 
 function PartnerDealerCard({ group }: { group: DealerCluster }) {
-  const dealerName = group.dealer?.name ?? group.dealer?.legal_name ?? "Concessionaria";
+  const dealerName = group.dealer?.legal_name ?? group.dealer?.name ?? "Concessionaria";
   const dealerSlug = resolveDealerSlug(group.dealer ? [group.dealer] : null);
   const priceAverage = averagePrice(group.vehicles);
   const cities = uniqueValues(group.vehicles.map((vehicle) => vehicle.city));
