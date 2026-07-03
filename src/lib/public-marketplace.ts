@@ -49,6 +49,7 @@ export type MarketplaceDealer = {
   id: string | null;
   name: string | null;
   business_name: string | null;
+  company_name: string | null;
   logo_url: string | null;
   legal_name: string | null;
   address: string | null;
@@ -112,12 +113,12 @@ export function createMarketplaceSlug(value: string | null | undefined) {
 
 export function resolveDealerSlug(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
-  return createMarketplaceSlug(firstDealer?.name ?? firstDealer?.legal_name ?? "concessionaria");
+  return createMarketplaceSlug(firstDealer?.name ?? firstDealer?.company_name ?? firstDealer?.legal_name ?? "concessionaria");
 }
 
 export function resolveDealerDisplayName(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
-  return firstDealer?.name?.trim() || firstDealer?.business_name?.trim() || firstDealer?.legal_name?.trim() || "Concessionaria";
+  return firstDealer?.name?.trim() || firstDealer?.business_name?.trim() || firstDealer?.company_name?.trim() || firstDealer?.legal_name?.trim() || "Concessionaria";
 }
 
 export function resolveDealerEmail(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
