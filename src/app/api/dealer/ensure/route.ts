@@ -78,6 +78,8 @@ export async function POST(request: Request) {
       phone,
     });
 
+    await clearPhoneMetadataBestEffort(supabaseAdmin, user.id, user.user_metadata);
+
     return NextResponse.json({ dealer_id: dealerId }, { status: 200 });
   } catch (error) {
     console.error("Dealer ensure API unexpected error", error);
@@ -116,7 +118,6 @@ async function ensureDealerAssociation({
       dealerId: byUserId,
       contactPerson,
       email,
-      phone,
     });
 
     return byUserId;
@@ -192,7 +193,6 @@ async function ensureDealerAssociation({
     dealerId,
     contactPerson,
     email,
-    phone,
   });
 
   return dealerId;
@@ -266,28 +266,43 @@ async function upsertProfile(
     dealerId: string;
     contactPerson: string;
     email: string;
-    phone: string;
   }
 ) {
-  const { userId, dealerId, contactPerson, email, phone } = input;
+  const { userId, dealerId, contactPerson, email } = input;
+  const updatedAt = new Date().toISOString();
 
-  const { error } = await supabaseAdmin
-    .from("profiles")
-    .upsert(
-      {
-        id: userId,
-        dealer_id: dealerId,
-        contact_name: contactPerson,
-        email,
-        phone,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
+  const basePayload: Record<string, unknown> = {
+    id: userId,
+    dealer_id: dealerId,
+    contact_name: contactPerson,
+    email,
+    updated_at: updatedAt,
+  };
 
-  if (error) {
-    throw new Error(error.message || "Errore upsert profilo utente.");
+  const attemptedColumns = ["contact_name", "email", "updated_at"];
+
+  for (let index = 0; index <= attemptedColumns.length; index += 1) {
+    const payload = { ...basePayload };
+
+    for (let removeIndex = 0; removeIndex < index; removeIndex += 1) {
+      delete payload[attemptedColumns[removeIndex]];
+    }
+
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .upsert(payload, { onConflict: "id" });
+
+    if (!error) {
+      return;
+    }
+
+    const missingColumn = attemptedColumns[index];
+    if (!missingColumn || !isMissingColumnError(error.message, missingColumn)) {
+      throw new Error(error.message || "Errore upsert profilo utente.");
+    }
   }
+
+  throw new Error("Errore upsert profilo utente.");
 }
 
 function extractBearerToken(authHeader: string | null) {
@@ -313,4 +328,30 @@ function normalizeEmail(value: unknown) {
 function isMissingColumnError(message: string | undefined, columnName: string) {
   const text = String(message ?? "").toLowerCase();
   return text.includes(columnName.toLowerCase()) && (text.includes("column") || text.includes("schema cache"));
+}
+
+async function clearPhoneMetadataBestEffort(
+  supabaseAdmin: SupabaseClient<any, any, any>,
+  userId: string,
+  userMetadata: unknown
+) {
+  const currentMetadata = isRecord(userMetadata) ? { ...userMetadata } : {};
+
+  if (!("phone" in currentMetadata)) {
+    return;
+  }
+
+  delete currentMetadata.phone;
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    user_metadata: currentMetadata,
+  });
+
+  if (error) {
+    console.warn("Dealer ensure API could not clear auth phone metadata", error);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -243,22 +243,6 @@ export default function ProfiloPage() {
       return;
     }
 
-    if (userId) {
-      const { error: profilePhoneError } = await supabase
-        .from("profiles")
-        .update({
-          phone: nullable(form.phone),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
-
-      if (profilePhoneError && !isMissingColumnError(profilePhoneError.message, "phone")) {
-        setStatusMessage(profilePhoneError.message || "Errore nel salvataggio del telefono profilo.");
-        setStatusType("error");
-        return;
-      }
-    }
-
     const { data: dealerAfterSave, error: reloadError } = await supabase
       .from("dealers")
       .select(
@@ -441,9 +425,4 @@ function TextArea({
 function nullable(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function isMissingColumnError(message: string | undefined, columnName: string) {
-  const text = String(message ?? "").toLowerCase();
-  return text.includes(columnName.toLowerCase()) && (text.includes("column") || text.includes("schema cache"));
 }

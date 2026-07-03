@@ -318,7 +318,7 @@ export default function RegistrazionePage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Phone</label>
+                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono commerciale</label>
                     <input
                       id="phone"
                       type="tel"
