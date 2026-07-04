@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { ITALIAN_PROVINCES } from "@/lib/italian-provinces";
-import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, resolveVehicleRegistrationDate, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { formatText, getMarketplaceStatusFilter, publicSupabase, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -144,53 +145,13 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
           ) : (
             <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {results.map((vehicle) => (
-                <SearchResultCard key={vehicle.id} vehicle={vehicle} />
+                <VehicleCard key={vehicle.id} vehicle={vehicle} />
               ))}
             </div>
           )}
         </section>
       </div>
     </main>
-  );
-}
-
-async function SearchResultCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
-  const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
-  const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
-  const dealerSlug = resolveDealerSlug(vehicle.dealers);
-
-  const registrationDate = resolveVehicleRegistrationDate(vehicle);
-
-  return (
-    <article className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.22)] transition hover:-translate-y-1 hover:shadow-[0_40px_120px_-40px_rgba(15,23,42,0.34)]">
-      <div className="h-52 bg-slate-200">
-        {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-        ) : null}
-      </div>
-      <div className="space-y-4 p-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-600">{formatText(normalizeVehicleDealerName(vehicle.dealers))}</p>
-          <h3 className="mt-2 text-lg font-semibold text-slate-900">{resolveVehicleLabel(vehicle)}</h3>
-          <p className="mt-2 text-sm text-slate-600">{formatText(vehicle.city)}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <Spec label={"Data\u00A0imm.ne"} value={registrationDate} />
-          <Spec label="Prezzo" value={formatPrice(vehicle.price)} />
-          <Spec label="Km" value={formatMileage(vehicle.mileage)} />
-          <Spec label="Cambio" value={formatText(vehicle.transmission)} />
-        </div>
-        <div className="flex gap-2 pt-1">
-          <Link href={`/auto/${vehicle.id}`} className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
-            Visualizza
-          </Link>
-          <Link href={`/concessionarie/${dealerSlug}`} className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-            Concessionaria
-          </Link>
-        </div>
-      </div>
-    </article>
   );
 }
 
@@ -240,15 +201,6 @@ function SearchSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function Spec({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex h-full min-h-[5.1rem] flex-col justify-start rounded-2xl bg-slate-50 px-4 py-2.5">
-      <p className="text-[11px] font-semibold uppercase leading-tight tracking-[0.18em] whitespace-normal break-words text-slate-500">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold leading-tight break-words text-slate-900">{value}</p>
-    </div>
   );
 }
 
