@@ -60,6 +60,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const vehicles = (data ?? []) as MarketplaceVehicle[];
   const results = vehicles.filter((vehicle) => matchesFilters(vehicle, filters));
+
   const brandOptions = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
   const modelSource = filters.brand
     ? vehicles.filter((vehicle) => formatText(vehicle.brand).toLowerCase() === filters.brand.toLowerCase())
@@ -264,6 +265,11 @@ function parseSearchState(searchParams: SearchParams): SearchState {
 }
 
 function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
+  return getVehicleExclusionReasons(vehicle, filters).length === 0;
+}
+
+function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: SearchState) {
+  const reasons: string[] = [];
   const normalizedQuery = filters.q.trim().toLowerCase();
   const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.province, vehicle.fuel, vehicle.transmission, vehicle.interior_type]
     .filter(Boolean)
@@ -271,25 +277,49 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
     .toLowerCase();
 
   const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
+  if (!matchesQuery) reasons.push("q");
+
   const matchesBrand = !filters.brand || formatText(vehicle.brand).toLowerCase() === filters.brand.toLowerCase();
+  if (!matchesBrand) reasons.push("brand");
+
   const matchesModel = !filters.model || formatText(vehicle.model).toLowerCase() === filters.model.toLowerCase();
+  if (!matchesModel) reasons.push("model");
+
   const matchesInteriorType = !filters.interiorType || formatText(vehicle.interior_type).toLowerCase() === filters.interiorType.toLowerCase();
-  const matchesBand = !filters.priceBand || matchesPriceBand(Number(vehicle.price ?? 0), filters.priceBand);
+  if (!matchesInteriorType) reasons.push("interiorType");
+
+  const hasPriceBandFilter = Boolean(filters.priceBand);
+  const hasMinPriceFilter = filters.minPrice.trim() !== "";
+  const hasMaxPriceFilter = filters.maxPrice.trim() !== "";
+  const hasPriceFilter = hasPriceBandFilter || hasMinPriceFilter || hasMaxPriceFilter;
+  const priceValue = Number(vehicle.price ?? 0);
+  const matchesBand = !hasPriceBandFilter || (Number.isFinite(priceValue) && matchesPriceBand(priceValue, filters.priceBand));
+  if (!matchesBand) reasons.push("priceBand");
+
   const selectedProvinceCode = normalizeProvinceCode(filters.province);
   const vehicleProvinceCode = normalizeProvinceCode(formatText(vehicle.province));
   const matchesProvince = !selectedProvinceCode || vehicleProvinceCode === selectedProvinceCode;
+  if (!matchesProvince) reasons.push("province");
+
   const matchesFuel = !filters.fuel || formatText(vehicle.fuel).toLowerCase() === filters.fuel.toLowerCase();
+  if (!matchesFuel) reasons.push("fuel");
+
   const matchesTransmission = !filters.transmission || formatText(vehicle.transmission).toLowerCase() === filters.transmission.toLowerCase();
+  if (!matchesTransmission) reasons.push("transmission");
+
   const vehicleYear = Number(formatText(vehicle.year));
   const yearFrom = filters.yearFrom ? Number(filters.yearFrom) : Number.NEGATIVE_INFINITY;
   const yearTo = filters.yearTo ? Number(filters.yearTo) : Number.POSITIVE_INFINITY;
-  const matchesYear = Number.isFinite(vehicleYear) && vehicleYear >= yearFrom && vehicleYear <= yearTo;
-  const priceValue = Number(vehicle.price ?? 0);
+  const hasYearFilter = Boolean(filters.yearFrom || filters.yearTo);
+  const matchesYear = !hasYearFilter || (Number.isFinite(vehicleYear) && vehicleYear >= yearFrom && vehicleYear <= yearTo);
+  if (!matchesYear) reasons.push("year");
+
   const minPrice = filters.minPrice ? Number(filters.minPrice) : Number.NEGATIVE_INFINITY;
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : Number.POSITIVE_INFINITY;
-  const matchesPrice = Number.isFinite(priceValue) && priceValue >= minPrice && priceValue <= maxPrice;
+  const matchesPrice = !hasPriceFilter || (Number.isFinite(priceValue) && priceValue >= minPrice && priceValue <= maxPrice);
+  if (!matchesPrice) reasons.push("price");
 
-  return matchesQuery && matchesBrand && matchesModel && matchesInteriorType && matchesBand && matchesProvince && matchesFuel && matchesTransmission && matchesYear && matchesPrice;
+  return reasons;
 }
 
 function normalizeProvinceCode(value: string) {
