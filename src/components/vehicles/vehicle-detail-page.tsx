@@ -79,6 +79,19 @@ function normalizeEquipment(value: unknown): string[] {
   return [];
 }
 
+function formatMileageForDetail(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "Non indicato";
+  }
+
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized) || normalized < 0) {
+    return "Non indicato";
+  }
+
+  return `${new Intl.NumberFormat("it-IT").format(normalized)} km`;
+}
+
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
@@ -312,6 +325,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Stato" value={formatVehicleStatus(vehicle.status, vehicle.published)} />
                 <Detail label="Alimentazione" value={safeText(vehicle.fuel)} />
                 <Detail label="Cambio" value={safeText(vehicle.transmission)} />
+                <Detail label="Chilometraggio" value={formatMileageForDetail(vehicle.mileage)} />
                 <Detail label="Trazione" value={safeText(vehicle.traction)} />
                 <Detail label="Cilindrata" value={safeText(vehicle.engine_size)} />
                 <Detail label="Potenza kW" value={safeText(vehicle.power_kw)} />
