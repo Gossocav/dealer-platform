@@ -266,7 +266,7 @@ function SearchSelect({
 function Spec({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>
+      <p className="min-h-[1.9rem] text-xs font-semibold uppercase leading-tight tracking-[0.18em] text-slate-500">{label}</p>
       <p className="mt-2 font-semibold text-slate-900">{value}</p>
     </div>
   );
