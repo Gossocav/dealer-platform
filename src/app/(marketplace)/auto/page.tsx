@@ -88,7 +88,7 @@ async function CatalogVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) 
           </div>
         )}
         {/* Badge prezzo */}
-        <div className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+        <div className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-4 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
           {formatPrice(vehicle.price)}
         </div>
       </div>
