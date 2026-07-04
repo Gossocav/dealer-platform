@@ -119,7 +119,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-500">Risultati</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">{results.length} veicolo{results.length === 1 ? "" : "i"} trovato{results.length === 1 ? "" : "i"}</h2>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-900">{formatVehicleResultsText(results.length)}</h2>
             </div>
             <Link href="/auto" className="rounded-3xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
               Vai al catalogo
@@ -312,6 +312,10 @@ function normalizeProvinceCode(value: string) {
 
 function uniqueValues(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) => a.localeCompare(b, "it-IT"));
+}
+
+function formatVehicleResultsText(count: number) {
+  return count === 1 ? "1 veicolo trovato" : `${count} veicoli trovati`;
 }
 
 function matchesPriceBand(price: number, priceBand: string) {
