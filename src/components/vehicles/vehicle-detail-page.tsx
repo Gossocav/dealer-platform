@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Loader2, PencilLine, Rocket, Send, Users } from "lucide-react";
+import { Loader2, PencilLine, Rocket, Send } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { supabase } from "@/lib/supabaseClient";
@@ -96,7 +96,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const [dealerName, setDealerName] = useState("Dealer Console");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
-  const [leadCount, setLeadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +123,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         if (nextDealerName && alive) setDealerName(nextDealerName);
       }
 
-      const [{ data: vehicleData, error: vehicleError }, { data: leadRows }, { data: imageRows }] = await Promise.all([
+      const [{ data: vehicleData, error: vehicleError }, { data: imageRows }] = await Promise.all([
         supabase
           .from("vehicles")
           .select(
@@ -132,7 +131,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           )
           .eq("id", vehicleId)
           .maybeSingle<VehicleWithEquipment>(),
-        supabase.from("leads").select("id").eq("vehicle_id", vehicleId),
         supabase.from("vehicle_images").select("id, image_url, position, is_cover").eq("vehicle_id", vehicleId).order("position", { ascending: true }),
       ]);
 
@@ -190,7 +188,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
       setVehicle(vehicleData);
       setImages(resolvedImages);
-      setLeadCount((leadRows ?? []).length);
       setLoading(false);
     };
 
@@ -336,9 +333,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Colore" value={safeText(vehicle.color)} />
                 <Detail label="Interni" value={safeText(vehicle.interior_type)} />
                 <Detail label="Telaio" value={safeText(vehicle.vin)} />
-                <Detail label="Citta" value={safeText(vehicle.city)} />
-                <Detail label="Provincia" value={safeText(vehicle.province)} />
-                <Detail label="Lead" value={`${leadCount}`} icon={<Users className="h-3.5 w-3.5" />} />
               </div>
 
               <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 p-4">
