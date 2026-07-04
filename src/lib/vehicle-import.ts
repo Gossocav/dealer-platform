@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
 
 export type VehicleImportField =
@@ -56,7 +57,7 @@ const ALIASES: Record<VehicleImportField, string[]> = {
   fuel: ["fuel", "alimentazione", "carburante"],
   traction: ["traction", "trazione", "trazione motrice", "drivetrain", "drive", "awd", "fwd", "rwd", "4x4"],
   transmission: ["transmission", "cambio"],
-  color: ["color", "colore", "col esterno", "col. esterno"],
+  color: ["color", "colore", "col esterno", "col. esterno", "exterior color", "colore esterno", "colore carrozzeria"],
   description: ["description", "descrizione", "note"],
   status: ["status", "stato"],
   images: [
@@ -371,7 +372,7 @@ export function buildVehicleInsertPayload(mappedRow: VehicleImportMappedRow, def
     fuel: mappedRow.fuel.trim() || null,
     traction: normalizeVehicleTraction(mappedRow.traction),
     transmission: mappedRow.transmission.trim() || null,
-    color: mappedRow.color.trim() || null,
+    color: canonicalizeVehicleColorLabel(mappedRow.color) || null,
     description: mappedRow.description.trim() || null,
     status,
     published: status === "published",

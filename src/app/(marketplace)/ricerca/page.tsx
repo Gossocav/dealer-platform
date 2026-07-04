@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
+import { normalizeVehicleColorValue, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { ITALIAN_PROVINCES } from "@/lib/italian-provinces";
 import { formatText, getMarketplaceStatusFilter, publicSupabase, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
@@ -14,6 +15,7 @@ type SearchState = {
   interiorType: string;
   priceBand: string;
   province: string;
+  color: string;
   fuel: string;
   transmission: string;
   traction: string;
@@ -32,6 +34,7 @@ const DEFAULT_STATE: SearchState = {
   interiorType: "",
   priceBand: "",
   province: "",
+  color: "",
   fuel: "",
   transmission: "",
   traction: "",
@@ -49,7 +52,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, interior_type, year, registration_date, mileage, price, fuel, transmission, traction, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, interior_type, year, registration_date, mileage, price, fuel, transmission, traction, color, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
     .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
@@ -75,6 +78,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const modelOptions = uniqueValues(modelSource.map((vehicle) => vehicle.model));
   const provinceOptions = ITALIAN_PROVINCES.map((province) => `${province.name} (${province.code})`);
   const provinceValues = ITALIAN_PROVINCES.map((province) => province.code);
+  const colorOptions = [...VEHICLE_COLOR_OPTIONS];
   const fuelOptions = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissionOptions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
   const tractionOptions = buildTractionFilterOptions(vehicles);
@@ -109,6 +113,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Interni" name="interiorType" defaultValue={filters.interiorType} options={interiorTypeOptions} />
             <SearchSelect label="Prezzo" name="priceBand" defaultValue={filters.priceBand} options={priceBandOptions.map((option) => option.label)} values={priceBandOptions.map((option) => option.value)} />
             <SearchSelect label="Provincia" name="province" defaultValue={filters.province} options={provinceOptions} values={provinceValues} />
+            <SearchSelect label="Colore" name="color" defaultValue={filters.color} options={colorOptions} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
             <SearchSelect label="Cambio" name="transmission" defaultValue={filters.transmission} options={transmissionOptions} />
             <SearchSelect label="Trazione" name="traction" defaultValue={filters.traction} options={tractionOptions.map((option) => option.label)} values={tractionOptions.map((option) => option.value)} />
@@ -229,6 +234,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     interiorType: asValue(searchParams.interiorType),
     priceBand: asValue(searchParams.priceBand),
     province: normalizeProvinceCode(asValue(searchParams.province)),
+    color: asValue(searchParams.color),
     fuel: asValue(searchParams.fuel),
     transmission: asValue(searchParams.transmission),
     traction: asValue(searchParams.traction),
@@ -277,6 +283,11 @@ function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: Search
   const vehicleProvinceCode = normalizeProvinceCode(formatText(vehicle.province));
   const matchesProvince = !selectedProvinceCode || vehicleProvinceCode === selectedProvinceCode;
   if (!matchesProvince) reasons.push("province");
+
+  const selectedColor = normalizeVehicleColorValue(filters.color);
+  const vehicleColor = normalizeVehicleColorValue(vehicle.color);
+  const matchesColor = !selectedColor || (vehicleColor.length > 0 && vehicleColor === selectedColor);
+  if (!matchesColor) reasons.push("color");
 
   const matchesFuel = !filters.fuel || formatText(vehicle.fuel).toLowerCase() === filters.fuel.toLowerCase();
   if (!matchesFuel) reasons.push("fuel");

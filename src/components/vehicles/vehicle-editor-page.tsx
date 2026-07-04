@@ -6,6 +6,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
+import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { resolveDealerIdForUser } from "@/lib/dealer-association";
 import { supabase } from "@/lib/supabaseClient";
@@ -317,6 +318,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   );
   const selectedFuel = state.fuel.trim();
   const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
+  const colorOptions = useMemo(() => [...VEHICLE_COLOR_OPTIONS], []);
   const tractionOptions = useMemo(() => [...VEHICLE_TRACTION_OPTIONS], []);
   const selectedTraction = state.traction.trim();
   const hasCustomSelectedTraction = selectedTraction.length > 0 && !tractionOptions.includes(selectedTraction as (typeof VEHICLE_TRACTION_OPTIONS)[number]);
@@ -427,7 +429,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         doors: String((data as Record<string, unknown>).doors ?? ""),
         emissionClass: String((data as Record<string, unknown>).emission_class ?? ""),
         registrationDate: normalizeDateForInput((data as Record<string, unknown>).registration_date),
-        color: String((data as Record<string, unknown>).color ?? ""),
+        color: canonicalizeVehicleColorLabel((data as Record<string, unknown>).color),
         vin: String((data as Record<string, unknown>).vin ?? ""),
         mileage: typeof data.mileage === "number" ? formatMileageInput(String(data.mileage)) : "",
         fuel: String(data.fuel ?? ""),
@@ -539,7 +541,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         doors: pick(vehicleSource.doors, dataSource.NumberOfDoors) || prev.doors,
         emissionClass: pick(vehicleSource.euroClass, dataSource.EuroClass, dataSource.EmissionClass) || prev.emissionClass,
         registrationDate: normalizeDateForInput(pick(vehicleSource.registrationDate, dataSource.RegistrationDate)) || prev.registrationDate,
-        color: pick(vehicleSource.color, dataSource.Color, dataSource.ExteriorColor) || prev.color,
+        color: canonicalizeVehicleColorLabel(pick(vehicleSource.color, dataSource.Color, dataSource.ExteriorColor)) || prev.color,
         vin: pick(vehicleSource.vin, dataSource.VIN, dataSource.Vin) || prev.vin,
         fuel: normalizeFuelFromLookup(pick(vehicleSource.fuel, dataSource.FuelType)) || prev.fuel,
         transmission: normalizeTransmission(pick(vehicleSource.transmission, dataSource.TransmissionType, dataSource.Gearbox)) || prev.transmission,
@@ -646,7 +648,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       doors: state.doors.trim() ? Number(state.doors) : null,
       emission_class: state.emissionClass.trim() || null,
       registration_date: state.registrationDate.trim() || null,
-      color: state.color.trim() || null,
+      color: canonicalizeVehicleColorLabel(state.color) || null,
       vin: state.vin.trim() || null,
       mileage: parseMileageForSave(state.mileage),
       fuel: state.fuel.trim() || null,
@@ -914,7 +916,21 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   className={getFieldInputClass(missingFieldSet.has("registrationDate"))}
                 />
               </label>
-              <EditorField label="Colore" value={state.color} onChange={(value) => updateField("color", value)} required missing={missingFieldSet.has("color")} />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("color"))}>Colore *</span>
+                <select
+                  value={state.color}
+                  onChange={(event) => updateField("color", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("color"))}
+                >
+                  <option value="">Seleziona colore</option>
+                  {colorOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="block space-y-2">
                 <span className={getFieldLabelClass(missingFieldSet.has("interiorType"))}>Interni *</span>
                 <select
