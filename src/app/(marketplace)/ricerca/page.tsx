@@ -17,6 +17,8 @@ type SearchState = {
   transmission: string;
   yearFrom: string;
   yearTo: string;
+  kmFrom: string;
+  kmTo: string;
   minPrice: string;
   maxPrice: string;
 };
@@ -32,6 +34,8 @@ const DEFAULT_STATE: SearchState = {
   transmission: "",
   yearFrom: "",
   yearTo: "",
+  kmFrom: "",
+  kmTo: "",
   minPrice: "",
   maxPrice: "",
 };
@@ -73,6 +77,8 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const interiorTypeOptions = ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"];
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear - 1950 + 1 }, (_, index) => String(currentYear - index));
+  const kmValues = buildMileageFilterValues();
+  const kmLabels = kmValues.map((value) => new Intl.NumberFormat("it-IT").format(Number(value)));
   const priceBandOptions = [
     { label: "Fino a 15.000 €", value: "0-15000" },
     { label: "15.000 - 25.000 €", value: "15000-25000" },
@@ -103,6 +109,8 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Cambio" name="transmission" defaultValue={filters.transmission} options={transmissionOptions} />
             <SearchSelect label="Anno da" name="yearFrom" defaultValue={filters.yearFrom} options={yearOptions} />
             <SearchSelect label="Anno a" name="yearTo" defaultValue={filters.yearTo} options={yearOptions} />
+            <SearchSelect label="KM da" name="kmFrom" defaultValue={filters.kmFrom} options={kmLabels} values={kmValues} />
+            <SearchSelect label="KM a" name="kmTo" defaultValue={filters.kmTo} options={kmLabels} values={kmValues} />
             <SearchField label="Prezzo minimo" name="minPrice" defaultValue={filters.minPrice} placeholder="Es. 10000" inputMode="numeric" />
             <SearchField label="Prezzo massimo" name="maxPrice" defaultValue={filters.maxPrice} placeholder="Es. 30000" inputMode="numeric" />
             <div className="flex items-end gap-3">
@@ -247,6 +255,14 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     yearFrom && yearToRaw && Number.isFinite(yearFromValue) && Number.isFinite(yearToValue) && yearFromValue > yearToValue
       ? ""
       : yearToRaw;
+  const kmFrom = asValue(searchParams.kmFrom);
+  const kmToRaw = asValue(searchParams.kmTo);
+  const kmFromValue = Number(kmFrom);
+  const kmToValue = Number(kmToRaw);
+  const kmTo =
+    kmFrom && kmToRaw && Number.isFinite(kmFromValue) && Number.isFinite(kmToValue) && kmFromValue > kmToValue
+      ? ""
+      : kmToRaw;
 
   return {
     q: asValue(searchParams.q),
@@ -259,6 +275,8 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     transmission: asValue(searchParams.transmission),
     yearFrom,
     yearTo,
+    kmFrom,
+    kmTo,
     minPrice: asValue(searchParams.minPrice),
     maxPrice: asValue(searchParams.maxPrice),
   };
@@ -314,6 +332,13 @@ function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: Search
   const matchesYear = !hasYearFilter || (Number.isFinite(vehicleYear) && vehicleYear >= yearFrom && vehicleYear <= yearTo);
   if (!matchesYear) reasons.push("year");
 
+  const mileageValue = Number(vehicle.mileage);
+  const kmFrom = filters.kmFrom ? Number(filters.kmFrom) : Number.NEGATIVE_INFINITY;
+  const kmTo = filters.kmTo ? Number(filters.kmTo) : Number.POSITIVE_INFINITY;
+  const hasMileageFilter = Boolean(filters.kmFrom || filters.kmTo);
+  const matchesMileage = !hasMileageFilter || (Number.isFinite(mileageValue) && mileageValue >= kmFrom && mileageValue <= kmTo);
+  if (!matchesMileage) reasons.push("mileage");
+
   const minPrice = filters.minPrice ? Number(filters.minPrice) : Number.NEGATIVE_INFINITY;
   const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : Number.POSITIVE_INFINITY;
   const matchesPrice = !hasPriceFilter || (Number.isFinite(priceValue) && priceValue >= minPrice && priceValue <= maxPrice);
@@ -346,6 +371,20 @@ function uniqueValues(values: Array<string | null | undefined>) {
 
 function formatVehicleResultsText(count: number) {
   return count === 1 ? "1 veicolo trovato" : `${count} veicoli trovati`;
+}
+
+function buildMileageFilterValues() {
+  const values: string[] = [];
+
+  for (let mileage = 0; mileage <= 100000; mileage += 5000) {
+    values.push(String(mileage));
+  }
+
+  for (let mileage = 110000; mileage <= 200000; mileage += 10000) {
+    values.push(String(mileage));
+  }
+
+  return values;
 }
 
 function matchesPriceBand(price: number, priceBand: string) {
