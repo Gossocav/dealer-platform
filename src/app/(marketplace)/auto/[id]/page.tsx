@@ -24,6 +24,7 @@ export const dynamic = "force-dynamic";
 
 type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   engine_size?: string | number | null;
+  traction?: string | null;
   interior_type?: string | null;
   power_kw?: number | null;
   registration_date?: string | null;
@@ -60,7 +61,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("status", "published")
@@ -104,6 +105,16 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   }
 
   const vehicle = data as MarketplaceVehicleWithTechnical;
+  const dealerNode = Array.isArray(vehicle.dealers) ? vehicle.dealers[0] : vehicle.dealers;
+
+  if (!vehicle.dealer_id || !dealerNode?.id) {
+    console.error("Marketplace vehicle detail has incomplete dealer association", {
+      vehicleId: vehicle.id,
+      dealerId: vehicle.dealer_id,
+      dealerNode,
+    });
+  }
+
   const images = resolveVehicleImages(vehicle.vehicle_images);
   const resolvedImages = (await Promise.all(images.map((image) => resolveVehicleImageUrl(image)))).filter(
     (value): value is string => typeof value === "string" && value.length > 0
@@ -202,6 +213,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Anno" value={formatText(vehicle.year)} />
                 <Field label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <Field label="Cambio" value={formatText(vehicle.transmission)} />
+                <Field label="Trazione" value={formatText(vehicle.traction)} />
                 <Field label="Cilindrata" value={formatText(vehicle.engine_size)} />
                 <Field label="Potenza kW" value={formatText(vehicle.power_kw)} />
                 <Field label="Potenza CV" value={formatText(vehicle.power_cv)} />
@@ -311,6 +323,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               <div className="mt-4 space-y-3">
                 <InfoRow label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <InfoRow label="Cambio" value={formatText(vehicle.transmission)} />
+                <InfoRow label="Trazione" value={formatText(vehicle.traction)} />
                 <InfoRow label="Cilindrata" value={formatText(vehicle.engine_size)} />
                 <InfoRow label="Potenza kW" value={formatText(vehicle.power_kw)} />
                 <InfoRow label="Potenza CV" value={formatText(vehicle.power_cv)} />

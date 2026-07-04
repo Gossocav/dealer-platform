@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { normalizeVehicleTraction } from "@/lib/vehicles";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
 
@@ -294,6 +295,7 @@ type VehicleRecord = {
   price?: string | number;
   mileage?: string | number;
   fuel?: string;
+  traction?: string;
   transmission?: string;
   color?: string | number | null;
   image_urls?: string[];
@@ -389,7 +391,7 @@ function normalizeVehicleRecord(record: VehicleRecord): VehicleRecord {
   const normalized: VehicleRecord = {};
 
   // Normalizza tutti i campi stringa
-  const stringFields: (keyof VehicleRecord)[] = ["brand", "model", "version", "fuel", "transmission"];
+  const stringFields: (keyof VehicleRecord)[] = ["brand", "model", "version", "fuel", "traction", "transmission"];
   for (const field of stringFields) {
     const value = record[field];
     if (value !== undefined && value !== null) {
@@ -534,6 +536,7 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
   const price = findFieldValue(record, ["price", "prezzo", "prezzo_vendita", "cost", "selling_price"]);
   const mileage = findFieldValue(record, ["mileage", "km", "chilometri", "kilometers", "odometer"]);
   const fuel = findFieldValue(record, ["fuel", "alimentazione", "carburante", "fuel_type", "petrol_diesel"]);
+  const traction = findFieldValue(record, ["traction", "trazione", "drivetrain", "drive", "drive_type", "awd", "fwd", "rwd", "4x4"]);
   const transmission = findFieldValue(record, ["transmission", "cambio", "trasmissione", "gearbox", "gear"]);
   const version = findFieldValue(record, ["version", "versione", "trim", "trim_level"]);
 
@@ -548,6 +551,7 @@ function extractVehicleFromRecord(record: Record<string, unknown>): VehicleRecor
     price: price ?? undefined,
     mileage: mileage ?? undefined,
     fuel: fuel ?? undefined,
+    traction: traction ?? undefined,
     transmission: transmission ?? undefined,
     image_urls: imageUrls.length > 0 ? imageUrls : undefined,
   };
@@ -581,6 +585,7 @@ function extractVehiclesFromXmlContent(content: string): { vehicles: VehicleReco
         price: [{ patterns: ["price", "prezzo", "prezzo_vendita", "cost", "selling_price"], single: true }],
         mileage: [{ patterns: ["mileage", "km", "chilometri", "kilometers", "odometer"], single: true }],
         fuel: [{ patterns: ["fuel", "alimentazione", "carburante", "fuel_type"], single: true }],
+        traction: [{ patterns: ["traction", "trazione", "drivetrain", "drive", "drive_type"], single: true }],
         transmission: [{ patterns: ["transmission", "cambio", "trasmissione", "gearbox"], single: true }],
         version: [{ patterns: ["version", "versione", "trim", "trim_level"], single: true }],
       };
@@ -633,6 +638,7 @@ const DEMO_VEHICLES = [
     price: "29900",
     mileage: "0",
     fuel: "Benzina",
+    traction: "Anteriore",
     transmission: "Automatico",
     color: "Bianco Alpino",
     image_urls: ["https://example.com/jeep-avenger-1.jpg", "https://example.com/jeep-avenger-2.jpg"],
@@ -645,6 +651,7 @@ const DEMO_VEHICLES = [
     price: "24500",
     mileage: "1200",
     fuel: "Ibrido",
+    traction: "Anteriore",
     transmission: "Automatico",
     color: "Rosso Passione",
     image_urls: ["https://example.com/fiat-600-1.jpg"],
@@ -657,6 +664,7 @@ const DEMO_VEHICLES = [
     price: "49800",
     mileage: "15000",
     fuel: "Diesel",
+    traction: "Integrale 4x4",
     transmission: "Automatico",
     color: "Grigio Mineral",
     image_urls: [
@@ -771,6 +779,7 @@ export async function POST(request: Request) {
           price: parseFloat(vehicle.price),
           mileage: parseInt(vehicle.mileage, 10),
           fuel: vehicle.fuel,
+          traction: normalizeVehicleTraction(vehicle.traction),
           transmission: vehicle.transmission,
           color: vehicle.color,
           vin: null,
@@ -1054,6 +1063,7 @@ export async function POST(request: Request) {
           price: vehicle.price ? parseFloat(String(vehicle.price)) : null,
           mileage: vehicle.mileage ? parseInt(String(vehicle.mileage), 10) : null,
           fuel: vehicle.fuel ?? null,
+          traction: normalizeVehicleTraction(vehicle.traction),
           transmission: vehicle.transmission ?? null,
           color: null,
           vin: null,
@@ -1122,6 +1132,7 @@ export async function POST(request: Request) {
               price: vehicleData.price,
               mileage: vehicleData.mileage,
               fuel: vehicleData.fuel,
+              traction: vehicleData.traction,
               transmission: vehicleData.transmission,
               color: vehicleData.color,
               version: vehicleData.version,

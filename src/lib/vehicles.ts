@@ -1,5 +1,8 @@
 export type VehicleStatus = "published" | "draft" | "sold" | "review" | string;
 
+export const VEHICLE_TRACTION_OPTIONS = ["Anteriore", "Posteriore", "Integrale 4x4"] as const;
+export type VehicleTraction = (typeof VEHICLE_TRACTION_OPTIONS)[number];
+
 export type VehicleImageRow = {
   id: string;
   image_url: string | null;
@@ -18,6 +21,7 @@ export type VehicleRow = {
   mileage: number | null;
   fuel: string | null;
   transmission: string | null;
+  traction?: string | null;
   price: string | number | null;
   status: string | null;
   published: boolean | null;
@@ -137,6 +141,42 @@ export function safeText(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "-";
   const normalized = String(value).trim();
   return normalized.length > 0 ? normalized : "-";
+}
+
+export function normalizeVehicleTraction(value: unknown): VehicleTraction | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const raw = value.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes("integrale") || normalized.includes("4x4") || normalized.includes("4wd") || normalized.includes("awd")) {
+    return "Integrale 4x4";
+  }
+
+  if (normalized.includes("anteriore") || normalized.includes("fwd") || normalized.includes("front wheel")) {
+    return "Anteriore";
+  }
+
+  if (normalized.includes("posteriore") || normalized.includes("rwd") || normalized.includes("rear wheel")) {
+    return "Posteriore";
+  }
+
+  return null;
 }
 
 export function extractVehicleImagePath(value: string) {

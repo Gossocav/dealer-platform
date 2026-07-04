@@ -77,6 +77,7 @@ export type MarketplaceVehicle = {
   price: string | number | null;
   fuel: string | null;
   transmission: string | null;
+  traction?: string | null;
   description: string | null;
   body_type: string | null;
   color: string | null;

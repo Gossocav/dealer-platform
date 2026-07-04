@@ -9,7 +9,15 @@ import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { resolveDealerIdForUser } from "@/lib/dealer-association";
 import { supabase } from "@/lib/supabaseClient";
-import { extractVehicleImagePath, formatVehicleStatus, safeText, type VehicleImageRow, type VehicleRow } from "@/lib/vehicles";
+import {
+  extractVehicleImagePath,
+  formatVehicleStatus,
+  normalizeVehicleTraction,
+  safeText,
+  VEHICLE_TRACTION_OPTIONS,
+  type VehicleImageRow,
+  type VehicleRow,
+} from "@/lib/vehicles";
 
 type VehicleEditorPageProps = {
   mode: "create" | "edit";
@@ -23,6 +31,7 @@ type EditorState = {
   interiorType: string;
   year: string;
   engineSize: string;
+  traction: string;
   powerKw: string;
   powerCv: string;
   doors: string;
@@ -233,6 +242,7 @@ const INITIAL_STATE: EditorState = {
   interiorType: "",
   year: "",
   engineSize: "",
+  traction: "",
   powerKw: "",
   powerCv: "",
   doors: "",
@@ -298,6 +308,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   );
   const selectedFuel = state.fuel.trim();
   const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
+  const tractionOptions = useMemo(() => [...VEHICLE_TRACTION_OPTIONS], []);
+  const selectedTraction = state.traction.trim();
+  const hasCustomSelectedTraction = selectedTraction.length > 0 && !tractionOptions.includes(selectedTraction as (typeof VEHICLE_TRACTION_OPTIONS)[number]);
   const selectedProvince = normalizeProvinceCode(state.province) || state.province.trim().toUpperCase();
   const hasCustomSelectedProvince = selectedProvince.length > 0 && !ITALIAN_PROVINCES.some((province) => province.code === selectedProvince.toUpperCase());
   const cityOptions = useMemo(() => {
@@ -352,7 +365,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, brand, model, version, interior_type, year, engine_size, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
+          "id, dealer_id, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .maybeSingle<VehicleRow>();
@@ -399,6 +412,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         interiorType: String((data as Record<string, unknown>).interior_type ?? ""),
         year: data.year === null || data.year === undefined ? "" : String(data.year),
         engineSize: String((data as Record<string, unknown>).engine_size ?? ""),
+        traction: String((data as Record<string, unknown>).traction ?? ""),
         powerKw: String((data as Record<string, unknown>).power_kw ?? ""),
         powerCv: String((data as Record<string, unknown>).power_cv ?? ""),
         doors: String((data as Record<string, unknown>).doors ?? ""),
@@ -543,6 +557,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       }
     }
 
+    if (state.traction.trim() && !normalizeVehicleTraction(state.traction)) {
+      setError("Valore trazione non valido. Seleziona Anteriore, Posteriore o Integrale 4x4.");
+      setSaving(false);
+      return;
+    }
+
     if (nextMissing.length > 0) {
       setMissingFields(nextMissing);
       setError(`Compila i campi obbligatori mancanti:\n- ${nextMissing.map((field) => REQUIRED_FIELD_LABELS[field]).join("\n- ")}`);
@@ -611,6 +631,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       interior_type: state.interiorType.trim() || null,
       year: state.year.trim() || null,
       engine_size: state.engineSize.trim() || null,
+      traction: normalizeVehicleTraction(state.traction),
       power_kw: state.powerKw.trim() ? Number(state.powerKw) : null,
       power_cv: state.powerCv.trim() ? Number(state.powerCv) : null,
       doors: state.doors.trim() ? Number(state.doors) : null,
@@ -848,6 +869,22 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 required
                 missing={missingFieldSet.has("engineSize")}
               />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(false)}>Trazione</span>
+                <select
+                  value={state.traction}
+                  onChange={(event) => updateField("traction", event.target.value)}
+                  className={getFieldInputClass(false)}
+                >
+                  <option value="">Seleziona trazione</option>
+                  {hasCustomSelectedTraction ? <option value={state.traction}>{state.traction}</option> : null}
+                  {tractionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <EditorField
                 label="Potenza kW"
                 value={state.powerKw}

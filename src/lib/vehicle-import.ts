@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { normalizeVehicleTraction } from "@/lib/vehicles";
 
 export type VehicleImportField =
   | "vin"
@@ -9,6 +10,7 @@ export type VehicleImportField =
   | "price"
   | "mileage"
   | "fuel"
+  | "traction"
   | "transmission"
   | "color"
   | "description"
@@ -35,6 +37,7 @@ const FIELDS: VehicleImportField[] = [
   "price",
   "mileage",
   "fuel",
+  "traction",
   "transmission",
   "color",
   "description",
@@ -51,6 +54,7 @@ const ALIASES: Record<VehicleImportField, string[]> = {
   price: ["price", "prezzo", "listino"],
   mileage: ["mileage", "chilometri", "chilometro", "kilometri", "kilometers", "km", "percorrenza"],
   fuel: ["fuel", "alimentazione", "carburante"],
+  traction: ["traction", "trazione", "trazione motrice", "drivetrain", "drive", "awd", "fwd", "rwd", "4x4"],
   transmission: ["transmission", "cambio"],
   color: ["color", "colore", "col esterno", "col. esterno"],
   description: ["description", "descrizione", "note"],
@@ -104,6 +108,7 @@ export function getVehicleImportFieldLabel(field: VehicleImportField) {
     price: "Prezzo",
     mileage: "Chilometri",
     fuel: "Alimentazione",
+    traction: "Trazione",
     transmission: "Cambio",
     color: "Colore",
     description: "Descrizione",
@@ -124,6 +129,7 @@ export function createEmptyVehicleImportMapping(): VehicleImportColumnMapping {
     price: null,
     mileage: null,
     fuel: null,
+    traction: null,
     transmission: null,
     color: null,
     description: null,
@@ -280,6 +286,10 @@ export function validateVehicleImportRow(mappedRow: VehicleImportMappedRow) {
     }
   }
 
+  if (mappedRow.traction.trim() && !normalizeVehicleTraction(mappedRow.traction)) {
+    errors.push("Trazione non riconosciuta");
+  }
+
   return errors;
 }
 
@@ -359,6 +369,7 @@ export function buildVehicleInsertPayload(mappedRow: VehicleImportMappedRow, def
     price: parseOptionalNumber(mappedRow.price),
     mileage: parseOptionalNumber(mappedRow.mileage),
     fuel: mappedRow.fuel.trim() || null,
+    traction: normalizeVehicleTraction(mappedRow.traction),
     transmission: mappedRow.transmission.trim() || null,
     color: mappedRow.color.trim() || null,
     description: mappedRow.description.trim() || null,
