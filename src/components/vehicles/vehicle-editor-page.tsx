@@ -235,6 +235,27 @@ function normalizeResolvedDealerId(value: string | null | undefined) {
   return normalized;
 }
 
+function buildMileageOptions() {
+  const values: number[] = [];
+
+  for (let mileage = 0; mileage <= 100000; mileage += 5000) {
+    values.push(mileage);
+  }
+
+  for (let mileage = 110000; mileage <= 300000; mileage += 10000) {
+    values.push(mileage);
+  }
+
+  for (let mileage = 350000; mileage <= 1000000; mileage += 50000) {
+    values.push(mileage);
+  }
+
+  return values.map((value) => ({
+    value: String(value),
+    label: `${new Intl.NumberFormat("it-IT").format(value)} km`,
+  }));
+}
+
 const INITIAL_STATE: EditorState = {
   brand: "",
   model: "",
@@ -324,6 +345,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     () => ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"],
     []
   );
+  const mileageOptions = useMemo(() => buildMileageOptions(), []);
+  const selectedMileage = state.mileage.trim();
+  const hasCustomSelectedMileage = selectedMileage.length > 0 && !mileageOptions.some((option) => option.value === selectedMileage);
+  const customSelectedMileageLabel = hasCustomSelectedMileage
+    ? `${new Intl.NumberFormat("it-IT").format(Number(selectedMileage))} km`
+    : "";
   const missingFieldSet = useMemo(() => new Set(missingFields), [missingFields]);
 
   useEffect(() => {
@@ -946,14 +973,22 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 required
                 missing={missingFieldSet.has("price")}
               />
-              <EditorField
-                label="Chilometri"
-                value={state.mileage}
-                onChange={(value) => updateField("mileage", value)}
-                inputMode="numeric"
-                required
-                missing={missingFieldSet.has("mileage")}
-              />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("mileage"))}>Chilometri *</span>
+                <select
+                  value={state.mileage}
+                  onChange={(event) => updateField("mileage", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("mileage"))}
+                >
+                  <option value="">Seleziona chilometraggio</option>
+                  {hasCustomSelectedMileage ? <option value={state.mileage}>{customSelectedMileageLabel}</option> : null}
+                  {mileageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="block space-y-2">
                 <span className={getFieldLabelClass(missingFieldSet.has("fuel"))}>Alimentazione *</span>
                 <select
