@@ -118,7 +118,7 @@ async function CatalogVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) 
         <div className="grid grid-cols-2 gap-2">
           <Spec label="DATA IMM.NE" value={registrationDate} />
           <Spec label="Km" value={formatMileage(vehicle.mileage)} />
-          <Spec label="Carb." value={formatText(vehicle.fuel)} />
+          <Spec label="ALIMENTAZIONE" value={formatText(vehicle.fuel)} labelClassName="whitespace-nowrap tracking-[0.08em]" />
           <Spec label="Cambio" value={formatText(vehicle.transmission)} />
         </div>
 
@@ -136,10 +136,10 @@ async function CatalogVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) 
   );
 }
 
-function Spec({ label, value }: { label: string; value: string }) {
+function Spec({ label, value, labelClassName = "" }: { label: string; value: string; labelClassName?: string }) {
   return (
     <div className="rounded-xl bg-slate-50 px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</p>
+      <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 ${labelClassName}`}>{label}</p>
       <p className="mt-1 text-xs font-semibold text-slate-800 truncate">{value}</p>
     </div>
   );
