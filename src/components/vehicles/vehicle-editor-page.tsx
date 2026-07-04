@@ -55,7 +55,6 @@ const REQUIRED_EDITOR_FIELDS = [
   "model",
   "version",
   "interiorType",
-  "year",
   "price",
   "mileage",
   "fuel",
@@ -80,7 +79,6 @@ const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   model: "Modello",
   version: "Versione",
   interiorType: "Interni",
-  year: "Anno",
   price: "Prezzo",
   mileage: "Chilometri",
   fuel: "Alimentazione",
@@ -261,7 +259,7 @@ const INITIAL_STATE: EditorState = {
   model: "",
   version: "",
   interiorType: "",
-  year: "",
+  year: String(new Date().getFullYear()),
   engineSize: "",
   traction: "",
   powerKw: "",
@@ -304,13 +302,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [existingVehicleDealerId, setExistingVehicleDealerId] = useState<string | null>(null);
 
   const title = useMemo(() => (mode === "create" ? "Nuovo Veicolo" : "Modifica Veicolo"), [mode]);
-  const yearOptions = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-
-    return Array.from({ length: currentYear - 1950 + 1 }, (_, index) => String(currentYear - index));
-  }, []);
-  const selectedYear = state.year.trim();
-  const hasCustomSelectedYear = selectedYear.length > 0 && !yearOptions.includes(selectedYear);
   const maxRegistrationDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const fuelOptions = useMemo(
     () => [
@@ -872,22 +863,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               <EditorField label="Marca" value={state.brand} onChange={(value) => updateField("brand", value)} required missing={missingFieldSet.has("brand")} />
               <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required missing={missingFieldSet.has("model")} />
               <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} required missing={missingFieldSet.has("version")} />
-              <label className="block space-y-2">
-                <span className={getFieldLabelClass(missingFieldSet.has("year"))}>Anno *</span>
-                <select
-                  value={state.year}
-                  onChange={(event) => updateField("year", event.target.value)}
-                  className={getFieldInputClass(missingFieldSet.has("year"))}
-                >
-                  <option value="">Seleziona anno</option>
-                  {hasCustomSelectedYear ? <option value={state.year}>{state.year}</option> : null}
-                  {yearOptions.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <EditorField
                 label="Cilindrata"
                 value={state.engineSize}
