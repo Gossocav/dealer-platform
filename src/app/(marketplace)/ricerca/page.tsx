@@ -15,6 +15,7 @@ type SearchState = {
   province: string;
   fuel: string;
   transmission: string;
+  traction: string;
   yearFrom: string;
   yearTo: string;
   kmFrom: string;
@@ -32,6 +33,7 @@ const DEFAULT_STATE: SearchState = {
   province: "",
   fuel: "",
   transmission: "",
+  traction: "",
   yearFrom: "",
   yearTo: "",
   kmFrom: "",
@@ -46,7 +48,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, interior_type, year, mileage, price, fuel, transmission, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, interior_type, year, mileage, price, fuel, transmission, traction, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
     .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
@@ -74,6 +76,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const provinceValues = ITALIAN_PROVINCES.map((province) => province.code);
   const fuelOptions = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissionOptions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
+  const tractionOptions = buildTractionFilterOptions(vehicles);
   const interiorTypeOptions = ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"];
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear - 1950 + 1 }, (_, index) => String(currentYear - index));
@@ -107,6 +110,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Provincia" name="province" defaultValue={filters.province} options={provinceOptions} values={provinceValues} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
             <SearchSelect label="Cambio" name="transmission" defaultValue={filters.transmission} options={transmissionOptions} />
+            <SearchSelect label="Trazione" name="traction" defaultValue={filters.traction} options={tractionOptions.map((option) => option.label)} values={tractionOptions.map((option) => option.value)} />
             <SearchSelect label="Anno da" name="yearFrom" defaultValue={filters.yearFrom} options={yearOptions} />
             <SearchSelect label="Anno a" name="yearTo" defaultValue={filters.yearTo} options={yearOptions} />
             <SearchSelect label="KM da" name="kmFrom" defaultValue={filters.kmFrom} options={kmLabels} values={kmValues} />
@@ -257,10 +261,10 @@ function parseSearchState(searchParams: SearchParams): SearchState {
       : yearToRaw;
   const kmFrom = asValue(searchParams.kmFrom);
   const kmToRaw = asValue(searchParams.kmTo);
-  const kmFromValue = Number(kmFrom);
-  const kmToValue = Number(kmToRaw);
+  const kmFromValue = normalizeMileage(kmFrom);
+  const kmToValue = normalizeMileage(kmToRaw);
   const kmTo =
-    kmFrom && kmToRaw && Number.isFinite(kmFromValue) && Number.isFinite(kmToValue) && kmFromValue > kmToValue
+    kmFromValue !== null && kmToValue !== null && kmFromValue > kmToValue
       ? ""
       : kmToRaw;
 
@@ -273,6 +277,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     province: normalizeProvinceCode(asValue(searchParams.province)),
     fuel: asValue(searchParams.fuel),
     transmission: asValue(searchParams.transmission),
+    traction: asValue(searchParams.traction),
     yearFrom,
     yearTo,
     kmFrom,
@@ -289,7 +294,7 @@ function matchesFilters(vehicle: MarketplaceVehicle, filters: SearchState) {
 function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: SearchState) {
   const reasons: string[] = [];
   const normalizedQuery = filters.q.trim().toLowerCase();
-  const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.province, vehicle.fuel, vehicle.transmission, vehicle.interior_type]
+  const haystack = [vehicle.brand, vehicle.model, vehicle.version, vehicle.city, vehicle.province, vehicle.fuel, vehicle.transmission, vehicle.traction, vehicle.interior_type]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -325,6 +330,11 @@ function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: Search
   const matchesTransmission = !filters.transmission || formatText(vehicle.transmission).toLowerCase() === filters.transmission.toLowerCase();
   if (!matchesTransmission) reasons.push("transmission");
 
+  const filterTraction = normalizeTractionFilterValue(filters.traction);
+  const vehicleTraction = normalizeTractionFilterValue(vehicle.traction);
+  const matchesTraction = !filterTraction || (vehicleTraction.length > 0 && vehicleTraction === filterTraction);
+  if (!matchesTraction) reasons.push("traction");
+
   const vehicleYear = Number(formatText(vehicle.year));
   const yearFrom = filters.yearFrom ? Number(filters.yearFrom) : Number.NEGATIVE_INFINITY;
   const yearTo = filters.yearTo ? Number(filters.yearTo) : Number.POSITIVE_INFINITY;
@@ -332,7 +342,7 @@ function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: Search
   const matchesYear = !hasYearFilter || (Number.isFinite(vehicleYear) && vehicleYear >= yearFrom && vehicleYear <= yearTo);
   if (!matchesYear) reasons.push("year");
 
-  const mileageValue = normalizeMileage(vehicle.mileage);
+  const mileageValue = normalizeMileage(resolveVehicleMileageValue(vehicle));
   const kmFromValue = normalizeMileage(filters.kmFrom);
   const kmToValue = normalizeMileage(filters.kmTo);
   const kmFrom = kmFromValue ?? Number.NEGATIVE_INFINITY;
@@ -371,6 +381,86 @@ function uniqueValues(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) => a.localeCompare(b, "it-IT"));
 }
 
+function buildTractionFilterOptions(vehicles: MarketplaceVehicle[]) {
+  const options = new Map<string, string>();
+
+  for (const vehicle of vehicles) {
+    const normalized = normalizeTractionFilterValue(vehicle.traction);
+    if (!normalized) {
+      continue;
+    }
+
+    if (normalized === "anteriore") {
+      options.set(normalized, "Anteriore");
+      continue;
+    }
+
+    if (normalized === "posteriore") {
+      options.set(normalized, "Posteriore");
+      continue;
+    }
+
+    if (normalized === "integrale") {
+      options.set(normalized, "Integrale / 4x4");
+      continue;
+    }
+
+    options.set(normalized, formatText(vehicle.traction));
+  }
+
+  return Array.from(options.entries())
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "it-IT"));
+}
+
+function normalizeTractionFilterValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  const compact = normalized.replace(/\s+/g, "");
+
+  if (
+    normalized.includes("integrale") ||
+    compact.includes("4x4") ||
+    compact.includes("4wd") ||
+    compact.includes("awd") ||
+    compact.includes("quattroruotemotrici")
+  ) {
+    return "integrale";
+  }
+
+  if (
+    normalized.includes("anteriore") ||
+    compact.includes("fwd") ||
+    compact.includes("frontwheel")
+  ) {
+    return "anteriore";
+  }
+
+  if (
+    normalized.includes("posteriore") ||
+    compact.includes("rwd") ||
+    compact.includes("rearwheel")
+  ) {
+    return "posteriore";
+  }
+
+  return compact;
+}
+
 function formatVehicleResultsText(count: number) {
   return count === 1 ? "1 veicolo trovato" : `${count} veicoli trovati`;
 }
@@ -394,22 +484,36 @@ function normalizeMileage(value: unknown): number | null {
     return null;
   }
 
-  const raw = String(value).trim().toLowerCase();
-  if (!raw) {
+  const rawValue = String(value).trim().toLowerCase();
+  if (!rawValue) {
     return null;
   }
 
-  const cleaned = raw
+  const cleaned = rawValue
     .replace(/km/g, "")
-    .replace(/[.,\s]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/'/g, "")
+    // Remove decimal tails like .00 or ,00 before stripping separators.
+    .replace(/[.,]\d{1,2}$/g, "")
+    .replace(/[.,]/g, "")
     .trim();
 
   if (!cleaned) {
     return null;
   }
 
-  const normalized = Number(cleaned);
+  const digitsOnly = cleaned.replace(/\D/g, "");
+  if (!digitsOnly) {
+    return null;
+  }
+
+  const normalized = Number(digitsOnly);
   return Number.isFinite(normalized) ? normalized : null;
+}
+
+function resolveVehicleMileageValue(vehicle: MarketplaceVehicle) {
+  // Keep filtering aligned with what cards display: vehicle.mileage.
+  return vehicle.mileage;
 }
 
 function matchesPriceBand(price: number, priceBand: string) {
