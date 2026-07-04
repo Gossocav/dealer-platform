@@ -41,7 +41,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     setSuccessMessage(null);
 
     const payload = {
-      vehicle_id: vehicleId,
+      vehicleId,
       first_name: normalizedFirstName,
       last_name: normalizedLastName,
       email: normalizedEmail || null,

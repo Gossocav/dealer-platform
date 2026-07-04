@@ -25,7 +25,9 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   }
 
   const dealer = Array.isArray(dealerVehicles[0].dealers) ? dealerVehicles[0].dealers[0] ?? null : dealerVehicles[0].dealers ?? null;
-  const dealerName = dealer?.legal_name ?? dealer?.name ?? "Concessionaria";
+  const dealerLegalName = String(dealer?.legal_name ?? "").trim();
+  const dealerFallbackName = String(dealer?.name ?? "").trim();
+  const dealerName = dealerLegalName || dealerFallbackName || "Concessionaria";
   const cities = Array.from(new Set(dealerVehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
   const totalVehicles = dealerVehicles.length;
 
@@ -44,7 +46,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
           <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-slate-500">Profilo concessionaria</p>
             <div className="mt-4 space-y-3">
-              <InfoRow label="Slug" value={slug} />
+              <InfoRow label="Ragione Sociale" value={dealerName} />
               <InfoRow label="Veicoli pubblicati" value={String(totalVehicles)} />
               <InfoRow label="Città" value={cities.length > 0 ? cities.join(", ") : "-"} />
             </div>

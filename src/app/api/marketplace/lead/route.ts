@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type LeadInsertBody = {
+  vehicleId?: string;
   vehicle_id?: string;
   first_name?: string;
   last_name?: string;
@@ -12,10 +13,29 @@ type LeadInsertBody = {
 
 type ResendResponse = {
   id?: string;
+  message?: string;
+  name?: string;
+  statusCode?: number;
   error?: {
     message?: string;
   };
 };
+
+type ResendSuccessResponse = {
+  id?: string;
+};
+
+class ResendApiError extends Error {
+  status: number;
+  responseBody: string;
+
+  constructor(message: string, status: number, responseBody: string) {
+    super(message);
+    this.name = "ResendApiError";
+    this.status = status;
+    this.responseBody = responseBody;
+  }
+}
 
 type LeadInsertRow = {
   id: string;
@@ -35,7 +55,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as LeadInsertBody;
 
-    const vehicleId = String(body.vehicle_id ?? "").trim();
+    const vehicleId = String(body.vehicleId ?? body.vehicle_id ?? "").trim();
     const firstName = String(body.first_name ?? "").trim();
     const lastName = String(body.last_name ?? "").trim();
     const customerEmail = normalizeEmail(body.email);
@@ -60,7 +80,20 @@ export async function POST(request: Request) {
 
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    if (!supabaseServiceRoleKey) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY missing: cannot resolve dealer from dealers table.");
+      return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -82,7 +115,22 @@ export async function POST(request: Request) {
 
     if (!vehicleData.dealer_id) {
       console.error("Vehicle has null dealer_id, cannot create marketplace lead.", { vehicleId: vehicleData.id });
-      return NextResponse.json({ error: "Veicolo non associato a un concessionario." }, { status: 400 });
+      return NextResponse.json({ error: "Richiesta non inviata. Contatta il supporto." }, { status: 400 });
+    }
+
+    const { data: dealerData, error: dealerError } = await supabaseAdmin
+      .from("dealers")
+      .select("id, email")
+      .eq("id", vehicleData.dealer_id)
+      .maybeSingle<{ id: string; email: string | null }>();
+
+    if (dealerError || !dealerData?.id) {
+      console.error("Dealer lookup failed for marketplace lead.", {
+        dealerId: vehicleData.dealer_id,
+        vehicleId: vehicleData.id,
+        dealerError,
+      });
+      return NextResponse.json({ error: "Richiesta non inviata. Contatta il supporto." }, { status: 400 });
     }
 
     // 2) Salvataggio lead: include dealer_id del veicolo per garantire visibilita dealer-scoped.
@@ -111,33 +159,7 @@ export async function POST(request: Request) {
     const vehicleLabel = [vehicleData.brand, vehicleData.model, vehicleData.version].filter(Boolean).join(" ") || vehicleData.id;
 
     // 3) Recupero email concessionario dai dati pubblici del dealer.
-    let dealerEmail: string | null = null;
-    if (vehicleData.dealer_id && supabaseServiceRoleKey) {
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      });
-
-      const { data: dealerRows, error: dealerError } = await supabaseAdmin
-        .from("dealers")
-        .select("email")
-        .eq("id", vehicleData.dealer_id)
-        .not("email", "is", null)
-        .limit(1);
-
-      if (dealerError) {
-        console.error("Dealer email lookup error", dealerError);
-      } else {
-        dealerEmail = normalizeEmail(dealerRows?.[0]?.email ?? null);
-      }
-    } else if (!vehicleData.dealer_id) {
-      console.error("Dealer id missing on vehicle, dealer email cannot be resolved.");
-    } else {
-      console.error("SUPABASE_SERVICE_ROLE_KEY missing: cannot resolve dealer email from dealers.");
-    }
+    const dealerEmail = normalizeEmail(dealerData.email ?? null);
 
     // Best effort email delivery: lead is already saved and must not fail due to email provider errors.
     await sendEmailsBestEffort({
@@ -157,6 +179,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Richiesta inviata correttamente." }, { status: 200 });
   } catch (error) {
     console.error("Marketplace lead API unexpected error", error);
+    if (error instanceof Error) {
+      console.error("Marketplace lead API unexpected error message", error.message);
+      console.error("Marketplace lead API unexpected error stack", error.stack);
+    }
     return NextResponse.json({ error: "Errore interno durante l'invio della richiesta." }, { status: 500 });
   }
 }
@@ -194,6 +220,28 @@ async function sendEmailsBestEffort({
     return;
   }
 
+  const normalizedFromEmail = normalizeEmail(fromEmail);
+  const fromEmailLocalPart = normalizedFromEmail?.split("@")[0] ?? null;
+  const fromEmailDomain = normalizedFromEmail?.split("@")[1] ?? null;
+
+  if (!normalizedFromEmail || !fromEmailLocalPart || !fromEmailDomain) {
+    console.error("Invalid RESEND_FROM_EMAIL format for marketplace lead emails.", { fromEmail });
+    return;
+  }
+
+  if (normalizedFromEmail.startsWith("re_")) {
+    console.error("Invalid RESEND_FROM_EMAIL: looks like an API key, not an email address.", { fromEmail });
+    return;
+  }
+
+  if (fromEmailDomain !== "keyplanrental.it" || !["noreply", "info"].includes(fromEmailLocalPart)) {
+    console.error("Invalid RESEND_FROM_EMAIL for marketplace lead emails.", {
+      fromEmail: normalizedFromEmail,
+      expectedExamples: ["noreply@keyplanrental.it", "info@keyplanrental.it"],
+    });
+    return;
+  }
+
   const appBaseUrl = process.env.APP_BASE_URL || "";
   const leadDashboardUrl = appBaseUrl ? `${appBaseUrl.replace(/\/$/, "")}/lead` : "/lead";
   const requestDate = formatDateTime(requestDateIso);
@@ -226,15 +274,16 @@ async function sendEmailsBestEffort({
     `;
 
     try {
-      await sendResendEmail({
+      const dealerSend = await sendResendEmail({
         apiKey: resendApiKey,
-        fromEmail,
+        fromEmail: normalizedFromEmail,
         to: dealerEmail,
         subject: "🚗 Nuova richiesta informazioni",
         html: dealerHtml,
       });
+      console.info("Marketplace dealer email sent", { dealerEmail, resendEmailId: dealerSend.id ?? null });
     } catch (error) {
-      console.error("Dealer email send error", error);
+      logEmailSendError("Dealer email send error", error);
     }
   } else {
     console.error("Dealer email missing: cannot send dealer notification email.");
@@ -255,15 +304,16 @@ async function sendEmailsBestEffort({
     `;
 
     try {
-      await sendResendEmail({
+      const customerSend = await sendResendEmail({
         apiKey: resendApiKey,
-        fromEmail,
+        fromEmail: normalizedFromEmail,
         to: customerEmail,
         subject: "Abbiamo ricevuto la tua richiesta",
         html: customerHtml,
       });
+      console.info("Marketplace customer confirmation email sent", { customerEmail, resendEmailId: customerSend.id ?? null });
     } catch (error) {
-      console.error("Customer confirmation email send error", error);
+      logEmailSendError("Customer confirmation email send error", error);
     }
   } else {
     console.error("Customer email missing: confirmation email skipped.");
@@ -297,9 +347,42 @@ async function sendResendEmail({
     }),
   });
 
+  const responseText = await response.text();
+
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ResendResponse | null;
-    throw new Error(payload?.error?.message || `Resend request failed with status ${response.status}`);
+    let payload: ResendResponse | null = null;
+
+    try {
+      payload = responseText ? (JSON.parse(responseText) as ResendResponse) : null;
+    } catch (parseError) {
+      console.error("Resend marketplace email error response is not valid JSON", parseError);
+    }
+
+    const resendMessage = payload?.error?.message || payload?.message || `Resend request failed with status ${response.status}`;
+    throw new ResendApiError(resendMessage, response.status, responseText);
+  }
+
+  try {
+    return (responseText ? (JSON.parse(responseText) as ResendSuccessResponse) : { id: undefined }) as ResendSuccessResponse;
+  } catch (parseError) {
+    console.error("Resend marketplace success response is not valid JSON", parseError);
+    return { id: undefined };
+  }
+}
+
+function logEmailSendError(prefix: string, error: unknown) {
+  console.error(prefix, error);
+
+  if (error instanceof ResendApiError) {
+    console.error(`${prefix} status`, error.status);
+    console.error(`${prefix} response body`, error.responseBody);
+    console.error(`${prefix} message`, error.message);
+    return;
+  }
+
+  if (error instanceof Error) {
+    console.error(`${prefix} message`, error.message);
+    console.error(`${prefix} stack`, error.stack);
   }
 }
 

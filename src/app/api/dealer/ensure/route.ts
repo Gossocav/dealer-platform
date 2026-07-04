@@ -127,6 +127,7 @@ async function ensureDealerAssociation({
     await updateDealerBestEffort(supabaseAdmin, profileRow.dealer_id, {
       legalCompanyName,
       vatNumber,
+      contactPerson,
       email,
       phone,
       whatsappPhone,
@@ -155,6 +156,7 @@ async function ensureDealerAssociation({
         name: legalCompanyName,
         legal_name: legalCompanyName,
         vat_number: vatNumber,
+        contact_person: contactPerson,
         email,
         phone,
         whatsapp_phone: whatsappPhone,
@@ -173,6 +175,7 @@ async function ensureDealerAssociation({
   await updateDealerBestEffort(supabaseAdmin, dealerId, {
     legalCompanyName,
     vatNumber,
+    contactPerson,
     email,
     phone,
     whatsappPhone,
@@ -212,13 +215,14 @@ async function updateDealerBestEffort(
   values: {
     legalCompanyName: string;
     vatNumber: string;
+    contactPerson: string;
     email: string;
     phone: string;
     whatsappPhone: string | null;
     userId: string;
   }
 ) {
-  const { legalCompanyName, vatNumber, email, phone, whatsappPhone, userId } = values;
+  const { legalCompanyName, vatNumber, contactPerson, email, phone, whatsappPhone, userId } = values;
 
   const { error: updateError } = await supabaseAdmin
     .from("dealers")
@@ -226,6 +230,7 @@ async function updateDealerBestEffort(
       name: legalCompanyName,
       legal_name: legalCompanyName,
       vat_number: vatNumber,
+      contact_person: contactPerson,
       email,
       phone,
       whatsapp_phone: whatsappPhone,

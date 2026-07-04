@@ -1,20 +1,38 @@
--- DEALER PLATFORM - DATABASE SCHEMA MVP
--- Versione 1.0
+-- DEALER PLATFORM - BASELINE SCHEMA
+-- Core tables aligned with current registration model.
 
 create extension if not exists "pgcrypto";
 
-create table dealers (
+create table if not exists public.dealers (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid,
   name text not null,
   legal_name text,
   vat_number text,
-  fiscal_code text,
+  contact_person text,
   email text,
   phone text,
   whatsapp_phone text,
+  address text,
+  city text,
+  province text,
+  zip_code text,
   website text,
   logo_url text,
+  description text,
   status text default 'active',
   plan text default 'starter',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
+);
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  dealer_id uuid references public.dealers(id) on delete set null,
+  full_name text,
+  role text not null default 'seller',
+  status text not null default 'active',
+  preferences jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);

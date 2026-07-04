@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 
 type SendToClientBody = {
   vehicleId?: string;
@@ -20,10 +21,13 @@ type SendToClientBody = {
 };
 
 type ResendResponse = {
+  message?: string;
   error?: {
     message?: string;
   };
 };
+
+const REQUIRED_FROM_DOMAIN = "keyplanrental.it";
 
 export async function POST(request: Request) {
   try {
@@ -46,6 +50,14 @@ export async function POST(request: Request) {
     const transmission = normalizeText(body.transmission) ?? "-";
     const price = normalizeText(body.price) ?? "-";
 
+    console.info("Vehicle send-to-client API called", {
+      hasVehicleId: Boolean(vehicleId),
+      hasFirstName: Boolean(firstName),
+      hasLastName: Boolean(lastName),
+      hasEmail: Boolean(email),
+      hasPublicUrl: Boolean(publicUrl),
+    });
+
     if (!vehicleId || !firstName || !lastName) {
       return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
     }
@@ -59,6 +71,20 @@ export async function POST(request: Request) {
 
     if (!resendApiKey || !fromEmail) {
       return NextResponse.json({ error: "Configurazione email mancante. Imposta RESEND_API_KEY e RESEND_FROM_EMAIL." }, { status: 500 });
+    }
+
+    const normalizedFromEmail = normalizeEmail(fromEmail);
+    if (!normalizedFromEmail || !normalizedFromEmail.includes("@")) {
+      console.error("Invalid RESEND_FROM_EMAIL format.", { hasValue: Boolean(fromEmail) });
+      return NextResponse.json({ error: "Configurazione mittente email non valida." }, { status: 500 });
+    }
+
+    if (!normalizedFromEmail.endsWith(`@${REQUIRED_FROM_DOMAIN}`)) {
+      console.error("RESEND_FROM_EMAIL does not match required domain.", {
+        fromEmail: normalizedFromEmail,
+        requiredDomain: REQUIRED_FROM_DOMAIN,
+      });
+      return NextResponse.json({ error: `Configurazione mittente non valida: usare dominio ${REQUIRED_FROM_DOMAIN}.` }, { status: 500 });
     }
 
     const html = buildCustomerEmailHtml({
@@ -80,9 +106,11 @@ export async function POST(request: Request) {
       price,
     });
 
+    const resend = new Resend(resendApiKey);
+
     await sendResendEmail({
-      apiKey: resendApiKey,
-      fromEmail,
+      resend,
+      fromEmail: normalizedFromEmail,
       to: email,
       subject: "Veicolo selezionato per te",
       html,
@@ -90,42 +118,130 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Veicolo inviato al cliente." }, { status: 200 });
   } catch (error) {
-    console.error("Vehicle send-to-client API unexpected error", error);
-    return NextResponse.json({ error: "Errore interno durante l'invio email." }, { status: 500 });
+    const details = serializeUnknownError(error);
+
+    console.error(error);
+    console.error(details.message);
+    console.error(details.stack);
+
+    if (details.httpStatus !== null || details.responseBody !== null) {
+      console.error("Resend HTTP status:", details.httpStatus);
+      console.error("Resend response body:", details.responseBody);
+      console.error("Resend real message:", details.message);
+    }
+
+    return NextResponse.json(
+      {
+        error: details.message,
+        status: details.httpStatus,
+        responseBody: details.responseBody,
+      },
+      { status: details.httpStatus ?? 500 }
+    );
   }
 }
 
 async function sendResendEmail({
-  apiKey,
+  resend,
   fromEmail,
   to,
   subject,
   html,
 }: {
-  apiKey: string;
+  resend: Resend;
   fromEmail: string;
   to: string;
   subject: string;
   html: string;
 }) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: [to],
-      subject,
-      html,
-    }),
+  console.info("Executing resend.emails.send", {
+    to,
+    fromEmail,
+    subject,
   });
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as ResendResponse | null;
-    throw new Error(payload?.error?.message || `Resend request failed with status ${response.status}`);
+  const { data, error } = await resend.emails.send({
+    from: fromEmail,
+    to: [to],
+    subject,
+    html,
+  });
+
+  if (error) {
+    const responseBody = safeStringify(error);
+    const message = error.message || "Errore sconosciuto da Resend";
+    const status = getStatusFromUnknown(error);
+
+    console.error("Resend API returned error.", {
+      status,
+      responseBody,
+      message,
+    });
+
+    throw createHttpLikeError(message, status ?? 502, responseBody);
   }
+
+  console.info("resend.emails.send completed", { emailId: data?.id ?? null });
+}
+
+function createHttpLikeError(message: string, status: number, responseBody: string) {
+  const error = new Error(message) as Error & {
+    httpStatus?: number;
+    responseBody?: string;
+  };
+
+  error.httpStatus = status;
+  error.responseBody = responseBody;
+  return error;
+}
+
+function getStatusFromUnknown(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as { statusCode?: unknown; status?: unknown; httpStatus?: unknown };
+
+  const raw = candidate.statusCode ?? candidate.status ?? candidate.httpStatus;
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function safeStringify(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function serializeUnknownError(error: unknown): {
+  message: string;
+  stack: string | null;
+  httpStatus: number | null;
+  responseBody: string | null;
+} {
+  if (error instanceof Error) {
+    const withMeta = error as Error & {
+      httpStatus?: unknown;
+      responseBody?: unknown;
+    };
+
+    const status = getStatusFromUnknown(withMeta.httpStatus ?? error);
+    const body = withMeta.responseBody === undefined || withMeta.responseBody === null ? null : String(withMeta.responseBody);
+
+    return {
+      message: error.message || "Errore interno durante l'invio email.",
+      stack: error.stack ?? null,
+      httpStatus: status,
+      responseBody: body,
+    };
+  }
+
+  return {
+    message: "Errore interno durante l'invio email.",
+    stack: null,
+    httpStatus: null,
+    responseBody: safeStringify(error),
+  };
 }
 
 function buildCustomerEmailHtml({
