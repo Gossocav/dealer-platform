@@ -176,7 +176,7 @@ async function SearchResultCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
           <p className="mt-2 text-sm text-slate-600">{formatText(vehicle.city)}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <Spec label="Data immatricolazione" value={registrationDate} />
+          <Spec label={"Data\u00A0imm.ne"} value={registrationDate} />
           <Spec label="Prezzo" value={formatPrice(vehicle.price)} />
           <Spec label="Km" value={formatMileage(vehicle.mileage)} />
           <Spec label="Cambio" value={formatText(vehicle.transmission)} />
