@@ -332,11 +332,13 @@ function getVehicleExclusionReasons(vehicle: MarketplaceVehicle, filters: Search
   const matchesYear = !hasYearFilter || (Number.isFinite(vehicleYear) && vehicleYear >= yearFrom && vehicleYear <= yearTo);
   if (!matchesYear) reasons.push("year");
 
-  const mileageValue = Number(vehicle.mileage);
-  const kmFrom = filters.kmFrom ? Number(filters.kmFrom) : Number.NEGATIVE_INFINITY;
-  const kmTo = filters.kmTo ? Number(filters.kmTo) : Number.POSITIVE_INFINITY;
-  const hasMileageFilter = Boolean(filters.kmFrom || filters.kmTo);
-  const matchesMileage = !hasMileageFilter || (Number.isFinite(mileageValue) && mileageValue >= kmFrom && mileageValue <= kmTo);
+  const mileageValue = normalizeMileage(vehicle.mileage);
+  const kmFromValue = normalizeMileage(filters.kmFrom);
+  const kmToValue = normalizeMileage(filters.kmTo);
+  const kmFrom = kmFromValue ?? Number.NEGATIVE_INFINITY;
+  const kmTo = kmToValue ?? Number.POSITIVE_INFINITY;
+  const hasMileageFilter = kmFromValue !== null || kmToValue !== null;
+  const matchesMileage = !hasMileageFilter || (mileageValue !== null && mileageValue >= kmFrom && mileageValue <= kmTo);
   if (!matchesMileage) reasons.push("mileage");
 
   const minPrice = filters.minPrice ? Number(filters.minPrice) : Number.NEGATIVE_INFINITY;
@@ -385,6 +387,29 @@ function buildMileageFilterValues() {
   }
 
   return values;
+}
+
+function normalizeMileage(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const raw = String(value).trim().toLowerCase();
+  if (!raw) {
+    return null;
+  }
+
+  const cleaned = raw
+    .replace(/km/g, "")
+    .replace(/[.,\s]/g, "")
+    .trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const normalized = Number(cleaned);
+  return Number.isFinite(normalized) ? normalized : null;
 }
 
 function matchesPriceBand(price: number, priceBand: string) {
