@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerLogo, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerLogo, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, resolveVehicleRegistrationDate, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketplaceCatalogPage() {
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
     .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
@@ -66,6 +66,7 @@ async function CatalogVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) 
   const dealerLogo = resolveDealerLogo(vehicle.dealers);
   const dealerName = formatText(normalizeVehicleDealerName(vehicle.dealers));
   const label = resolveVehicleLabel(vehicle);
+  const registrationDate = resolveVehicleRegistrationDate(vehicle);
 
   return (
     <article className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_60px_-20px_rgba(15,23,42,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_80px_-20px_rgba(15,23,42,0.32)]">
@@ -115,7 +116,7 @@ async function CatalogVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) 
 
         {/* Specifiche */}
         <div className="grid grid-cols-2 gap-2">
-          <Spec label="Anno" value={formatText(vehicle.year)} />
+          <Spec label="DATA IMM.NE" value={registrationDate} />
           <Spec label="Km" value={formatMileage(vehicle.mileage)} />
           <Spec label="Carb." value={formatText(vehicle.fuel)} />
           <Spec label="Cambio" value={formatText(vehicle.transmission)} />

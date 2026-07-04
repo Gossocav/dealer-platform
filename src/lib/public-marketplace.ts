@@ -73,6 +73,11 @@ export type MarketplaceVehicle = {
   version: string | null;
   interior_type: string | null;
   year: string | number | null;
+  registration_date?: string | null;
+  registrationDate?: string | null;
+  first_registration_date?: string | null;
+  data_immatricolazione?: string | null;
+  immatricolazione?: string | null;
   mileage: number | null;
   price: string | number | null;
   fuel: string | null;
@@ -249,6 +254,26 @@ export function resolveVehicleImages(images?: MarketplaceVehicleImage[] | null) 
 
 export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">) {
   return [vehicle.brand, vehicle.model, vehicle.version].filter(Boolean).join(" ") || "Veicolo";
+}
+
+export function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
+  const source = vehicle as Record<string, unknown>;
+  const candidates = [
+    source.registration_date,
+    source.registrationDate,
+    source.first_registration_date,
+    source.immatricolazione,
+    source.data_immatricolazione,
+  ];
+
+  for (const value of candidates) {
+    const normalized = String(value ?? "").trim();
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+
+  return "—";
 }
 
 export function formatMileage(value: number | null) {

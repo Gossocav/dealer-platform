@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ITALIAN_PROVINCES } from "@/lib/italian-provinces";
-import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, resolveVehicleRegistrationDate, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -192,26 +192,6 @@ async function SearchResultCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
       </div>
     </article>
   );
-}
-
-function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
-  const source = vehicle as Record<string, unknown>;
-  const candidates = [
-    source.registration_date,
-    source.registrationDate,
-    source.first_registration_date,
-    source.immatricolazione,
-    source.data_immatricolazione,
-  ];
-
-  for (const value of candidates) {
-    const normalized = String(value ?? "").trim();
-    if (normalized.length > 0) {
-      return normalized;
-    }
-  }
-
-  return "—";
 }
 
 function SearchField({ label, name, defaultValue, placeholder, inputMode }: { label: string; name: string; defaultValue: string; placeholder: string; inputMode?: "text" | "numeric" | "decimal" | "tel" | "search" | "email" | "url" }) {
