@@ -165,7 +165,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">Scheda veicolo pubblica</p>
           <h1 className="mt-4 max-w-4xl min-w-0 break-words text-4xl font-semibold tracking-tight sm:text-5xl">{resolveVehicleLabel(vehicle)}</h1>
           <p className="mt-4 min-w-0 break-words text-base leading-7 text-slate-300 sm:text-lg">
-            {formatText(vehicle.year)} • {formatText(vehicle.fuel)} • {formatText(vehicle.transmission)} • {dealerDisplayName}
+            {formatText(vehicle.fuel)} • {formatText(vehicle.transmission)} • {dealerDisplayName}
           </p>
         </section>
 
@@ -210,7 +210,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Marca" value={formatText(vehicle.brand)} />
                 <Field label="Modello" value={formatText(vehicle.model)} />
                 <Field label="Versione" value={formatText(vehicle.version)} />
-                <Field label="Anno" value={formatText(vehicle.year)} />
                 <Field label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <Field label="Cambio" value={formatText(vehicle.transmission)} />
                 <Field label="Trazione" value={formatText(vehicle.traction)} />
