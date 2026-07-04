@@ -48,7 +48,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, interior_type, year, mileage, price, fuel, transmission, traction, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, interior_type, year, registration_date, mileage, price, fuel, transmission, traction, city, province, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
     .or(getMarketplaceStatusFilter())
     .order("created_at", { ascending: false });
 
@@ -64,7 +64,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
     );
   }
 
-  const vehicles = (data ?? []) as MarketplaceVehicle[];
+  const vehicles = ((data ?? []) as unknown) as MarketplaceVehicle[];
   const results = vehicles.filter((vehicle) => matchesFilters(vehicle, filters));
 
   const brandOptions = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
@@ -159,6 +159,8 @@ async function SearchResultCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
   const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
   const dealerSlug = resolveDealerSlug(vehicle.dealers);
 
+  const registrationDate = resolveVehicleRegistrationDate(vehicle);
+
   return (
     <article className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.22)] transition hover:-translate-y-1 hover:shadow-[0_40px_120px_-40px_rgba(15,23,42,0.34)]">
       <div className="h-52 bg-slate-200">
@@ -174,7 +176,7 @@ async function SearchResultCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
           <p className="mt-2 text-sm text-slate-600">{formatText(vehicle.city)}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <Spec label="Anno" value={formatText(vehicle.year)} />
+          <Spec label="Data immatricolazione" value={registrationDate} />
           <Spec label="Prezzo" value={formatPrice(vehicle.price)} />
           <Spec label="Km" value={formatMileage(vehicle.mileage)} />
           <Spec label="Cambio" value={formatText(vehicle.transmission)} />
@@ -190,6 +192,26 @@ async function SearchResultCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
       </div>
     </article>
   );
+}
+
+function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
+  const source = vehicle as Record<string, unknown>;
+  const candidates = [
+    source.registration_date,
+    source.registrationDate,
+    source.first_registration_date,
+    source.immatricolazione,
+    source.data_immatricolazione,
+  ];
+
+  for (const value of candidates) {
+    const normalized = String(value ?? "").trim();
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+
+  return "—";
 }
 
 function SearchField({ label, name, defaultValue, placeholder, inputMode }: { label: string; name: string; defaultValue: string; placeholder: string; inputMode?: "text" | "numeric" | "decimal" | "tel" | "search" | "email" | "url" }) {
