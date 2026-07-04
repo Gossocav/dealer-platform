@@ -40,6 +40,9 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
             <span className="text-xs font-medium tracking-wide">Immagine non disponibile</span>
           </div>
         )}
+        <div className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-4 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
+          {formatPrice(vehicle.price)}
+        </div>
       </div>
 
       <div className="space-y-4 p-5">
@@ -62,8 +65,8 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <Spec label="DATA IMM.NE" value={registrationDate} />
-          <Spec label="PREZZO" value={formatPrice(vehicle.price)} />
           <Spec label="KM" value={formatMileage(vehicle.mileage)} />
+          <Spec label="ALIMENTAZIONE" value={formatText(vehicle.fuel)} />
           <Spec label="CAMBIO" value={formatText(vehicle.transmission)} />
         </div>
 
