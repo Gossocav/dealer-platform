@@ -233,25 +233,22 @@ function normalizeResolvedDealerId(value: string | null | undefined) {
   return normalized;
 }
 
-function buildMileageOptions() {
-  const values: number[] = [];
+function sanitizeMileageDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
 
-  for (let mileage = 0; mileage <= 100000; mileage += 5000) {
-    values.push(mileage);
-  }
+function formatMileageInput(value: string) {
+  const digits = sanitizeMileageDigits(value);
+  if (!digits) return "";
+  return new Intl.NumberFormat("it-IT").format(Number(digits));
+}
 
-  for (let mileage = 110000; mileage <= 300000; mileage += 10000) {
-    values.push(mileage);
-  }
+function parseMileageForSave(value: string) {
+  const digits = sanitizeMileageDigits(value);
+  if (!digits) return null;
 
-  for (let mileage = 350000; mileage <= 1000000; mileage += 50000) {
-    values.push(mileage);
-  }
-
-  return values.map((value) => ({
-    value: String(value),
-    label: `${new Intl.NumberFormat("it-IT").format(value)} km`,
-  }));
+  const normalized = Number(digits);
+  return Number.isFinite(normalized) ? normalized : null;
 }
 
 const INITIAL_STATE: EditorState = {
@@ -336,12 +333,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     () => ["Interni in pelle", "Interni in pelle e Alcantara", "Interni in tessuto e Alcantara", "Interni in tessuto"],
     []
   );
-  const mileageOptions = useMemo(() => buildMileageOptions(), []);
-  const selectedMileage = state.mileage.trim();
-  const hasCustomSelectedMileage = selectedMileage.length > 0 && !mileageOptions.some((option) => option.value === selectedMileage);
-  const customSelectedMileageLabel = hasCustomSelectedMileage
-    ? `${new Intl.NumberFormat("it-IT").format(Number(selectedMileage))} km`
-    : "";
   const missingFieldSet = useMemo(() => new Set(missingFields), [missingFields]);
 
   useEffect(() => {
@@ -438,7 +429,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         registrationDate: normalizeDateForInput((data as Record<string, unknown>).registration_date),
         color: String((data as Record<string, unknown>).color ?? ""),
         vin: String((data as Record<string, unknown>).vin ?? ""),
-        mileage: typeof data.mileage === "number" ? String(data.mileage) : "",
+        mileage: typeof data.mileage === "number" ? formatMileageInput(String(data.mileage)) : "",
         fuel: String(data.fuel ?? ""),
         transmission: String(data.transmission ?? ""),
         price: data.price === null || data.price === undefined ? "" : String(data.price),
@@ -657,7 +648,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       registration_date: state.registrationDate.trim() || null,
       color: state.color.trim() || null,
       vin: state.vin.trim() || null,
-      mileage: state.mileage.trim() ? Number(state.mileage) : null,
+      mileage: parseMileageForSave(state.mileage),
       fuel: state.fuel.trim() || null,
       transmission: state.transmission.trim() || null,
       price: state.price.trim() ? Number(state.price) : null,
@@ -950,19 +941,17 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
               />
               <label className="block space-y-2">
                 <span className={getFieldLabelClass(missingFieldSet.has("mileage"))}>Chilometri *</span>
-                <select
+                <input
+                  type="text"
+                  required
                   value={state.mileage}
-                  onChange={(event) => updateField("mileage", event.target.value)}
+                  inputMode="numeric"
+                  onFocus={() => updateField("mileage", sanitizeMileageDigits(state.mileage))}
+                  onChange={(event) => updateField("mileage", sanitizeMileageDigits(event.target.value))}
+                  onBlur={() => updateField("mileage", formatMileageInput(state.mileage))}
+                  placeholder="Inserisci chilometri"
                   className={getFieldInputClass(missingFieldSet.has("mileage"))}
-                >
-                  <option value="">Seleziona chilometraggio</option>
-                  {hasCustomSelectedMileage ? <option value={state.mileage}>{customSelectedMileageLabel}</option> : null}
-                  {mileageOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
               <label className="block space-y-2">
                 <span className={getFieldLabelClass(missingFieldSet.has("fuel"))}>Alimentazione *</span>
