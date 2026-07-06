@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 import {
@@ -11,6 +11,8 @@ import {
   type VehicleImportStatus,
   validateVehicleImportRow,
 } from "@/lib/vehicle-import";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
 
 type FeedFormat = "csv" | "xml" | "json";
 type FeedMode = "analyze" | "import";
@@ -34,6 +36,10 @@ type FeedHistoryItem = {
   error_count: number;
   duration_ms: number;
 };
+
+type ApiSupabaseClient = SupabaseClient;
+
+const MAX_FEED_BYTES = 1_000_000;
 
 const PREVIEW_LIMIT = 20;
 const DEMO_FEED_IMAGES_URL = "demo://automotive-feed-images";
@@ -73,11 +79,62 @@ const DEMO_FEED_RECORDS: FeedRecord[] = [
   },
 ];
 
+function normalizeActiveDealerId(value: string | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized;
+}
+
+async function readLimitedText(response: Response, maxBytes: number) {
+  if (!response.body) {
+    return await response.text();
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        const overflow = totalBytes - maxBytes;
+        const allowedLength = value.byteLength - overflow;
+        if (allowedLength > 0) {
+          chunks.push(decoder.decode(value.slice(0, allowedLength), { stream: true }));
+        }
+        break;
+      }
+
+      chunks.push(decoder.decode(value, { stream: true }));
+    }
+
+    return chunks.join("") + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const body = (await request.json()) as FeedRequestBody;
+    let body: FeedRequestBody;
+    try {
+      body = (await request.json()) as FeedRequestBody;
+    } catch {
+      return NextResponse.json({ error: "Payload non valido." }, { status: 400 });
+    }
     const mode: FeedMode = body.mode === "import" ? "import" : "analyze";
     const feedUrl = String(body.feedUrl ?? "").trim();
     const preferredFormat = body.format ?? "auto";
@@ -121,7 +178,7 @@ export async function POST(request: Request) {
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
-    }) as any;
+    });
 
     const {
       data: { user },
@@ -132,7 +189,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Utente non autenticato." }, { status: 401 });
     }
 
-    const dealerId = await resolveDealerId(supabase, user.id);
+    const activeDealerId = normalizeActiveDealerId(request.headers.get("x-active-dealer-id"));
+    const dealerId = await resolveDealerId(supabase, user.id, activeDealerId);
     if (!dealerId) {
       return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 400 });
     }
@@ -144,19 +202,27 @@ export async function POST(request: Request) {
       detectedFormat = "json";
       records = DEMO_FEED_RECORDS;
     } else {
-      const feedResponse = await fetch(feedUrl, {
+      const safeFeedUrl = parseAndValidateExternalHttpUrl(feedUrl);
+
+      const feedResponse = await fetchWithSsrfProtection(safeFeedUrl, {
         method: "GET",
         headers: {
           Accept: "application/json, text/csv, application/xml, text/xml, */*",
         },
         cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
       });
 
       if (!feedResponse.ok) {
         return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
       }
 
-      const rawText = await feedResponse.text();
+      const contentLength = Number(feedResponse.headers.get("content-length") ?? "NaN");
+      if (Number.isFinite(contentLength) && contentLength > MAX_FEED_BYTES) {
+        return NextResponse.json({ error: "Il feed supera la dimensione massima consentita." }, { status: 400 });
+      }
+
+      const rawText = await readLimitedText(feedResponse, MAX_FEED_BYTES);
       detectedFormat = detectFeedFormat(
         preferredFormat,
         feedUrl,
@@ -240,7 +306,7 @@ export async function POST(request: Request) {
         const { error: updateError } = await supabase.from("vehicles").update(payload).eq("id", duplicateId).eq("dealer_id", dealerId);
         if (updateError) {
           skippedCount += 1;
-          errors.push(`Riga ${entry.row.rowNumber}: ${updateError.message || "errore aggiornamento"}`);
+          errors.push(`Riga ${entry.row.rowNumber}: errore aggiornamento veicolo`);
           continue;
         }
         targetVehicleId = duplicateId;
@@ -256,7 +322,7 @@ export async function POST(request: Request) {
 
         if (insertError || !inserted?.id) {
           skippedCount += 1;
-          errors.push(`Riga ${entry.row.rowNumber}: ${insertError?.message || "errore inserimento"}`);
+          errors.push(`Riga ${entry.row.rowNumber}: errore inserimento veicolo`);
           continue;
         }
 
@@ -300,8 +366,8 @@ export async function POST(request: Request) {
       durationMs,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Errore interno durante la sincronizzazione stock.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Vehicles import-feed POST unexpected error", error);
+    return NextResponse.json({ error: "Errore interno durante la sincronizzazione stock." }, { status: 500 });
   }
 }
 
@@ -330,7 +396,7 @@ export async function GET(request: Request) {
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
-    }) as any;
+    });
 
     const {
       data: { user },
@@ -340,7 +406,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ history: buildMockHistory(), mock: true });
     }
 
-    const dealerId = await resolveDealerId(supabase, user.id);
+    const activeDealerId = normalizeActiveDealerId(request.headers.get("x-active-dealer-id"));
+    const dealerId = await resolveDealerId(supabase, user.id, activeDealerId);
     if (!dealerId) {
       return NextResponse.json({ history: buildMockHistory(), mock: true });
     }
@@ -372,7 +439,8 @@ export async function GET(request: Request) {
     }));
 
     return NextResponse.json({ history });
-  } catch {
+  } catch (error) {
+    console.warn("Vehicles import-feed GET fallback to mock history", error);
     return NextResponse.json({ history: buildMockHistory(), mock: true });
   }
 }
@@ -556,7 +624,7 @@ function toRawRows(records: FeedRecord[]): VehicleImportRawRow[] {
   });
 }
 
-async function findDuplicateVehicleId(supabase: any, dealerId: string, mapped: VehicleImportMappedRow) {
+export async function findDuplicateVehicleId(supabase: ApiSupabaseClient, dealerId: string, mapped: VehicleImportMappedRow) {
   const vin = String(mapped.vin ?? "").trim();
 
   if (vin) {
@@ -591,13 +659,17 @@ async function findDuplicateVehicleId(supabase: any, dealerId: string, mapped: V
     .ilike("model", model)
     .ilike("version", version)
     .eq("year", year)
-    .limit(1)
-    .maybeSingle();
+    .limit(2);
 
-  return data?.id ? String(data.id) : null;
+  if (!Array.isArray(data) || data.length !== 1) {
+    return null;
+  }
+
+  const [match] = data;
+  return match?.id ? String(match.id) : null;
 }
 
-async function upsertVehicleImages(supabase: any, dealerId: string, vehicleId: string, imageUrls: string[]) {
+async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId: string, vehicleId: string, imageUrls: string[]) {
   const urls = Array.from(new Set(imageUrls.map((url) => String(url ?? "").trim()).filter(Boolean)));
   if (urls.length === 0) {
     return;
@@ -638,17 +710,13 @@ async function upsertVehicleImages(supabase: any, dealerId: string, vehicleId: s
   }
 }
 
-async function resolveDealerId(supabase: any, userId: string) {
-  const byUser = await supabase.from("dealers").select("id").eq("user_id", userId).limit(1).maybeSingle();
-  if (byUser?.data?.id) {
-    return String(byUser.data.id);
-  }
-
-  const byProfile = await supabase.from("profiles").select("dealer_id").eq("id", userId).maybeSingle();
-  return byProfile?.data?.dealer_id ? String(byProfile.data.dealer_id) : null;
+async function resolveDealerId(supabase: ApiSupabaseClient, userId: string, activeDealerId?: string | null) {
+  return resolveDealerIdFromTenantSources(supabase, userId, {
+    activeDealerId,
+  });
 }
 
-async function detectHistoryTable(supabase: any) {
+async function detectHistoryTable(supabase: ApiSupabaseClient) {
   const candidates = ["vehicle_import_history", "stock_sync_history", "import_history"];
 
   for (const table of candidates) {
@@ -662,7 +730,7 @@ async function detectHistoryTable(supabase: any) {
 }
 
 async function persistHistoryIfTableExists(
-  supabase: any,
+  supabase: ApiSupabaseClient,
   item: Omit<FeedHistoryItem, "id">,
   dealerId: string,
   frequency: "manual" | "nightly" | "weekly"
