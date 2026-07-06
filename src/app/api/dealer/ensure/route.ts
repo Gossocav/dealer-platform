@@ -10,17 +10,29 @@ type EnsureDealerBody = {
   whatsapp_phone?: string;
 };
 
-type UserProfileRow = {
-  dealer_id: string | null;
-};
-
 type DealerIdRow = {
   id: string;
 };
 
+type DealerCandidateRow = {
+  id: string;
+  user_id: string | null;
+};
+
+type DealerMembershipRow = {
+  dealer_id: string | null;
+};
+
+class DealerAssociationConflictError extends Error {}
+
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as EnsureDealerBody;
+    let body: EnsureDealerBody;
+    try {
+      body = (await request.json()) as EnsureDealerBody;
+    } catch {
+      return NextResponse.json({ error: "Payload non valido." }, { status: 400 });
+    }
 
     const legalCompanyName = normalizeText(body.legal_company_name);
     const vatNumber = normalizeText(body.vat_number);
@@ -79,13 +91,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ dealer_id: dealerId }, { status: 200 });
   } catch (error) {
+    if (error instanceof DealerAssociationConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     console.error("Dealer ensure API unexpected error", error);
     return NextResponse.json({ error: "Errore interno durante la registrazione concessionaria." }, { status: 500 });
   }
 }
 
 type EnsureDealerAssociationInput = {
-  supabaseAdmin: SupabaseClient<any, any, any>;
+  supabaseAdmin: SupabaseClient;
   userId: string;
   legalCompanyName: string;
   vatNumber: string;
@@ -105,52 +121,58 @@ async function ensureDealerAssociation({
   phone,
   whatsappPhone,
 }: EnsureDealerAssociationInput) {
-  // 1) Prova associazione nativa dealers.user_id (se presente nello schema).
-  const byUserId = await findDealerIdByUserId(supabaseAdmin, userId);
-  if (byUserId) {
-    await upsertProfile(supabaseAdmin, {
-      userId,
-      dealerId: byUserId,
-    });
-
-    return byUserId;
-  }
-
-  // 2) Fallback compatibile: usa profiles.dealer_id se gia presente.
-  const { data: profileRow } = await supabaseAdmin
-    .from("profiles")
+  const membership = await supabaseAdmin
+    .from("dealer_users")
     .select("dealer_id")
-    .eq("id", userId)
-    .maybeSingle<UserProfileRow>();
+    .eq("profile_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<DealerMembershipRow>();
 
-  if (profileRow?.dealer_id) {
-    await updateDealerBestEffort(supabaseAdmin, profileRow.dealer_id, {
-      legalCompanyName,
-      vatNumber,
-      contactPerson,
-      email,
-      phone,
-      whatsappPhone,
-      userId,
-    });
-
-    return profileRow.dealer_id;
+  if (membership.error) {
+    throw new Error(membership.error.message || "Errore lookup membership dealer.");
   }
 
-  // 3) Evita duplicati provando a riusare un dealer esistente per email+vat.
-  const { data: existingDealer } = await supabaseAdmin
-    .from("dealers")
-    .select("id")
-    .eq("email", email)
-    .eq("vat_number", vatNumber)
-    .limit(1)
-    .maybeSingle<DealerIdRow>();
+  let dealerId = normalizeText(membership.data?.dealer_id);
 
-  let dealerId = existingDealer?.id ?? null;
-
-  // 4) Se non trovato, crea dealer.
   if (!dealerId) {
-    const { data: insertedDealer, error: insertDealerError } = await supabaseAdmin
+    const byOwner = await supabaseAdmin
+      .from("dealers")
+      .select("id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle<DealerIdRow>();
+
+    if (byOwner.error) {
+      throw new Error(byOwner.error.message || "Errore lookup dealer owner.");
+    }
+
+    dealerId = normalizeText(byOwner.data?.id);
+  }
+
+  if (!dealerId) {
+    const existingDealer = await supabaseAdmin
+      .from("dealers")
+      .select("id, user_id")
+      .eq("email", email)
+      .eq("vat_number", vatNumber)
+      .limit(1)
+      .maybeSingle<DealerCandidateRow>();
+
+    if (existingDealer.error) {
+      throw new Error(existingDealer.error.message || "Errore lookup dealer per email e partita IVA.");
+    }
+
+    if (existingDealer.data?.id && existingDealer.data.user_id && existingDealer.data.user_id !== userId) {
+      throw new DealerAssociationConflictError("Questa concessionaria risulta gia associata a un altro account.");
+    }
+
+    dealerId = normalizeText(existingDealer.data?.id);
+  }
+
+  if (!dealerId) {
+    const createdDealer = await supabaseAdmin
       .from("dealers")
       .insert({
         name: legalCompanyName,
@@ -165,14 +187,14 @@ async function ensureDealerAssociation({
       .select("id")
       .maybeSingle<DealerIdRow>();
 
-    if (insertDealerError || !insertedDealer?.id) {
-      throw new Error(insertDealerError?.message || "Impossibile creare il record dealer.");
+    if (createdDealer.error || !createdDealer.data?.id) {
+      throw new Error(createdDealer.error?.message || "Impossibile creare il record dealer.");
     }
 
-    dealerId = insertedDealer.id;
+    dealerId = createdDealer.data.id;
   }
 
-  await updateDealerBestEffort(supabaseAdmin, dealerId, {
+  await updateDealer(supabaseAdmin, dealerId, {
     legalCompanyName,
     vatNumber,
     contactPerson,
@@ -182,7 +204,7 @@ async function ensureDealerAssociation({
     userId,
   });
 
-  await upsertProfile(supabaseAdmin, {
+  await syncIdentityMembership(supabaseAdmin, {
     userId,
     dealerId,
   });
@@ -190,27 +212,8 @@ async function ensureDealerAssociation({
   return dealerId;
 }
 
-async function findDealerIdByUserId(supabaseAdmin: SupabaseClient<any, any, any>, userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("dealers")
-    .select("id")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle<DealerIdRow>();
-
-  if (!error) {
-    return data?.id ?? null;
-  }
-
-  if (isMissingColumnError(error.message, "user_id")) {
-    return null;
-  }
-
-  throw new Error(error.message || "Errore lookup dealer per user_id.");
-}
-
-async function updateDealerBestEffort(
-  supabaseAdmin: SupabaseClient<any, any, any>,
+async function updateDealer(
+  supabaseAdmin: SupabaseClient,
   dealerId: string,
   values: {
     legalCompanyName: string;
@@ -224,7 +227,7 @@ async function updateDealerBestEffort(
 ) {
   const { legalCompanyName, vatNumber, contactPerson, email, phone, whatsappPhone, userId } = values;
 
-  const { error: updateError } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from("dealers")
     .update({
       name: legalCompanyName,
@@ -234,26 +237,18 @@ async function updateDealerBestEffort(
       email,
       phone,
       whatsapp_phone: whatsappPhone,
+      user_id: userId,
       updated_at: new Date().toISOString(),
     })
     .eq("id", dealerId);
 
-  if (updateError) {
-    throw new Error(updateError.message || "Errore aggiornamento dealer.");
-  }
-
-  const { error: userIdError } = await supabaseAdmin
-    .from("dealers")
-    .update({ user_id: userId, updated_at: new Date().toISOString() })
-    .eq("id", dealerId);
-
-  if (userIdError && !isMissingColumnError(userIdError.message, "user_id")) {
-    throw new Error(userIdError.message || "Errore associazione user_id del dealer.");
+  if (error) {
+    throw new Error(error.message || "Errore aggiornamento dealer.");
   }
 }
 
-async function upsertProfile(
-  supabaseAdmin: SupabaseClient<any, any, any>,
+async function syncIdentityMembership(
+  supabaseAdmin: SupabaseClient,
   input: {
     userId: string;
     dealerId: string;
@@ -262,36 +257,37 @@ async function upsertProfile(
   const { userId, dealerId } = input;
   const updatedAt = new Date().toISOString();
 
-  const basePayload: Record<string, unknown> = {
-    id: userId,
-    dealer_id: dealerId,
-    updated_at: updatedAt,
-  };
+  const profile = await supabaseAdmin
+    .from("profiles")
+    .upsert(
+      {
+        id: userId,
+        dealer_id: dealerId,
+        updated_at: updatedAt,
+      },
+      { onConflict: "id" }
+    );
 
-  const attemptedColumns = ["updated_at"];
-
-  for (let index = 0; index <= attemptedColumns.length; index += 1) {
-    const payload = { ...basePayload };
-
-    for (let removeIndex = 0; removeIndex < index; removeIndex += 1) {
-      delete payload[attemptedColumns[removeIndex]];
-    }
-
-    const { error } = await supabaseAdmin
-      .from("profiles")
-      .upsert(payload, { onConflict: "id" });
-
-    if (!error) {
-      return;
-    }
-
-    const missingColumn = attemptedColumns[index];
-    if (!missingColumn || !isMissingColumnError(error.message, missingColumn)) {
-      throw new Error(error.message || "Errore upsert profilo utente.");
-    }
+  if (profile.error) {
+    throw new Error(profile.error.message || "Errore upsert profilo utente.");
   }
 
-  throw new Error("Errore upsert profilo utente.");
+  const membership = await supabaseAdmin
+    .from("dealer_users")
+    .upsert(
+      {
+        dealer_id: dealerId,
+        profile_id: userId,
+        role: "dealer_member",
+        status: "active",
+        updated_at: updatedAt,
+      },
+      { onConflict: "dealer_id,profile_id" }
+    );
+
+  if (membership.error) {
+    throw new Error(membership.error.message || "Errore upsert membership dealer utente.");
+  }
 }
 
 function extractBearerToken(authHeader: string | null) {
@@ -314,13 +310,8 @@ function normalizeEmail(value: unknown) {
   return text.length > 0 ? text : null;
 }
 
-function isMissingColumnError(message: string | undefined, columnName: string) {
-  const text = String(message ?? "").toLowerCase();
-  return text.includes(columnName.toLowerCase()) && (text.includes("column") || text.includes("schema cache"));
-}
-
 async function clearContactMetadataBestEffort(
-  supabaseAdmin: SupabaseClient<any, any, any>,
+  supabaseAdmin: SupabaseClient,
   userId: string,
   userMetadata: unknown
 ) {
