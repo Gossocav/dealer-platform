@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { hitRateLimit } from "@/lib/api-rate-limit";
+import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 
 type LeadInsertBody = {
   vehicleId?: string;
@@ -51,9 +53,19 @@ type VehicleRow = {
   version: string | null;
 };
 
+const MARKETPLACE_LEAD_RATE_LIMIT = {
+  windowMs: 60_000,
+  maxRequests: 20,
+};
+
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as LeadInsertBody;
+    let body: LeadInsertBody;
+    try {
+      body = (await request.json()) as LeadInsertBody;
+    } catch {
+      return NextResponse.json({ error: "Payload non valido." }, { status: 400 });
+    }
 
     const vehicleId = String(body.vehicleId ?? body.vehicle_id ?? "").trim();
     const firstName = String(body.first_name ?? "").trim();
@@ -61,6 +73,14 @@ export async function POST(request: Request) {
     const customerEmail = normalizeEmail(body.email);
     const customerPhone = normalizeText(body.phone);
     const customerMessage = normalizeText(body.message);
+
+    const clientIp = getClientIp(request);
+    const rateLimitKey = `marketplace-lead:${clientIp || "unknown"}:${vehicleId || "unknown"}`;
+    const rateLimit = hitRateLimit(rateLimitKey, MARKETPLACE_LEAD_RATE_LIMIT);
+
+    if (rateLimit.limited) {
+      return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
+    }
 
     if (!vehicleId || !firstName || !lastName) {
       return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
@@ -74,14 +94,14 @@ export async function POST(request: Request) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error("Missing Supabase env vars for marketplace lead API.");
+      console.error("Missing Supabase env vars for marketplace lead API.", { errorType: "missing_env" });
       return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
     }
 
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseServiceRoleKey) {
-      console.error("SUPABASE_SERVICE_ROLE_KEY missing: cannot resolve dealer from dealers table.");
+      console.error("SUPABASE_SERVICE_ROLE_KEY missing: cannot resolve dealer from dealers table.", { errorType: "missing_env" });
       return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
     }
 
@@ -109,7 +129,10 @@ export async function POST(request: Request) {
       .maybeSingle<VehicleRow>();
 
     if (vehicleError || !vehicleData) {
-      console.error("Vehicle lookup before lead insert error", vehicleError);
+      console.error("Vehicle lookup before lead insert error", {
+        errorType: vehicleError?.name ?? "db_error",
+        vehicleId,
+      });
       return NextResponse.json({ error: "Veicolo non trovato." }, { status: 400 });
     }
 
@@ -126,9 +149,9 @@ export async function POST(request: Request) {
 
     if (dealerError || !dealerData?.id) {
       console.error("Dealer lookup failed for marketplace lead.", {
+        errorType: dealerError?.name ?? "db_error",
         dealerId: vehicleData.dealer_id,
         vehicleId: vehicleData.id,
-        dealerError,
       });
       return NextResponse.json({ error: "Richiesta non inviata. Contatta il supporto." }, { status: 400 });
     }
@@ -148,13 +171,31 @@ export async function POST(request: Request) {
     ]).select("id, vehicle_id, created_at").maybeSingle<LeadInsertRow>();
 
     if (insertError) {
-      console.error("Marketplace lead insert error", insertError);
-      return NextResponse.json({ error: insertError.message || "Errore durante il salvataggio della richiesta." }, { status: 400 });
+      console.error("Marketplace lead insert error", {
+        errorType: insertError.name ?? "db_error",
+        vehicleId,
+      });
+      return NextResponse.json({ error: "Si è verificato un errore." }, { status: 400 });
     }
 
     if (!leadInsertData) {
-      return NextResponse.json({ error: "Lead salvata ma risposta incompleta dal database." }, { status: 500 });
+      return NextResponse.json({ error: "Si è verificato un errore." }, { status: 500 });
     }
+
+    await writeVehicleTimelineEvent(supabaseAdmin, {
+      dealerId: vehicleData.dealer_id,
+      vehicleId: vehicleData.id,
+      action: "vehicle.lead_received",
+      actorType: "api",
+      actorProfileId: null,
+      metadata: {
+        source: "marketplace",
+        leadId: leadInsertData.id,
+      },
+      after: {
+        leadId: leadInsertData.id,
+      },
+    });
 
     const vehicleLabel = [vehicleData.brand, vehicleData.model, vehicleData.version].filter(Boolean).join(" ") || vehicleData.id;
 
@@ -178,10 +219,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Richiesta inviata correttamente." }, { status: 200 });
   } catch (error) {
-    console.error("Marketplace lead API unexpected error", error);
+    console.error("Marketplace lead API unexpected error", {
+      errorType: error instanceof Error ? error.name : "unknown_error",
+    });
     if (error instanceof Error) {
-      console.error("Marketplace lead API unexpected error message", error.message);
-      console.error("Marketplace lead API unexpected error stack", error.stack);
+      console.error("Marketplace lead API unexpected error details", {
+        errorType: error.name,
+      });
     }
     return NextResponse.json({ error: "Errore interno durante l'invio della richiesta." }, { status: 500 });
   }
@@ -216,7 +260,7 @@ async function sendEmailsBestEffort({
   const fromEmail = process.env.RESEND_FROM_EMAIL;
 
   if (!resendApiKey || !fromEmail) {
-    console.error("Email provider env vars missing: set RESEND_API_KEY and RESEND_FROM_EMAIL.");
+    console.error("Email provider env vars missing: set RESEND_API_KEY and RESEND_FROM_EMAIL.", { errorType: "missing_env" });
     return;
   }
 
@@ -225,20 +269,17 @@ async function sendEmailsBestEffort({
   const fromEmailDomain = normalizedFromEmail?.split("@")[1] ?? null;
 
   if (!normalizedFromEmail || !fromEmailLocalPart || !fromEmailDomain) {
-    console.error("Invalid RESEND_FROM_EMAIL format for marketplace lead emails.", { fromEmail });
+    console.error("Invalid RESEND_FROM_EMAIL format for marketplace lead emails.", { errorType: "invalid_config" });
     return;
   }
 
   if (normalizedFromEmail.startsWith("re_")) {
-    console.error("Invalid RESEND_FROM_EMAIL: looks like an API key, not an email address.", { fromEmail });
+    console.error("Invalid RESEND_FROM_EMAIL: looks like an API key, not an email address.", { errorType: "invalid_config" });
     return;
   }
 
   if (fromEmailDomain !== "keyplanrental.it" || !["noreply", "info"].includes(fromEmailLocalPart)) {
-    console.error("Invalid RESEND_FROM_EMAIL for marketplace lead emails.", {
-      fromEmail: normalizedFromEmail,
-      expectedExamples: ["noreply@keyplanrental.it", "info@keyplanrental.it"],
-    });
+    console.error("Invalid RESEND_FROM_EMAIL for marketplace lead emails.", { errorType: "invalid_config" });
     return;
   }
 
@@ -281,7 +322,7 @@ async function sendEmailsBestEffort({
         subject: "🚗 Nuova richiesta informazioni",
         html: dealerHtml,
       });
-      console.info("Marketplace dealer email sent", { dealerEmail, resendEmailId: dealerSend.id ?? null });
+      console.info("Marketplace dealer email sent", { provider: "resend", resendEmailId: dealerSend.id ?? null });
     } catch (error) {
       logEmailSendError("Dealer email send error", error);
     }
@@ -311,7 +352,7 @@ async function sendEmailsBestEffort({
         subject: "Abbiamo ricevuto la tua richiesta",
         html: customerHtml,
       });
-      console.info("Marketplace customer confirmation email sent", { customerEmail, resendEmailId: customerSend.id ?? null });
+      console.info("Marketplace customer confirmation email sent", { provider: "resend", resendEmailId: customerSend.id ?? null });
     } catch (error) {
       logEmailSendError("Customer confirmation email send error", error);
     }
@@ -355,7 +396,9 @@ async function sendResendEmail({
     try {
       payload = responseText ? (JSON.parse(responseText) as ResendResponse) : null;
     } catch (parseError) {
-      console.error("Resend marketplace email error response is not valid JSON", parseError);
+      console.error("Resend marketplace email error response is not valid JSON", {
+        errorType: parseError instanceof Error ? parseError.name : "parse_error",
+      });
     }
 
     const resendMessage = payload?.error?.message || payload?.message || `Resend request failed with status ${response.status}`;
@@ -365,24 +408,28 @@ async function sendResendEmail({
   try {
     return (responseText ? (JSON.parse(responseText) as ResendSuccessResponse) : { id: undefined }) as ResendSuccessResponse;
   } catch (parseError) {
-    console.error("Resend marketplace success response is not valid JSON", parseError);
+    console.error("Resend marketplace success response is not valid JSON", {
+      errorType: parseError instanceof Error ? parseError.name : "parse_error",
+    });
     return { id: undefined };
   }
 }
 
 function logEmailSendError(prefix: string, error: unknown) {
-  console.error(prefix, error);
+  console.error(prefix, {
+    errorType: error instanceof Error ? error.name : "unknown_error",
+  });
 
   if (error instanceof ResendApiError) {
     console.error(`${prefix} status`, error.status);
-    console.error(`${prefix} response body`, error.responseBody);
-    console.error(`${prefix} message`, error.message);
+    console.error(`${prefix} provider`, "resend");
     return;
   }
 
   if (error instanceof Error) {
-    console.error(`${prefix} message`, error.message);
-    console.error(`${prefix} stack`, error.stack);
+    console.error(`${prefix} details`, {
+      errorType: error.name,
+    });
   }
 }
 
@@ -394,6 +441,26 @@ function normalizeEmail(value: string | null | undefined) {
 function normalizeText(value: string | null | undefined) {
   const normalized = String(value ?? "").trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function getClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) return first;
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  const cfConnectingIp = request.headers.get("cf-connecting-ip")?.trim();
+  if (cfConnectingIp) {
+    return cfConnectingIp;
+  }
+
+  return null;
 }
 
 function escapeHtml(value: string) {
