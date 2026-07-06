@@ -267,6 +267,20 @@ export default function AgendaPage() {
     setIsModalOpen(true);
   };
 
+  const openCreateModalForDay = (day: Date) => {
+    const defaultStart = new Date(day);
+    defaultStart.setHours(9, 0, 0, 0);
+    const defaultEnd = new Date(day);
+    defaultEnd.setHours(10, 0, 0, 0);
+
+    setDraft({
+      ...EMPTY_DRAFT,
+      start_at: toDateTimeLocal(defaultStart),
+      end_at: toDateTimeLocal(defaultEnd),
+    });
+    setIsModalOpen(true);
+  };
+
   const openEditModal = (appointment: Appointment) => {
     setDraft({
       id: appointment.id,
@@ -513,10 +527,7 @@ export default function AgendaPage() {
               monthDays={monthDays}
               appointmentsByDay={appointmentsByDay}
               cursorDate={cursorDate}
-              onDaySelect={(date) => {
-                setCursorDate(date);
-                setView("day");
-              }}
+              onDayCreate={openCreateModalForDay}
               onEdit={openEditModal}
               onDelete={handleDelete}
             />
@@ -626,14 +637,14 @@ function MonthView({
   monthDays,
   appointmentsByDay,
   cursorDate,
-  onDaySelect,
+  onDayCreate,
   onEdit,
   onDelete,
 }: {
   monthDays: Date[];
   appointmentsByDay: Record<string, Appointment[]>;
   cursorDate: Date;
-  onDaySelect: (date: Date) => void;
+  onDayCreate: (date: Date) => void;
   onEdit: (appointment: Appointment) => void;
   onDelete: (id: string) => void;
 }) {
@@ -653,10 +664,17 @@ function MonthView({
           const isCurrentMonth = day.getMonth() === cursorDate.getMonth();
 
           return (
-            <div key={key} className={`rounded-2xl border p-3 ${isCurrentMonth ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-slate-100/70"}`}>
+            <div
+              key={key}
+              onClick={() => onDayCreate(day)}
+              className={`cursor-pointer rounded-2xl border p-3 ${isCurrentMonth ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-slate-100/70"}`}
+            >
               <button
                 type="button"
-                onClick={() => onDaySelect(day)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDayCreate(day);
+                }}
                 className="mb-2 text-sm font-semibold text-slate-800 hover:text-blue-700"
               >
                 {day.getDate()}
@@ -666,7 +684,10 @@ function MonthView({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onEdit(item)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEdit(item);
+                    }}
                     className={`flex w-full flex-col rounded-xl border px-2 py-1 text-left text-xs ${statusClass(item.status)}`}
                   >
                     <span className="font-semibold">{formatHour(item.start_at)}</span>
@@ -677,7 +698,10 @@ function MonthView({
                 {items.length > 0 ? (
                   <button
                     type="button"
-                    onClick={() => onDelete(items[0].id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDelete(items[0].id);
+                    }}
                     className="text-[11px] font-semibold text-red-600 hover:text-red-700"
                   >
                     Elimina ultimo selezionato
