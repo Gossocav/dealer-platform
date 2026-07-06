@@ -2,9 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import {
+  appointmentStatusLabel,
+  mapAppointmentStatusToDb,
+  normalizeAppointmentStatus,
+  type AppointmentStatus as DbAppointmentStatus,
+} from "@/lib/appointments";
 import { supabase } from "@/lib/supabaseClient";
 
-type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "cancelled";
+type AppointmentStatus = DbAppointmentStatus;
 type CalendarView = "month" | "week" | "day" | "list";
 
 type Appointment = {
@@ -17,7 +23,7 @@ type Appointment = {
   description: string | null;
   start_at: string | null;
   end_at: string | null;
-  status: AppointmentStatus | null;
+  status: string | null;
   created_at: string | null;
   updated_at: string | null;
   customer?: {
@@ -82,10 +88,9 @@ const VIEW_OPTIONS: Array<{ key: CalendarView; label: string }> = [
 
 const STATUS_OPTIONS: Array<{ key: "all" | AppointmentStatus; label: string }> = [
   { key: "all", label: "Tutti" },
-  { key: "scheduled", label: "Programmato" },
-  { key: "confirmed", label: "Confermato" },
-  { key: "completed", label: "Concluso" },
-  { key: "cancelled", label: "Annullato" },
+  { key: "programmato", label: "Programmato" },
+  { key: "completato", label: "Completato" },
+  { key: "annullato", label: "Annullato" },
 ];
 
 const EMPTY_DRAFT: AppointmentDraft = {
@@ -97,7 +102,7 @@ const EMPTY_DRAFT: AppointmentDraft = {
   description: "",
   start_at: "",
   end_at: "",
-  status: "scheduled",
+  status: "programmato",
 };
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -176,14 +181,28 @@ export default function AgendaPage() {
   }, []);
 
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        void fetchData();
+      }, 150);
+    };
+
     const channel = supabase
       .channel("agenda-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => {
-        void fetchData();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, scheduleRefresh)
       .subscribe();
 
     return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
       void supabase.removeChannel(channel);
     };
   }, []);
@@ -193,7 +212,7 @@ export default function AgendaPage() {
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((item) => {
-      const statusValue = item.status ?? "scheduled";
+      const statusValue = normalizeStatus(item.status);
       if (filterStatus !== "all" && statusValue !== filterStatus) return false;
 
       if (!normalizedSearch) return true;
@@ -264,8 +283,8 @@ export default function AgendaPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm("Sei sicuro di voler eliminare questo appuntamento?");
-    if (!confirmed) return;
+    const isDeleteApproved = window.confirm("Sei sicuro di voler eliminare questo appuntamento?");
+    if (!isDeleteApproved) return;
 
     setLoading(true);
     setStatusMessage(null);
@@ -304,8 +323,14 @@ export default function AgendaPage() {
       return;
     }
 
+    if (!draft.end_at) {
+      setStatusMessage("Inserisci data/ora di fine.");
+      setStatusMessageType("error");
+      return;
+    }
+
     const startAt = new Date(draft.start_at).toISOString();
-    const endAt = draft.end_at ? new Date(draft.end_at).toISOString() : new Date(new Date(draft.start_at).getTime() + 60 * 60 * 1000).toISOString();
+    const endAt = new Date(draft.end_at).toISOString();
 
     if (new Date(endAt).getTime() < new Date(startAt).getTime()) {
       setStatusMessage("La fine non può essere precedente all'inizio.");
@@ -324,7 +349,7 @@ export default function AgendaPage() {
       description: nullableText(draft.description),
       start_at: startAt,
       end_at: endAt,
-      status: draft.status,
+      status: mapAppointmentStatusToDb(draft.status),
       updated_at: new Date().toISOString(),
     };
 
@@ -728,7 +753,7 @@ function DayView({
           <div key={item.id} className={`rounded-2xl border p-4 ${statusClass(item.status)}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold">{item.title ?? "Appuntamento"}</p>
-              <span className="text-xs font-semibold uppercase">{item.status ?? "scheduled"}</span>
+              <span className="text-xs font-semibold uppercase">{statusLabel(item.status)}</span>
             </div>
             <p className="mt-2 text-sm">{formatHour(item.start_at)} - {formatHour(item.end_at)}</p>
             <p className="mt-1 text-xs">Cliente: {formatCustomer(item.customer)}</p>
@@ -787,7 +812,7 @@ function ListView({
                 <td className="px-4 py-4 font-semibold text-slate-900">{item.title ?? "-"}</td>
                 <td className="px-4 py-4 text-slate-700">{formatDateTime(item.start_at)}</td>
                 <td className="px-4 py-4 text-slate-700">{formatDateTime(item.end_at)}</td>
-                <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusPillClass(item.status)}`}>{item.status ?? "scheduled"}</span></td>
+                <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusPillClass(item.status)}`}>{statusLabel(item.status)}</span></td>
                 <td className="px-4 py-4 text-slate-700">{formatCustomer(item.customer)}</td>
                 <td className="px-4 py-4 text-slate-700">{formatLead(item.lead)}</td>
                 <td className="px-4 py-4 text-slate-700">{formatVehicle(item.vehicle)}</td>
@@ -862,26 +887,24 @@ function Select({
 }
 
 function normalizeStatus(status: string | null | undefined): AppointmentStatus {
-  const value = String(status ?? "scheduled").trim().toLowerCase();
-  if (value === "confirmed" || value === "confermato") return "confirmed";
-  if (value === "completed" || value === "concluso") return "completed";
-  if (value === "cancelled" || value === "annullato") return "cancelled";
-  return "scheduled";
+  return normalizeAppointmentStatus(status);
+}
+
+function statusLabel(status: string | null | undefined) {
+  return appointmentStatusLabel(normalizeStatus(status));
 }
 
 function statusClass(status: string | null | undefined) {
   const value = normalizeStatus(status);
-  if (value === "confirmed") return "border-blue-200 bg-blue-50 text-blue-900";
-  if (value === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-900";
-  if (value === "cancelled") return "border-rose-200 bg-rose-50 text-rose-900";
+  if (value === "completato") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (value === "annullato") return "border-rose-200 bg-rose-50 text-rose-900";
   return "border-amber-200 bg-amber-50 text-amber-900";
 }
 
 function statusPillClass(status: string | null | undefined) {
   const value = normalizeStatus(status);
-  if (value === "confirmed") return "bg-blue-100 text-blue-700";
-  if (value === "completed") return "bg-emerald-100 text-emerald-700";
-  if (value === "cancelled") return "bg-rose-100 text-rose-700";
+  if (value === "completato") return "bg-emerald-100 text-emerald-700";
+  if (value === "annullato") return "bg-rose-100 text-rose-700";
   return "bg-amber-100 text-amber-700";
 }
 
