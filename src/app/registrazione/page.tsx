@@ -17,6 +17,26 @@ type FormState = {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
+type PasswordChecklist = {
+  minLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasNumber: boolean;
+};
+
+function evaluatePassword(password: string): PasswordChecklist {
+  return {
+    minLength: password.length >= 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /\d/.test(password),
+  };
+}
+
+function isPasswordValid(checklist: PasswordChecklist) {
+  return checklist.minLength && checklist.hasUppercase && checklist.hasLowercase && checklist.hasNumber;
+}
+
 function translateSupabaseAuthError(rawMessage: string | null | undefined) {
   const message = String(rawMessage ?? "").trim();
   const normalized = message.toLowerCase();
@@ -37,8 +57,12 @@ function translateSupabaseAuthError(rawMessage: string | null | undefined) {
     return "La password e troppo corta. Usa almeno 8 caratteri.";
   }
 
+  if (normalized.includes("password should contain") || normalized.includes("must contain") || normalized.includes("uppercase") || normalized.includes("lowercase") || normalized.includes("number")) {
+    return "La password deve avere almeno 8 caratteri, una maiuscola, una minuscola e un numero.";
+  }
+
   if (normalized.includes("weak password") || normalized.includes("weak_password") || normalized.includes("password is too weak")) {
-    return "La password e troppo debole. Usa almeno 8 caratteri con lettere e numeri.";
+    return "La password e troppo debole. Usa almeno 8 caratteri, una maiuscola, una minuscola e un numero.";
   }
 
   if (normalized.includes("email not confirmed")) {
@@ -84,6 +108,12 @@ export default function RegistrazionePage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [serverMessage, setServerMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const passwordChecklist = evaluatePassword(values.password);
+  const passwordIsValid = isPasswordValid(passwordChecklist);
+  const canSubmit = !isSubmitting && passwordIsValid;
 
   const validate = (state: FormState) => {
     const newErrors: FormErrors = {};
@@ -106,8 +136,11 @@ export default function RegistrazionePage() {
     if (!state.phone.trim()) newErrors.phone = "Inserisci un numero di telefono.";
     if (!state.password) {
       newErrors.password = "Inserisci una password.";
-    } else if (state.password.length < 8) {
-      newErrors.password = "La password deve avere almeno 8 caratteri.";
+    } else {
+      const checks = evaluatePassword(state.password);
+      if (!isPasswordValid(checks)) {
+        newErrors.password = "La password deve avere almeno 8 caratteri, una maiuscola, una minuscola e un numero.";
+      }
     }
 
     if (!state.confirmPassword) {
@@ -356,31 +389,89 @@ export default function RegistrazionePage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Password</label>
-                    <input
-                      id="password"
-                      type="password"
-                      value={values.password}
-                      onChange={handleChange("password")}
-                      placeholder="Password"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
-                        errors.password ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
-                      }`}
-                    />
+                    <div className="relative">
+                      <input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        value={values.password}
+                        onChange={handleChange("password")}
+                        placeholder="Password"
+                        className={`w-full rounded-3xl border px-4 py-3 pr-12 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                          errors.password ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                        className="absolute inset-y-0 right-0 inline-flex items-center justify-center px-4 text-slate-500 transition hover:text-slate-700"
+                      >
+                        {showPassword ? (
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 3l18 18" />
+                            <path d="M10.58 10.58A2 2 0 0 0 12 14a2 2 0 0 0 1.42-.58" />
+                            <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c5 0 9.27 3.11 11 7a12.12 12.12 0 0 1-4.35 5.09" />
+                            <path d="M6.61 6.61A12.26 12.26 0 0 0 1 12c1.73 3.89 6 7 11 7a10.94 10.94 0 0 0 5.09-1.12" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                     {errors.password ? <p className="mt-2 text-sm text-red-600">{errors.password}</p> : null}
+                    <ul className="mt-3 space-y-1 text-xs text-slate-600" aria-live="polite">
+                      <li className={passwordChecklist.minLength ? "text-emerald-700" : "text-slate-600"}>
+                        {passwordChecklist.minLength ? "✓" : "○"} Minimo 8 caratteri
+                      </li>
+                      <li className={passwordChecklist.hasUppercase ? "text-emerald-700" : "text-slate-600"}>
+                        {passwordChecklist.hasUppercase ? "✓" : "○"} Una lettera maiuscola
+                      </li>
+                      <li className={passwordChecklist.hasLowercase ? "text-emerald-700" : "text-slate-600"}>
+                        {passwordChecklist.hasLowercase ? "✓" : "○"} Una lettera minuscola
+                      </li>
+                      <li className={passwordChecklist.hasNumber ? "text-emerald-700" : "text-slate-600"}>
+                        {passwordChecklist.hasNumber ? "✓" : "○"} Un numero
+                      </li>
+                    </ul>
                   </div>
 
                   <div>
                     <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-slate-700">Conferma password</label>
-                    <input
-                      id="confirmPassword"
-                      type="password"
-                      value={values.confirmPassword}
-                      onChange={handleChange("confirmPassword")}
-                      placeholder="Conferma password"
-                      className={`w-full rounded-3xl border px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
-                        errors.confirmPassword ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
-                      }`}
-                    />
+                    <div className="relative">
+                      <input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={values.confirmPassword}
+                        onChange={handleChange("confirmPassword")}
+                        placeholder="Conferma password"
+                        className={`w-full rounded-3xl border px-4 py-3 pr-12 text-sm text-slate-900 placeholder:text-slate-400 caret-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
+                          errors.confirmPassword ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        aria-label={showConfirmPassword ? "Nascondi conferma password" : "Mostra conferma password"}
+                        className="absolute inset-y-0 right-0 inline-flex items-center justify-center px-4 text-slate-500 transition hover:text-slate-700"
+                      >
+                        {showConfirmPassword ? (
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 3l18 18" />
+                            <path d="M10.58 10.58A2 2 0 0 0 12 14a2 2 0 0 0 1.42-.58" />
+                            <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c5 0 9.27 3.11 11 7a12.12 12.12 0 0 1-4.35 5.09" />
+                            <path d="M6.61 6.61A12.26 12.26 0 0 0 1 12c1.73 3.89 6 7 11 7a10.94 10.94 0 0 0 5.09-1.12" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                     {errors.confirmPassword ? <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p> : null}
                   </div>
                 </div>
@@ -394,12 +485,12 @@ export default function RegistrazionePage() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={!canSubmit}
                   className={`inline-flex w-full justify-center rounded-3xl px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition focus:outline-none focus:ring-4 focus:ring-blue-200 ${
-                    isSubmitting ? "cursor-not-allowed bg-blue-400 hover:bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+                    !canSubmit ? "cursor-not-allowed bg-blue-400 hover:bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
                   }`}
                 >
-                  {isSubmitting ? "Creazione in corso..." : "Crea account"}
+                  {isSubmitting ? "Registrazione in corso..." : "Registrati"}
                 </button>
               </form>
             </div>
