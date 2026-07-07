@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isDealerAccountApproved } from "@/lib/account-approval";
+import { isDealerAccountApproved, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 function sanitizeNextPath(rawNext: string | null | undefined) {
@@ -65,6 +65,23 @@ export default function LoginClient() {
       setLoading(false);
       setMessage("Sessione non valida dopo il login. Riprova.");
       setMessageType("error");
+      return;
+    }
+
+    let isPlatformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
+
+    if (!isPlatformAdmin) {
+      const profile = await authClient.from("profiles").select("role").eq("id", user.id).maybeSingle<{ role: string | null }>();
+
+      if (!profile.error) {
+        isPlatformAdmin = isPlatformAdminRole(profile.data?.role);
+      }
+    }
+
+    if (isPlatformAdmin) {
+      setLoading(false);
+      router.replace(nextPath);
+      router.refresh();
       return;
     }
 
