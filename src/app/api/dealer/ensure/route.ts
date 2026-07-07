@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 
 type EnsureDealerBody = {
   legal_company_name?: string;
@@ -86,6 +87,16 @@ export async function POST(request: Request) {
       phone,
       whatsappPhone,
     });
+
+    try {
+      await sendDealerLifecycleEmail({
+        toEmail: email,
+        dealerName: legalCompanyName,
+        kind: "request_received",
+      });
+    } catch (emailError) {
+      console.error("Dealer ensure request-received email failed", emailError);
+    }
 
     await clearContactMetadataBestEffort(supabaseAdmin, user.id, user.user_metadata);
 

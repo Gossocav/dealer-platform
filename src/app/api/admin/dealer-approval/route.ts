@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 
 type DealerApprovalAction = "approve" | "reject";
 
@@ -19,6 +20,12 @@ type DealerListRow = {
   phone: string | null;
   status: string | null;
   created_at: string | null;
+};
+
+type DealerEmailTargetRow = {
+  legal_name: string | null;
+  name: string | null;
+  email: string | null;
 };
 
 type ProfileRoleRow = {
@@ -169,6 +176,16 @@ export async function POST(request: Request) {
   const dealerStatus = action === "approve" ? "approved" : "rejected";
   const membershipStatus = action === "approve" ? "active" : "disabled";
 
+  const dealerTarget = await context.supabaseAdmin
+    .from("dealers")
+    .select("legal_name, name, email")
+    .eq("id", dealerId)
+    .maybeSingle<DealerEmailTargetRow>();
+
+  if (dealerTarget.error) {
+    return NextResponse.json({ error: dealerTarget.error.message || "Errore caricamento dati dealer." }, { status: 500 });
+  }
+
   const dealerUpdate = await context.supabaseAdmin
     .from("dealers")
     .update({
@@ -191,6 +208,21 @@ export async function POST(request: Request) {
 
   if (membershipUpdate.error) {
     return NextResponse.json({ error: membershipUpdate.error.message || "Errore aggiornamento membership dealer." }, { status: 500 });
+  }
+
+  const targetEmail = normalizeText(dealerTarget.data?.email);
+  const dealerName = normalizeText(dealerTarget.data?.legal_name) || normalizeText(dealerTarget.data?.name) || "Concessionaria";
+
+  if (targetEmail) {
+    try {
+      await sendDealerLifecycleEmail({
+        toEmail: targetEmail,
+        dealerName,
+        kind: action === "approve" ? "approved" : "rejected",
+      });
+    } catch (emailError) {
+      console.error("Dealer approval lifecycle email failed", emailError);
+    }
   }
 
   return NextResponse.json(
