@@ -19,6 +19,38 @@ function normalizeDealerId(value: unknown) {
   return text.length > 0 ? text : null;
 }
 
+function normalizeRole(value: unknown) {
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+
+  return text.length > 0 ? text : null;
+}
+
+function readRoleFromRecord(record: unknown) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return null;
+  }
+
+  const raw = record as Record<string, unknown>;
+
+  return normalizeRole(raw.role ?? raw.profile ?? null);
+}
+
+export function resolveUserRoleFromMetadata(user: {
+  app_metadata?: unknown;
+  user_metadata?: unknown;
+} | null | undefined) {
+  return readRoleFromRecord(user?.app_metadata) ?? readRoleFromRecord(user?.user_metadata);
+}
+
+export function isPlatformAdminRole(role: string | null | undefined) {
+  const normalized = normalizeRole(role);
+
+  return normalized === "admin" || normalized === "platform_owner";
+}
+
 export async function isDealerAccountApproved(supabase: SupabaseClient, userId: string) {
   const membership = await supabase
     .from("dealer_users")

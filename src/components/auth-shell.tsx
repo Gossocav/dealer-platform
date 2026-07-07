@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NotificationBell } from "@/components/notification-bell";
 import { TodayAppointmentsBadge } from "@/components/today-appointments-badge";
 import { UserMenu } from "@/components/user-menu";
-import { isDealerAccountApproved } from "@/lib/account-approval";
+import { isDealerAccountApproved, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
 type AuthShellProps = {
@@ -50,6 +50,7 @@ export function AuthShell({ children }: AuthShellProps) {
   const [checked, setChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [accountApproved, setAccountApproved] = useState(false);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
   useEffect(() => {
     // Le route pubbliche non richiedono alcun controllo autenticazione.
@@ -74,6 +75,20 @@ export function AuthShell({ children }: AuthShellProps) {
       if (!userId) {
         const next = encodeURIComponent(pathname || "/dashboard");
         router.replace(`/login?next=${next}`);
+        return;
+      }
+
+      const platformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
+      setIsPlatformAdmin(platformAdmin);
+
+      if (platformAdmin) {
+        setAccountApproved(true);
+
+        if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/registrazione") {
+          const next = sanitizeNextPath(new URLSearchParams(window.location.search).get("next"));
+          router.replace(next);
+        }
+
         return;
       }
 
@@ -110,6 +125,7 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (!hasUser) {
         setAccountApproved(false);
+        setIsPlatformAdmin(false);
       }
 
       if (event === "SIGNED_OUT") {
@@ -120,6 +136,17 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (hasUser && session?.user) {
         void (async () => {
+          const platformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(session.user));
+
+          if (platformAdmin) {
+            if (!mounted) return;
+            setIsPlatformAdmin(true);
+            setAccountApproved(true);
+            return;
+          }
+
+          setIsPlatformAdmin(false);
+
           let approved = false;
           try {
             approved = await isDealerAccountApproved(supabase, session.user.id);
@@ -168,7 +195,7 @@ export function AuthShell({ children }: AuthShellProps) {
     );
   }
 
-  if (!accountApproved && !isWaitingRoute) {
+  if (!accountApproved && !isWaitingRoute && !isPlatformAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
         Reindirizzamento...
@@ -176,7 +203,7 @@ export function AuthShell({ children }: AuthShellProps) {
     );
   }
 
-  if (!accountApproved && isWaitingRoute) {
+  if (!accountApproved && isWaitingRoute && !isPlatformAdmin) {
     return (
       <>
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
