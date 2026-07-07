@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isDealerAccountApproved, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -29,6 +29,7 @@ export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = useMemo(() => sanitizeNextPath(searchParams.get("next")), [searchParams]);
+  const accessReason = useMemo(() => String(searchParams.get("reason") ?? "").trim().toLowerCase(), [searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,6 +37,13 @@ export default function LoginClient() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<"success" | "error" | null>(null);
+
+  useEffect(() => {
+    if (accessReason === "admin_only") {
+      setMessage("Accesso non autorizzato: questa area e riservata ai platform owner.");
+      setMessageType("error");
+    }
+  }, [accessReason]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
         }
       }
 
-      router.replace(isPlatformAdmin ? "/admin" : "/login");
+      router.replace(isPlatformAdmin ? "/admin" : "/login?reason=admin_only");
       router.refresh();
     };
 
@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
     if (!isPlatformAdmin) {
       await authClient.auth.signOut();
       setLoading(false);
-      router.replace("/login");
+      router.replace("/login?reason=admin_only");
       router.refresh();
       return;
     }
