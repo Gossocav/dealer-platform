@@ -1,4 +1,12 @@
-export type VehicleStatus = "published" | "draft" | "sold" | "review" | string;
+import {
+  evaluateVehicleStateTransition,
+  getVehicleStateLabel,
+  resolveVehicleLifecycleState,
+  type VehicleLifecycleState,
+  type VehiclePermission,
+} from "@/lib/vehicle-state-machine";
+
+export type VehicleStatus = VehicleLifecycleState | string;
 
 export const VEHICLE_TRACTION_OPTIONS = ["Anteriore", "Posteriore", "Integrale 4x4"] as const;
 export type VehicleTraction = (typeof VEHICLE_TRACTION_OPTIONS)[number];
@@ -17,6 +25,11 @@ export type VehicleRow = {
   model: string | null;
   version: string | null;
   interior_type?: string | null;
+  engine_size?: string | number | null;
+  power_kw?: number | null;
+  power_cv?: number | null;
+  doors?: number | null;
+  registration_date?: string | null;
   year: string | number | null;
   mileage: number | null;
   fuel: string | null;
@@ -77,6 +90,25 @@ export type VehicleKpi = {
   delta: string;
 };
 
+type VehicleStateTransitionValidation = {
+  allowed: boolean;
+  fromState: VehicleLifecycleState;
+  toState: VehicleLifecycleState;
+  nextStatus: VehicleLifecycleState;
+  nextPublished: boolean;
+  message: string | null;
+};
+
+const CRUD_STATE_MACHINE_PERMISSIONS: ReadonlyArray<VehiclePermission> = [
+  "vehicle.state.update",
+  "vehicle.publish",
+  "vehicle.reserve",
+  "vehicle.negotiate",
+  "vehicle.sell",
+  "vehicle.deliver",
+  "vehicle.archive",
+];
+
 export const defaultVehicleFilters: VehicleFilters = {
   query: "",
   brand: "all",
@@ -117,19 +149,57 @@ export function parsePrice(value: string | number | null | undefined): number {
 }
 
 export function formatVehicleStatus(status: string | null | undefined, published?: boolean | null): string {
-  const normalized = String(status ?? "").trim().toLowerCase();
-  if (normalized === "published" || published) return "Pubblicato";
-  if (normalized === "sold") return "Venduto";
-  if (normalized === "review") return "In revisione";
-  return "Bozza";
+  return getVehicleStateLabel(resolveVehicleLifecycleState(status, published));
 }
 
 export function normalizeVehicleStatus(status: string | null | undefined, published?: boolean | null): VehicleStatus {
-  const normalized = String(status ?? "").trim().toLowerCase();
-  if (normalized === "published" || published) return "published";
-  if (normalized === "sold") return "sold";
-  if (normalized === "review") return "review";
-  return "draft";
+  return resolveVehicleLifecycleState(status, published);
+}
+
+function toVehiclePublishedFlag(state: VehicleLifecycleState) {
+  return state === "published";
+}
+
+export function validateVehicleStatusTransitionForCrud(params: {
+  fromStatus: string | null | undefined;
+  fromPublished?: boolean | null;
+  toStatus: string | null | undefined;
+  toPublished?: boolean | null;
+}): VehicleStateTransitionValidation {
+  const fromState = resolveVehicleLifecycleState(params.fromStatus, params.fromPublished ?? null);
+  const toState = resolveVehicleLifecycleState(params.toStatus, params.toPublished ?? null);
+
+  if (fromState === toState) {
+    return {
+      allowed: true,
+      fromState,
+      toState,
+      nextStatus: toState,
+      nextPublished: toVehiclePublishedFlag(toState),
+      message: null,
+    };
+  }
+
+  const evaluation = evaluateVehicleStateTransition(fromState, toState, CRUD_STATE_MACHINE_PERMISSIONS);
+  if (!evaluation.allowed) {
+    return {
+      allowed: false,
+      fromState,
+      toState,
+      nextStatus: toState,
+      nextPublished: toVehiclePublishedFlag(toState),
+      message: `Transizione stato non consentita: ${getVehicleStateLabel(fromState)} -> ${getVehicleStateLabel(toState)}.`,
+    };
+  }
+
+  return {
+    allowed: true,
+    fromState,
+    toState,
+    nextStatus: toState,
+    nextPublished: toVehiclePublishedFlag(toState),
+    message: null,
+  };
 }
 
 export function formatDate(value: string | null | undefined): string {
