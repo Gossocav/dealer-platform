@@ -276,6 +276,19 @@ export function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
   return "—";
 }
 
+export function getAppBaseUrl() {
+  return (
+    process.env.APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
+
+export function toAbsoluteUrl(pathname: string) {
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${getAppBaseUrl()}${normalizedPath}`;
+}
+
 export function formatMileage(value: number | null) {
   if (typeof value !== "number") return "-";
   return `${new Intl.NumberFormat("it-IT").format(value)} km`;
