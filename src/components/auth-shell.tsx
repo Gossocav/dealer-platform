@@ -66,11 +66,12 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (!mounted) return;
 
-      const hasUser = Boolean(user);
+      const userId = user?.id ?? null;
+      const hasUser = Boolean(userId);
       setAuthenticated(hasUser);
       setChecked(true);
 
-      if (!hasUser) {
+      if (!userId) {
         const next = encodeURIComponent(pathname || "/dashboard");
         router.replace(`/login?next=${next}`);
         return;
@@ -78,7 +79,7 @@ export function AuthShell({ children }: AuthShellProps) {
 
       let approved = false;
       try {
-        approved = await isDealerAccountApproved(supabase, user.id);
+        approved = await isDealerAccountApproved(supabase, userId);
       } catch {
         approved = false;
       }
