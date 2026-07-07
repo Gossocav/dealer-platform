@@ -103,9 +103,9 @@ export default function AdminLoginPage() {
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-xs font-bold text-slate-950">DP</span>
               <span suppressHydrationWarning>ADMIN ACCESS</span>
             </div>
-            <h1 className="mt-8 text-4xl font-semibold tracking-tight sm:text-5xl">Accesso Platform Owner</h1>
+            <h1 className="mt-8 text-4xl font-semibold tracking-tight sm:text-5xl">Area Amministrazione Dealer Platform</h1>
             <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">
-              Ingresso riservato ad amministratori piattaforma per gestire approvazioni dealer e controllo operativo.
+              Accesso riservato alla gestione della piattaforma, approvazioni dealer e controllo operativo.
             </p>
           </div>
 
@@ -139,7 +139,7 @@ export default function AdminLoginPage() {
                   onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
                   className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                  placeholder="admin@dealerplatform.it"
+                  placeholder="Email"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export default function AdminLoginPage() {
                 disabled={loading}
                 className="inline-flex w-full items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? "Accesso in corso..." : "Accedi area admin"}
+                {loading ? "Accesso in corso..." : "Entra nell'area amministrativa"}
               </button>
             </form>
           </div>
