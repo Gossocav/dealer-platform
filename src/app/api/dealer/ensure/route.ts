@@ -279,7 +279,7 @@ async function syncIdentityMembership(
         dealer_id: dealerId,
         profile_id: userId,
         role: "dealer_member",
-        status: "pending",
+          status: "invited",
         updated_at: updatedAt,
       },
       { onConflict: "dealer_id,profile_id" }
