@@ -58,6 +58,22 @@ const MARKETPLACE_LEAD_RATE_LIMIT = {
   maxRequests: 20,
 };
 
+const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
+const REQUIRED_FROM_DOMAIN = "dealerplatform.it";
+
+function buildStandardEmailFooterHtml() {
+  return `
+    <p style="margin:24px 0 12px 0;color:#334155;">--------------------------------</p>
+    <p style="margin:0 0 12px 0;color:#334155;">Cordiali saluti,</p>
+    <p style="margin:0 0 12px 0;color:#334155;">Supporto Dealer Platform</p>
+    <p style="margin:0 0 12px 0;color:#334155;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
+    <p style="margin:0 0 12px 0;color:#334155;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
+    <p style="margin:0;color:#334155;">--------------------------------</p>
+  `.trim();
+}
+
 export async function POST(request: Request) {
   try {
     let body: LeadInsertBody;
@@ -257,29 +273,27 @@ async function sendEmailsBestEffort({
   requestDateIso: string;
 }) {
   const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
-
-  if (!resendApiKey || !fromEmail) {
-    console.error("Email provider env vars missing: set RESEND_API_KEY and RESEND_FROM_EMAIL.", { errorType: "missing_env" });
-    return;
-  }
-
-  const normalizedFromEmail = normalizeEmail(fromEmail);
+  const normalizedFromEmail = normalizeEmail(EMAIL_FROM_ADDRESS);
   const fromEmailLocalPart = normalizedFromEmail?.split("@")[0] ?? null;
   const fromEmailDomain = normalizedFromEmail?.split("@")[1] ?? null;
 
+  if (!resendApiKey) {
+    console.error("Email provider env vars missing: set RESEND_API_KEY.", { errorType: "missing_env" });
+    return;
+  }
+
   if (!normalizedFromEmail || !fromEmailLocalPart || !fromEmailDomain) {
-    console.error("Invalid RESEND_FROM_EMAIL format for marketplace lead emails.", { errorType: "invalid_config" });
+    console.error("Invalid sender email format for marketplace lead emails.", { errorType: "invalid_config" });
     return;
   }
 
   if (normalizedFromEmail.startsWith("re_")) {
-    console.error("Invalid RESEND_FROM_EMAIL: looks like an API key, not an email address.", { errorType: "invalid_config" });
+    console.error("Invalid sender email: looks like an API key, not an email address.", { errorType: "invalid_config" });
     return;
   }
 
-  if (fromEmailDomain !== "keyplanrental.it" || !["noreply", "info"].includes(fromEmailLocalPart)) {
-    console.error("Invalid RESEND_FROM_EMAIL for marketplace lead emails.", { errorType: "invalid_config" });
+  if (fromEmailDomain !== REQUIRED_FROM_DOMAIN || fromEmailLocalPart !== "no-reply") {
+    console.error("Invalid sender email for marketplace lead emails.", { errorType: "invalid_config" });
     return;
   }
 
@@ -310,6 +324,7 @@ async function sendEmailsBestEffort({
           <div style="margin-top:24px;">
             <a href="${escapeHtml(leadDashboardUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:8px;font-weight:600;">Apri Dashboard Lead</a>
           </div>
+          ${buildStandardEmailFooterHtml()}
         </div>
       </div>
     `;
@@ -317,7 +332,7 @@ async function sendEmailsBestEffort({
     try {
       const dealerSend = await sendResendEmail({
         apiKey: resendApiKey,
-        fromEmail: normalizedFromEmail,
+        fromEmail: EMAIL_FROM_HEADER,
         to: dealerEmail,
         subject: "🚗 Nuova richiesta informazioni",
         html: dealerHtml,
@@ -339,7 +354,8 @@ async function sendEmailsBestEffort({
           <p style="margin:0 0 12px 0;color:#334155;">Veicolo richiesto: <strong>${escapeHtml(vehicleLabel)}</strong></p>
           <p style="margin:0 0 12px 0;color:#334155;">La concessionaria prendera in carico la tua richiesta nel piu breve tempo possibile.</p>
           <p style="margin:0 0 12px 0;color:#334155;">Riceverai un contatto direttamente dal venditore.</p>
-          <p style="margin:24px 0 0 0;color:#334155;">Cordiali saluti.<br />Dealer Platform</p>
+          <p style="margin:24px 0 12px 0;color:#334155;">Cordiali saluti.<br />Dealer Platform</p>
+          ${buildStandardEmailFooterHtml()}
         </div>
       </div>
     `;
@@ -347,7 +363,7 @@ async function sendEmailsBestEffort({
     try {
       const customerSend = await sendResendEmail({
         apiKey: resendApiKey,
-        fromEmail: normalizedFromEmail,
+        fromEmail: EMAIL_FROM_HEADER,
         to: customerEmail,
         subject: "Abbiamo ricevuto la tua richiesta",
         html: customerHtml,

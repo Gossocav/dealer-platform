@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 
 type SendToClientBody = {
   vehicleId?: string;
@@ -20,17 +23,87 @@ type SendToClientBody = {
   price?: string | null;
 };
 
-type ResendResponse = {
-  message?: string;
-  error?: {
-    message?: string;
-  };
+type VehicleOwnershipRow = {
+  id: string;
+  dealer_id: string;
+  brand: string | null;
+  model: string | null;
+  version: string | null;
+  year: number | null;
+  mileage: number | null;
+  fuel: string | null;
+  transmission: string | null;
+  price: number | null;
 };
 
-const REQUIRED_FROM_DOMAIN = "keyplanrental.it";
+const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
+const REQUIRED_FROM_DOMAIN = "dealerplatform.it";
+
+function buildStandardEmailFooterHtml() {
+  return `
+    <p style="margin:24px 0 12px 0;color:#64748b;font-size:13px;">--------------------------------</p>
+    <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Cordiali saluti,</p>
+    <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Supporto Dealer Platform</p>
+    <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
+    <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
+    <p style="margin:0;color:#64748b;font-size:13px;">--------------------------------</p>
+  `.trim();
+}
+
+function normalizeActiveDealerId(value: string | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized;
+}
 
 export async function POST(request: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
+    }
+
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader?.toLowerCase().startsWith("bearer ")) {
+      return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user?.id) {
+      return NextResponse.json({ error: "Utente non autenticato." }, { status: 401 });
+    }
+
+    const resolvedDealerId = await resolveDealerIdFromTenantSources(supabase, user.id, {
+      activeDealerId: normalizeActiveDealerId(request.headers.get("x-active-dealer-id")),
+    });
+    if (!resolvedDealerId) {
+      return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 403 });
+    }
+
     const body = (await request.json()) as SendToClientBody;
 
     const vehicleId = normalizeText(body.vehicleId);
@@ -39,24 +112,6 @@ export async function POST(request: Request) {
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
     const message = normalizeText(body.message);
-    const publicUrl = normalizeText(body.publicUrl);
-    const coverImageUrl = normalizeText(body.coverImageUrl);
-    const brand = normalizeText(body.brand) ?? "-";
-    const model = normalizeText(body.model) ?? "-";
-    const version = normalizeText(body.version) ?? "-";
-    const year = normalizeText(body.year) ?? "-";
-    const mileage = normalizeText(body.mileage) ?? "-";
-    const fuel = normalizeText(body.fuel) ?? "-";
-    const transmission = normalizeText(body.transmission) ?? "-";
-    const price = normalizeText(body.price) ?? "-";
-
-    console.info("Vehicle send-to-client API called", {
-      hasVehicleId: Boolean(vehicleId),
-      hasFirstName: Boolean(firstName),
-      hasLastName: Boolean(lastName),
-      hasEmail: Boolean(email),
-      hasPublicUrl: Boolean(publicUrl),
-    });
 
     if (!vehicleId || !firstName || !lastName) {
       return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
@@ -66,21 +121,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Inserisci un indirizzo email valido per l'invio." }, { status: 400 });
     }
 
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    const { data: ownedVehicle, error: ownedVehicleError } = await supabase
+      .from("vehicles")
+      .select("id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price")
+      .eq("id", vehicleId)
+      .eq("dealer_id", resolvedDealerId)
+      .maybeSingle<VehicleOwnershipRow>();
 
-    if (!resendApiKey || !fromEmail) {
-      return NextResponse.json({ error: "Configurazione email mancante. Imposta RESEND_API_KEY e RESEND_FROM_EMAIL." }, { status: 500 });
+    if (ownedVehicleError) {
+      console.error("Send-to-client vehicle ownership check failed", ownedVehicleError);
+      return NextResponse.json({ error: "Errore interno durante la verifica del veicolo." }, { status: 500 });
     }
 
-    const normalizedFromEmail = normalizeEmail(fromEmail);
+    if (!ownedVehicle?.id) {
+      return NextResponse.json({ error: "Veicolo non trovato o non autorizzato." }, { status: 404 });
+    }
+
+    const appBaseUrl = normalizeText(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || null);
+    const publicUrl = appBaseUrl ? `${appBaseUrl.replace(/\/$/, "")}/auto/${encodeURIComponent(vehicleId)}` : null;
+    const coverImageUrl = null;
+    const brand = normalizeText(ownedVehicle.brand) ?? "-";
+    const model = normalizeText(ownedVehicle.model) ?? "-";
+    const version = normalizeText(ownedVehicle.version) ?? "-";
+    const year = ownedVehicle.year === null ? "-" : String(ownedVehicle.year);
+    const mileage = ownedVehicle.mileage === null ? "-" : String(ownedVehicle.mileage);
+    const fuel = normalizeText(ownedVehicle.fuel) ?? "-";
+    const transmission = normalizeText(ownedVehicle.transmission) ?? "-";
+    const price = ownedVehicle.price === null ? "-" : String(ownedVehicle.price);
+
+    console.info("Vehicle send-to-client API called", {
+      hasVehicleId: true,
+      hasFirstName: Boolean(firstName),
+      hasLastName: Boolean(lastName),
+      hasEmail: Boolean(email),
+      hasPublicUrl: Boolean(publicUrl),
+    });
+
+    const resendApiKey = process.env.RESEND_API_KEY;
+
+    if (!resendApiKey) {
+      return NextResponse.json({ error: "Configurazione email mancante. Imposta RESEND_API_KEY." }, { status: 500 });
+    }
+
+    const normalizedFromEmail = normalizeEmail(EMAIL_FROM_ADDRESS);
     if (!normalizedFromEmail || !normalizedFromEmail.includes("@")) {
-      console.error("Invalid RESEND_FROM_EMAIL format.", { hasValue: Boolean(fromEmail) });
+      console.error("Invalid sender email format.", { hasValue: true });
       return NextResponse.json({ error: "Configurazione mittente email non valida." }, { status: 500 });
     }
 
     if (!normalizedFromEmail.endsWith(`@${REQUIRED_FROM_DOMAIN}`)) {
-      console.error("RESEND_FROM_EMAIL does not match required domain.", {
+      console.error("Sender email does not match required domain.", {
         fromEmail: normalizedFromEmail,
         requiredDomain: REQUIRED_FROM_DOMAIN,
       });
@@ -110,11 +200,26 @@ export async function POST(request: Request) {
 
     await sendResendEmail({
       resend,
-      fromEmail: normalizedFromEmail,
+      fromEmail: EMAIL_FROM_HEADER,
       to: email,
       subject: "Veicolo selezionato per te",
       html,
     });
+
+    try {
+      await writeVehicleTimelineEvent(supabase, {
+        dealerId: resolvedDealerId,
+        vehicleId,
+        action: "vehicle.sent_to_client",
+        actorType: "user",
+        actorProfileId: user.id,
+        metadata: {
+          recipientEmail: email,
+        },
+      });
+    } catch (timelineError) {
+      console.error("Send-to-client timeline write failed", timelineError);
+    }
 
     return NextResponse.json({ message: "Veicolo inviato al cliente." }, { status: 200 });
   } catch (error) {
@@ -130,13 +235,22 @@ export async function POST(request: Request) {
       console.error("Resend real message:", details.message);
     }
 
+    const status = details.httpStatus !== null ? 502 : 500;
+    const normalizedMessage = details.message.toLowerCase();
+    const isProviderDomainBlock =
+      normalizedMessage.includes("verify a domain") ||
+      normalizedMessage.includes("testing emails") ||
+      normalizedMessage.includes("validation_error");
+
+    const publicErrorMessage = isProviderDomainBlock
+      ? "Invio email non disponibile: configurare dominio mittente verificato su Resend."
+      : "Errore durante l'invio email.";
+
     return NextResponse.json(
       {
-        error: details.message,
-        status: details.httpStatus,
-        responseBody: details.responseBody,
+        error: publicErrorMessage,
       },
-      { status: details.httpStatus ?? 500 }
+      { status }
     );
   }
 }
@@ -155,7 +269,6 @@ async function sendResendEmail({
   html: string;
 }) {
   console.info("Executing resend.emails.send", {
-    to,
     fromEmail,
     subject,
   });
@@ -312,6 +425,7 @@ function buildCustomerEmailHtml({
         <p style="margin:0 0 8px 0;color:#64748b;font-size:13px;">Riferimento veicolo: ${escapeHtml(vehicleId)}</p>
         <p style="margin:0 0 8px 0;color:#64748b;font-size:13px;">Email destinatario: ${escapeHtml(email)}</p>
         <p style="margin:0;color:#64748b;font-size:13px;">Telefono destinatario: ${escapeHtml(phoneLabel)}</p>
+        ${buildStandardEmailFooterHtml()}
       </div>
     </div>
   `;
@@ -324,7 +438,12 @@ function normalizeText(value: string | null | undefined) {
 
 function normalizeEmail(value: string | null | undefined) {
   const normalized = String(value ?? "").trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+  return isValidEmail ? normalized : null;
 }
 
 function escapeHtml(value: string) {

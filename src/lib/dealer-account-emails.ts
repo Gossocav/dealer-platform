@@ -14,6 +14,10 @@ type ResendApiPayload = {
   message?: string;
 };
 
+const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
+
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : null;
@@ -37,6 +41,17 @@ function resolveAppBaseUrl() {
   return normalizeText(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || null) ?? "";
 }
 
+function buildStandardEmailFooterHtml() {
+  return `
+    <p style="margin: 0 0 12px;">--------------------------------</p>
+    <p style="margin: 0 0 12px;">Cordiali saluti,</p>
+    <p style="margin: 0 0 12px;">Supporto Dealer Platform</p>
+    <p style="margin: 0 0 12px;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
+    <p style="margin: 0 0 12px;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
+    <p style="margin: 0;">--------------------------------</p>
+  `.trim();
+}
+
 function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string }) {
   const dealerName = resolveDealerName(input.dealerName);
   const appBaseUrl = resolveAppBaseUrl().replace(/\/$/, "");
@@ -55,7 +70,8 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
           <p style="margin: 0 0 12px;">
             Il tuo account e attualmente in verifica. I tempi stimati di approvazione sono di <strong>1-2 giorni lavorativi</strong>.
           </p>
-          <p style="margin: 0;">Ti aggiorneremo via email appena la verifica sara completata.</p>
+          <p style="margin: 0 0 12px;">Ti aggiorneremo via email appena la verifica sara completata.</p>
+          ${buildStandardEmailFooterHtml()}
         </div>
       `.trim(),
     };
@@ -74,7 +90,8 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
           <p style="margin: 0 0 12px;">
             Da questo momento puoi accedere alla piattaforma e utilizzare tutte le funzioni operative abilitate.
           </p>
-          ${loginUrl ? `<p style="margin: 0;"><a href="${loginUrl}">Accedi alla piattaforma</a></p>` : ""}
+          ${loginUrl ? `<p style="margin: 0 0 12px;"><a href="${loginUrl}">Accedi alla piattaforma</a></p>` : ""}
+          ${buildStandardEmailFooterHtml()}
         </div>
       `.trim(),
     };
@@ -92,6 +109,7 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
         <p style="margin: 0;">
           Per ulteriori informazioni o per richiedere supporto puoi contattare il team di assistenza.
         </p>
+        ${buildStandardEmailFooterHtml()}
       </div>
     `.trim(),
   };
@@ -99,10 +117,9 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
 
 export async function sendDealerLifecycleEmail(input: SendDealerEmailInput) {
   const resendApiKey = normalizeText(process.env.RESEND_API_KEY);
-  const fromEmail = normalizeEmail(process.env.RESEND_FROM_EMAIL);
   const toEmail = normalizeEmail(input.toEmail);
 
-  if (!resendApiKey || !fromEmail || !toEmail) {
+  if (!resendApiKey || !toEmail) {
     return { ok: false, reason: "missing_config" as const };
   }
 
@@ -118,7 +135,7 @@ export async function sendDealerLifecycleEmail(input: SendDealerEmailInput) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      from: fromEmail,
+      from: EMAIL_FROM_HEADER,
       to: [toEmail],
       subject: content.subject,
       html: content.html,
