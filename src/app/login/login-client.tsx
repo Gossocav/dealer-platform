@@ -3,12 +3,32 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isDealerAccountApproved } from "@/lib/account-approval";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
+
+function sanitizeNextPath(rawNext: string | null | undefined) {
+  const value = String(rawNext ?? "").trim();
+
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard";
+  }
+
+  try {
+    const parsed = new URL(value, "http://localhost");
+    if (parsed.origin !== "http://localhost" || !parsed.pathname.startsWith("/")) {
+      return "/dashboard";
+    }
+
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/dashboard";
+  }
+}
 
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = useMemo(() => searchParams.get("next") || "/dashboard", [searchParams]);
+  const nextPath = useMemo(() => sanitizeNextPath(searchParams.get("next")), [searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,15 +49,35 @@ export default function LoginClient() {
       password,
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setMessage(error.message || "Accesso non riuscito.");
       setMessageType("error");
       return;
     }
 
-    router.replace(nextPath);
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser();
+
+    if (userError || !user) {
+      setLoading(false);
+      setMessage("Sessione non valida dopo il login. Riprova.");
+      setMessageType("error");
+      return;
+    }
+
+    let isApproved = false;
+    try {
+      isApproved = await isDealerAccountApproved(authClient, user.id);
+    } catch {
+      isApproved = false;
+    }
+
+    setLoading(false);
+
+    router.replace(isApproved ? nextPath : "/account/in-attesa");
     router.refresh();
   };
 

@@ -26,7 +26,7 @@ function translateSupabaseAuthError(rawMessage: string | null | undefined) {
   }
 
   if (normalized.includes("user already registered")) {
-    return "Esiste gia un account registrato con questo indirizzo email. Effettua il login oppure utilizza un'altra email.";
+    return "Questa email risulta gia registrata. Prova ad accedere o usa un altro indirizzo email.";
   }
 
   if (normalized.includes("invalid login credentials")) {
@@ -35,6 +35,10 @@ function translateSupabaseAuthError(rawMessage: string | null | undefined) {
 
   if (normalized.includes("password should be at least")) {
     return "La password e troppo corta. Usa almeno 8 caratteri.";
+  }
+
+  if (normalized.includes("weak password") || normalized.includes("weak_password") || normalized.includes("password is too weak")) {
+    return "La password e troppo debole. Usa almeno 8 caratteri con lettere e numeri.";
   }
 
   if (normalized.includes("email not confirmed")) {
@@ -51,6 +55,10 @@ function translateSupabaseAuthError(rawMessage: string | null | undefined) {
 
   if (normalized.includes("unable to validate email address") || normalized.includes("invalid email")) {
     return "L'indirizzo email inserito non e valido.";
+  }
+
+  if (normalized.includes("missing") || normalized.includes("required") || normalized.includes("null value")) {
+    return "Compila tutti i campi obbligatori e riprova.";
   }
 
   if (normalized.includes("network") || normalized.includes("failed to fetch")) {
@@ -203,10 +211,10 @@ export default function RegistrazionePage() {
       return;
     }
 
-    setSuccessMessage("Account creato con successo. Reindirizzamento alla dashboard...");
+    setSuccessMessage("Richiesta inviata correttamente. Il tuo account e in verifica.");
     setServerMessage("");
     setIsSubmitting(false);
-    router.replace("/dashboard");
+    router.replace("/account/in-attesa");
     router.refresh();
   };
 

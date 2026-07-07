@@ -125,7 +125,6 @@ async function ensureDealerAssociation({
     .from("dealer_users")
     .select("dealer_id")
     .eq("profile_id", userId)
-    .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle<DealerMembershipRow>();
@@ -182,7 +181,7 @@ async function ensureDealerAssociation({
         email,
         phone,
         whatsapp_phone: whatsappPhone,
-        status: "active",
+        status: "pending_review",
       })
       .select("id")
       .maybeSingle<DealerIdRow>();
@@ -237,6 +236,7 @@ async function updateDealer(
       email,
       phone,
       whatsapp_phone: whatsappPhone,
+      status: "pending_review",
       user_id: userId,
       updated_at: new Date().toISOString(),
     })
@@ -279,7 +279,7 @@ async function syncIdentityMembership(
         dealer_id: dealerId,
         profile_id: userId,
         role: "dealer_member",
-        status: "active",
+        status: "pending",
         updated_at: updatedAt,
       },
       { onConflict: "dealer_id,profile_id" }

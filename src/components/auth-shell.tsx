@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NotificationBell } from "@/components/notification-bell";
 import { TodayAppointmentsBadge } from "@/components/today-appointments-badge";
 import { UserMenu } from "@/components/user-menu";
+import { isDealerAccountApproved } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
 type AuthShellProps = {
@@ -22,21 +23,39 @@ const NAV_ITEMS = [
   { href: "/profilo", label: "Profilo" },
 ];
 
+function sanitizeNextPath(rawNext: string | null | undefined) {
+  const value = String(rawNext ?? "").trim();
+
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard";
+  }
+
+  try {
+    const parsed = new URL(value, "http://localhost");
+    if (parsed.origin !== "http://localhost" || !parsed.pathname.startsWith("/")) {
+      return "/dashboard";
+    }
+
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/dashboard";
+  }
+}
+
 export function AuthShell({ children }: AuthShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isPublicRoute = useMemo(() => PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`)), [pathname]);
-  const [checked, setChecked] = useState(isPublicRoute);
+  const isWaitingRoute = useMemo(() => pathname === "/account/in-attesa" || pathname.startsWith("/account/in-attesa/"), [pathname]);
+  const [checked, setChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  const [accountApproved, setAccountApproved] = useState(false);
 
   useEffect(() => {
     // Le route pubbliche non richiedono alcun controllo autenticazione.
     // Non chiamiamo supabase.auth.getUser() per evitare chiamate Supabase
     // non necessarie che potrebbero restituire 401 su sessioni anonime.
-    if (isPublicRoute) {
-      setChecked(true);
-      return;
-    }
+    if (isPublicRoute) return;
 
     let mounted = true;
 
@@ -57,8 +76,22 @@ export function AuthShell({ children }: AuthShellProps) {
         return;
       }
 
+      let approved = false;
+      try {
+        approved = await isDealerAccountApproved(supabase, user.id);
+      } catch {
+        approved = false;
+      }
+
+      setAccountApproved(approved);
+
+      if (!approved && !isWaitingRoute) {
+        router.replace("/account/in-attesa");
+        return;
+      }
+
       if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/registrazione") {
-        const next = new URLSearchParams(window.location.search).get("next") || "/dashboard";
+        const next = sanitizeNextPath(new URLSearchParams(window.location.search).get("next"));
         router.replace(next);
       }
     };
@@ -74,14 +107,36 @@ export function AuthShell({ children }: AuthShellProps) {
       setAuthenticated(hasUser);
       setChecked(true);
 
+      if (!hasUser) {
+        setAccountApproved(false);
+      }
+
       if (event === "SIGNED_OUT") {
         const next = encodeURIComponent(pathname || "/dashboard");
         router.replace(`/login?next=${next}`);
         return;
       }
 
+      if (hasUser && session?.user) {
+        void (async () => {
+          let approved = false;
+          try {
+            approved = await isDealerAccountApproved(supabase, session.user.id);
+          } catch {
+            approved = false;
+          }
+
+          if (!mounted) return;
+          setAccountApproved(approved);
+
+          if (!approved && !isWaitingRoute) {
+            router.replace("/account/in-attesa");
+          }
+        })();
+      }
+
       if (hasUser && (pathname === "/login" || pathname === "/forgot-password" || pathname === "/registrazione")) {
-        const next = new URLSearchParams(window.location.search).get("next") || "/dashboard";
+        const next = sanitizeNextPath(new URLSearchParams(window.location.search).get("next"));
         router.replace(next);
       }
     });
@@ -90,7 +145,7 @@ export function AuthShell({ children }: AuthShellProps) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isPublicRoute, pathname, router]);
+  }, [isPublicRoute, isWaitingRoute, pathname, router]);
 
   if (!checked && !isPublicRoute) {
     return (
@@ -109,6 +164,31 @@ export function AuthShell({ children }: AuthShellProps) {
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
         Reindirizzamento...
       </div>
+    );
+  }
+
+  if (!accountApproved && !isWaitingRoute) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
+        Reindirizzamento...
+      </div>
+    );
+  }
+
+  if (!accountApproved && isWaitingRoute) {
+    return (
+      <>
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
+            <Link href="/account/in-attesa" className="flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-slate-900">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-xs font-bold text-white" suppressHydrationWarning>DP</span>
+              <span suppressHydrationWarning>DEALER PLATFORM</span>
+            </Link>
+            <UserMenu />
+          </div>
+        </header>
+        <div className="flex-1">{children}</div>
+      </>
     );
   }
 
