@@ -60,6 +60,16 @@ export function AuthShell({ children }: AuthShellProps) {
 
     let mounted = true;
 
+    const resolvePlatformAdminFromProfile = async (userId: string) => {
+      const profile = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle<{ role: string | null }>();
+
+      if (profile.error) {
+        return false;
+      }
+
+      return isPlatformAdminRole(profile.data?.role);
+    };
+
     const syncAuth = async () => {
       const {
         data: { user },
@@ -78,7 +88,11 @@ export function AuthShell({ children }: AuthShellProps) {
         return;
       }
 
-      const platformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
+      let platformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
+      if (!platformAdmin) {
+        platformAdmin = await resolvePlatformAdminFromProfile(userId);
+      }
+
       setIsPlatformAdmin(platformAdmin);
 
       if (platformAdmin) {
@@ -136,7 +150,10 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (hasUser && session?.user) {
         void (async () => {
-          const platformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(session.user));
+          let platformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(session.user));
+          if (!platformAdmin) {
+            platformAdmin = await resolvePlatformAdminFromProfile(session.user.id);
+          }
 
           if (platformAdmin) {
             if (!mounted) return;
