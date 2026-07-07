@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import ShareVehicleButton from "@/components/marketplace/share-vehicle-button";
@@ -7,12 +8,14 @@ import {
   formatMileage,
   formatPrice,
   formatText,
+  getMarketplaceStatusFilter,
   publicSupabase,
   resolveDealerDisplayName,
   resolveDealerEmail,
   resolveDealerPhone,
   resolveDealerWebsite,
   resolveDealerWhatsAppPhone,
+  toAbsoluteUrl,
   resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
@@ -51,6 +54,60 @@ function normalizeEquipment(value: unknown): string[] {
   return [];
 }
 
+async function fetchMarketplaceVehicleDetail(id: string) {
+  return publicSupabase
+    .from("vehicles")
+    .select(
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+    )
+    .eq("id", id)
+    .or(getMarketplaceStatusFilter())
+    .maybeSingle();
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const canonical = toAbsoluteUrl(`/auto/${id}`);
+  const fallbackDescription = "Scheda dettagliata del veicolo pubblicato nel marketplace Dealer Platform.";
+
+  const { data } = await fetchMarketplaceVehicleDetail(id);
+
+  if (!data) {
+    return {
+      title: "Veicolo non disponibile",
+      description: fallbackDescription,
+      alternates: {
+        canonical,
+      },
+      openGraph: {
+        title: "Veicolo non disponibile | Dealer Platform",
+        description: fallbackDescription,
+        url: canonical,
+        type: "website",
+      },
+    };
+  }
+
+  const vehicle = data as MarketplaceVehicleWithTechnical;
+  const dealerName = resolveDealerDisplayName(vehicle.dealers);
+  const title = resolveVehicleLabel(vehicle);
+  const description = `${title} disponibile presso ${dealerName}. Prezzo: ${formatPrice(vehicle.price)}.`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: `${title} | Dealer Platform`,
+      description,
+      url: canonical,
+      type: "website",
+    },
+  };
+}
+
 export default async function MarketplaceVehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const requestHeaders = await headers();
@@ -58,14 +115,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const forwardedHost = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
   const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : "";
 
-  const { data, error } = await publicSupabase
-    .from("vehicles")
-    .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
-    )
-    .eq("id", id)
-    .eq("status", "published")
-    .maybeSingle();
+  const { data, error } = await fetchMarketplaceVehicleDetail(id);
 
   if (error || !data) {
     return (
@@ -248,8 +298,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
             </div>
           </section>
 
-          <aside className="min-w-0 space-y-6">
-            <div className="sticky top-24 space-y-3">
+          <aside className="min-w-0 space-y-6 xl:self-start">
+            <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 {dealerTelLink ? (
                   <a
