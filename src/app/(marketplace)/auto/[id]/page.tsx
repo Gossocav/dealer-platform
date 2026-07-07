@@ -219,8 +219,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           </p>
         </section>
 
-        <div className="grid min-w-0 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="min-w-0 space-y-6">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start">
+          <section className="order-1 min-w-0 space-y-6">
             <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
               <div className="h-[420px] max-w-full overflow-hidden bg-slate-200">
                 {coverUrl ? (
@@ -298,7 +298,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
             </div>
           </section>
 
-          <aside className="min-w-0 space-y-6 xl:self-start">
+          <aside className="order-2 min-w-0 space-y-6 lg:self-start">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 {dealerTelLink ? (
