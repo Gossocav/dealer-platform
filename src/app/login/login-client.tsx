@@ -80,7 +80,7 @@ export default function LoginClient() {
 
     if (isPlatformAdmin) {
       setLoading(false);
-      router.replace(nextPath);
+      router.replace("/admin");
       router.refresh();
       return;
     }

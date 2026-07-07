@@ -15,12 +15,17 @@ type AuthShellProps = {
 
 const PUBLIC_ROUTES = ["/", "/login", "/forgot-password", "/registrazione", "/auto", "/ricerca", "/concessionarie"];
 
-const NAV_ITEMS = [
+const DEALER_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/veicoli", label: "Veicoli" },
   { href: "/lead", label: "Lead" },
   { href: "/agenda", label: "Agenda" },
   { href: "/profilo", label: "Profilo" },
+];
+
+const ADMIN_NAV_ITEMS = [
+  { href: "/admin", label: "Pannello Admin" },
+  { href: "/admin/dealer-approval", label: "Approvazione Dealer" },
 ];
 
 function sanitizeNextPath(rawNext: string | null | undefined) {
@@ -45,7 +50,12 @@ function sanitizeNextPath(rawNext: string | null | undefined) {
 export function AuthShell({ children }: AuthShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isPublicRoute = useMemo(() => PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`)), [pathname]);
+  const isPublicRoute = useMemo(
+    () => [...PUBLIC_ROUTES, "/admin/login"].some((route) => pathname === route || pathname.startsWith(`${route}/`)),
+    [pathname]
+  );
+  const isAdminRoute = useMemo(() => pathname === "/admin" || pathname.startsWith("/admin/"), [pathname]);
+  const isAdminLoginRoute = pathname === "/admin/login";
   const isWaitingRoute = useMemo(() => pathname === "/account/in-attesa" || pathname.startsWith("/account/in-attesa/"), [pathname]);
   const [checked, setChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
@@ -84,6 +94,11 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (!userId) {
         const next = encodeURIComponent(pathname || "/dashboard");
+        if (isAdminRoute) {
+          router.replace(`/admin/login?next=${next}`);
+          return;
+        }
+
         router.replace(`/login?next=${next}`);
         return;
       }
@@ -98,11 +113,15 @@ export function AuthShell({ children }: AuthShellProps) {
       if (platformAdmin) {
         setAccountApproved(true);
 
-        if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/registrazione") {
-          const next = sanitizeNextPath(new URLSearchParams(window.location.search).get("next"));
-          router.replace(next);
+        if (!isAdminRoute || isAdminLoginRoute) {
+          router.replace("/admin");
         }
 
+        return;
+      }
+
+      if (isAdminRoute) {
+        router.replace("/login");
         return;
       }
 
@@ -144,6 +163,11 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (event === "SIGNED_OUT") {
         const next = encodeURIComponent(pathname || "/dashboard");
+        if (isAdminRoute) {
+          router.replace(`/admin/login?next=${next}`);
+          return;
+        }
+
         router.replace(`/login?next=${next}`);
         return;
       }
@@ -159,10 +183,20 @@ export function AuthShell({ children }: AuthShellProps) {
             if (!mounted) return;
             setIsPlatformAdmin(true);
             setAccountApproved(true);
+
+            if (!isAdminRoute || isAdminLoginRoute) {
+              router.replace("/admin");
+            }
+
             return;
           }
 
           setIsPlatformAdmin(false);
+
+          if (isAdminRoute) {
+            router.replace("/login");
+            return;
+          }
 
           let approved = false;
           try {
@@ -180,7 +214,7 @@ export function AuthShell({ children }: AuthShellProps) {
         })();
       }
 
-      if (hasUser && (pathname === "/login" || pathname === "/forgot-password" || pathname === "/registrazione")) {
+      if (hasUser && (pathname === "/login" || pathname === "/forgot-password" || pathname === "/registrazione" || pathname === "/admin/login")) {
         const next = sanitizeNextPath(new URLSearchParams(window.location.search).get("next"));
         router.replace(next);
       }
@@ -190,7 +224,7 @@ export function AuthShell({ children }: AuthShellProps) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isPublicRoute, isWaitingRoute, pathname, router]);
+  }, [isAdminLoginRoute, isAdminRoute, isPublicRoute, isWaitingRoute, pathname, router]);
 
   if (!checked && !isPublicRoute) {
     return (
@@ -241,12 +275,12 @@ export function AuthShell({ children }: AuthShellProps) {
     <>
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
-          <Link href="/dashboard" className="flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-slate-900">
+          <Link href={isPlatformAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-slate-900">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-xs font-bold text-white" suppressHydrationWarning>DP</span>
             <span suppressHydrationWarning>DEALER PLATFORM</span>
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
-            {NAV_ITEMS.map((item) => (
+            {(isPlatformAdmin ? ADMIN_NAV_ITEMS : DEALER_NAV_ITEMS).map((item) => (
               <Link key={item.href} href={item.href} className="rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
                 {item.label}
               </Link>

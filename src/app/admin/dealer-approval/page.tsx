@@ -87,7 +87,14 @@ export default function DealerApprovalPage() {
       }
 
       const role = resolveUserRoleFromMetadata(user);
-      const canAccess = isPlatformAdminRole(role);
+      let canAccess = isPlatformAdminRole(role);
+
+      if (!canAccess) {
+        const profile = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle<{ role: string | null }>();
+        if (!profile.error) {
+          canAccess = isPlatformAdminRole(profile.data?.role);
+        }
+      }
 
       if (!canAccess) {
         setState({ loading: false, authorized: false, error: null, dealers: [] });
