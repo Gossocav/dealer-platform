@@ -107,7 +107,7 @@ export default function AdminHomePage() {
       if (!mounted) return;
 
       if (!canAccess) {
-        router.replace("/login");
+        router.replace("/dashboard");
         return;
       }
 
@@ -149,7 +149,7 @@ export default function AdminHomePage() {
         }
 
         if (response.status === 403) {
-          router.replace("/login");
+          router.replace("/dashboard");
           return;
         }
 

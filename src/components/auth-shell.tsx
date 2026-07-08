@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
 type AuthShellProps = {
@@ -25,6 +26,7 @@ const PUBLIC_OR_STATUS_ROUTES = [
 export function AuthShell({ children }: AuthShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
   const isPublicOrStatusRoute = useMemo(
     () => PUBLIC_OR_STATUS_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`)),
@@ -41,6 +43,19 @@ export function AuthShell({ children }: AuthShellProps) {
 
     let mounted = true;
 
+    const resolveAdminAuthorization = async (userId: string, metadataRole: string | null | undefined) => {
+      let isAuthorized = isPlatformAdminRole(metadataRole);
+
+      if (!isAuthorized) {
+        const profile = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle<{ role: string | null }>();
+        if (!profile.error) {
+          isAuthorized = isPlatformAdminRole(profile.data?.role);
+        }
+      }
+
+      return isAuthorized;
+    };
+
     const ensureAuthenticated = async () => {
       const {
         data: { user },
@@ -48,13 +63,27 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (!mounted) return;
 
-      const hasUser = Boolean(user?.id);
-      setChecked(true);
-      setAuthenticated(hasUser);
-
-      if (!hasUser) {
-        router.replace("/login");
+      if (!user?.id) {
+        setChecked(true);
+        setAuthenticated(false);
+        router.replace(isAdminRoute ? "/admin/login" : "/login");
+        return;
       }
+
+      if (isAdminRoute) {
+        const isAuthorized = await resolveAdminAuthorization(user.id, resolveUserRoleFromMetadata(user));
+        if (!mounted) return;
+
+        if (!isAuthorized) {
+          setChecked(true);
+          setAuthenticated(false);
+          router.replace("/dashboard");
+          return;
+        }
+      }
+
+      setChecked(true);
+      setAuthenticated(true);
     };
 
     void ensureAuthenticated();
@@ -65,19 +94,41 @@ export function AuthShell({ children }: AuthShellProps) {
       if (!mounted) return;
 
       const hasUser = Boolean(session?.user);
-      setChecked(true);
-      setAuthenticated(hasUser);
 
       if (!hasUser || event === "SIGNED_OUT") {
-        router.replace("/login");
+        setChecked(true);
+        setAuthenticated(false);
+        router.replace(isAdminRoute ? "/admin/login" : "/login");
+        return;
       }
+
+      if (isAdminRoute && session?.user) {
+        void (async () => {
+          const isAuthorized = await resolveAdminAuthorization(session.user.id, resolveUserRoleFromMetadata(session.user));
+          if (!mounted) return;
+
+          if (!isAuthorized) {
+            setChecked(true);
+            setAuthenticated(false);
+            router.replace("/dashboard");
+            return;
+          }
+
+          setChecked(true);
+          setAuthenticated(true);
+        })();
+        return;
+      }
+
+      setChecked(true);
+      setAuthenticated(true);
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isPublicOrStatusRoute, router]);
+  }, [isAdminRoute, isPublicOrStatusRoute, router]);
 
   if (isPublicOrStatusRoute) {
     return <>{children}</>;

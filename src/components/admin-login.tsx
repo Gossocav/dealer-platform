@@ -40,10 +40,8 @@ export function AdminLogin() {
         return;
       }
 
-      // Keep /admin/login on screen for non-admin sessions instead of redirecting to /login.
-      await authClient.auth.signOut();
-      if (!mounted) return;
-      setMessage("Accesso non autorizzato: questa area e riservata ai platform owner.");
+      router.replace("/dashboard");
+      router.refresh();
     };
 
     void checkCurrentSession();
@@ -91,9 +89,9 @@ export function AdminLogin() {
     }
 
     if (!isPlatformAdmin) {
-      await authClient.auth.signOut();
       setLoading(false);
-      setMessage("Accesso non autorizzato: questa area e riservata ai platform owner.");
+      router.replace("/dashboard");
+      router.refresh();
       return;
     }
 
