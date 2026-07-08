@@ -1,4 +1,29 @@
-export default function AccountSospesoPage() {
+import { redirect } from "next/navigation";
+import { resolveServerDealerAccess } from "@/lib/server-dealer-access";
+
+export default async function AccountSospesoPage() {
+  const dealerAccess = await resolveServerDealerAccess();
+
+  if (dealerAccess.state === "approved") {
+    redirect("/dashboard");
+  }
+
+  if (dealerAccess.state === "pending_review" || dealerAccess.state === "rejected") {
+    redirect("/account/in-attesa");
+  }
+
+  if (dealerAccess.state !== "suspended" && dealerAccess.state !== "cancelled") {
+    return (
+      <main className="min-h-screen bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
+        <section className="mx-auto w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-600">Stato account</p>
+          <h1 className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Verifica account in corso...</h1>
+          <p className="mt-4 text-base leading-7 text-slate-700">Stiamo verificando lo stato del tuo account.</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
       <section className="mx-auto w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">

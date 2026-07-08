@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isDealerAccountApproved, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { getDealerAccessResult, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 function sanitizeNextPath(rawNext: string | null | undefined) {
@@ -94,16 +94,37 @@ export default function LoginClient() {
       return;
     }
 
-    let isApproved = false;
+    let dealerState: "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown" = "unknown";
     try {
-      isApproved = await isDealerAccountApproved(authClient, user.id);
+      const access = await getDealerAccessResult(authClient, user.id);
+      dealerState = access.state;
     } catch {
-      isApproved = false;
+      dealerState = "unknown";
     }
 
     setLoading(false);
 
-    router.replace(isApproved ? nextPath : "/account/in-attesa");
+    if (dealerState === "suspended" || dealerState === "cancelled") {
+      router.replace("/account/sospeso");
+      router.refresh();
+      return;
+    }
+
+    if (dealerState === "pending_review" || dealerState === "rejected") {
+      router.replace("/account/in-attesa");
+      router.refresh();
+      return;
+    }
+
+    if (dealerState === "approved") {
+      router.replace(nextPath);
+      router.refresh();
+      return;
+    }
+
+    setMessage("Verifica account in corso...");
+    setMessageType("success");
+
     router.refresh();
   };
 
