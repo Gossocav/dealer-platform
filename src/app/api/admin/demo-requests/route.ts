@@ -12,12 +12,12 @@ type ProfileRoleRow = {
 
 type DemoRequestRow = {
   id: string;
-  company_name: string;
+  dealership_name: string;
   contact_name: string;
   email: string;
   phone: string;
   city: string;
-  vehicle_count: string;
+  vehicle_count: number | null;
   message: string | null;
   status: DemoRequestStatus;
   created_at: string;
@@ -131,7 +131,7 @@ export async function GET(request: Request) {
 
   const requests = await context.supabaseAdmin
     .from("demo_requests")
-    .select("id, company_name, contact_name, email, phone, city, vehicle_count, message, status, created_at, updated_at")
+    .select("id, dealership_name, contact_name, email, phone, city, vehicle_count, message, status, created_at, updated_at")
     .order("created_at", { ascending: false })
     .returns<DemoRequestRow[]>();
 
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
 
   const targetRequest = await context.supabaseAdmin
     .from("demo_requests")
-    .select("id, company_name, contact_name, email, phone, city, vehicle_count, message, status, created_at, updated_at")
+    .select("id, dealership_name, contact_name, email, phone, city, vehicle_count, message, status, created_at, updated_at")
     .eq("id", requestId)
     .maybeSingle<DemoRequestRow>();
 

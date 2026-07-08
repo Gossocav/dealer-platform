@@ -26,6 +26,17 @@ function normalizeEmail(value: unknown) {
   return text;
 }
 
+function normalizeInteger(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 0) return null;
+
+  return parsed;
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -49,7 +60,7 @@ export async function POST(request: Request) {
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
     const city = normalizeText(body.city);
-    const vehicleCount = normalizeText(body.vehicleCount);
+    const vehicleCount = normalizeInteger(body.vehicleCount);
     const message = normalizeText(body.message);
 
     if (!dealerName || !contactName || !email || !phone || !city || !vehicleCount) {
@@ -74,7 +85,7 @@ export async function POST(request: Request) {
     const demoInsert = await supabaseAdmin
       .from("demo_requests")
       .insert({
-        company_name: dealerName,
+        dealership_name: dealerName,
         contact_name: contactName,
         email,
         phone,
@@ -100,7 +111,7 @@ export async function POST(request: Request) {
             <tr><td style="padding:6px 0;font-weight:600;">Email</td><td style="padding:6px 0;">${escapeHtml(email)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Telefono</td><td style="padding:6px 0;">${escapeHtml(phone)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Citta</td><td style="padding:6px 0;">${escapeHtml(city)}</td></tr>
-            <tr><td style="padding:6px 0;font-weight:600;">Numero veicoli indicativo</td><td style="padding:6px 0;">${escapeHtml(vehicleCount)}</td></tr>
+            <tr><td style="padding:6px 0;font-weight:600;">Numero veicoli indicativo</td><td style="padding:6px 0;">${escapeHtml(String(vehicleCount))}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Messaggio</td><td style="padding:6px 0;">${escapeHtml(message ?? "-")}</td></tr>
           </table>
         </div>

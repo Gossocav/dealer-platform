@@ -9,12 +9,12 @@ type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject";
 
 type DemoRequestRow = {
   id: string;
-  company_name: string;
+  dealership_name: string;
   contact_name: string;
   email: string;
   phone: string;
   city: string;
-  vehicle_count: string;
+  vehicle_count: number | null;
   message: string | null;
   status: DemoRequestStatus;
   created_at: string;
@@ -313,12 +313,12 @@ export default function AdminDemoRequestsPage() {
 
                     return (
                       <tr key={request.id}>
-                        <td className="px-4 py-3 font-medium text-slate-900">{request.company_name}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{request.dealership_name}</td>
                         <td className="px-4 py-3 text-slate-700">{request.contact_name}</td>
                         <td className="px-4 py-3 text-slate-700">{request.email}</td>
                         <td className="px-4 py-3 text-slate-700">{request.phone}</td>
                         <td className="px-4 py-3 text-slate-700">{request.city}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.vehicle_count}</td>
+                        <td className="px-4 py-3 text-slate-700">{request.vehicle_count ?? "-"}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(status)}`}>
                             {toStatusLabel(status)}
