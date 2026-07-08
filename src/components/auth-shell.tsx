@@ -61,7 +61,7 @@ function resolvePrimaryDealerRoute(state: DealerAccessState) {
     return "/dashboard" as const;
   }
 
-  return "/account/in-attesa" as const;
+  return null;
 }
 
 export function AuthShell({ children }: AuthShellProps) {
@@ -79,6 +79,7 @@ export function AuthShell({ children }: AuthShellProps) {
   const [authenticated, setAuthenticated] = useState(false);
   const [accountApproved, setAccountApproved] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [dealerStateResolved, setDealerStateResolved] = useState(false);
   const lastDealerStateRef = useRef<DealerAccessState>("unknown");
 
   useEffect(() => {
@@ -110,6 +111,7 @@ export function AuthShell({ children }: AuthShellProps) {
       const hasUser = Boolean(userId);
       setAuthenticated(hasUser);
       setChecked(true);
+      setDealerStateResolved(false);
 
       if (!userId) {
         const next = encodeURIComponent(pathname || "/dashboard");
@@ -131,6 +133,7 @@ export function AuthShell({ children }: AuthShellProps) {
 
       if (platformAdmin) {
         setAccountApproved(true);
+        setDealerStateResolved(true);
 
         if (!isAdminRoute || isAdminLoginRoute) {
           router.replace("/admin");
@@ -162,6 +165,11 @@ export function AuthShell({ children }: AuthShellProps) {
       const approved = dealerState === "approved";
 
       setAccountApproved(approved);
+      setDealerStateResolved(true);
+
+      if (!dealerTargetRoute) {
+        return;
+      }
 
       if (dealerTargetRoute === "/account/sospeso" && !isSuspendedRoute) {
         router.replace(dealerTargetRoute);
@@ -198,6 +206,7 @@ export function AuthShell({ children }: AuthShellProps) {
       if (!hasUser) {
         setAccountApproved(false);
         setIsPlatformAdmin(false);
+        setDealerStateResolved(false);
       }
 
       if (event === "SIGNED_OUT") {
@@ -222,6 +231,7 @@ export function AuthShell({ children }: AuthShellProps) {
             if (!mounted) return;
             setIsPlatformAdmin(true);
             setAccountApproved(true);
+            setDealerStateResolved(true);
 
             if (!isAdminRoute || isAdminLoginRoute) {
               router.replace("/admin");
@@ -256,6 +266,11 @@ export function AuthShell({ children }: AuthShellProps) {
 
           if (!mounted) return;
           setAccountApproved(approved);
+          setDealerStateResolved(true);
+
+          if (!dealerTargetRoute) {
+            return;
+          }
 
           if (dealerTargetRoute === "/account/sospeso" && !isSuspendedRoute) {
             router.replace(dealerTargetRoute);
@@ -302,6 +317,14 @@ export function AuthShell({ children }: AuthShellProps) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
         Reindirizzamento...
+      </div>
+    );
+  }
+
+  if (!isPlatformAdmin && !dealerStateResolved) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
+        Verifica account in corso...
       </div>
     );
   }
