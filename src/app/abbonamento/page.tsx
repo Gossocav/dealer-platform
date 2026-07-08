@@ -116,7 +116,7 @@ export default function AbbonamentoPage() {
               </ul>
 
               <Link
-                href={`/registrazione?piano=${plan.id}`}
+                href={plan.id === "base" ? "/registrazione/base" : "/registrazione/pro"}
                 className={[
                   "mt-8 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4",
                   plan.recommended
