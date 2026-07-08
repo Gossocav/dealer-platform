@@ -105,16 +105,18 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
 
   if (input.kind === "suspended") {
     return {
-      subject: "Account sospeso - Accesso temporaneamente non disponibile",
+      subject: "Il tuo account Dealer Platform e stato sospeso",
       html: `
         <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
-          <h2 style="margin: 0 0 12px;">Account sospeso</h2>
-          <p style="margin: 0 0 12px;">Ciao,</p>
+          <p style="margin: 0 0 12px;">Gentile <strong>${dealerName}</strong>,</p>
           <p style="margin: 0 0 12px;">
-            l'account della concessionaria <strong>${dealerName}</strong> e stato temporaneamente sospeso.
+            ti informiamo che il tuo account su Dealer Platform e stato temporaneamente sospeso.
           </p>
           <p style="margin: 0 0 12px;">
-            Per assistenza o chiarimenti, contatta il supporto all'indirizzo <a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a>.
+            A partire da questo momento non sara possibile accedere all'area riservata ne utilizzare i servizi della piattaforma.
+          </p>
+          <p style="margin: 0 0 12px;">
+            Se ritieni che si tratti di un errore o desideri ricevere maggiori informazioni, ti invitiamo a contattare il nostro servizio di assistenza.
           </p>
           ${buildStandardEmailFooterHtml()}
         </div>
