@@ -1,30 +1,4 @@
-import { redirect } from "next/navigation";
-import { resolveServerDealerAccess } from "@/lib/server-dealer-access";
-
-export default async function AccountSospesoPage() {
-  const dealerAccess = await resolveServerDealerAccess();
-
-  if (dealerAccess.state === "approved") {
-    redirect("/dashboard");
-  }
-
-  if (dealerAccess.state === "pending_review" || dealerAccess.state === "rejected") {
-    redirect("/account/in-attesa");
-  }
-
-  if (dealerAccess.state !== "suspended" && dealerAccess.state !== "cancelled") {
-    return (
-      <main className="min-h-screen bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-        <section className="mx-auto w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-600">Stato account</p>
-          <h1 className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Stato account non disponibile</h1>
-          <p className="mt-4 text-base leading-7 text-slate-700">Non siamo riusciti a confermare lo stato account. Riprova oppure contatta il supporto.</p>
-          <span className="sr-only">BUILD_COMMIT=5254a90</span>
-        </section>
-      </main>
-    );
-  }
-
+export default function AccountSospesoPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
       <section className="mx-auto w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
@@ -33,7 +7,6 @@ export default async function AccountSospesoPage() {
         <p className="mt-4 text-base leading-7 text-slate-700">
           Il tuo account è stato sospeso. Per assistenza contatta support@dealerplatform.it.
         </p>
-        <span className="sr-only">BUILD_COMMIT=5254a90</span>
         <div className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
           <p>
             Stato attuale: <span className="font-semibold text-slate-900">account sospeso</span>
