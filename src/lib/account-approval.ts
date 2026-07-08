@@ -5,6 +5,10 @@ type DealerMembershipRow = {
   status: string | null;
 };
 
+type ProfileDealerRow = {
+  dealer_id: string | null;
+};
+
 type DealerStatusRow = {
   status: string | null;
 };
@@ -80,7 +84,17 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
   }
 
   const membershipStatus = normalizeText(membership.data?.status);
-  const dealerId = normalizeDealerId(membership.data?.dealer_id);
+  let dealerId = normalizeDealerId(membership.data?.dealer_id);
+
+  if (!dealerId) {
+    const profile = await supabase.from("profiles").select("dealer_id").eq("id", userId).maybeSingle<ProfileDealerRow>();
+
+    if (profile.error) {
+      throw new Error(profile.error.message || "Errore controllo associazione dealer profilo.");
+    }
+
+    dealerId = normalizeDealerId(profile.data?.dealer_id);
+  }
 
   if (!dealerId) {
     return {

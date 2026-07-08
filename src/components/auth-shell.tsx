@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NotificationBell } from "@/components/notification-bell";
 import { TodayAppointmentsBadge } from "@/components/today-appointments-badge";
 import { UserMenu } from "@/components/user-menu";
-import { getDealerAccessResult, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { getDealerAccessResult, isPlatformAdminRole, resolveUserRoleFromMetadata, type DealerAccessState } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
 type AuthShellProps = {
@@ -48,6 +48,22 @@ function sanitizeNextPath(rawNext: string | null | undefined) {
   }
 }
 
+function resolvePrimaryDealerRoute(state: DealerAccessState) {
+  if (state === "suspended" || state === "cancelled") {
+    return "/account/sospeso" as const;
+  }
+
+  if (state === "pending_review" || state === "rejected") {
+    return "/account/in-attesa" as const;
+  }
+
+  if (state === "approved") {
+    return "/dashboard" as const;
+  }
+
+  return "/account/in-attesa" as const;
+}
+
 export function AuthShell({ children }: AuthShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -63,6 +79,7 @@ export function AuthShell({ children }: AuthShellProps) {
   const [authenticated, setAuthenticated] = useState(false);
   const [accountApproved, setAccountApproved] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const lastDealerStateRef = useRef<DealerAccessState>("unknown");
 
   useEffect(() => {
     // Le route pubbliche non richiedono alcun controllo autenticazione.
@@ -127,7 +144,7 @@ export function AuthShell({ children }: AuthShellProps) {
         return;
       }
 
-      let dealerState: "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown" = "unknown";
+      let dealerState: DealerAccessState = "unknown";
       try {
         const result = await getDealerAccessResult(supabase, userId);
         dealerState = result.state;
@@ -135,23 +152,29 @@ export function AuthShell({ children }: AuthShellProps) {
         dealerState = "unknown";
       }
 
+      if (dealerState === "unknown" && lastDealerStateRef.current !== "unknown") {
+        dealerState = lastDealerStateRef.current;
+      } else {
+        lastDealerStateRef.current = dealerState;
+      }
+
+      const dealerTargetRoute = resolvePrimaryDealerRoute(dealerState);
       const approved = dealerState === "approved";
-      const blocked = dealerState === "suspended" || dealerState === "cancelled";
 
       setAccountApproved(approved);
 
-      if (blocked && !isSuspendedRoute) {
-        router.replace("/account/sospeso");
+      if (dealerTargetRoute === "/account/sospeso" && !isSuspendedRoute) {
+        router.replace(dealerTargetRoute);
         return;
       }
 
-      if (!blocked && isSuspendedRoute) {
-        router.replace(approved ? "/dashboard" : "/account/in-attesa");
+      if (dealerTargetRoute === "/account/in-attesa" && !isWaitingRoute) {
+        router.replace(dealerTargetRoute);
         return;
       }
 
-      if (!approved && !isWaitingRoute) {
-        router.replace("/account/in-attesa");
+      if (dealerTargetRoute === "/dashboard" && (isWaitingRoute || isSuspendedRoute)) {
+        router.replace(dealerTargetRoute);
         return;
       }
 
@@ -214,7 +237,7 @@ export function AuthShell({ children }: AuthShellProps) {
             return;
           }
 
-          let dealerState: "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown" = "unknown";
+          let dealerState: DealerAccessState = "unknown";
           try {
             const result = await getDealerAccessResult(supabase, session.user.id);
             dealerState = result.state;
@@ -222,24 +245,31 @@ export function AuthShell({ children }: AuthShellProps) {
             dealerState = "unknown";
           }
 
+          if (dealerState === "unknown" && lastDealerStateRef.current !== "unknown") {
+            dealerState = lastDealerStateRef.current;
+          } else {
+            lastDealerStateRef.current = dealerState;
+          }
+
+          const dealerTargetRoute = resolvePrimaryDealerRoute(dealerState);
           const approved = dealerState === "approved";
-          const blocked = dealerState === "suspended" || dealerState === "cancelled";
 
           if (!mounted) return;
           setAccountApproved(approved);
 
-          if (blocked && !isSuspendedRoute) {
-            router.replace("/account/sospeso");
+          if (dealerTargetRoute === "/account/sospeso" && !isSuspendedRoute) {
+            router.replace(dealerTargetRoute);
             return;
           }
 
-          if (!blocked && isSuspendedRoute) {
-            router.replace(approved ? "/dashboard" : "/account/in-attesa");
+          if (dealerTargetRoute === "/account/in-attesa" && !isWaitingRoute) {
+            router.replace(dealerTargetRoute);
             return;
           }
 
-          if (!approved && !isWaitingRoute) {
-            router.replace("/account/in-attesa");
+          if (dealerTargetRoute === "/dashboard" && (isWaitingRoute || isSuspendedRoute)) {
+            router.replace(dealerTargetRoute);
+            return;
           }
         })();
       }
