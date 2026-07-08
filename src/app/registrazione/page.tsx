@@ -45,6 +45,19 @@ export default function RegistrazionePage() {
             </article>
           ))}
         </div>
+
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 sm:p-7">
+          <h2 className="text-2xl font-semibold text-slate-900">Vuoi vedere Dealer Platform prima di scegliere?</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+            Richiedi una demo gratuita e scopri quale piano e piu adatto alla tua concessionaria.
+          </p>
+          <Link
+            href="/demo"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+          >
+            Richiedi demo
+          </Link>
+        </section>
       </section>
     </main>
   );
