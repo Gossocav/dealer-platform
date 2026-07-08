@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ShieldCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 
@@ -12,6 +13,8 @@ type Plan = {
   features: string[];
   ctaLabel: string;
   recommended?: boolean;
+  detailsHref: string;
+  detailsLabel: string;
 };
 
 const plans: Plan[] = [
@@ -21,6 +24,8 @@ const plans: Plan[] = [
     price: "€149",
     period: "/mese",
     ctaLabel: "Scegli Base",
+    detailsHref: "/abbonamento/base",
+    detailsLabel: "Scopri dettagli Base",
     features: [
       "Fino a 50 annunci veicolo attivi",
       "Gestione completa delle schede veicolo",
@@ -35,6 +40,8 @@ const plans: Plan[] = [
     price: "€399",
     period: "/mese",
     ctaLabel: "Scegli Pro",
+    detailsHref: "/abbonamento/pro",
+    detailsLabel: "Scopri dettagli Pro",
     recommended: true,
     features: [
       "Annunci veicolo attivi illimitati",
@@ -134,6 +141,13 @@ export default function AbbonamentoPage() {
               >
                 {plan.ctaLabel}
               </button>
+
+              <Link
+                href={plan.detailsHref}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-slate-200"
+              >
+                {plan.detailsLabel}
+              </Link>
             </article>
           ))}
         </div>
