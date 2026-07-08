@@ -263,12 +263,12 @@ export async function POST(request: Request) {
   const targetEmail = normalizeText(dealerTarget.data.email);
   const dealerName = normalizeText(dealerTarget.data.legal_name) || normalizeText(dealerTarget.data.name) || "Concessionaria";
 
-  if (targetEmail && action === "suspend") {
+  if (targetEmail && (action === "suspend" || action === "reactivate")) {
     try {
       const emailResult = await sendDealerLifecycleEmail({
         toEmail: targetEmail,
         dealerName,
-        kind: "suspended",
+        kind: action === "suspend" ? "suspended" : "reactivated",
       });
 
       if (!emailResult.ok) {

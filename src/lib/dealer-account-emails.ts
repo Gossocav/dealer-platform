@@ -126,13 +126,15 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
 
   if (input.kind === "reactivated") {
     return {
-      subject: "Account riattivato - Accesso nuovamente disponibile",
+      subject: "Il tuo account Dealer Platform e stato riattivato",
       html: `
         <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
-          <h2 style="margin: 0 0 12px;">Account riattivato</h2>
-          <p style="margin: 0 0 12px;">Ciao,</p>
+          <p style="margin: 0 0 12px;">Gentile <strong>${dealerName}</strong>,</p>
           <p style="margin: 0 0 12px;">
-            l'account della concessionaria <strong>${dealerName}</strong> e stato riattivato.
+            ti informiamo che il tuo account su Dealer Platform e stato riattivato.
+          </p>
+          <p style="margin: 0 0 12px;">
+            Da questo momento puoi accedere nuovamente all'area riservata e utilizzare i servizi della piattaforma.
           </p>
           ${loginUrl ? `<p style="margin: 0 0 12px;"><a href="${loginUrl}">Accedi alla piattaforma</a></p>` : ""}
           ${buildStandardEmailFooterHtml()}
