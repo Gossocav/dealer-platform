@@ -19,6 +19,8 @@ type DealerListRow = {
   email: string | null;
   phone: string | null;
   status: string | null;
+  subscription_plan: string | null;
+  subscription_status: string | null;
   created_at: string | null;
 };
 
@@ -178,7 +180,7 @@ export async function GET(request: Request) {
 
   const dealers = await context.supabaseAdmin
     .from("dealers")
-    .select("id, legal_name, name, vat_number, contact_person, email, phone, status, created_at")
+    .select("id, legal_name, name, vat_number, contact_person, email, phone, status, subscription_plan, subscription_status, created_at")
     .in("status", [...SUPPORTED_DEALER_STATUSES])
     .order("created_at", { ascending: false })
     .returns<DealerListRow[]>();

@@ -2,8 +2,6 @@
 
 import { Check, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 
 type Plan = {
   id: "base" | "pro";
@@ -58,15 +56,9 @@ const plans: Plan[] = [
 ];
 
 export default function AbbonamentoPage() {
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-
-  const handlePlanSelection = () => {
-    setStatusMessage("Pagamento non ancora attivo");
-  };
-
   return (
-    <DealerDashboardShell title="Abbonamento" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={3}>
-      <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
+    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
+      <section className="mx-auto w-full max-w-6xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">Piani Dealer</p>
@@ -80,12 +72,6 @@ export default function AbbonamentoPage() {
             Abbonamento sicuro
           </div>
         </div>
-
-        {statusMessage ? (
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-            {statusMessage}
-          </div>
-        ) : null}
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           {plans.map((plan) => (
@@ -129,9 +115,8 @@ export default function AbbonamentoPage() {
                 ))}
               </ul>
 
-              <button
-                type="button"
-                onClick={handlePlanSelection}
+              <Link
+                href={`/registrazione?piano=${plan.id}`}
                 className={[
                   "mt-8 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4",
                   plan.recommended
@@ -140,7 +125,7 @@ export default function AbbonamentoPage() {
                 ].join(" ")}
               >
                 {plan.ctaLabel}
-              </button>
+              </Link>
 
               <Link
                 href={plan.detailsHref}
@@ -152,6 +137,6 @@ export default function AbbonamentoPage() {
           ))}
         </div>
       </section>
-    </DealerDashboardShell>
+    </main>
   );
 }

@@ -22,6 +22,8 @@ create table if not exists public.dealers (
   description text,
   status text default 'active',
   plan text default 'starter',
+  subscription_plan text default 'base',
+  subscription_status text default 'pending_activation',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

@@ -16,6 +16,8 @@ type DealerAdminRow = {
   email: string | null;
   phone: string | null;
   status: string | null;
+  subscription_plan: string | null;
+  subscription_status: string | null;
   created_at: string | null;
 };
 
@@ -103,6 +105,15 @@ function toStatusLabel(status: DealerStatus | null) {
   if (status === "rejected") return "rejected";
   if (status === "suspended") return "suspended";
   if (status === "cancelled") return "cancelled";
+  return "-";
+}
+
+function toPlanLabel(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (normalized === "base") return "Base";
+  if (normalized === "pro") return "Pro";
+
   return "-";
 }
 
@@ -341,6 +352,7 @@ export default function AdminDealersPage() {
                   <th className="px-4 py-3">Ragione sociale</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Telefono</th>
+                  <th className="px-4 py-3">Piano</th>
                   <th className="px-4 py-3">Stato</th>
                   <th className="px-4 py-3">Data registrazione</th>
                   <th className="px-4 py-3 text-right">Azioni disponibili</th>
@@ -349,7 +361,7 @@ export default function AdminDealersPage() {
               <tbody className="divide-y divide-slate-100">
                 {state.dealers.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={7}>
                       Nessun dealer disponibile.
                     </td>
                   </tr>
@@ -365,6 +377,7 @@ export default function AdminDealersPage() {
                         <td className="px-4 py-3 font-medium text-slate-900">{displayText(label)}</td>
                         <td className="px-4 py-3 text-slate-700">{displayText(dealer.email)}</td>
                         <td className="px-4 py-3 text-slate-700">{displayText(dealer.phone)}</td>
+                        <td className="px-4 py-3 text-slate-700">{toPlanLabel(dealer.subscription_plan)}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(status)}`}>
                             {toStatusLabel(status)}

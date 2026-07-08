@@ -9,7 +9,12 @@ type EnsureDealerBody = {
   email?: string;
   phone?: string;
   whatsapp_phone?: string;
+  subscription_plan?: string;
+  subscription_status?: string;
 };
+
+type SubscriptionPlan = "base" | "pro";
+type SubscriptionStatus = "pending_activation" | "pending_payment";
 
 type DealerIdRow = {
   id: string;
@@ -41,8 +46,10 @@ export async function POST(request: Request) {
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
     const whatsappPhone = normalizeText(body.whatsapp_phone);
+    const subscriptionPlan = normalizeSubscriptionPlan(body.subscription_plan);
+    const subscriptionStatus = normalizeSubscriptionStatus(body.subscription_status) ?? "pending_activation";
 
-    if (!legalCompanyName || !vatNumber || !contactPerson || !email || !phone) {
+    if (!legalCompanyName || !vatNumber || !contactPerson || !email || !phone || !subscriptionPlan) {
       return NextResponse.json({ error: "Dati registrazione non validi." }, { status: 400 });
     }
 
@@ -86,14 +93,20 @@ export async function POST(request: Request) {
       email,
       phone,
       whatsappPhone,
+      subscriptionPlan,
+      subscriptionStatus,
     });
 
     try {
-      await sendDealerLifecycleEmail({
+      const emailResult = await sendDealerLifecycleEmail({
         toEmail: email,
         dealerName: legalCompanyName,
         kind: "request_received",
       });
+
+      if (!emailResult.ok) {
+        console.error("Dealer ensure request-received email provider error", emailResult);
+      }
     } catch (emailError) {
       console.error("Dealer ensure request-received email failed", emailError);
     }
@@ -120,6 +133,8 @@ type EnsureDealerAssociationInput = {
   email: string;
   phone: string;
   whatsappPhone: string | null;
+  subscriptionPlan: SubscriptionPlan;
+  subscriptionStatus: SubscriptionStatus;
 };
 
 async function ensureDealerAssociation({
@@ -131,6 +146,8 @@ async function ensureDealerAssociation({
   email,
   phone,
   whatsappPhone,
+  subscriptionPlan,
+  subscriptionStatus,
 }: EnsureDealerAssociationInput) {
   const membership = await supabaseAdmin
     .from("dealer_users")
@@ -192,6 +209,9 @@ async function ensureDealerAssociation({
         email,
         phone,
         whatsapp_phone: whatsappPhone,
+        subscription_plan: subscriptionPlan,
+        subscription_status: subscriptionStatus,
+        plan: subscriptionPlan,
         status: "pending_review",
       })
       .select("id")
@@ -211,6 +231,8 @@ async function ensureDealerAssociation({
     email,
     phone,
     whatsappPhone,
+    subscriptionPlan,
+    subscriptionStatus,
     userId,
   });
 
@@ -232,10 +254,12 @@ async function updateDealer(
     email: string;
     phone: string;
     whatsappPhone: string | null;
+    subscriptionPlan: SubscriptionPlan;
+    subscriptionStatus: SubscriptionStatus;
     userId: string;
   }
 ) {
-  const { legalCompanyName, vatNumber, contactPerson, email, phone, whatsappPhone, userId } = values;
+  const { legalCompanyName, vatNumber, contactPerson, email, phone, whatsappPhone, subscriptionPlan, subscriptionStatus, userId } = values;
 
   const { error } = await supabaseAdmin
     .from("dealers")
@@ -247,6 +271,9 @@ async function updateDealer(
       email,
       phone,
       whatsapp_phone: whatsappPhone,
+      subscription_plan: subscriptionPlan,
+      subscription_status: subscriptionStatus,
+      plan: subscriptionPlan,
       status: "pending_review",
       user_id: userId,
       updated_at: new Date().toISOString(),
@@ -319,6 +346,26 @@ function normalizeText(value: unknown) {
 function normalizeEmail(value: unknown) {
   const text = String(value ?? "").trim().toLowerCase();
   return text.length > 0 ? text : null;
+}
+
+function normalizeSubscriptionPlan(value: unknown): SubscriptionPlan | null {
+  const text = String(value ?? "").trim().toLowerCase();
+
+  if (text === "base" || text === "pro") {
+    return text;
+  }
+
+  return null;
+}
+
+function normalizeSubscriptionStatus(value: unknown): SubscriptionStatus | null {
+  const text = String(value ?? "").trim().toLowerCase();
+
+  if (text === "pending_activation" || text === "pending_payment") {
+    return text;
+  }
+
+  return null;
 }
 
 async function clearContactMetadataBestEffort(

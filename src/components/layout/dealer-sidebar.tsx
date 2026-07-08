@@ -33,7 +33,7 @@ const sidebarItems: SidebarItem[] = [
   { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
   { label: "Email", href: "/email", icon: Mail },
   { label: "Statistiche", href: "/statistiche", icon: BarChart3 },
-  { label: "Abbonamento", href: "/abbonamento", icon: ShieldCheck },
+  { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
 ];

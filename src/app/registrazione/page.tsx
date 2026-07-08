@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+
+type SubscriptionPlan = "base" | "pro";
+
+function normalizeSubscriptionPlan(value: string | null | undefined): SubscriptionPlan | "" {
+  if (value === "base" || value === "pro") {
+    return value;
+  }
+
+  return "";
+}
 
 type FormState = {
   companyName: string;
@@ -13,6 +23,7 @@ type FormState = {
   whatsappPhone: string;
   password: string;
   confirmPassword: string;
+  subscriptionPlan: SubscriptionPlan | "";
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -103,6 +114,7 @@ export default function RegistrazionePage() {
     whatsappPhone: "",
     password: "",
     confirmPassword: "",
+    subscriptionPlan: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState("");
@@ -114,6 +126,27 @@ export default function RegistrazionePage() {
   const passwordChecklist = evaluatePassword(values.password);
   const passwordIsValid = isPasswordValid(passwordChecklist);
   const canSubmit = !isSubmitting && passwordIsValid;
+
+  useEffect(() => {
+    const selectedFromQuery = normalizeSubscriptionPlan(new URLSearchParams(window.location.search).get("piano"));
+
+    if (!selectedFromQuery) {
+      return;
+    }
+
+    setValues((current) => {
+      if (current.subscriptionPlan === selectedFromQuery) {
+        return current;
+      }
+
+      return {
+        ...current,
+        subscriptionPlan: selectedFromQuery,
+      };
+    });
+
+    setErrors((current) => ({ ...current, subscriptionPlan: undefined }));
+  }, []);
 
   const validate = (state: FormState) => {
     const newErrors: FormErrors = {};
@@ -149,6 +182,10 @@ export default function RegistrazionePage() {
       newErrors.confirmPassword = "Le password non corrispondono.";
     }
 
+    if (!state.subscriptionPlan) {
+      newErrors.subscriptionPlan = "Seleziona un piano di abbonamento.";
+    }
+
     return newErrors;
   };
 
@@ -159,6 +196,15 @@ export default function RegistrazionePage() {
       setErrors({ ...errors, [field]: undefined });
       setSuccessMessage("");
     };
+
+  const handlePlanSelect = (plan: SubscriptionPlan) => {
+    setValues((current) => ({
+      ...current,
+      subscriptionPlan: plan,
+    }));
+    setErrors((current) => ({ ...current, subscriptionPlan: undefined }));
+    setSuccessMessage("");
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -188,6 +234,7 @@ export default function RegistrazionePage() {
           contact_name: values.contactName.trim(),
           phone: values.phone.trim(),
           whatsapp_phone: values.whatsappPhone.trim(),
+          subscription_plan: values.subscriptionPlan,
         },
       },
     });
@@ -234,6 +281,8 @@ export default function RegistrazionePage() {
         email,
         phone: values.phone,
         whatsapp_phone: values.whatsappPhone,
+        subscription_plan: values.subscriptionPlan,
+        subscription_status: "pending_activation",
       }),
     });
 
@@ -474,6 +523,40 @@ export default function RegistrazionePage() {
                     </div>
                     {errors.confirmPassword ? <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p> : null}
                   </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">Scegli il piano</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePlanSelect("base")}
+                      className={`rounded-2xl border px-4 py-4 text-left transition focus:outline-none focus:ring-4 focus:ring-blue-100 ${
+                        values.subscriptionPlan === "base"
+                          ? "border-blue-400 bg-blue-50"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <p className="text-base font-semibold text-slate-900">Base</p>
+                      <p className="mt-1 text-sm text-slate-700">€149/mese</p>
+                      <p className="mt-2 text-xs text-slate-600">Fino a 50 annunci veicolo attivi</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handlePlanSelect("pro")}
+                      className={`rounded-2xl border px-4 py-4 text-left transition focus:outline-none focus:ring-4 focus:ring-blue-100 ${
+                        values.subscriptionPlan === "pro"
+                          ? "border-blue-400 bg-blue-50"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <p className="text-base font-semibold text-slate-900">Pro</p>
+                      <p className="mt-1 text-sm text-slate-700">€399/mese</p>
+                      <p className="mt-2 text-xs text-slate-600">Annunci veicolo attivi illimitati</p>
+                    </button>
+                  </div>
+                  {errors.subscriptionPlan ? <p className="mt-3 text-sm text-red-600">{errors.subscriptionPlan}</p> : null}
                 </div>
 
                 {successMessage ? (
