@@ -13,7 +13,7 @@ type AuthShellProps = {
   children: React.ReactNode;
 };
 
-const PUBLIC_ROUTES = ["/", "/login", "/forgot-password", "/registrazione", "/auto", "/ricerca", "/concessionarie"];
+const PUBLIC_ROUTES = ["/", "/login", "/forgot-password", "/reset-password", "/registrazione", "/auto", "/ricerca", "/concessionarie"];
 
 const DEALER_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },

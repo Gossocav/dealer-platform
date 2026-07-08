@@ -4,6 +4,36 @@ import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+const FALLBACK_PRODUCTION_APP_URL = "https://dealer-platform-six.vercel.app";
+
+function normalizeBaseUrl(value: string | null | undefined) {
+  const trimmed = String(value ?? "").trim().replace(/\/+$/, "");
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isLocalhostUrl(value: string | null | undefined) {
+  const url = String(value ?? "").trim().toLowerCase();
+  return url.includes("localhost") || url.includes("127.0.0.1");
+}
+
+function resolveResetRedirectTo() {
+  const origin = normalizeBaseUrl(window.location.origin);
+  const envPublicAppUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
+  const productionBaseUrl = envPublicAppUrl && !isLocalhostUrl(envPublicAppUrl)
+    ? envPublicAppUrl
+    : FALLBACK_PRODUCTION_APP_URL;
+
+  if (process.env.NODE_ENV !== "production" && origin && isLocalhostUrl(origin)) {
+    return `${origin}/reset-password`;
+  }
+
+  if (origin && !isLocalhostUrl(origin)) {
+    return `${origin}/reset-password`;
+  }
+
+  return `${productionBaseUrl}/reset-password`;
+}
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +46,7 @@ export default function ForgotPasswordPage() {
     setMessage(null);
     setMessageType(null);
 
-    const redirectTo = `${window.location.origin}/login`;
+    const redirectTo = resolveResetRedirectTo();
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
 
     setLoading(false);
