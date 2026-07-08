@@ -3,32 +3,55 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getDealerAccessResult, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
-function sanitizeNextPath(rawNext: string | null | undefined) {
-  const value = String(rawNext ?? "").trim();
+type AccountRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/dashboard";
 
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/dashboard";
-  }
+const RESOLUTION_TIMEOUT_MS = 3000;
+
+function isAccountRoute(value: unknown): value is AccountRoute {
+  return value === "/admin" || value === "/account/sospeso" || value === "/account/in-attesa" || value === "/dashboard";
+}
+
+async function resolveAccountRouteWithTimeout() {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), RESOLUTION_TIMEOUT_MS);
 
   try {
-    const parsed = new URL(value, "http://localhost");
-    if (parsed.origin !== "http://localhost" || !parsed.pathname.startsWith("/")) {
-      return "/dashboard";
+    const response = await fetch("/api/account/resolve-route", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`resolve-route-${response.status}`);
     }
 
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-  } catch {
-    return "/dashboard";
+    const payload = (await response.json()) as { route?: unknown; status?: unknown };
+    if (!isAccountRoute(payload.route)) {
+      throw new Error("resolve-route-invalid-payload");
+    }
+
+    return {
+      route: payload.route,
+      status: String(payload.status ?? "unknown"),
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("resolve-route-timeout");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = useMemo(() => sanitizeNextPath(searchParams.get("next")), [searchParams]);
   const accessReason = useMemo(() => String(searchParams.get("reason") ?? "").trim().toLowerCase(), [searchParams]);
 
   const [email, setEmail] = useState("");
@@ -77,90 +100,29 @@ export default function LoginClient() {
       return;
     }
 
-    let isPlatformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
-
-    if (!isPlatformAdmin) {
-      const profile = await authClient.from("profiles").select("role").eq("id", user.id).maybeSingle<{ role: string | null }>();
-
-      if (!profile.error) {
-        isPlatformAdmin = isPlatformAdminRole(profile.data?.role);
-      }
-    }
-
-    if (isPlatformAdmin) {
-      console.info("[login-client] route selected", {
-        profile_id: user.id,
-        route: "/admin",
-        reason: "platform_admin",
-      });
-      setLoading(false);
-      router.replace("/admin");
-      router.refresh();
-      return;
-    }
-
-    let dealerState: "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown" = "unknown";
     try {
-      const access = await getDealerAccessResult(authClient, user.id);
-      dealerState = access.state;
-      console.info("[login-client] dealer state read", {
-        profile_id: user.id,
-        dealer_id: access.dealerId,
-        state: access.state,
-        dealer_status: access.dealerStatus,
-        membership_status: access.membershipStatus,
-      });
-    } catch {
-      dealerState = "unknown";
-      console.error("[login-client] dealer state read failed", {
-        profile_id: user.id,
-      });
-    }
+      const resolved = await resolveAccountRouteWithTimeout();
 
-    setLoading(false);
-
-    if (dealerState === "suspended" || dealerState === "cancelled") {
-      console.info("[login-client] route selected", {
+      setLoading(false);
+      console.info("[login-client] route resolved", {
         profile_id: user.id,
-        state: dealerState,
-        route: "/account/sospeso",
+        route: resolved.route,
+        status: resolved.status,
       });
-      router.replace("/account/sospeso");
+
+      router.replace(resolved.route);
       router.refresh();
       return;
-    }
-
-    if (dealerState === "pending_review" || dealerState === "rejected") {
-      console.info("[login-client] route selected", {
+    } catch (resolveError) {
+      setLoading(false);
+      setMessage("Impossibile verificare lo stato account. Esci e riprova.");
+      setMessageType("error");
+      console.error("[login-client] route resolution failed", {
         profile_id: user.id,
-        state: dealerState,
-        route: "/account/in-attesa",
+        error: resolveError instanceof Error ? resolveError.message : "unknown_error",
       });
-      router.replace("/account/in-attesa");
-      router.refresh();
       return;
     }
-
-    if (dealerState === "approved") {
-      console.info("[login-client] route selected", {
-        profile_id: user.id,
-        state: dealerState,
-        route: nextPath,
-      });
-      router.replace(nextPath);
-      router.refresh();
-      return;
-    }
-
-    setMessage("Impossibile verificare lo stato account. Riprova.");
-    setMessageType("error");
-    console.error("[login-client] unresolved dealer state", {
-      profile_id: user.id,
-      state: dealerState,
-      reason: "route not selectable",
-    });
-
-    return;
   };
 
   return (
