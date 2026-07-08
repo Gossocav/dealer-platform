@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -15,22 +16,17 @@ export const publicSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-const MARKETPLACE_PUBLISHABLE_STATUSES = new Set([
-  "published",
-  "pubblicato",
-  "active",
-  "attivo",
-]);
+export const MARKETPLACE_PUBLISHABLE_STATUS_VALUES = ["approved"] as const;
+
+const MARKETPLACE_PUBLISHABLE_STATUSES = new Set<string>(MARKETPLACE_PUBLISHABLE_STATUS_VALUES);
 
 export function getMarketplaceStatusFilter() {
-  return "status.is.null,status.eq.published,status.eq.pubblicato,status.eq.active,status.eq.attivo";
+  return "status.eq.published,status.eq.pubblicato,status.eq.active,status.eq.attivo";
 }
 
 export function isMarketplacePublishableStatus(status: string | null | undefined) {
   const normalized = String(status ?? "").trim().toLowerCase();
-  if (!normalized) {
-    return true;
-  }
+  if (!normalized) return false;
 
   if (normalized === "draft" || normalized === "bozza") {
     return false;
@@ -334,6 +330,14 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
     return null;
   }
 
+   return resolveVehicleImageUrlByStoragePath(storagePath);
+}
+
+const resolveVehicleImageUrlByStoragePath = cache(async (storagePath: string) => {
+  if (!storagePath) {
+    return null;
+  }
+
   const { data: signedData, error: signedError } = await publicSupabase.storage
     .from("vehicle-images")
     .createSignedUrl(storagePath, 60 * 60);
@@ -344,7 +348,7 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
 
   const { data: publicUrlData } = publicSupabase.storage.from("vehicle-images").getPublicUrl(storagePath);
   return publicUrlData.publicUrl || null;
-}
+});
 
 function extractVehicleImagePath(value: string) {
   if (!value) return null;
