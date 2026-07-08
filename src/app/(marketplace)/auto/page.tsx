@@ -1,15 +1,65 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
-import { getMarketplaceStatusFilter, publicSupabase, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_STATUS_VALUES, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
-export default async function MarketplaceCatalogPage() {
-  const { data, error } = await publicSupabase
+const MARKETPLACE_CATALOG_PAGE_SIZE = 24;
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function asValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? (value[0] ?? "") : String(value ?? "");
+}
+
+function parsePage(value: string | string[] | undefined) {
+  const numeric = Number(asValue(value));
+  if (!Number.isFinite(numeric) || numeric < 1) {
+    return 1;
+  }
+  return Math.floor(numeric);
+}
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
+  const resolved = await searchParams;
+  const page = parsePage(resolved.page);
+  const canonicalPath = page > 1 ? `/auto?page=${page}` : "/auto";
+  const title = page > 1 ? `Catalogo Veicoli - Pagina ${page}` : "Catalogo Veicoli";
+  const description = "Catalogo pubblico dei veicoli disponibili: filtra e consulta le auto pubblicate dalle concessionarie partner.";
+  const canonical = toAbsoluteUrl(canonicalPath);
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: `${title} | Dealer Platform`,
+      description,
+      url: canonical,
+      type: "website",
+    },
+  };
+}
+
+export default async function MarketplaceCatalogPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const resolvedSearchParams = await searchParams;
+  const page = parsePage(resolvedSearchParams.page);
+  const from = (page - 1) * MARKETPLACE_CATALOG_PAGE_SIZE;
+  const to = from + MARKETPLACE_CATALOG_PAGE_SIZE - 1;
+
+  const { data, error, count } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
-    .or(getMarketplaceStatusFilter())
-    .order("created_at", { ascending: false });
+    .select(
+      "id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)",
+      { count: "exact" }
+    )
+    .in("status", MARKETPLACE_PUBLISHABLE_STATUS_VALUES)
+    .eq("dealers.status", "approved")
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   if (error) {
     return (
@@ -24,6 +74,12 @@ export default async function MarketplaceCatalogPage() {
   }
 
   const vehicles = (data ?? []) as MarketplaceVehicle[];
+  const totalCount = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / MARKETPLACE_CATALOG_PAGE_SIZE));
+  const hasPrev = page > 1;
+  const hasNext = page < totalPages;
+  const prevHref = hasPrev ? `/auto?page=${page - 1}` : "/auto";
+  const nextHref = `/auto?page=${page + 1}`;
 
   return (
     <main className="px-4 py-8 sm:px-6 lg:px-8">
@@ -48,11 +104,39 @@ export default async function MarketplaceCatalogPage() {
             Nessun veicolo pubblicato al momento.
           </div>
         ) : (
-          <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {vehicles.map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
-            ))}
-          </section>
+          <>
+            <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {vehicles.map((vehicle) => (
+                <VehicleCard key={vehicle.id} vehicle={vehicle} />
+              ))}
+            </section>
+
+            <section className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-4 shadow-[0_20px_60px_-35px_rgba(15,23,42,0.24)] sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-600">
+                Pagina <span className="font-semibold text-slate-900">{page}</span> di <span className="font-semibold text-slate-900">{totalPages}</span>
+              </p>
+              <div className="flex items-center gap-2">
+                {hasPrev ? (
+                  <Link href={prevHref} className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                    Precedente
+                  </Link>
+                ) : (
+                  <span className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400">
+                    Precedente
+                  </span>
+                )}
+                {hasNext ? (
+                  <Link href={nextHref} className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+                    Successiva
+                  </Link>
+                ) : (
+                  <span className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-300 px-4 py-2 text-sm font-semibold text-white">
+                    Successiva
+                  </span>
+                )}
+              </div>
+            </section>
+          </>
         )}
       </div>
     </main>

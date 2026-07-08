@@ -9,6 +9,15 @@ type DealerStatusRow = {
   status: string | null;
 };
 
+export type DealerAccessState = "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown";
+
+export type DealerAccessResult = {
+  state: DealerAccessState;
+  dealerId: string | null;
+  membershipStatus: string | null;
+  dealerStatus: string | null;
+};
+
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim().toLowerCase();
   return text.length > 0 ? text : null;
@@ -52,6 +61,12 @@ export function isPlatformAdminRole(role: string | null | undefined) {
 }
 
 export async function isDealerAccountApproved(supabase: SupabaseClient, userId: string) {
+  const access = await getDealerAccessResult(supabase, userId);
+
+  return access.state === "approved";
+}
+
+export async function getDealerAccessResult(supabase: SupabaseClient, userId: string): Promise<DealerAccessResult> {
   const membership = await supabase
     .from("dealer_users")
     .select("dealer_id, status")
@@ -67,8 +82,13 @@ export async function isDealerAccountApproved(supabase: SupabaseClient, userId: 
   const membershipStatus = normalizeText(membership.data?.status);
   const dealerId = normalizeDealerId(membership.data?.dealer_id);
 
-  if (membershipStatus !== "active" || !dealerId) {
-    return false;
+  if (!dealerId) {
+    return {
+      state: "unknown",
+      dealerId: null,
+      membershipStatus,
+      dealerStatus: null,
+    };
   }
 
   const dealer = await supabase.from("dealers").select("status").eq("id", dealerId).maybeSingle<DealerStatusRow>();
@@ -77,5 +97,57 @@ export async function isDealerAccountApproved(supabase: SupabaseClient, userId: 
     throw new Error(dealer.error.message || "Errore controllo stato dealer.");
   }
 
-  return normalizeText(dealer.data?.status) === "approved";
+  const dealerStatus = normalizeText(dealer.data?.status);
+
+  if (dealerStatus === "suspended") {
+    return {
+      state: "suspended",
+      dealerId,
+      membershipStatus,
+      dealerStatus,
+    };
+  }
+
+  if (dealerStatus === "cancelled") {
+    return {
+      state: "cancelled",
+      dealerId,
+      membershipStatus,
+      dealerStatus,
+    };
+  }
+
+  if (dealerStatus === "rejected") {
+    return {
+      state: "rejected",
+      dealerId,
+      membershipStatus,
+      dealerStatus,
+    };
+  }
+
+  if (dealerStatus === "pending_review") {
+    return {
+      state: "pending_review",
+      dealerId,
+      membershipStatus,
+      dealerStatus,
+    };
+  }
+
+  if (dealerStatus === "approved" && membershipStatus === "active") {
+    return {
+      state: "approved",
+      dealerId,
+      membershipStatus,
+      dealerStatus,
+    };
+  }
+
+  return {
+    state: "unknown",
+    dealerId,
+    membershipStatus,
+    dealerStatus,
+  };
 }

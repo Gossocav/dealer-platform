@@ -1,15 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { formatMileage, formatPrice, formatText, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
-
-type HomeFilters = {
-  q: string;
-  brand: string;
-  priceBand: string;
-  fuel: string;
-  transmission: string;
-};
 
 type DealerCluster = {
   dealerId: string;
@@ -24,11 +17,31 @@ const PRICE_BANDS = [
   { label: "Oltre 40.000 €", value: "40000-99999999" },
 ] as const;
 
+export function generateMetadata(): Metadata {
+  const description = "Marketplace auto pubblico: esplora veicoli, confronta offerte e scopri concessionarie partner in tutta Italia.";
+  const canonical = toAbsoluteUrl("/");
+
+  return {
+    title: "Marketplace Auto",
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: "Marketplace Auto | Dealer Platform",
+      description,
+      url: canonical,
+      type: "website",
+    },
+  };
+}
+
 export default async function MarketplaceHomePage() {
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
-    .eq("status", "published")
+    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .or(getMarketplaceStatusFilter())
+    .eq("dealers.status", "approved")
     .order("created_at", { ascending: false })
     .limit(24);
 

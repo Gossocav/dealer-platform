@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { formatMileage, formatPrice, formatText, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
+
+const MARKETPLACE_DEALERS_VEHICLES_LIMIT = 240;
 
 type DealerGroup = {
   dealerId: string;
@@ -12,9 +14,11 @@ type DealerGroup = {
 export default async function DealersListPage() {
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
-    .eq("status", "published")
-    .order("created_at", { ascending: false });
+    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .or(getMarketplaceStatusFilter())
+    .eq("dealers.status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(MARKETPLACE_DEALERS_VEHICLES_LIMIT);
 
   if (error) {
     return (

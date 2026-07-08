@@ -58,10 +58,11 @@ async function fetchMarketplaceVehicleDetail(id: string) {
   return publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .or(getMarketplaceStatusFilter())
+    .eq("dealers.status", "approved")
     .maybeSingle();
 }
 

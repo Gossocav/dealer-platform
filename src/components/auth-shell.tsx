@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NotificationBell } from "@/components/notification-bell";
 import { TodayAppointmentsBadge } from "@/components/today-appointments-badge";
 import { UserMenu } from "@/components/user-menu";
-import { isDealerAccountApproved, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { getDealerAccessResult, isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
 type AuthShellProps = {
@@ -26,6 +26,7 @@ const DEALER_NAV_ITEMS = [
 const ADMIN_NAV_ITEMS = [
   { href: "/admin", label: "Pannello Admin" },
   { href: "/admin/dealer-approval", label: "Approvazione Dealer" },
+  { href: "/admin/dealers", label: "Gestione Dealer" },
 ];
 
 function sanitizeNextPath(rawNext: string | null | undefined) {
@@ -57,6 +58,7 @@ export function AuthShell({ children }: AuthShellProps) {
   const isAdminRoute = useMemo(() => pathname === "/admin" || pathname.startsWith("/admin/"), [pathname]);
   const isAdminLoginRoute = pathname === "/admin/login";
   const isWaitingRoute = useMemo(() => pathname === "/account/in-attesa" || pathname.startsWith("/account/in-attesa/"), [pathname]);
+  const isSuspendedRoute = useMemo(() => pathname === "/account/sospeso" || pathname.startsWith("/account/sospeso/"), [pathname]);
   const [checked, setChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [accountApproved, setAccountApproved] = useState(false);
@@ -125,14 +127,28 @@ export function AuthShell({ children }: AuthShellProps) {
         return;
       }
 
-      let approved = false;
+      let dealerState: "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown" = "unknown";
       try {
-        approved = await isDealerAccountApproved(supabase, userId);
+        const result = await getDealerAccessResult(supabase, userId);
+        dealerState = result.state;
       } catch {
-        approved = false;
+        dealerState = "unknown";
       }
 
+      const approved = dealerState === "approved";
+      const blocked = dealerState === "suspended" || dealerState === "cancelled";
+
       setAccountApproved(approved);
+
+      if (blocked && !isSuspendedRoute) {
+        router.replace("/account/sospeso");
+        return;
+      }
+
+      if (!blocked && isSuspendedRoute) {
+        router.replace(approved ? "/dashboard" : "/account/in-attesa");
+        return;
+      }
 
       if (!approved && !isWaitingRoute) {
         router.replace("/account/in-attesa");
@@ -198,15 +214,29 @@ export function AuthShell({ children }: AuthShellProps) {
             return;
           }
 
-          let approved = false;
+          let dealerState: "approved" | "pending_review" | "rejected" | "suspended" | "cancelled" | "unknown" = "unknown";
           try {
-            approved = await isDealerAccountApproved(supabase, session.user.id);
+            const result = await getDealerAccessResult(supabase, session.user.id);
+            dealerState = result.state;
           } catch {
-            approved = false;
+            dealerState = "unknown";
           }
+
+          const approved = dealerState === "approved";
+          const blocked = dealerState === "suspended" || dealerState === "cancelled";
 
           if (!mounted) return;
           setAccountApproved(approved);
+
+          if (blocked && !isSuspendedRoute) {
+            router.replace("/account/sospeso");
+            return;
+          }
+
+          if (!blocked && isSuspendedRoute) {
+            router.replace(approved ? "/dashboard" : "/account/in-attesa");
+            return;
+          }
 
           if (!approved && !isWaitingRoute) {
             router.replace("/account/in-attesa");
@@ -224,7 +254,7 @@ export function AuthShell({ children }: AuthShellProps) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isAdminLoginRoute, isAdminRoute, isPublicRoute, isWaitingRoute, pathname, router]);
+  }, [isAdminLoginRoute, isAdminRoute, isPublicRoute, isSuspendedRoute, isWaitingRoute, pathname, router]);
 
   if (!checked && !isPublicRoute) {
     return (
@@ -246,7 +276,7 @@ export function AuthShell({ children }: AuthShellProps) {
     );
   }
 
-  if (!accountApproved && !isWaitingRoute && !isPlatformAdmin) {
+  if (!accountApproved && !isWaitingRoute && !isSuspendedRoute && !isPlatformAdmin) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
         Reindirizzamento...
@@ -260,6 +290,23 @@ export function AuthShell({ children }: AuthShellProps) {
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
             <Link href="/account/in-attesa" className="flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-slate-900">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-xs font-bold text-white" suppressHydrationWarning>DP</span>
+              <span suppressHydrationWarning>DEALER PLATFORM</span>
+            </Link>
+            <UserMenu />
+          </div>
+        </header>
+        <div className="flex-1">{children}</div>
+      </>
+    );
+  }
+
+  if (!accountApproved && isSuspendedRoute && !isPlatformAdmin) {
+    return (
+      <>
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
+            <Link href="/account/sospeso" className="flex items-center gap-3 text-sm font-semibold tracking-[0.18em] text-slate-900">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-xs font-bold text-white" suppressHydrationWarning>DP</span>
               <span suppressHydrationWarning>DEALER PLATFORM</span>
             </Link>

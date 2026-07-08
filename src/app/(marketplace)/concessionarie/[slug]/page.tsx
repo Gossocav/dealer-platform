@@ -1,24 +1,94 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createMarketplaceSlug, formatMileage, formatPrice, formatText, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { createMarketplaceSlug, formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
+
+const DEALER_PAGE_VEHICLES_LIMIT = 120;
+
+async function resolveDealerBySlug(slug: string) {
+  const { data, error } = await publicSupabase
+    .from("dealers")
+    .select("id, name, logo_url, legal_name")
+    .eq("status", "approved");
+
+  if (error) {
+    return null;
+  }
+
+  const dealerCandidates = (data ?? []) as MarketplaceDealer[];
+  return (
+    dealerCandidates.find((dealer) => {
+      const dealerSlug = createMarketplaceSlug(normalizeVehicleDealerName(dealer));
+      return dealerSlug === slug || createMarketplaceSlug(dealer.legal_name ?? dealer.name) === slug;
+    }) ?? null
+  );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const canonical = toAbsoluteUrl(`/concessionarie/${slug}`);
+  const fallbackDescription = "Pagina concessionaria con i veicoli pubblicati nel marketplace Dealer Platform.";
+  const matchedDealer = await resolveDealerBySlug(slug);
+
+  if (!matchedDealer) {
+    return {
+      title: "Concessionaria non trovata",
+      description: fallbackDescription,
+      alternates: {
+        canonical,
+      },
+      openGraph: {
+        title: "Concessionaria non trovata | Dealer Platform",
+        description: fallbackDescription,
+        url: canonical,
+        type: "website",
+      },
+    };
+  }
+
+  const dealerName = String(matchedDealer.legal_name ?? matchedDealer.name ?? "Concessionaria").trim() || "Concessionaria";
+  const description = `${dealerName}: scopri tutti i veicoli pubblicati dalla concessionaria nel marketplace pubblico.`;
+
+  return {
+    title: dealerName,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: `${dealerName} | Dealer Platform`,
+      description,
+      url: canonical,
+      type: "website",
+    },
+  };
+}
 
 export default async function DealerPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
+  const matchedDealer = await resolveDealerBySlug(slug);
+
+  if (!matchedDealer?.id) {
+    notFound();
+  }
+
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
-    .eq("status", "published")
-    .order("created_at", { ascending: false });
+    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .eq("dealer_id", matchedDealer.id)
+    .or(getMarketplaceStatusFilter())
+    .eq("dealers.status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(DEALER_PAGE_VEHICLES_LIMIT);
 
   if (error) {
     notFound();
   }
 
-  const vehicles = (data ?? []) as MarketplaceVehicle[];
-  const dealerVehicles = vehicles.filter((vehicle) => resolveDealerSlug(vehicle.dealers) === slug || createMarketplaceSlug(normalizeVehicleDealerName(vehicle.dealers)) === slug);
+  const dealerVehicles = (data ?? []) as MarketplaceVehicle[];
 
   if (dealerVehicles.length === 0) {
     notFound();

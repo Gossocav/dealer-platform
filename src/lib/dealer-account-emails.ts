@@ -1,4 +1,4 @@
-type DealerEmailKind = "request_received" | "approved" | "rejected";
+type DealerEmailKind = "request_received" | "approved" | "rejected" | "suspended" | "reactivated";
 
 type SendDealerEmailInput = {
   toEmail: string;
@@ -14,9 +14,8 @@ type ResendApiPayload = {
   message?: string;
 };
 
-const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
 const EMAIL_FROM_NAME = "Dealer Platform";
-const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
 
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
@@ -30,6 +29,13 @@ function normalizeEmail(value: unknown) {
   }
 
   return text;
+}
+
+function resolveFromHeader() {
+  const envFromAddress = normalizeEmail(process.env.RESEND_FROM_EMAIL);
+  const fromAddress = envFromAddress ?? DEFAULT_EMAIL_FROM_ADDRESS;
+
+  return `${EMAIL_FROM_NAME} <${fromAddress}>`;
 }
 
 function resolveDealerName(value: string) {
@@ -97,6 +103,42 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
     };
   }
 
+  if (input.kind === "suspended") {
+    return {
+      subject: "Account sospeso - Accesso temporaneamente non disponibile",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+          <h2 style="margin: 0 0 12px;">Account sospeso</h2>
+          <p style="margin: 0 0 12px;">Ciao,</p>
+          <p style="margin: 0 0 12px;">
+            l'account della concessionaria <strong>${dealerName}</strong> e stato temporaneamente sospeso.
+          </p>
+          <p style="margin: 0 0 12px;">
+            Per assistenza o chiarimenti, contatta il supporto all'indirizzo <a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a>.
+          </p>
+          ${buildStandardEmailFooterHtml()}
+        </div>
+      `.trim(),
+    };
+  }
+
+  if (input.kind === "reactivated") {
+    return {
+      subject: "Account riattivato - Accesso nuovamente disponibile",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+          <h2 style="margin: 0 0 12px;">Account riattivato</h2>
+          <p style="margin: 0 0 12px;">Ciao,</p>
+          <p style="margin: 0 0 12px;">
+            l'account della concessionaria <strong>${dealerName}</strong> e stato riattivato.
+          </p>
+          ${loginUrl ? `<p style="margin: 0 0 12px;"><a href="${loginUrl}">Accedi alla piattaforma</a></p>` : ""}
+          ${buildStandardEmailFooterHtml()}
+        </div>
+      `.trim(),
+    };
+  }
+
   return {
     subject: "Esito registrazione account concessionaria",
     html: `
@@ -135,7 +177,7 @@ export async function sendDealerLifecycleEmail(input: SendDealerEmailInput) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      from: EMAIL_FROM_HEADER,
+      from: resolveFromHeader(),
       to: [toEmail],
       subject: content.subject,
       html: content.html,
