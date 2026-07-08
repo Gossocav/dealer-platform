@@ -15,6 +15,7 @@ type AuthShellProps = {
 type AccountRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/dashboard";
 
 const PUBLIC_ROUTES = ["/", "/login", "/forgot-password", "/reset-password", "/registrazione", "/auto", "/ricerca", "/concessionarie"];
+const ACCOUNT_STATUS_ROUTES = ["/account/sospeso", "/account/in-attesa"];
 
 const DEALER_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
@@ -81,10 +82,15 @@ export function AuthShell({ children }: AuthShellProps) {
   const pathname = usePathname();
   const router = useRouter();
 
+  const isAccountStatusRoute = useMemo(
+    () => ACCOUNT_STATUS_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`)),
+    [pathname]
+  );
   const isPublicRoute = useMemo(
     () => [...PUBLIC_ROUTES, "/admin/login"].some((route) => pathname === route || pathname.startsWith(`${route}/`)),
     [pathname]
   );
+  const isBypassRoute = isPublicRoute || isAccountStatusRoute;
   const isAdminRoute = useMemo(() => pathname === "/admin" || pathname.startsWith("/admin/"), [pathname]);
   const isAdminLoginRoute = pathname === "/admin/login";
   const isWaitingRoute = useMemo(() => pathname === "/account/in-attesa" || pathname.startsWith("/account/in-attesa/"), [pathname]);
@@ -106,7 +112,7 @@ export function AuthShell({ children }: AuthShellProps) {
   };
 
   useEffect(() => {
-    if (isPublicRoute) {
+    if (isBypassRoute) {
       return;
     }
 
@@ -214,10 +220,10 @@ export function AuthShell({ children }: AuthShellProps) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [isAdminRoute, isPublicRoute, pathname, router]);
+  }, [isAdminRoute, isBypassRoute, pathname, router]);
 
   useEffect(() => {
-    if (isPublicRoute || !authenticated || !resolvedRoute) {
+    if (isBypassRoute || !authenticated || !resolvedRoute) {
       return;
     }
 
@@ -247,12 +253,12 @@ export function AuthShell({ children }: AuthShellProps) {
         router.replace("/dashboard");
       }
     }
-  }, [authenticated, isAdminLoginRoute, isAdminRoute, isPublicRoute, isSuspendedRoute, isWaitingRoute, resolvedRoute, router]);
+  }, [authenticated, isAdminLoginRoute, isAdminRoute, isBypassRoute, isSuspendedRoute, isWaitingRoute, resolvedRoute, router]);
 
   const isPlatformAdmin = resolvedRoute === "/admin";
   const accountApproved = isPlatformAdmin || resolvedRoute === "/dashboard";
 
-  if (!checked && !isPublicRoute) {
+  if (!checked && !isBypassRoute) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
         Verifica autenticazione...
@@ -260,7 +266,7 @@ export function AuthShell({ children }: AuthShellProps) {
     );
   }
 
-  if (isPublicRoute) {
+  if (isBypassRoute) {
     return <>{children}</>;
   }
 
