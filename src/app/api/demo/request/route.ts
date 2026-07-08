@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 
@@ -55,6 +56,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 });
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
+
+    const demoInsert = await supabaseAdmin
+      .from("demo_requests")
+      .insert({
+        company_name: dealerName,
+        contact_name: contactName,
+        email,
+        phone,
+        city,
+        vehicle_count: vehicleCount,
+        message,
+        status: "pending",
+      });
+
+    if (demoInsert.error) {
+      return NextResponse.json({ error: demoInsert.error.message || "Salvataggio richiesta demo non riuscito." }, { status: 500 });
+    }
+
     const notificationResult = await sendAdminNotificationEmail({
       subject: "Nuova richiesta demo",
       html: `
@@ -75,7 +108,7 @@ export async function POST(request: Request) {
     });
 
     if (!notificationResult.ok) {
-      return NextResponse.json({ error: "Invio richiesta demo non riuscito." }, { status: 500 });
+      console.error("Demo request admin notification provider error", notificationResult);
     }
 
     return NextResponse.json({ message: "Richiesta demo inviata. Ti ricontatteremo al più presto." }, { status: 200 });

@@ -255,6 +255,12 @@ export default function AdminHomePage() {
               Gestisci stati dealer
             </Link>
             <Link
+              href="/admin/demo-requests"
+              className="inline-flex items-center justify-center rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Richieste demo
+            </Link>
+            <Link
               href="/"
               className="inline-flex items-center justify-center rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
             >

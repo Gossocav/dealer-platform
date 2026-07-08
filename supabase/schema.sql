@@ -38,3 +38,17 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.demo_requests (
+  id uuid primary key default gen_random_uuid(),
+  company_name text not null,
+  contact_name text not null,
+  email text not null,
+  phone text not null,
+  city text not null,
+  vehicle_count text not null,
+  message text,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);

@@ -36,11 +36,11 @@ export function resolveAdminNotificationEmail() {
   return configuredEmail ?? DEFAULT_ADMIN_NOTIFICATION_EMAIL;
 }
 
-export async function sendAdminNotificationEmail(input: { subject: string; html: string }) {
+export async function sendPlatformEmail(input: { toEmail: string; subject: string; html: string }) {
   const resendApiKey = normalizeText(process.env.RESEND_API_KEY);
-  const toEmail = resolveAdminNotificationEmail();
+  const toEmail = normalizeEmail(input.toEmail);
 
-  if (!resendApiKey) {
+  if (!resendApiKey || !toEmail) {
     return { ok: false, reason: "missing_config" as const };
   }
 
@@ -73,4 +73,12 @@ export async function sendAdminNotificationEmail(input: { subject: string; html:
     ok: true,
     id: payload.id ?? null,
   };
+}
+
+export async function sendAdminNotificationEmail(input: { subject: string; html: string }) {
+  return sendPlatformEmail({
+    toEmail: resolveAdminNotificationEmail(),
+    subject: input.subject,
+    html: input.html,
+  });
 }
