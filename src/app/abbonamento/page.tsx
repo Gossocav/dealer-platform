@@ -18,7 +18,7 @@ const plans: Plan[] = [
   {
     id: "base",
     name: "Piano Base",
-    price: "€49",
+    price: "€149",
     period: "/mese",
     ctaLabel: "Scegli Base",
     features: [
@@ -32,7 +32,7 @@ const plans: Plan[] = [
   {
     id: "pro",
     name: "Piano Pro",
-    price: "€99",
+    price: "€399",
     period: "/mese",
     ctaLabel: "Scegli Pro",
     recommended: true,
