@@ -23,6 +23,17 @@ type ResolvePayload = {
   route: ResolvedRoute;
 };
 
+function extractBearerToken(value: string | null) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+
+  const match = text.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+
+  const token = String(match[1] ?? "").trim();
+  return token.length > 0 ? token : null;
+}
+
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim().toLowerCase();
   return text.length > 0 ? text : null;
@@ -141,7 +152,7 @@ function mapDealerRoute(dealerStatus: string | null): ResolvePayload | null {
   return null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -149,7 +160,9 @@ export async function GET() {
     return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
   }
 
-  const accessToken = await resolveAccessTokenFromCookies();
+  const authorizationHeader = request.headers.get("authorization");
+  const bearerToken = extractBearerToken(authorizationHeader);
+  const accessToken = bearerToken ?? (await resolveAccessTokenFromCookies());
   if (!accessToken) {
     return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
   }

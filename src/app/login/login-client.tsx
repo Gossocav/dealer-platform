@@ -13,7 +13,7 @@ function isAccountRoute(value: unknown): value is AccountRoute {
   return value === "/admin" || value === "/account/sospeso" || value === "/account/in-attesa" || value === "/dashboard";
 }
 
-async function resolveAccountRouteWithTimeout() {
+async function resolveAccountRouteWithTimeout(accessToken: string) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), RESOLUTION_TIMEOUT_MS);
 
@@ -22,6 +22,9 @@ async function resolveAccountRouteWithTimeout() {
       method: "GET",
       cache: "no-store",
       credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
       signal: controller.signal,
     });
 
@@ -76,7 +79,7 @@ export default function LoginClient() {
     setMessageType(null);
 
     const authClient = createSupabaseBrowserClient(rememberMe ? "local" : "session");
-    const { error } = await authClient.auth.signInWithPassword({
+    const { data: signInData, error } = await authClient.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
@@ -100,8 +103,29 @@ export default function LoginClient() {
       return;
     }
 
+    const signInToken = String(signInData?.session?.access_token ?? "").trim();
+    let accessToken = signInToken;
+
+    if (!accessToken) {
+      const {
+        data: { session },
+      } = await authClient.auth.getSession();
+
+      accessToken = String(session?.access_token ?? "").trim();
+    }
+
+    if (!accessToken) {
+      setLoading(false);
+      setMessage("Impossibile verificare lo stato account. Esci e riprova.");
+      setMessageType("error");
+      console.error("[login-client] missing access token for resolve-route", {
+        profile_id: user.id,
+      });
+      return;
+    }
+
     try {
-      const resolved = await resolveAccountRouteWithTimeout();
+      const resolved = await resolveAccountRouteWithTimeout(accessToken);
 
       setLoading(false);
       console.info("[login-client] route resolved", {

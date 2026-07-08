@@ -37,7 +37,7 @@ function isAccountRoute(value: unknown): value is AccountRoute {
   return value === "/admin" || value === "/account/sospeso" || value === "/account/in-attesa" || value === "/dashboard";
 }
 
-async function resolveAccountRouteWithTimeout() {
+async function resolveAccountRouteWithTimeout(accessToken: string) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), RESOLUTION_TIMEOUT_MS);
 
@@ -46,6 +46,9 @@ async function resolveAccountRouteWithTimeout() {
       method: "GET",
       cache: "no-store",
       credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
       signal: controller.signal,
     });
 
@@ -139,12 +142,25 @@ export function AuthShell({ children }: AuthShellProps) {
         return;
       }
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = String(session?.access_token ?? "").trim();
+      if (!accessToken) {
+        setIsResolvingRoute(false);
+        setResolvedRoute(null);
+        setResolutionError(RESOLUTION_ERROR_MESSAGE);
+        console.error("[auth-shell] missing access token for resolve-route");
+        return;
+      }
+
       setResolutionError(null);
       setIsResolvingRoute(true);
       setResolvedRoute(null);
 
       try {
-        const result = await resolveAccountRouteWithTimeout();
+        const result = await resolveAccountRouteWithTimeout(accessToken);
         if (!mounted) return;
 
         setResolvedRoute(result.route);
