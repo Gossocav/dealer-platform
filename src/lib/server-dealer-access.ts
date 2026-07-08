@@ -7,27 +7,61 @@ type ServerDealerAccessResult = DealerAccessResult & {
 };
 
 function resolveAccessTokenFromCookieValue(rawValue: string | undefined) {
-  const value = String(rawValue ?? "").trim();
-  if (!value) return null;
+  const raw = String(rawValue ?? "").trim();
+  if (!raw) return null;
+
+  const candidates = new Set<string>();
+  candidates.add(raw);
 
   try {
-    const parsed = JSON.parse(value) as unknown;
-
-    if (Array.isArray(parsed)) {
-      const first = String(parsed[0] ?? "").trim();
-      return first.length > 0 ? first : null;
-    }
-
-    if (parsed && typeof parsed === "object") {
-      const record = parsed as Record<string, unknown>;
-      const token = String(record.access_token ?? record.accessToken ?? "").trim();
-      return token.length > 0 ? token : null;
-    }
+    candidates.add(decodeURIComponent(raw));
   } catch {
-    // fallback below
+    // ignore decode errors
   }
 
-  return value.length > 0 ? value : null;
+  for (const candidate of [...candidates]) {
+    if (!candidate.startsWith("base64-")) continue;
+
+    const encoded = candidate.slice("base64-".length);
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+
+    try {
+      candidates.add(Buffer.from(base64, "base64").toString("utf8"));
+    } catch {
+      // ignore decode errors
+    }
+  }
+
+  const extractJwtToken = (value: string) => {
+    const jwtMatch = value.match(/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+    return jwtMatch ? jwtMatch[0] : null;
+  };
+
+  for (const value of candidates) {
+    const directJwt = extractJwtToken(value);
+    if (directJwt) return directJwt;
+
+    try {
+      const parsed = JSON.parse(value) as unknown;
+
+      if (Array.isArray(parsed)) {
+        const first = String(parsed[0] ?? "").trim();
+        const token = extractJwtToken(first) ?? (first.length > 0 ? first : null);
+        if (token) return token;
+      }
+
+      if (parsed && typeof parsed === "object") {
+        const record = parsed as Record<string, unknown>;
+        const tokenText = String(record.access_token ?? record.accessToken ?? "").trim();
+        const token = extractJwtToken(tokenText) ?? (tokenText.length > 0 ? tokenText : null);
+        if (token) return token;
+      }
+    } catch {
+      // ignore parse errors and continue
+    }
+  }
+
+  return null;
 }
 
 async function resolveAccessTokenFromCookies() {
@@ -56,6 +90,7 @@ export async function resolveServerDealerAccess(): Promise<ServerDealerAccessRes
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
+    console.error("[server-dealer-access] Missing Supabase server env vars");
     return {
       state: "unknown",
       userId: null,
@@ -67,6 +102,7 @@ export async function resolveServerDealerAccess(): Promise<ServerDealerAccessRes
 
   const accessToken = await resolveAccessTokenFromCookies();
   if (!accessToken) {
+    console.error("[server-dealer-access] Missing/invalid access token from cookies");
     return {
       state: "unknown",
       userId: null,
@@ -90,6 +126,9 @@ export async function resolveServerDealerAccess(): Promise<ServerDealerAccessRes
   } = await supabaseAdmin.auth.getUser(accessToken);
 
   if (error || !user) {
+    console.error("[server-dealer-access] auth.getUser failed", {
+      error: error?.message ?? null,
+    });
     return {
       state: "unknown",
       userId: null,
@@ -100,6 +139,14 @@ export async function resolveServerDealerAccess(): Promise<ServerDealerAccessRes
   }
 
   const dealerAccess = await getDealerAccessResult(supabaseAdmin, user.id);
+
+  console.info("[server-dealer-access] resolved", {
+    profile_id: user.id,
+    dealer_id: dealerAccess.dealerId,
+    dealer_status: dealerAccess.dealerStatus,
+    membership_status: dealerAccess.membershipStatus,
+    state: dealerAccess.state,
+  });
 
   return {
     ...dealerAccess,

@@ -97,6 +97,10 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
   }
 
   if (!dealerId) {
+    console.warn("[account-approval] dealer_id missing after membership/profile lookup", {
+      profile_id: userId,
+      membership_status: membershipStatus,
+    });
     return {
       state: "unknown",
       dealerId: null,
@@ -113,7 +117,32 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
 
   const dealerStatus = normalizeText(dealer.data?.status);
 
+  console.info("[account-approval] database status resolved", {
+    profile_id: userId,
+    dealer_id: dealerId,
+    dealer_status: dealerStatus,
+    membership_status: membershipStatus,
+  });
+
+  const logRoute = (state: DealerAccessState) => {
+    const route = state === "approved"
+      ? "/dashboard"
+      : state === "suspended" || state === "cancelled"
+        ? "/account/sospeso"
+        : state === "pending_review" || state === "rejected"
+          ? "/account/in-attesa"
+          : "unresolved";
+
+    console.info("[account-approval] route selected", {
+      profile_id: userId,
+      dealer_id: dealerId,
+      state,
+      route,
+    });
+  };
+
   if (dealerStatus === "suspended") {
+    logRoute("suspended");
     return {
       state: "suspended",
       dealerId,
@@ -123,6 +152,7 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
   }
 
   if (dealerStatus === "cancelled") {
+    logRoute("cancelled");
     return {
       state: "cancelled",
       dealerId,
@@ -132,6 +162,7 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
   }
 
   if (dealerStatus === "rejected") {
+    logRoute("rejected");
     return {
       state: "rejected",
       dealerId,
@@ -141,6 +172,7 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
   }
 
   if (dealerStatus === "pending_review") {
+    logRoute("pending_review");
     return {
       state: "pending_review",
       dealerId,
@@ -150,6 +182,7 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
   }
 
   if (dealerStatus === "approved" && membershipStatus === "active") {
+    logRoute("approved");
     return {
       state: "approved",
       dealerId,
@@ -157,6 +190,14 @@ export async function getDealerAccessResult(supabase: SupabaseClient, userId: st
       dealerStatus,
     };
   }
+
+  console.warn("[account-approval] unresolved state", {
+    profile_id: userId,
+    dealer_id: dealerId,
+    dealer_status: dealerStatus,
+    membership_status: membershipStatus,
+    reason: "status combination not mapped",
+  });
 
   return {
     state: "unknown",

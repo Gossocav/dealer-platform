@@ -81,6 +81,7 @@ export function AuthShell({ children }: AuthShellProps) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [dealerStateResolved, setDealerStateResolved] = useState(false);
   const [dealerTargetRoute, setDealerTargetRoute] = useState<"/account/sospeso" | "/account/in-attesa" | "/dashboard" | null>(null);
+  const [dealerResolutionError, setDealerResolutionError] = useState<string | null>(null);
   const lastDealerStateRef = useRef<DealerAccessState>("unknown");
 
   useEffect(() => {
@@ -114,6 +115,7 @@ export function AuthShell({ children }: AuthShellProps) {
       setChecked(true);
       setDealerStateResolved(false);
       setDealerTargetRoute(null);
+      setDealerResolutionError(null);
 
       if (!userId) {
         const next = encodeURIComponent(pathname || "/dashboard");
@@ -137,6 +139,10 @@ export function AuthShell({ children }: AuthShellProps) {
         setAccountApproved(true);
         setDealerStateResolved(true);
         setDealerTargetRoute("/dashboard");
+        console.info("[auth-shell] dealer resolution skipped for platform admin", {
+          profile_id: userId,
+          route: "/admin",
+        });
 
         if (!isAdminRoute || isAdminLoginRoute) {
           router.replace("/admin");
@@ -154,8 +160,20 @@ export function AuthShell({ children }: AuthShellProps) {
       try {
         const result = await getDealerAccessResult(supabase, userId);
         dealerState = result.state;
+        console.info("[auth-shell] dealer state read", {
+          source: "syncAuth",
+          profile_id: userId,
+          dealer_id: result.dealerId,
+          state: result.state,
+          dealer_status: result.dealerStatus,
+          membership_status: result.membershipStatus,
+        });
       } catch {
         dealerState = "unknown";
+        console.error("[auth-shell] dealer state read failed", {
+          source: "syncAuth",
+          profile_id: userId,
+        });
       }
 
       if (dealerState === "unknown" && lastDealerStateRef.current !== "unknown") {
@@ -168,12 +186,43 @@ export function AuthShell({ children }: AuthShellProps) {
       const approved = dealerState === "approved";
 
       setAccountApproved(approved);
-      setDealerStateResolved(true);
-      setDealerTargetRoute(dealerTargetRoute);
-
       if (!dealerTargetRoute) {
+        if (lastDealerStateRef.current !== "unknown") {
+          const fallbackRoute = resolvePrimaryDealerRoute(lastDealerStateRef.current);
+          setDealerTargetRoute(fallbackRoute);
+          setDealerStateResolved(true);
+          setDealerResolutionError("Stato account temporaneamente non disponibile. Riprova.");
+          console.error("[auth-shell] unresolved dealer state - using last known", {
+            source: "syncAuth",
+            profile_id: userId,
+            state: dealerState,
+            last_known_state: lastDealerStateRef.current,
+            route: fallbackRoute,
+            reason: "current state unresolved",
+          });
+          return;
+        }
+
+        setDealerStateResolved(true);
+        setDealerTargetRoute(null);
+        setDealerResolutionError("Impossibile verificare lo stato account. Riprova.");
+        console.error("[auth-shell] unresolved dealer state with no fallback", {
+          source: "syncAuth",
+          profile_id: userId,
+          state: dealerState,
+          reason: "no last known state available",
+        });
         return;
       }
+
+      setDealerStateResolved(true);
+      setDealerTargetRoute(dealerTargetRoute);
+      console.info("[auth-shell] dealer route selected", {
+        source: "syncAuth",
+        profile_id: userId,
+        state: dealerState,
+        route: dealerTargetRoute,
+      });
 
       if (dealerTargetRoute === "/account/sospeso" && !isSuspendedRoute) {
         router.replace(dealerTargetRoute);
@@ -212,6 +261,7 @@ export function AuthShell({ children }: AuthShellProps) {
         setIsPlatformAdmin(false);
         setDealerStateResolved(false);
         setDealerTargetRoute(null);
+        setDealerResolutionError(null);
       }
 
       if (event === "SIGNED_OUT") {
@@ -238,6 +288,12 @@ export function AuthShell({ children }: AuthShellProps) {
             setAccountApproved(true);
             setDealerStateResolved(true);
             setDealerTargetRoute("/dashboard");
+            setDealerResolutionError(null);
+            console.info("[auth-shell] dealer resolution skipped for platform admin", {
+              source: "onAuthStateChange",
+              profile_id: session.user.id,
+              route: "/admin",
+            });
 
             if (!isAdminRoute || isAdminLoginRoute) {
               router.replace("/admin");
@@ -257,8 +313,20 @@ export function AuthShell({ children }: AuthShellProps) {
           try {
             const result = await getDealerAccessResult(supabase, session.user.id);
             dealerState = result.state;
+            console.info("[auth-shell] dealer state read", {
+              source: "onAuthStateChange",
+              profile_id: session.user.id,
+              dealer_id: result.dealerId,
+              state: result.state,
+              dealer_status: result.dealerStatus,
+              membership_status: result.membershipStatus,
+            });
           } catch {
             dealerState = "unknown";
+            console.error("[auth-shell] dealer state read failed", {
+              source: "onAuthStateChange",
+              profile_id: session.user.id,
+            });
           }
 
           if (dealerState === "unknown" && lastDealerStateRef.current !== "unknown") {
@@ -272,12 +340,44 @@ export function AuthShell({ children }: AuthShellProps) {
 
           if (!mounted) return;
           setAccountApproved(approved);
-          setDealerStateResolved(true);
-          setDealerTargetRoute(dealerTargetRoute);
-
           if (!dealerTargetRoute) {
+            if (lastDealerStateRef.current !== "unknown") {
+              const fallbackRoute = resolvePrimaryDealerRoute(lastDealerStateRef.current);
+              setDealerTargetRoute(fallbackRoute);
+              setDealerStateResolved(true);
+              setDealerResolutionError("Stato account temporaneamente non disponibile. Riprova.");
+              console.error("[auth-shell] unresolved dealer state - using last known", {
+                source: "onAuthStateChange",
+                profile_id: session.user.id,
+                state: dealerState,
+                last_known_state: lastDealerStateRef.current,
+                route: fallbackRoute,
+                reason: "current state unresolved",
+              });
+              return;
+            }
+
+            setDealerStateResolved(true);
+            setDealerTargetRoute(null);
+            setDealerResolutionError("Impossibile verificare lo stato account. Riprova.");
+            console.error("[auth-shell] unresolved dealer state with no fallback", {
+              source: "onAuthStateChange",
+              profile_id: session.user.id,
+              state: dealerState,
+              reason: "no last known state available",
+            });
             return;
           }
+
+          setDealerStateResolved(true);
+          setDealerTargetRoute(dealerTargetRoute);
+          setDealerResolutionError(null);
+          console.info("[auth-shell] dealer route selected", {
+            source: "onAuthStateChange",
+            profile_id: session.user.id,
+            state: dealerState,
+            route: dealerTargetRoute,
+          });
 
           if (dealerTargetRoute === "/account/sospeso" && !isSuspendedRoute) {
             router.replace(dealerTargetRoute);
@@ -332,6 +432,14 @@ export function AuthShell({ children }: AuthShellProps) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
         Verifica account in corso...
+      </div>
+    );
+  }
+
+  if (!isPlatformAdmin && dealerResolutionError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 text-sm text-slate-600">
+        {dealerResolutionError}
       </div>
     );
   }

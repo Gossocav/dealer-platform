@@ -88,6 +88,11 @@ export default function LoginClient() {
     }
 
     if (isPlatformAdmin) {
+      console.info("[login-client] route selected", {
+        profile_id: user.id,
+        route: "/admin",
+        reason: "platform_admin",
+      });
       setLoading(false);
       router.replace("/admin");
       router.refresh();
@@ -98,34 +103,64 @@ export default function LoginClient() {
     try {
       const access = await getDealerAccessResult(authClient, user.id);
       dealerState = access.state;
+      console.info("[login-client] dealer state read", {
+        profile_id: user.id,
+        dealer_id: access.dealerId,
+        state: access.state,
+        dealer_status: access.dealerStatus,
+        membership_status: access.membershipStatus,
+      });
     } catch {
       dealerState = "unknown";
+      console.error("[login-client] dealer state read failed", {
+        profile_id: user.id,
+      });
     }
 
     setLoading(false);
 
     if (dealerState === "suspended" || dealerState === "cancelled") {
+      console.info("[login-client] route selected", {
+        profile_id: user.id,
+        state: dealerState,
+        route: "/account/sospeso",
+      });
       router.replace("/account/sospeso");
       router.refresh();
       return;
     }
 
     if (dealerState === "pending_review" || dealerState === "rejected") {
+      console.info("[login-client] route selected", {
+        profile_id: user.id,
+        state: dealerState,
+        route: "/account/in-attesa",
+      });
       router.replace("/account/in-attesa");
       router.refresh();
       return;
     }
 
     if (dealerState === "approved") {
+      console.info("[login-client] route selected", {
+        profile_id: user.id,
+        state: dealerState,
+        route: nextPath,
+      });
       router.replace(nextPath);
       router.refresh();
       return;
     }
 
-    setMessage("Verifica account in corso...");
-    setMessageType("success");
+    setMessage("Impossibile verificare lo stato account. Riprova.");
+    setMessageType("error");
+    console.error("[login-client] unresolved dealer state", {
+      profile_id: user.id,
+      state: dealerState,
+      reason: "route not selectable",
+    });
 
-    router.refresh();
+    return;
   };
 
   return (
