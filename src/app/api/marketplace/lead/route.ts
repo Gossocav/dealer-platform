@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { hitRateLimit } from "@/lib/api-rate-limit";
+import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 
 type LeadInsertBody = {
@@ -374,6 +375,37 @@ async function sendEmailsBestEffort({
     }
   } else {
     console.error("Customer email missing: confirmation email skipped.");
+  }
+
+  const adminHtml = `
+    <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;">
+        <h2 style="margin:0 0 16px 0;color:#0f172a;">Nuova richiesta contatto marketplace</h2>
+        <p style="margin:0 0 16px 0;color:#334155;">E stata inviata una nuova richiesta informazioni su un veicolo pubblicato.</p>
+        <table style="width:100%;border-collapse:collapse;color:#0f172a;font-size:14px;">
+          <tr><td style="padding:8px 0;font-weight:bold;">Veicolo</td><td style="padding:8px 0;">${escapeHtml(vehicleLabel)}</td></tr>
+          <tr><td style="padding:8px 0;font-weight:bold;">Nome cliente</td><td style="padding:8px 0;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</td></tr>
+          <tr><td style="padding:8px 0;font-weight:bold;">Email</td><td style="padding:8px 0;">${escapeHtml(customerEmailLabel)}</td></tr>
+          <tr><td style="padding:8px 0;font-weight:bold;">Telefono</td><td style="padding:8px 0;">${escapeHtml(customerPhoneLabel)}</td></tr>
+          <tr><td style="padding:8px 0;font-weight:bold;">Messaggio</td><td style="padding:8px 0;">${escapeHtml(customerMessageLabel)}</td></tr>
+          <tr><td style="padding:8px 0;font-weight:bold;">Data richiesta</td><td style="padding:8px 0;">${escapeHtml(requestDate)}</td></tr>
+        </table>
+        ${buildStandardEmailFooterHtml()}
+      </div>
+    </div>
+  `;
+
+  try {
+    const adminSend = await sendAdminNotificationEmail({
+      subject: "Nuova richiesta contatto marketplace",
+      html: adminHtml,
+    });
+
+    if (!adminSend.ok) {
+      console.error("Marketplace admin notification provider error", adminSend);
+    }
+  } catch (error) {
+    logEmailSendError("Marketplace admin notification error", error);
   }
 }
 

@@ -25,18 +25,44 @@ const initialValues: DemoFormState = {
 export default function DemoPage() {
   const [values, setValues] = useState<DemoFormState>(initialValues);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [serverMessage, setServerMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange =
     (field: keyof DemoFormState) =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setValues((current) => ({ ...current, [field]: event.target.value }));
       setIsSubmitted(false);
+      setServerMessage(null);
     };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setIsSubmitted(true);
+
+    setIsSubmitting(true);
+    setServerMessage(null);
+
+    const response = await fetch("/api/demo/request", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(values),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+
+    if (!response.ok) {
+      setServerMessage(payload.error ?? "Invio richiesta demo non riuscito.");
+      setIsSubmitted(false);
+      setIsSubmitting(false);
+      return;
+    }
+
     setValues(initialValues);
+    setIsSubmitted(true);
+    setServerMessage(payload.message ?? "Richiesta demo inviata. Ti ricontatteremo al piu presto.");
+    setIsSubmitting(false);
   };
 
   return (
@@ -138,17 +164,24 @@ export default function DemoPage() {
             />
           </div>
 
-          {isSubmitted ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-              Richiesta demo inviata. Ti ricontatteremo al piu presto.
+          {serverMessage ? (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+                isSubmitted
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-red-200 bg-red-50 text-red-800"
+              }`}
+            >
+              {serverMessage}
             </div>
           ) : null}
 
           <button
             type="submit"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+            disabled={isSubmitting}
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Invia richiesta demo
+            {isSubmitting ? "Invio in corso..." : "Invia richiesta demo"}
           </button>
         </form>
       </section>

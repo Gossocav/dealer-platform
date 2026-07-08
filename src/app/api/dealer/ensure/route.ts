@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
+import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 
 type EnsureDealerBody = {
   legal_company_name?: string;
@@ -109,6 +110,32 @@ export async function POST(request: Request) {
       }
     } catch (emailError) {
       console.error("Dealer ensure request-received email failed", emailError);
+    }
+
+    try {
+      const adminNotificationResult = await sendAdminNotificationEmail({
+        subject: "Nuova registrazione dealer in attesa di verifica",
+        html: `
+          <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+            <h2 style="margin:0 0 12px;">Nuova richiesta dealer</h2>
+            <p style="margin:0 0 12px;">E stata inviata una nuova registrazione concessionaria.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <tr><td style="padding:6px 0;font-weight:600;">Concessionaria</td><td style="padding:6px 0;">${escapeHtml(legalCompanyName)}</td></tr>
+              <tr><td style="padding:6px 0;font-weight:600;">Referente</td><td style="padding:6px 0;">${escapeHtml(contactPerson)}</td></tr>
+              <tr><td style="padding:6px 0;font-weight:600;">Email</td><td style="padding:6px 0;">${escapeHtml(email)}</td></tr>
+              <tr><td style="padding:6px 0;font-weight:600;">Telefono</td><td style="padding:6px 0;">${escapeHtml(phone)}</td></tr>
+              <tr><td style="padding:6px 0;font-weight:600;">Piano</td><td style="padding:6px 0;">${escapeHtml(subscriptionPlan)}</td></tr>
+              <tr><td style="padding:6px 0;font-weight:600;">Stato abbonamento</td><td style="padding:6px 0;">${escapeHtml(subscriptionStatus)}</td></tr>
+            </table>
+          </div>
+        `.trim(),
+      });
+
+      if (!adminNotificationResult.ok) {
+        console.error("Dealer ensure admin notification provider error", adminNotificationResult);
+      }
+    } catch (adminEmailError) {
+      console.error("Dealer ensure admin notification failed", adminEmailError);
     }
 
     await clearContactMetadataBestEffort(supabaseAdmin, user.id, user.user_metadata);
@@ -402,4 +429,13 @@ async function clearContactMetadataBestEffort(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
