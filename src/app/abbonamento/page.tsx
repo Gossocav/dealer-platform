@@ -18,7 +18,7 @@ const plans: Plan[] = [
   {
     id: "base",
     name: "Piano Base",
-    price: "€149",
+    price: "€49",
     period: "/mese",
     ctaLabel: "Scegli Base",
     features: [
@@ -32,7 +32,7 @@ const plans: Plan[] = [
   {
     id: "pro",
     name: "Piano Pro",
-    price: "€399",
+    price: "€99",
     period: "/mese",
     ctaLabel: "Scegli Pro",
     recommended: true,
@@ -41,11 +41,11 @@ const plans: Plan[] = [
       "Gestione completa delle schede veicolo",
       "Ricezione e gestione dei lead",
       "Dashboard concessionario avanzata",
-      "CRM lead avanzato",
+      "CRM Lead avanzato",
       "Statistiche e KPI dettagliati",
       "Esportazione dati",
       "Supporto prioritario",
-      "Maggiore visibilita sulla piattaforma",
+      "Maggiore visibilità sulla piattaforma",
     ],
   },
 ];
