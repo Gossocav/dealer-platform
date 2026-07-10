@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createMarketplaceSlug, formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, normalizeVehicleDealerName, publicSupabase, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatMileage, formatPrice, formatText, logMarketplaceQueryError, normalizeVehicleDealerName, publicSupabase, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -77,18 +77,20 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
     .eq("dealer_id", matchedDealer.id)
-    .or(getMarketplaceStatusFilter())
-    .eq("dealers.status", "approved")
+    .eq("published", true)
+    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
     .order("created_at", { ascending: false })
     .limit(DEALER_PAGE_VEHICLES_LIMIT);
 
   if (error) {
+    logMarketplaceQueryError("dealer-page", error);
     notFound();
   }
 
-  const dealerVehicles = (data ?? []) as MarketplaceVehicle[];
+  const dealerVehicles = (data ?? []) as unknown as MarketplaceVehicle[];
 
   if (dealerVehicles.length === 0) {
     notFound();

@@ -16,12 +16,38 @@ export const publicSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-export const MARKETPLACE_PUBLISHABLE_STATUS_VALUES = ["approved"] as const;
+export const MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES = ["published"] as const;
+export const MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES = ["approved", "active"] as const;
 
-const MARKETPLACE_PUBLISHABLE_STATUSES = new Set<string>(MARKETPLACE_PUBLISHABLE_STATUS_VALUES);
+const MARKETPLACE_PUBLISHABLE_VEHICLE_STATUSES = new Set<string>(MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES);
+const MARKETPLACE_PUBLISHABLE_DEALER_STATUSES = new Set<string>(MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
 
 export function getMarketplaceStatusFilter() {
   return "status.eq.published,status.eq.pubblicato,status.eq.active,status.eq.attivo";
+}
+
+export function logMarketplaceQueryError(context: string, error: unknown) {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "Unknown marketplace query error";
+  console.error("[marketplace] query failed", {
+    context,
+    errorMessage: message,
+  });
+}
+
+export function isMarketplaceVehiclePublishable(input: { published?: boolean | null; status?: string | null; dealerStatus?: string | null }) {
+  const published = Boolean(input.published);
+  const vehicleStatus = String(input.status ?? "").trim().toLowerCase();
+  const dealerStatus = String(input.dealerStatus ?? "").trim().toLowerCase();
+
+  if (!published) {
+    return false;
+  }
+
+  if (!vehicleStatus || !MARKETPLACE_PUBLISHABLE_VEHICLE_STATUSES.has(vehicleStatus)) {
+    return false;
+  }
+
+  return dealerStatus.length > 0 && MARKETPLACE_PUBLISHABLE_DEALER_STATUSES.has(dealerStatus);
 }
 
 export function isMarketplacePublishableStatus(status: string | null | undefined) {
@@ -32,7 +58,7 @@ export function isMarketplacePublishableStatus(status: string | null | undefined
     return false;
   }
 
-  return MARKETPLACE_PUBLISHABLE_STATUSES.has(normalized);
+  return MARKETPLACE_PUBLISHABLE_VEHICLE_STATUSES.has(normalized);
 }
 
 export type MarketplaceVehicleImage = {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
-import { MARKETPLACE_PUBLISHABLE_STATUS_VALUES, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -51,17 +51,18 @@ export default async function MarketplaceCatalogPage({ searchParams }: { searchP
   const to = from + MARKETPLACE_CATALOG_PAGE_SIZE - 1;
 
   const { data, error, count } = await publicSupabase
-    .from("vehicles")
-    .select(
-      "id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)",
-      { count: "exact" }
-    )
-    .in("status", MARKETPLACE_PUBLISHABLE_STATUS_VALUES)
-    .eq("dealers.status", "approved")
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
+      .from("vehicles")
+      .select(
+        "id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)",
+        { count: "exact" }
+      )
+      .eq("published", true)
+      .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+      .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+      .order("created_at", { ascending: false })
+      .range(from, to);
   if (error) {
+    logMarketplaceQueryError("catalog", error);
     return (
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[36px] border border-slate-200 bg-white p-8 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
@@ -73,7 +74,7 @@ export default async function MarketplaceCatalogPage({ searchParams }: { searchP
     );
   }
 
-  const vehicles = (data ?? []) as MarketplaceVehicle[];
+  const vehicles = (data ?? []) as unknown as MarketplaceVehicle[];
   const totalCount = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / MARKETPLACE_CATALOG_PAGE_SIZE));
   const hasPrev = page > 1;

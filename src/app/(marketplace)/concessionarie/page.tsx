@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatMileage, formatPrice, formatText, getMarketplaceStatusFilter, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatMileage, formatPrice, formatText, logMarketplaceQueryError, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +14,15 @@ type DealerGroup = {
 export default async function DealersListPage() {
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name), vehicle_images(image_url, position, is_cover)")
-    .or(getMarketplaceStatusFilter())
-    .eq("dealers.status", "approved")
+    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
+    .eq("published", true)
+    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
     .order("created_at", { ascending: false })
     .limit(MARKETPLACE_DEALERS_VEHICLES_LIMIT);
 
   if (error) {
+    logMarketplaceQueryError("dealers-list", error);
     return (
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[36px] border border-slate-200 bg-white p-8 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
@@ -32,7 +34,7 @@ export default async function DealersListPage() {
     );
   }
 
-  const vehicles = (data ?? []) as MarketplaceVehicle[];
+  const vehicles = (data ?? []) as unknown as MarketplaceVehicle[];
   const groups = groupDealers(vehicles);
 
   return (

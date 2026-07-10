@@ -8,7 +8,9 @@ import {
   formatMileage,
   formatPrice,
   formatText,
-  getMarketplaceStatusFilter,
+  logMarketplaceQueryError,
+  MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
+  MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
   publicSupabase,
   resolveDealerDisplayName,
   resolveDealerEmail,
@@ -61,8 +63,9 @@ async function fetchMarketplaceVehicleDetail(id: string) {
       "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
-    .or(getMarketplaceStatusFilter())
-    .eq("dealers.status", "approved")
+    .eq("published", true)
+    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
     .maybeSingle();
 }
 
@@ -119,6 +122,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const { data, error } = await fetchMarketplaceVehicleDetail(id);
 
   if (error || !data) {
+    logMarketplaceQueryError("detail", error);
     return (
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto w-full max-w-7xl space-y-6">
