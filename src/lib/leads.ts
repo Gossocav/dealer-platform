@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type LeadStage = "nuovo" | "contattato" | "preventivo" | "trattativa" | "venduto" | "perso";
+export type LeadStage = "nuovo" | "contattato" | "appuntamento" | "proposta_inviata" | "chiuso_positivo" | "chiuso_negativo";
 
 export type LeadPriority = "alta" | "media" | "bassa";
 
@@ -66,20 +66,37 @@ export type LeadKpi = {
   delta: string;
 };
 
+export type LeadActivityType = "lead_created" | "status_changed" | "note_added";
+
+type LeadActivityRow = {
+  id: string;
+  activity_type: string | null;
+  note: string | null;
+  created_at: string | null;
+  metadata_json: Record<string, unknown> | null;
+};
+
+export type LeadActivityItem = {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+};
+
 export type LeadColumnSupport = {
   source: boolean;
   priority: boolean;
 };
 
-export const leadStages: LeadStage[] = ["nuovo", "contattato", "preventivo", "trattativa", "venduto", "perso"];
+export const leadStages: LeadStage[] = ["nuovo", "contattato", "appuntamento", "proposta_inviata", "chiuso_positivo", "chiuso_negativo"];
 
 export const leadStageLabels: Record<LeadStage, string> = {
   nuovo: "Nuovo",
   contattato: "Contattato",
-  preventivo: "Preventivo",
-  trattativa: "Trattativa",
-  venduto: "Venduto",
-  perso: "Perso",
+  appuntamento: "Appuntamento",
+  proposta_inviata: "Proposta inviata",
+  chiuso_positivo: "Chiuso positivo",
+  chiuso_negativo: "Chiuso negativo",
 };
 
 export const leadPriorityLabels: Record<LeadPriority, string> = {
@@ -108,10 +125,10 @@ export function normalizeLeadStage(status: string | null | undefined): LeadStage
 
   if (value === "nuovo" || value === "created") return "nuovo";
   if (value === "contattato" || value === "contacted") return "contattato";
-  if (value === "preventivo" || value === "quote") return "preventivo";
-  if (value === "trattativa" || value === "appointment" || value === "negotiation") return "trattativa";
-  if (value === "venduto" || value === "won") return "venduto";
-  if (value === "perso" || value === "lost") return "perso";
+  if (value === "appuntamento" || value === "appointment") return "appuntamento";
+  if (value === "proposta_inviata" || value === "proposta inviata" || value === "quote" || value === "negotiation") return "proposta_inviata";
+  if (value === "chiuso_positivo" || value === "chiuso positivo" || value === "venduto" || value === "won") return "chiuso_positivo";
+  if (value === "chiuso_negativo" || value === "chiuso negativo" || value === "perso" || value === "lost") return "chiuso_negativo";
   return "nuovo";
 }
 
@@ -190,8 +207,8 @@ export function filterLeads(list: LeadItem[], filters: LeadFilters): LeadItem[] 
 export function leadKpis(list: LeadItem[]): LeadKpi[] {
   const newLeads = list.filter((lead) => lead.stage === "nuovo").length;
   const toContact = list.filter((lead) => lead.stage === "nuovo" || lead.stage === "contattato").length;
-  const openNegotiations = list.filter((lead) => lead.stage === "preventivo" || lead.stage === "trattativa").length;
-  const sold = list.filter((lead) => lead.stage === "venduto").length;
+  const openNegotiations = list.filter((lead) => lead.stage === "appuntamento" || lead.stage === "proposta_inviata").length;
+  const sold = list.filter((lead) => lead.stage === "chiuso_positivo").length;
 
   return [
     { id: "new", label: "Lead nuovi", value: String(newLeads), delta: "Ultime 24h" },
@@ -224,10 +241,110 @@ export function toLeadItems(rows: LeadRecord[], vehiclesById: Map<string, string
 export function mapStageToDbStatus(stage: LeadStage): string {
   if (stage === "nuovo") return "nuovo";
   if (stage === "contattato") return "contattato";
-  if (stage === "preventivo") return "preventivo";
-  if (stage === "trattativa") return "trattativa";
-  if (stage === "venduto") return "venduto";
-  return "perso";
+  if (stage === "appuntamento") return "appuntamento";
+  if (stage === "proposta_inviata") return "proposta_inviata";
+  if (stage === "chiuso_positivo") return "chiuso_positivo";
+  return "chiuso_negativo";
+}
+
+function isMissingRelationError(message: string | undefined, relationName: string) {
+  const text = String(message ?? "").toLowerCase();
+  return text.includes(relationName.toLowerCase()) && (text.includes("relation") || text.includes("does not exist") || text.includes("schema cache"));
+}
+
+function buildLeadActivityTitle(type: LeadActivityType) {
+  if (type === "lead_created") return "Lead ricevuto";
+  if (type === "status_changed") return "Stato aggiornato";
+  return "Nota interna";
+}
+
+function mapLeadActivityRow(row: LeadActivityRow): LeadActivityItem {
+  const type = String(row.activity_type ?? "lead_created").trim().toLowerCase();
+  const safeType: LeadActivityType = type === "status_changed" || type === "note_added" ? type : "lead_created";
+  const fallbackDescription = safeType === "status_changed" ? "Stato lead aggiornato." : safeType === "note_added" ? "Nota interna aggiornata." : "Lead registrato nel CRM.";
+
+  return {
+    id: row.id,
+    title: buildLeadActivityTitle(safeType),
+    description: String(row.note ?? "").trim() || fallbackDescription,
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+  };
+}
+
+export async function listLeadActivities(
+  supabase: SupabaseClient,
+  dealerId: string,
+  leadId: string,
+  leadCreatedAt?: string | null
+): Promise<LeadActivityItem[]> {
+  const { data, error } = await supabase
+    .from("lead_activities")
+    .select("id, activity_type, note, created_at, metadata_json")
+    .eq("dealer_id", dealerId)
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(50)
+    .returns<LeadActivityRow[]>();
+
+  if (error) {
+    if (isMissingRelationError(error.message, "lead_activities")) {
+      return [
+        {
+          id: `lead-created-${leadId}`,
+          title: "Lead ricevuto",
+          description: "Lead registrato nel CRM.",
+          createdAt: String(leadCreatedAt ?? new Date().toISOString()),
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  const activities = (data ?? []).map(mapLeadActivityRow);
+  if (activities.length > 0) {
+    return activities;
+  }
+
+  return [
+    {
+      id: `lead-created-${leadId}`,
+      title: "Lead ricevuto",
+      description: "Lead registrato nel CRM.",
+      createdAt: String(leadCreatedAt ?? new Date().toISOString()),
+    },
+  ];
+}
+
+export async function writeLeadActivity(
+  supabase: SupabaseClient,
+  params: {
+    dealerId: string;
+    leadId: string;
+    activityType: LeadActivityType;
+    note?: string;
+    actorProfileId?: string | null;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  const { error } = await supabase.from("lead_activities").insert({
+    dealer_id: params.dealerId,
+    lead_id: params.leadId,
+    activity_type: params.activityType,
+    note: params.note ?? null,
+    metadata_json: params.metadata ?? {},
+    created_by: params.actorProfileId ?? null,
+  });
+
+  if (error) {
+    if (isMissingRelationError(error.message, "lead_activities")) {
+      return false;
+    }
+
+    return false;
+  }
+
+  return true;
 }
 
 export async function detectLeadOptionalColumns(supabase: SupabaseClient<any, any, any>): Promise<LeadColumnSupport> {
