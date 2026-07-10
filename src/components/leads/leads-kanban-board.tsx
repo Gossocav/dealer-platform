@@ -19,10 +19,10 @@ type LeadsKanbanBoardProps = {
 const stageDescriptions: Record<LeadStage, string> = {
   nuovo: "Nuovo",
   contattato: "Contattato",
-  preventivo: "Preventivo",
-  trattativa: "Trattativa",
-  venduto: "Venduto",
-  perso: "Perso",
+  appuntamento: "Appuntamento fissato",
+  proposta_inviata: "Proposta commerciale inviata",
+  chiuso_positivo: "Opportunita chiusa positivamente",
+  chiuso_negativo: "Opportunita chiusa negativamente",
 };
 
 function priorityClasses(priority: LeadPriority): string {
