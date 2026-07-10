@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Link2, Loader2, UploadCloud } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
-import { resolveDealerIdForUser } from "@/lib/dealer-association";
+import { buildActiveDealerHeaders, getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
 import {
   buildInitialVehicleImportMapping,
@@ -61,6 +63,7 @@ type PreviewRow = {
 };
 
 const IMPORT_FIELDS = getVehicleImportFields();
+const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
 
 async function resolveAccessToken(previousToken: string | null) {
   const { data } = await supabase.auth.getSession();
@@ -79,7 +82,8 @@ async function insertVehicleWithFallback(vehiclePayload: Record<string, unknown>
   }
 
   if (isMissingColumn(error.message, "color")) {
-    const { color: _color, ...payloadWithoutColor } = vehiclePayload;
+    const payloadWithoutColor = { ...vehiclePayload };
+    delete payloadWithoutColor.color;
     const { error: retryError } = await supabase.from("vehicles").insert(payloadWithoutColor);
     return retryError ?? null;
   }
@@ -114,6 +118,34 @@ export function VehiclesImportPage() {
   const [feedAnalysis, setFeedAnalysis] = useState<FeedAnalysisResult | null>(null);
   const [feedImportResult, setFeedImportResult] = useState<FeedImportResult | null>(null);
   const [history, setHistory] = useState<FeedHistoryItem[]>([]);
+
+  const loadSyncHistory = useCallback(
+    async (tokenOverride?: string | null) => {
+      const token = tokenOverride ?? sessionToken;
+      if (!token) {
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/vehicles/import-feed", {
+          method: "GET",
+          headers: buildActiveDealerHeaders({
+            Authorization: `Bearer ${token}`,
+          }),
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { history?: FeedHistoryItem[] };
+        setHistory(Array.isArray(payload.history) ? payload.history : []);
+      } catch {
+        // Best effort: keep UI usable even without history.
+      }
+    },
+    [sessionToken]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -150,32 +182,7 @@ export function VehiclesImportPage() {
     return () => {
       alive = false;
     };
-  }, []);
-
-  const loadSyncHistory = async (tokenOverride?: string | null) => {
-    const token = tokenOverride ?? sessionToken;
-    if (!token) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/vehicles/import-feed", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = (await response.json()) as { history?: FeedHistoryItem[] };
-      setHistory(Array.isArray(payload.history) ? payload.history : []);
-    } catch {
-      // Best effort: keep UI usable even without history.
-    }
-  };
+  }, [loadSyncHistory]);
 
   const previewRows = useMemo<PreviewRow[]>(() => {
     return rows.slice(0, 12).map((row) => {
@@ -199,6 +206,16 @@ export function VehiclesImportPage() {
 
   const onFileChange = async (file: File | null) => {
     if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setFileName(null);
+      setHeaders([]);
+      setRows([]);
+      setMapping(buildInitialVehicleImportMapping([]));
+      setReport(null);
+      setError("File troppo grande. La dimensione massima consentita è 10 MB.");
       return;
     }
 
@@ -246,7 +263,9 @@ export function VehiclesImportPage() {
     let dealerId: string | null = null;
 
     try {
-      dealerId = await resolveDealerIdForUser(userId);
+      dealerId = await resolveDealerIdFromTenantSources(supabase, userId, {
+        activeDealerId: getActiveDealerId(),
+      });
     } catch (dealerError) {
       setError(dealerError instanceof Error ? dealerError.message : "Errore risoluzione dealer.");
       setImporting(false);
@@ -255,6 +274,28 @@ export function VehiclesImportPage() {
 
     if (!dealerId) {
       setError("Dealer non associato al profilo utente.");
+      setImporting(false);
+      return;
+    }
+
+    const { count: vehicleCount, error: vehicleCountError } = await supabase
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", dealerId);
+
+    if (vehicleCountError) {
+      setError(vehicleCountError.message || "Impossibile verificare il limite demo.");
+      setImporting(false);
+      return;
+    }
+
+    const demoAccessContext = await resolveDemoAccessContext(supabase, dealerId, {
+      vehicleCount: vehicleCount ?? 0,
+    });
+    const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "import");
+
+    if (demoBlock) {
+      setError(demoBlock.message);
       setImporting(false);
       return;
     }
@@ -310,10 +351,10 @@ export function VehiclesImportPage() {
 
       const response = await fetch("/api/vehicles/import-feed", {
         method: "POST",
-        headers: {
+        headers: buildActiveDealerHeaders({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-        },
+        }),
         body: JSON.stringify({
           mode: "analyze",
           feedUrl,
@@ -362,10 +403,10 @@ export function VehiclesImportPage() {
 
       const response = await fetch("/api/vehicles/import-feed", {
         method: "POST",
-        headers: {
+        headers: buildActiveDealerHeaders({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-        },
+        }),
         body: JSON.stringify({
           mode: "import",
           feedUrl,
@@ -481,7 +522,7 @@ export function VehiclesImportPage() {
         <>
           <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
             <h3 className="text-base font-semibold text-slate-900">1. Carica file</h3>
-            <p className="mt-1 text-sm text-slate-600">Formati supportati: .csv, .xlsx, .xls</p>
+            <p className="mt-1 text-sm text-slate-600">Formato supportato temporaneamente: .csv</p>
 
             <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-sky-50/50 p-8 text-center transition hover:border-sky-300 hover:from-white hover:to-sky-50">
               <UploadCloud className="h-8 w-8 text-sky-600" />
@@ -489,7 +530,7 @@ export function VehiclesImportPage() {
               <span className="mt-1 text-xs text-slate-500">Le righe vuote verranno ignorate automaticamente.</span>
               <input
                 type="file"
-                accept=".csv,.xlsx,.xls"
+                accept=".csv"
                 className="sr-only"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;

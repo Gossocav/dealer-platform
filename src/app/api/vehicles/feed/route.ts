@@ -1,6 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
 
@@ -9,6 +12,15 @@ const MAX_PREVIEW_ITEMS = 10;
 const COMMON_JSON_ARRAY_KEYS = ["vehicles", "cars", "data", "items", "stock"];
 const XML_REPEAT_TAGS = ["vehicle", "car", "item", "auto"];
 const AUTOMOTIVE_XML_MARKERS = ["make", "brand", "marca", "model", "modello", "vehicle", "auto"];
+
+function normalizeActiveDealerId(value: string | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized;
+}
 
 async function readLimitedText(response: Response, maxBytes: number) {
   if (!response.body) {
@@ -150,15 +162,6 @@ function parseCsv(content: string) {
     preview: vehicles.slice(0, MAX_PREVIEW_ITEMS),
     firstRawRecord,
   };
-}
-
-function abbreviateText(value: string, maxLength = 220) {
-  const compact = value.replace(/\s+/g, " ").trim();
-  if (compact.length <= maxLength) {
-    return compact;
-  }
-
-  return `${compact.slice(0, maxLength)}...`;
 }
 
 function parseXml(content: string) {
@@ -731,7 +734,99 @@ export async function POST(request: Request) {
   const url = body.url?.trim();
   const requestedType = body.type ?? "auto";
   const action = body.action ?? "analyze";
-  const dealerId = body.dealer_id?.trim() ?? null;
+  const requestedDealerId = body.dealer_id?.trim() ?? null;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Configurazione Supabase incompleta.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader?.toLowerCase().startsWith("bearer ")) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Sessione non valida.",
+      },
+      { status: 401 },
+    );
+  }
+
+  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabaseAuth.auth.getUser();
+
+  if (userError || !user?.id) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Utente non autenticato.",
+      },
+      { status: 401 },
+    );
+  }
+
+  const activeDealerId = normalizeActiveDealerId(request.headers.get("x-active-dealer-id"));
+  const resolvedDealerId = await resolveDealerIdForAuthenticatedUser(supabaseAuth, user.id, activeDealerId);
+
+  if (!resolvedDealerId) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Dealer non associato o contesto tenant ambiguo.",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (requestedDealerId && requestedDealerId !== resolvedDealerId) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Dealer non autorizzato.",
+      },
+      { status: 403 },
+    );
+  }
+
+  const dealerId = resolvedDealerId;
+
+  const { count: vehicleCount, error: vehicleCountError } = await supabaseAuth
+    .from("vehicles")
+    .select("id", { count: "exact", head: true })
+    .eq("dealer_id", dealerId);
+
+  if (vehicleCountError) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Impossibile verificare il limite demo del dealer.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const demoAccessContext = await resolveDemoAccessContext(supabaseAuth, dealerId, {
+    vehicleCount: vehicleCount ?? 0,
+  });
 
   if (!url) {
     return NextResponse.json(
@@ -745,6 +840,14 @@ export async function POST(request: Request) {
 
   if (url === DEMO_FEED_URL) {
     if (action === "import") {
+      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "vehicle");
+      if (demoBlock) {
+        return NextResponse.json(
+          { success: false, message: demoBlock.message },
+          { status: 403 },
+        );
+      }
+
       if (!dealerId) {
         return NextResponse.json(
           { success: false, message: "dealer_id obbligatorio per l'importazione." },
@@ -752,10 +855,9 @@ export async function POST(request: Request) {
         );
       }
 
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-      if (!supabaseUrl || !supabaseServiceRoleKey) {
+      if (!supabaseServiceRoleKey) {
         return NextResponse.json(
           { success: false, message: "Configurazione Supabase incompleta." },
           { status: 500 },
@@ -855,15 +957,18 @@ export async function POST(request: Request) {
     let response: Response;
 
     try {
-      response = await fetch(url, {
+      const safeFeedUrl = parseAndValidateExternalHttpUrl(url);
+
+      response = await fetchWithSsrfProtection(safeFeedUrl, {
         method: "GET",
-        redirect: "follow",
+        signal: AbortSignal.timeout(8_000),
         headers: {
           "user-agent": "DealerPlatformFeedAnalyzer/1.0",
           accept: "application/json, text/xml, application/xml, text/csv, text/plain, */*",
         },
       });
-    } catch {
+    } catch (error) {
+      console.error("Vehicles feed fetch failed", { url, error });
       return NextResponse.json(
         {
           success: false,
@@ -915,7 +1020,8 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-    } catch {
+    } catch (error) {
+      console.error("Vehicles feed analysis failed", { url, requestedType, error });
       return NextResponse.json(
         {
           success: false,
@@ -928,6 +1034,13 @@ export async function POST(request: Request) {
 
   // Gestisci l'import di feed reali
   if (action === "import") {
+    if (!dealerId) {
+      return NextResponse.json(
+        { success: false, message: "Dealer non associato al profilo utente." },
+        { status: 403 },
+      );
+    }
+
     if (!analysis) {
       return NextResponse.json(
         { success: false, message: "Errore durante l'analisi del feed." },
@@ -935,17 +1048,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!dealerId) {
-      return NextResponse.json(
-        { success: false, message: "dealer_id obbligatorio per l'importazione." },
-        { status: 400 },
-      );
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
+    if (!supabaseServiceRoleKey) {
       return NextResponse.json(
         { success: false, message: "Configurazione Supabase incompleta." },
         { status: 500 },
@@ -973,18 +1078,21 @@ export async function POST(request: Request) {
       imageUrls: string[] | undefined,
       createdAt: string,
     ) {
-      const { error: deleteError } = await supabaseAdmin
-        .from("vehicle_images")
-        .delete()
-        .eq("vehicle_id", vehicleId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
       if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
         return;
       }
+
+      const { data: existingImages, error: existingError } = await supabaseAdmin
+        .from("vehicle_images")
+        .select("id, image_url, position, is_cover, created_at")
+        .eq("vehicle_id", vehicleId)
+        .order("position", { ascending: true });
+
+      if (existingError) {
+        throw new Error(existingError.message);
+      }
+
+      const existingRows = Array.isArray(existingImages) ? existingImages : [];
 
       const imagesToInsert: Array<{
         vehicle_id: string;
@@ -1002,7 +1110,12 @@ export async function POST(request: Request) {
 
         if (/^https?:\/\//i.test(imageUrl)) {
           try {
-            const response = await fetch(imageUrl);
+            const safeImageUrl = parseAndValidateExternalHttpUrl(imageUrl);
+            const response = await fetchWithSsrfProtection(safeImageUrl, {
+              method: "GET",
+              signal: AbortSignal.timeout(8_000),
+            });
+
             if (!response.ok) {
               continue;
             }
@@ -1024,7 +1137,8 @@ export async function POST(request: Request) {
             }
 
             finalImageUrl = storagePath;
-          } catch {
+          } catch (error) {
+            console.warn("Vehicles feed image download/upload skipped", { imageUrl, vehicleId, error });
             continue;
           }
         }
@@ -1041,12 +1155,58 @@ export async function POST(request: Request) {
       }
 
       if (imagesToInsert.length === 0) {
+        console.warn("Vehicles feed image replacement skipped", {
+          vehicleId,
+          reason: "no-valid-images-prepared",
+          requestedCount: imageUrls.length,
+        });
+        return;
+      }
+
+      // Conservative strategy: if we already have a gallery, require a complete new set.
+      if (existingRows.length > 0 && imagesToInsert.length < imageUrls.length) {
+        console.warn("Vehicles feed image replacement skipped", {
+          vehicleId,
+          reason: "partial-new-set",
+          existingCount: existingRows.length,
+          requestedCount: imageUrls.length,
+          preparedCount: imagesToInsert.length,
+        });
         return;
       }
 
       const { error: insertError } = await supabaseAdmin.from("vehicle_images").insert(imagesToInsert);
       if (insertError) {
+        if (existingRows.length > 0) {
+          console.warn("Vehicles feed image replacement skipped", {
+            vehicleId,
+            reason: "insert-failed-with-existing-gallery",
+          });
+          return;
+        }
+
         throw new Error(insertError.message);
+      }
+
+      if (existingRows.length === 0) {
+        return;
+      }
+
+      const existingIds = existingRows
+        .map((image) => String(image.id ?? "").trim())
+        .filter(Boolean);
+
+      if (existingIds.length === 0) {
+        return;
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from("vehicle_images")
+        .delete()
+        .in("id", existingIds);
+
+      if (deleteError) {
+        console.error("Vehicles feed image old-gallery cleanup failed", { vehicleId });
       }
     }
 
@@ -1096,12 +1256,17 @@ export async function POST(request: Request) {
             // Query per ricerca normalizzata
             // Nota: Supabase non ha LOWER() nativo ma i dati nel DB devono essere normalizzati
             // o usiamo un approccio di ricerca con filtering post-query
-            let query = supabaseAdmin
+            const query = supabaseAdmin
               .from("vehicles")
               .select("id, brand, model, year")
               .eq("dealer_id", dealerId);
 
-            const { data: candidates } = await query;
+            const scopedQuery =
+              vehicleData.year === null
+                ? query.is("year", null)
+                : query.eq("year", vehicleData.year);
+
+            const { data: candidates } = await scopedQuery;
 
             // Filtra manualmente con normalizzazione
             if (candidates && Array.isArray(candidates)) {
@@ -1215,4 +1380,14 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(responseBody);
+}
+
+async function resolveDealerIdForAuthenticatedUser(
+  supabase: SupabaseClient,
+  userId: string,
+  activeDealerId?: string | null,
+) {
+  return resolveDealerIdFromTenantSources(supabase, userId, {
+    activeDealerId,
+  });
 }

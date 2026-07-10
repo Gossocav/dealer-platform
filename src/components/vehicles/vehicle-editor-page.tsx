@@ -8,13 +8,18 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
-import { resolveDealerIdForUser } from "@/lib/dealer-association";
+import { getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { supabase } from "@/lib/supabaseClient";
+import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import {
   extractVehicleImagePath,
   formatVehicleStatus,
   normalizeVehicleTraction,
   safeText,
+  validateVehicleStatusTransitionForCrud,
   VEHICLE_TRACTION_OPTIONS,
   type VehicleImageRow,
   type VehicleRow,
@@ -280,12 +285,21 @@ const INITIAL_STATE: EditorState = {
 
 type ViewImage = VehicleImageRow & { previewUrl: string | null };
 
+function resolveStatusAction(status: string) {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "published") return "vehicle.published" as const;
+  if (normalized === "sold") return "vehicle.sold" as const;
+  if (normalized === "archived") return "vehicle.archived" as const;
+  return "vehicle.unpublished" as const;
+}
+
 export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const router = useRouter();
   const imageInputId = useId();
   const cityDatalistId = useId();
 
   const [dealerName, setDealerName] = useState("Dealer Console");
+  const [currentDealerId, setCurrentDealerId] = useState<string | null>(null);
   const [state, setState] = useState<EditorState>(INITIAL_STATE);
   const [images, setImages] = useState<ViewImage[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -297,6 +311,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [missingFields, setMissingFields] = useState<RequiredFieldKey[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [originalStatus, setOriginalStatus] = useState<string | null>(mode === "create" ? "draft" : null);
+  const [originalPublished, setOriginalPublished] = useState<boolean>(false);
   const [existingVehicleDealerId, setExistingVehicleDealerId] = useState<string | null>(null);
 
   const title = useMemo(() => (mode === "create" ? "Nuovo Veicolo" : "Modifica Veicolo"), [mode]);
@@ -345,6 +361,14 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const userId = authData.user?.id;
       if (!userId) return;
 
+      const resolvedDealerId = await resolveDealerIdFromTenantSources(supabase, userId, {
+        activeDealerId: getActiveDealerId(),
+      });
+
+      if (resolvedDealerId) {
+        setCurrentDealerId(resolvedDealerId);
+      }
+
       const { data } = await supabase
         .from("dealers")
         .select("name, legal_name")
@@ -365,7 +389,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   }, []);
 
   useEffect(() => {
-    if (mode !== "edit" || !vehicleId) return;
+    if (mode !== "edit" || !vehicleId || !currentDealerId) return;
 
     let alive = true;
 
@@ -379,6 +403,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
           "id, dealer_id, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
+        .eq("dealer_id", currentDealerId)
         .maybeSingle<VehicleRow>();
 
       if (vehicleError || !data) {
@@ -441,6 +466,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         equipment: normalizeEquipment((data as Record<string, unknown>).equipment),
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
+      setOriginalStatus(String(data.status ?? (data.published ? "published" : "draft")));
+      setOriginalPublished(Boolean(data.published));
       setExistingVehicleDealerId(String(data.dealer_id ?? "").trim() || null);
       setImages(resolvedImages);
       setLoading(false);
@@ -451,7 +478,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     return () => {
       alive = false;
     };
-  }, [mode, vehicleId]);
+  }, [currentDealerId, mode, vehicleId]);
 
   const updateField = <K extends keyof EditorState>(key: K, value: EditorState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -488,9 +515,18 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     setSuccess(null);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        setError("Sessione non valida.");
+        return;
+      }
+
       const response = await fetch("/api/vehicles/plate-lookup", {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ licensePlate }),
@@ -594,7 +630,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
     let resolvedDealerId: string | null = null;
     try {
-      resolvedDealerId = await resolveDealerIdForUser(userId);
+      resolvedDealerId = await resolveDealerIdFromTenantSources(supabase, userId, {
+        activeDealerId: getActiveDealerId(),
+      });
     } catch (dealerResolveError) {
       const message = dealerResolveError instanceof Error ? dealerResolveError.message : "Errore risoluzione dealer.";
       setError(message);
@@ -602,14 +640,16 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       return;
     }
 
+    const resolvedDealerIdNormalized = normalizeResolvedDealerId(resolvedDealerId);
     let normalizedExistingDealerId = normalizeResolvedDealerId(existingVehicleDealerId);
 
     if (mode === "edit" && !normalizedExistingDealerId && vehicleId) {
-      const { data: existingRow, error: existingRowError } = await supabase
-        .from("vehicles")
-        .select("dealer_id")
-        .eq("id", vehicleId)
-        .maybeSingle<{ dealer_id: string | null }>();
+      let existingQuery = supabase.from("vehicles").select("dealer_id").eq("id", vehicleId);
+      if (resolvedDealerIdNormalized) {
+        existingQuery = existingQuery.eq("dealer_id", resolvedDealerIdNormalized);
+      }
+
+      const { data: existingRow, error: existingRowError } = await existingQuery.maybeSingle<{ dealer_id: string | null }>();
 
       if (existingRowError) {
         setError(existingRowError.message || "Errore nel recupero dealer del veicolo.");
@@ -623,13 +663,34 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       }
     }
 
-    const resolvedDealerIdNormalized = normalizeResolvedDealerId(resolvedDealerId);
     const vehicleDealerId = mode === "edit"
       ? (normalizedExistingDealerId ?? resolvedDealerIdNormalized)
       : resolvedDealerIdNormalized;
 
     if (!vehicleDealerId) {
       setError("Concessionaria non associata all’account.");
+      setSaving(false);
+      return;
+    }
+
+    const { count: vehicleCount, error: vehicleCountError } = await supabase
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", vehicleDealerId);
+
+    if (vehicleCountError) {
+      setError(vehicleCountError.message || "Impossibile verificare il limite demo.");
+      setSaving(false);
+      return;
+    }
+
+    const demoAccessContext = await resolveDemoAccessContext(supabase, vehicleDealerId, {
+      vehicleCount: vehicleCount ?? 0,
+    });
+    const demoBlock = getDemoFeatureBlockReason(demoAccessContext, mode === "create" ? "vehicle" : "write");
+
+    if (demoBlock) {
+      setError(demoBlock.message);
       setSaving(false);
       return;
     }
@@ -662,11 +723,70 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       published: state.status === "published",
     };
 
+    const statusTransition = validateVehicleStatusTransitionForCrud({
+      fromStatus: mode === "create" ? "draft" : originalStatus,
+      fromPublished: mode === "create" ? false : originalPublished,
+      toStatus: state.status,
+      toPublished: state.status === "published",
+    });
+
+    if (!statusTransition.allowed) {
+      setError(statusTransition.message || "Transizione stato non consentita.");
+      setSaving(false);
+      return;
+    }
+
+    vehiclePayload.status = statusTransition.nextStatus;
+    vehiclePayload.published = statusTransition.nextPublished;
+
+    if (statusTransition.nextPublished) {
+      const healthVehicle: VehicleRow = {
+        id: vehicleId ?? "pending",
+        dealer_id: vehicleDealerId,
+        brand: vehiclePayload.brand,
+        model: vehiclePayload.model,
+        version: vehiclePayload.version,
+        interior_type: vehiclePayload.interior_type,
+        engine_size: vehiclePayload.engine_size,
+        power_kw: vehiclePayload.power_kw,
+        power_cv: vehiclePayload.power_cv,
+        doors: vehiclePayload.doors,
+        registration_date: vehiclePayload.registration_date,
+        year: vehiclePayload.year,
+        mileage: vehiclePayload.mileage,
+        fuel: vehiclePayload.fuel,
+        transmission: vehiclePayload.transmission,
+        price: vehiclePayload.price,
+        status: vehiclePayload.status,
+        published: vehiclePayload.published,
+        city: vehiclePayload.city,
+        province: vehiclePayload.province,
+        description: vehiclePayload.description,
+        created_at: null,
+        updated_at: null,
+      };
+
+      const expectedImageCount = images.length + pendingFiles.length;
+      const health = evaluateVehicleHealth({
+        vehicle: healthVehicle,
+        imagesCount: expectedImageCount,
+      });
+
+      if (!health.publishable) {
+        const firstIssue = health.issues[0]?.message ?? "La scheda veicolo non e ancora pubblicabile.";
+        setError(`Pubblicazione bloccata: ${firstIssue}`);
+        setSaving(false);
+        return;
+      }
+    }
+
     let targetVehicleId = vehicleId;
+    const previousStatus = mode === "create" ? "draft" : String(originalStatus ?? "draft").trim().toLowerCase();
+    const nextStatus = String(statusTransition.nextStatus ?? "draft").trim().toLowerCase();
+    const statusChanged = previousStatus !== nextStatus;
 
     if (mode === "create") {
       const payload = vehiclePayload;
-      console.log("CREATE VEHICLE PAYLOAD", payload);
 
       const { data, error: createError } = await supabase
         .from("vehicles")
@@ -696,12 +816,110 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       }
 
       targetVehicleId = data.id;
+
+      await writeVehicleTimelineEvent(supabase, {
+        dealerId: vehicleDealerId,
+        vehicleId: data.id,
+        action: "vehicle.created",
+        actorType: "user",
+        actorProfileId: userId,
+        after: {
+          status: statusTransition.nextStatus,
+          published: statusTransition.nextPublished,
+        },
+      });
+
+      if (statusChanged || nextStatus !== "draft") {
+        await writeVehicleTimelineEvent(supabase, {
+          dealerId: vehicleDealerId,
+          vehicleId: data.id,
+          action: "vehicle.status_changed",
+          actorType: "user",
+          actorProfileId: userId,
+          metadata: {
+            fromStatus: previousStatus,
+            toStatus: nextStatus,
+          },
+          before: {
+            status: previousStatus,
+            published: false,
+          },
+          after: {
+            status: statusTransition.nextStatus,
+            published: statusTransition.nextPublished,
+          },
+        });
+
+        await writeVehicleTimelineEvent(supabase, {
+          dealerId: vehicleDealerId,
+          vehicleId: data.id,
+          action: resolveStatusAction(nextStatus),
+          actorType: "user",
+          actorProfileId: userId,
+          metadata: {
+            fromStatus: previousStatus,
+            toStatus: nextStatus,
+          },
+        });
+      }
     } else {
-      const { error: updateError } = await supabase.from("vehicles").update(vehiclePayload).eq("id", vehicleId);
+      const { error: updateError } = await supabase
+        .from("vehicles")
+        .update(vehiclePayload)
+        .eq("id", vehicleId)
+        .eq("dealer_id", vehicleDealerId);
       if (updateError) {
         setError(updateError.message || "Errore durante aggiornamento veicolo.");
         setSaving(false);
         return;
+      }
+
+      if (targetVehicleId) {
+        await writeVehicleTimelineEvent(supabase, {
+          dealerId: vehicleDealerId,
+          vehicleId: targetVehicleId,
+          action: "vehicle.updated",
+          actorType: "user",
+          actorProfileId: userId,
+          metadata: {
+            fromStatus: previousStatus,
+            toStatus: nextStatus,
+          },
+        });
+
+        if (statusChanged) {
+          await writeVehicleTimelineEvent(supabase, {
+            dealerId: vehicleDealerId,
+            vehicleId: targetVehicleId,
+            action: "vehicle.status_changed",
+            actorType: "user",
+            actorProfileId: userId,
+            metadata: {
+              fromStatus: previousStatus,
+              toStatus: nextStatus,
+            },
+            before: {
+              status: previousStatus,
+              published: originalPublished,
+            },
+            after: {
+              status: statusTransition.nextStatus,
+              published: statusTransition.nextPublished,
+            },
+          });
+
+          await writeVehicleTimelineEvent(supabase, {
+            dealerId: vehicleDealerId,
+            vehicleId: targetVehicleId,
+            action: resolveStatusAction(nextStatus),
+            actorType: "user",
+            actorProfileId: userId,
+            metadata: {
+              fromStatus: previousStatus,
+              toStatus: nextStatus,
+            },
+          });
+        }
       }
     }
 
@@ -722,7 +940,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
       if (!imageDealerId) {
         try {
-          imageDealerId = String((await resolveDealerIdForUser(userId)) ?? "").trim();
+          imageDealerId = String(
+            (await resolveDealerIdFromTenantSources(supabase, userId, {
+              activeDealerId: getActiveDealerId(),
+            })) ?? ""
+          ).trim();
         } catch (dealerResolveError) {
           setError(dealerResolveError instanceof Error ? dealerResolveError.message : "Errore nel recupero concessionario per upload immagini.");
           setSaving(false);
@@ -767,10 +989,24 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         setSaving(false);
         return;
       }
+
+      await writeVehicleTimelineEvent(supabase, {
+        dealerId: imageDealerId,
+        vehicleId: targetVehicleId,
+        action: "vehicle.images_updated",
+        actorType: "user",
+        actorProfileId: userId,
+        metadata: {
+          operation: "upload",
+          imagesCount: uploadedRows.length,
+        },
+      });
     }
 
     setPendingFiles([]);
     setSaving(false);
+    setOriginalStatus(statusTransition.nextStatus);
+    setOriginalPublished(statusTransition.nextPublished);
     setSuccess(mode === "create" ? "Veicolo creato correttamente." : "Veicolo aggiornato correttamente.");
 
     if (targetVehicleId) {
@@ -789,6 +1025,23 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     if (deleteError) {
       setError(deleteError.message || "Errore eliminazione immagine.");
       return;
+    }
+
+    const { data: authData } = await supabase.auth.getUser();
+    const actorProfileId = authData.user?.id ?? null;
+
+    if (vehicleId && existingVehicleDealerId) {
+      await writeVehicleTimelineEvent(supabase, {
+        dealerId: existingVehicleDealerId,
+        vehicleId,
+        action: "vehicle.images_updated",
+        actorType: "user",
+        actorProfileId,
+        metadata: {
+          operation: "delete",
+          imagesCount: 1,
+        },
+      });
     }
 
     const path = extractVehicleImagePath(String(image.image_url ?? ""));
@@ -814,13 +1067,30 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     await supabase.from("vehicle_images").update({ is_cover: false }).in("id", allIds);
     await supabase.from("vehicle_images").update({ is_cover: true }).eq("id", imageId);
 
+    const { data: authData } = await supabase.auth.getUser();
+    const actorProfileId = authData.user?.id ?? null;
+
+    if (existingVehicleDealerId) {
+      await writeVehicleTimelineEvent(supabase, {
+        dealerId: existingVehicleDealerId,
+        vehicleId,
+        action: "vehicle.images_updated",
+        actorType: "user",
+        actorProfileId,
+        metadata: {
+          operation: "set_cover",
+          imagesCount: 1,
+        },
+      });
+    }
+
     setImages((prev) => prev.map((image) => ({ ...image, is_cover: image.id === imageId })));
   };
 
   return (
     <DealerDashboardShell title={title} dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Vehicle editor</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Editor veicolo</p>
         <h2 className="mt-1 text-2xl font-semibold text-slate-900">{title}</h2>
         <p className="mt-2 text-sm text-slate-600">Compila i dati del veicolo e gestisci immagini da Supabase Storage.</p>
       </section>
@@ -1046,6 +1316,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   <option value="published">Pubblicato</option>
                   <option value="review">In revisione</option>
                   <option value="sold">Venduto</option>
+                  <option value="archived">Archiviato</option>
                 </select>
                 <p className="text-xs text-slate-500">Stato attuale: {formatVehicleStatus(state.status)}</p>
               </label>

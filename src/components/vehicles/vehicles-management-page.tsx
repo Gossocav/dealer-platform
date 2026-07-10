@@ -9,7 +9,12 @@ import { VehiclesKpiGrid } from "@/components/vehicles/vehicles-kpi-grid";
 import { VehiclesPagination } from "@/components/vehicles/vehicles-pagination";
 import { VehiclesTable } from "@/components/vehicles/vehicles-table";
 import { VehiclesToolbar } from "@/components/vehicles/vehicles-toolbar";
+import { getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { supabase } from "@/lib/supabaseClient";
+import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import {
   applyPriceBandFilters,
   defaultVehicleFilters,
@@ -25,6 +30,7 @@ import {
   type VehicleListItem,
   type VehicleRow,
   type VehicleSortState,
+  validateVehicleStatusTransitionForCrud,
   resolveCoverImage,
 } from "@/lib/vehicles";
 
@@ -45,25 +51,6 @@ type VehicleOptionKey = {
 
 const PAGE_SIZE = 9;
 
-function mapImageUrlForDisplay(imageUrl: string): string {
-  if (!/^https?:\/\//i.test(imageUrl)) {
-    return imageUrl;
-  }
-
-  try {
-    const parsed = new URL(imageUrl);
-    const isSupabaseDomain = parsed.hostname === "supabase.co" || parsed.hostname.endsWith(".supabase.co");
-
-    if (isSupabaseDomain) {
-      return imageUrl;
-    }
-  } catch {
-    return imageUrl;
-  }
-
-  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-}
-
 export function VehiclesManagementPage() {
   const [filters, setFilters] = useState<VehicleFilters>(defaultVehicleFilters);
   const [viewMode, setViewMode] = useState<ViewMode>("card");
@@ -77,6 +64,7 @@ export function VehiclesManagementPage() {
   const [vehicleOptionKeys, setVehicleOptionKeys] = useState<VehicleOptionKey[]>([]);
 
   const [dealerName, setDealerName] = useState("Dealer Console");
+  const [currentDealerId, setCurrentDealerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyVehicleId, setBusyVehicleId] = useState<string | null>(null);
@@ -88,10 +76,69 @@ export function VehiclesManagementPage() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
-  const updateFilters = useCallback((next: VehicleFilters) => {
-    setFilters(next);
-    setPage(1);
-  }, []);
+  const ensureDemoWriteAllowed = useCallback(async (feature: "vehicle" | "write") => {
+    if (!currentDealerId) {
+      return { allowed: false, message: "Concessionaria non associata all'utente." };
+    }
+
+    const { count: vehicleCount, error: vehicleCountError } = await supabase
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", currentDealerId);
+
+    if (vehicleCountError) {
+      return {
+        allowed: false,
+        message: vehicleCountError.message || "Impossibile verificare i limiti demo per i veicoli.",
+      };
+    }
+
+    const demoAccessContext = await resolveDemoAccessContext(supabase, currentDealerId, {
+      vehicleCount: vehicleCount ?? 0,
+    });
+    const block = getDemoFeatureBlockReason(demoAccessContext, feature);
+
+    if (block) {
+      return { allowed: false, message: block.message };
+    }
+
+    return { allowed: true, message: null };
+  }, [currentDealerId]);
+
+  const resolveFuelOptionsForFilters = useCallback(
+    (nextFilters: VehicleFilters) => {
+      const normalizedBrand = nextFilters.brand.trim().toLowerCase();
+      const normalizedModel = nextFilters.model.trim().toLowerCase();
+
+      const scoped = vehicleOptionKeys.filter((key) => {
+        const matchesBrand = !normalizedBrand || normalizedBrand === "all" || key.brand.trim().toLowerCase() === normalizedBrand;
+        const matchesModel = !normalizedModel || normalizedModel === "all" || key.model.trim().toLowerCase() === normalizedModel;
+        return matchesBrand && matchesModel;
+      });
+
+      if (scoped.length === 0) {
+        return options.fuelTypes;
+      }
+
+      return Array.from(new Set(scoped.map((key) => key.fuel).filter(Boolean))).sort((a, b) => a.localeCompare(b, "it-IT"));
+    },
+    [options.fuelTypes, vehicleOptionKeys]
+  );
+
+  const updateFilters = useCallback(
+    (next: VehicleFilters) => {
+      const normalizedFuel = next.fuel.trim().toLowerCase();
+      const allowedFuelOptions = resolveFuelOptionsForFilters(next);
+      const isFuelValid =
+        !normalizedFuel ||
+        normalizedFuel === "all" ||
+        allowedFuelOptions.some((fuel) => fuel.trim().toLowerCase() === normalizedFuel);
+
+      setFilters(isFuelValid ? next : { ...next, fuel: "all" });
+      setPage(1);
+    },
+    [resolveFuelOptionsForFilters]
+  );
 
   const handleSortChange = useCallback((field: VehicleSortState["field"]) => {
     setSort((prev) => {
@@ -137,6 +184,37 @@ export function VehiclesManagementPage() {
   useEffect(() => {
     let alive = true;
 
+    const resolveDealerContext = async () => {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
+
+      if (authError || !userId) {
+        if (alive) {
+          setCurrentDealerId(null);
+          setError("Sessione non valida. Effettua di nuovo il login.");
+        }
+        return;
+      }
+
+      const resolvedDealerId = await resolveDealerIdFromTenantSources(supabase, userId, {
+        activeDealerId: getActiveDealerId(),
+      });
+
+      if (!resolvedDealerId) {
+        if (alive) {
+          setCurrentDealerId(null);
+          setError("Concessionaria non associata all'utente.");
+        }
+        return;
+      }
+
+      if (alive) {
+        setCurrentDealerId(resolvedDealerId);
+      }
+    };
+
+    void resolveDealerContext();
+
     const fetchDealerName = async () => {
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData.user?.id;
@@ -177,6 +255,15 @@ export function VehiclesManagementPage() {
     }, 250);
 
     async function fetchVehicles() {
+      if (!currentDealerId) {
+        if (alive) {
+          setItems([]);
+          setTotalCount(0);
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
@@ -187,9 +274,10 @@ export function VehiclesManagementPage() {
       let query = supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, brand, model, version, interior_type, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
+          "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
           { count: "exact" }
         )
+        .eq("dealer_id", currentDealerId)
         .range(from, to)
         .order(sort.field, { ascending: sort.direction === "asc" });
 
@@ -242,6 +330,45 @@ export function VehiclesManagementPage() {
       }
 
       const imageMap = new Map<string, string | null>();
+      const signedUrlCache = new Map<string, Promise<string | null>>();
+
+      const resolveSignedVehicleImageUrl = (rawValue: string) => {
+        const normalized = rawValue.trim();
+        if (!normalized) {
+          return Promise.resolve(null);
+        }
+
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+          if (!normalized.includes(".supabase.co")) {
+            return Promise.resolve(`/api/image-proxy?url=${encodeURIComponent(normalized)}`);
+          }
+        }
+
+        const path = extractVehicleImagePath(normalized);
+        if (!path) {
+          return Promise.resolve(null);
+        }
+
+        const cached = signedUrlCache.get(path);
+        if (cached) {
+          return cached;
+        }
+
+        const pending = (async () => {
+          const { data: signed, error } = await supabase.storage
+            .from("vehicle-images")
+            .createSignedUrl(path, 3600);
+
+          if (!error && signed?.signedUrl) {
+            return signed.signedUrl;
+          }
+
+          return null;
+        })();
+
+        signedUrlCache.set(path, pending);
+        return pending;
+      };
 
       await Promise.all(
         rows.map(async (row) => {
@@ -255,23 +382,7 @@ export function VehiclesManagementPage() {
 
           if (cover.startsWith("http://") || cover.startsWith("https://")) {
             if (cover.includes(".supabase.co")) {
-              const path = extractVehicleImagePath(cover);
-
-              if (!path) {
-                imageMap.set(row.id, null);
-                return;
-              }
-
-              const { data: signed, error } = await supabase.storage
-                .from("vehicle-images")
-                .createSignedUrl(path, 3600);
-
-              if (!error && signed?.signedUrl) {
-                imageMap.set(row.id, signed.signedUrl);
-                return;
-              }
-
-              imageMap.set(row.id, null);
+              imageMap.set(row.id, await resolveSignedVehicleImageUrl(cover));
               return;
             }
 
@@ -279,23 +390,7 @@ export function VehiclesManagementPage() {
             return;
           }
 
-          const path = extractVehicleImagePath(cover);
-
-          if (!path) {
-            imageMap.set(row.id, null);
-            return;
-          }
-
-          const { data: signed, error } = await supabase.storage
-            .from("vehicle-images")
-            .createSignedUrl(path, 3600);
-
-          if (!error && signed?.signedUrl) {
-            imageMap.set(row.id, signed.signedUrl);
-            return;
-          }
-
-          imageMap.set(row.id, null);
+          imageMap.set(row.id, await resolveSignedVehicleImageUrl(cover));
         })
       );
 
@@ -339,18 +434,32 @@ export function VehiclesManagementPage() {
       alive = false;
       clearTimeout(timeoutId);
     };
-  }, [filters, page, refreshKey, sort]);
+  }, [currentDealerId, filters, page, refreshKey, sort]);
 
   useEffect(() => {
     let alive = true;
 
     const fetchOptionsAndKpis = async () => {
+      if (!currentDealerId) {
+        if (alive) {
+          setVehicleOptionKeys([]);
+          setOptions({ brands: [], models: [], fuelTypes: [], transmissionTypes: [] });
+          setKpis([
+            { id: "published", label: "Veicoli pubblicati", value: "0", delta: "Totale live" },
+            { id: "drafts", label: "Bozze", value: "0", delta: "Da completare" },
+            { id: "sold", label: "Venduti", value: "0", delta: "Storico" },
+            { id: "leads", label: "Lead ricevuti", value: "0", delta: "Su inventario" },
+          ]);
+        }
+        return;
+      }
+
       const [optionRowsRes, publishedRes, draftRes, soldRes, leadsRes] = await Promise.all([
-        supabase.from("vehicles").select("brand, model, fuel, transmission, interior_type").limit(1000),
-        supabase.from("vehicles").select("id", { count: "exact", head: true }).or("status.eq.published,published.eq.true"),
-        supabase.from("vehicles").select("id", { count: "exact", head: true }).or("status.eq.draft,published.eq.false,status.is.null"),
-        supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("status", "sold"),
-        supabase.from("leads").select("id", { count: "exact", head: true }),
+        supabase.from("vehicles").select("brand, model, fuel, transmission, interior_type").eq("dealer_id", currentDealerId).limit(1000),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("dealer_id", currentDealerId).or("status.eq.published,published.eq.true"),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("dealer_id", currentDealerId).or("status.eq.draft,published.eq.false,status.is.null"),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("dealer_id", currentDealerId).eq("status", "sold"),
+        supabase.from("leads").select("id", { count: "exact", head: true }).eq("dealer_id", currentDealerId),
       ]);
 
       if (!alive) return;
@@ -392,15 +501,26 @@ export function VehiclesManagementPage() {
     return () => {
       alive = false;
     };
-  }, [refreshKey]);
+  }, [currentDealerId, refreshKey]);
 
   const handleDelete = useCallback(async (vehicleId: string) => {
+    if (!currentDealerId) {
+      setError("Concessionaria non associata all'utente.");
+      return;
+    }
+
     const confirmed = globalThis.confirm("Confermi l'eliminazione del veicolo?");
     if (!confirmed) return;
 
+    const demoWrite = await ensureDemoWriteAllowed("write");
+    if (!demoWrite.allowed) {
+      setError(demoWrite.message);
+      return;
+    }
+
     setBusyVehicleId(vehicleId);
 
-    const { error: deleteError } = await supabase.from("vehicles").delete().eq("id", vehicleId);
+    const { error: deleteError } = await supabase.from("vehicles").delete().eq("id", vehicleId).eq("dealer_id", currentDealerId);
 
     if (deleteError) {
       setError(deleteError.message || "Errore durante eliminazione veicolo.");
@@ -410,9 +530,14 @@ export function VehiclesManagementPage() {
 
     setBusyVehicleId(null);
     refreshData();
-  }, [refreshData]);
+  }, [currentDealerId, ensureDemoWriteAllowed, refreshData]);
 
   const handleDeleteSelected = useCallback(async () => {
+    if (!currentDealerId) {
+      setError("Concessionaria non associata all'utente.");
+      return;
+    }
+
     const ids = [...selectedVehicleIds];
     if (ids.length === 0) {
       return;
@@ -420,6 +545,12 @@ export function VehiclesManagementPage() {
 
     const confirmed = globalThis.confirm(`Vuoi eliminare ${ids.length} veicoli selezionati?`);
     if (!confirmed) {
+      return;
+    }
+
+    const demoWrite = await ensureDemoWriteAllowed("write");
+    if (!demoWrite.allowed) {
+      setError(demoWrite.message);
       return;
     }
 
@@ -434,7 +565,7 @@ export function VehiclesManagementPage() {
       return;
     }
 
-    const { error: vehiclesError } = await supabase.from("vehicles").delete().in("id", ids);
+    const { error: vehiclesError } = await supabase.from("vehicles").delete().eq("dealer_id", currentDealerId).in("id", ids);
 
     if (vehiclesError) {
       setError(vehiclesError.message || "Errore durante eliminazione veicoli selezionati.");
@@ -445,13 +576,30 @@ export function VehiclesManagementPage() {
     setSelectedVehicleIds([]);
     setBulkDeleting(false);
     refreshData();
-  }, [refreshData, selectedVehicleIds]);
+  }, [currentDealerId, ensureDemoWriteAllowed, refreshData, selectedVehicleIds]);
 
   const handleDuplicate = useCallback(async (vehicleId: string) => {
+    if (!currentDealerId) {
+      setError("Concessionaria non associata all'utente.");
+      return;
+    }
+
     setBusyVehicleId(vehicleId);
     setError(null);
 
-    const { data: source, error: sourceError } = await supabase.from("vehicles").select("*").eq("id", vehicleId).maybeSingle<VehicleRow>();
+    const demoWrite = await ensureDemoWriteAllowed("vehicle");
+    if (!demoWrite.allowed) {
+      setError(demoWrite.message);
+      setBusyVehicleId(null);
+      return;
+    }
+
+    const { data: source, error: sourceError } = await supabase
+      .from("vehicles")
+      .select("*")
+      .eq("id", vehicleId)
+      .eq("dealer_id", currentDealerId)
+      .maybeSingle<VehicleRow>();
 
     if (sourceError || !source) {
       setError(sourceError?.message || "Veicolo da duplicare non trovato.");
@@ -459,12 +607,16 @@ export function VehiclesManagementPage() {
       return;
     }
 
-    const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...payload } = source;
+    const payload: Record<string, unknown> = { ...source };
+    delete payload.id;
+    delete payload.created_at;
+    delete payload.updated_at;
 
     const { data: inserted, error: insertError } = await supabase
       .from("vehicles")
       .insert({
         ...payload,
+        dealer_id: currentDealerId,
         status: "draft",
         published: false,
       })
@@ -496,21 +648,56 @@ export function VehiclesManagementPage() {
 
     setBusyVehicleId(null);
     refreshData();
-  }, [refreshData]);
+  }, [currentDealerId, ensureDemoWriteAllowed, refreshData]);
 
   const handleTogglePublished = useCallback(async (vehicle: VehicleListItem) => {
+    if (!currentDealerId) {
+      setError("Concessionaria non associata all'utente.");
+      return;
+    }
+
     setBusyVehicleId(vehicle.id);
     setError(null);
 
+    const demoWrite = await ensureDemoWriteAllowed("write");
+    if (!demoWrite.allowed) {
+      setError(demoWrite.message);
+      setBusyVehicleId(null);
+      return;
+    }
+
     const nextPublished = vehicle.status !== "published";
+    if (nextPublished) {
+      const health = evaluateVehicleHealth({ vehicle: vehicle.raw });
+      if (!health.publishable) {
+        const firstIssue = health.issues[0]?.message ?? "La scheda veicolo non e ancora pubblicabile.";
+        setError(`Pubblicazione bloccata: ${firstIssue}`);
+        setBusyVehicleId(null);
+        return;
+      }
+    }
+
+    const transition = validateVehicleStatusTransitionForCrud({
+      fromStatus: vehicle.raw.status,
+      fromPublished: vehicle.raw.published,
+      toStatus: nextPublished ? "published" : "draft",
+      toPublished: nextPublished,
+    });
+
+    if (!transition.allowed) {
+      setError(transition.message || "Transizione stato non consentita.");
+      setBusyVehicleId(null);
+      return;
+    }
 
     const { error: updateError } = await supabase
       .from("vehicles")
       .update({
-        status: nextPublished ? "published" : "draft",
-        published: nextPublished,
+        status: transition.nextStatus,
+        published: transition.nextPublished,
       })
-      .eq("id", vehicle.id);
+      .eq("id", vehicle.id)
+      .eq("dealer_id", currentDealerId);
 
     if (updateError) {
       setError(updateError.message || "Errore aggiornamento stato veicolo.");
@@ -518,9 +705,34 @@ export function VehiclesManagementPage() {
       return;
     }
 
+    const { data: authData } = await supabase.auth.getUser();
+    const actorProfileId = authData.user?.id ?? null;
+
+    if (vehicle.raw.dealer_id) {
+      await writeVehicleTimelineEvent(supabase, {
+        dealerId: vehicle.raw.dealer_id,
+        vehicleId: vehicle.id,
+        action: transition.nextPublished ? "vehicle.published" : "vehicle.unpublished",
+        actorType: "user",
+        actorProfileId,
+        metadata: {
+          fromStatus: String(vehicle.raw.status ?? "draft"),
+          toStatus: transition.nextStatus,
+        },
+        before: {
+          status: vehicle.raw.status,
+          published: vehicle.raw.published,
+        },
+        after: {
+          status: transition.nextStatus,
+          published: transition.nextPublished,
+        },
+      });
+    }
+
     setBusyVehicleId(null);
     refreshData();
-  }, [refreshData]);
+  }, [currentDealerId, ensureDemoWriteAllowed, refreshData]);
 
   const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
   const filteredModelOptions = useMemo(() => {
@@ -556,21 +768,6 @@ export function VehiclesManagementPage() {
     return Array.from(new Set(scoped.map((key) => key.fuel).filter(Boolean))).sort((a, b) => a.localeCompare(b, "it-IT"));
   }, [filters.brand, filters.model, options.fuelTypes, vehicleOptionKeys]);
 
-  useEffect(() => {
-    const normalizedFuel = filters.fuel.trim().toLowerCase();
-
-    if (!normalizedFuel || normalizedFuel === "all") {
-      return;
-    }
-
-    const isValid = filteredFuelOptions.some((fuel) => fuel.trim().toLowerCase() === normalizedFuel);
-    if (isValid) {
-      return;
-    }
-
-    setFilters((current) => ({ ...current, fuel: "all" }));
-    setPage(1);
-  }, [filteredFuelOptions, filters.fuel]);
   const visibleIds = useMemo(() => items.map((item) => item.id), [items]);
   const selectedCount = selectedVehicleIds.length;
   const everyVisibleSelected = useMemo(() => {

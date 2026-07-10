@@ -7,7 +7,9 @@ import { LeadsKanbanBoard } from "@/components/leads/leads-kanban-board";
 import { LeadsKpiGrid } from "@/components/leads/leads-kpi-grid";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { LeadsToolbar } from "@/components/leads/leads-toolbar";
-import { resolveDealerIdForUser } from "@/lib/dealer-association";
+import { getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import {
   buildLeadSelectClause,
   defaultLeadFilters,
@@ -15,7 +17,9 @@ import {
   filterLeads,
   leadKpis,
   leadOptionSets,
+  leadStageLabels,
   mapStageToDbStatus,
+  writeLeadActivity,
   toLeadItems,
   vehicleLabelMap,
   type LeadItem,
@@ -34,6 +38,7 @@ export function LeadsCrmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingLeadId, setPendingLeadId] = useState<string | null>(null);
+  const [currentDealerId, setCurrentDealerId] = useState<string | null>(null);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -50,12 +55,15 @@ export function LeadsCrmPage() {
         return;
       }
 
-      const dealerId = await resolveDealerIdForUser(userId);
+      const dealerId = await resolveDealerIdFromTenantSources(supabase, userId, {
+        activeDealerId: getActiveDealerId(),
+      });
       if (!dealerId) {
         setItems([]);
         setError("Concessionaria non associata all'utente.");
         return;
       }
+      setCurrentDealerId(dealerId);
 
       const { data: dealerVehicles, error: vehiclesError } = await supabase
         .from("vehicles")
@@ -101,27 +109,97 @@ export function LeadsCrmPage() {
   }, []);
 
   useEffect(() => {
-    void loadLeads();
+    const timerId = window.setTimeout(() => {
+      void loadLeads();
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
   }, [loadLeads]);
 
   const onStageChange = useCallback(
     async (leadId: string, nextStage: LeadStage) => {
+      if (pendingLeadId) {
+        return;
+      }
+
       const dbStatus = mapStageToDbStatus(nextStage);
       const previous = items;
+      const previousLead = previous.find((lead) => lead.id === leadId);
+      const previousStage = previousLead?.stage;
 
       setPendingLeadId(leadId);
       setItems((current) => current.map((lead) => (lead.id === leadId ? { ...lead, stage: nextStage } : lead)));
 
-      const { error: updateError } = await supabase.from("leads").update({ status: dbStatus }).eq("id", leadId);
+      try {
+        if (currentDealerId) {
+          const { count: leadCount, error: leadCountError } = await supabase
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .eq("dealer_id", currentDealerId);
 
-      if (updateError) {
+          if (leadCountError) {
+            setItems(previous);
+            setError(leadCountError.message || "Impossibile verificare lo stato demo.");
+            return;
+          }
+
+          const demoAccessContext = await resolveDemoAccessContext(supabase, currentDealerId, {
+            leadCount: leadCount ?? 0,
+          });
+          const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "write");
+
+          if (demoBlock) {
+            setItems(previous);
+            setError(demoBlock.message);
+            return;
+          }
+        }
+
+        let updateQuery = supabase.from("leads").update({ status: dbStatus }).eq("id", leadId);
+        if (currentDealerId) {
+          updateQuery = updateQuery.eq("dealer_id", currentDealerId);
+        }
+
+        const { data: updatedRows, error: updateError } = await updateQuery.select("id").returns<Array<{ id: string }>>();
+
+        if (updateError) {
+          setItems(previous);
+          setError(updateError.message || "Errore durante aggiornamento stato lead.");
+          return;
+        }
+
+        if (!updatedRows || updatedRows.length === 0) {
+          setItems(previous);
+          setError("Aggiornamento non consentito o lead non trovato.");
+          return;
+        }
+
+        if (currentDealerId) {
+          const { data: authData } = await supabase.auth.getUser();
+          const actorProfileId = authData.user?.id ?? null;
+
+          await writeLeadActivity(supabase, {
+            dealerId: currentDealerId,
+            leadId,
+            activityType: "status_changed",
+            note: previousStage
+              ? `Stato aggiornato: ${leadStageLabels[previousStage]} -> ${leadStageLabels[nextStage]}`
+              : `Stato aggiornato: ${leadStageLabels[nextStage]}`,
+            actorProfileId,
+            metadata: {
+              fromStage: previousStage ?? null,
+              toStage: nextStage,
+            },
+          });
+        }
+      } catch {
         setItems(previous);
-        setError(updateError.message || "Errore durante aggiornamento stato lead.");
+        setError("Errore imprevisto durante aggiornamento stato lead.");
+      } finally {
+        setPendingLeadId(null);
       }
-
-      setPendingLeadId(null);
     },
-    [items]
+    [currentDealerId, items, pendingLeadId]
   );
 
   const kpis = useMemo(() => leadKpis(items), [items]);
@@ -138,9 +216,9 @@ export function LeadsCrmPage() {
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sales Pipeline</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pipeline commerciale</p>
             <h2 className="mt-1 text-2xl font-semibold text-slate-900">CRM Lead</h2>
-            <p className="mt-2 text-sm text-slate-600">Gestisci priorita commerciali, follow-up e conversione in un unico flusso.</p>
+            <p className="mt-2 text-sm text-slate-600">Gestisci priorità commerciali, follow-up e conversione in un unico flusso.</p>
           </div>
 
           <div className="inline-flex items-center gap-2 rounded-xl bg-sky-50 px-4 py-2.5 text-sm font-medium text-sky-700">

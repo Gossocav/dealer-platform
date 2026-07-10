@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { DealerRegistrationForm } from "@/components/dealer-registration-form";
 
 const baseFeatures = [
   {
@@ -77,7 +76,18 @@ export default function RegistrazioneBasePage() {
           </Link>
         </section>
 
-        <DealerRegistrationForm plan="base" />
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <h2 className="text-2xl font-semibold text-slate-900">Registrazione diretta disattivata</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
+            Per attivare un account concessionaria e necessario richiedere la Demo. Dopo la validazione riceverai l'accesso al piano piu adatto.
+          </p>
+          <Link
+            href="/demo"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            Richiedi Demo
+          </Link>
+        </section>
       </div>
     </main>
   );

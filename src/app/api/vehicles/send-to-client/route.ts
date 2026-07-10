@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 
 type SendToClientBody = {
@@ -102,6 +103,13 @@ export async function POST(request: Request) {
     });
     if (!resolvedDealerId) {
       return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 403 });
+    }
+
+    const demoAccessContext = await resolveDemoAccessContext(supabase, resolvedDealerId);
+    const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "write");
+
+    if (demoBlock) {
+      return NextResponse.json({ error: demoBlock.message, code: demoBlock.code }, { status: 403 });
     }
 
     const body = (await request.json()) as SendToClientBody;

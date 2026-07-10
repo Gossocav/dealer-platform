@@ -5,7 +5,7 @@ import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-
 import { supabase } from "@/lib/supabaseClient";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected";
-type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject";
+type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo";
 
 type DemoRequestRow = {
   id: string;
@@ -19,6 +19,11 @@ type DemoRequestRow = {
   status: DemoRequestStatus;
   created_at: string;
   updated_at: string;
+  account_type?: string | null;
+  demo_status?: string | null;
+  demo_started_at?: string | null;
+  demo_expires_at?: string | null;
+  linked_dealer_id?: string | null;
 };
 
 type PageState = {
@@ -68,19 +73,39 @@ function getStatusBadgeClass(status: DemoRequestStatus | null) {
 function getActionsForStatus(status: DemoRequestStatus | null): DemoAdminAction[] {
   if (status === "pending") return ["mark_contacted", "activate_demo", "reject"];
   if (status === "contacted") return ["activate_demo", "reject"];
+  if (status === "activated") return ["convert_demo", "revoke_demo"];
   return [];
 }
 
 function getActionLabel(action: DemoAdminAction) {
   if (action === "mark_contacted") return "Segna come contattato";
   if (action === "activate_demo") return "Attiva demo";
+  if (action === "convert_demo") return "Converti Demo";
+  if (action === "revoke_demo") return "Revoca Demo";
   return "Rifiuta";
 }
 
 function getActionClass(action: DemoAdminAction) {
   if (action === "mark_contacted") return "bg-sky-600 hover:bg-sky-700";
   if (action === "activate_demo") return "bg-emerald-600 hover:bg-emerald-700";
+  if (action === "convert_demo") return "bg-indigo-600 hover:bg-indigo-700";
+  if (action === "revoke_demo") return "bg-orange-600 hover:bg-orange-700";
   return "bg-rose-600 hover:bg-rose-700";
+}
+
+function formatDaysRemaining(expiresAt: string | null | undefined) {
+  const value = String(expiresAt ?? "").trim();
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return "-";
+  }
+
+  const days = Math.max(0, Math.ceil((parsed - Date.now()) / (1000 * 60 * 60 * 24)));
+  return `${days}g`;
 }
 
 async function fetchDemoRequests(token: string) {
@@ -293,7 +318,10 @@ export default function AdminDemoRequestsPage() {
                   <th className="px-4 py-3">Telefono</th>
                   <th className="px-4 py-3">Citta</th>
                   <th className="px-4 py-3">Numero veicoli</th>
-                  <th className="px-4 py-3">Stato</th>
+                  <th className="px-4 py-3">Stato richiesta</th>
+                  <th className="px-4 py-3">Stato demo</th>
+                  <th className="px-4 py-3">Scadenza demo</th>
+                  <th className="px-4 py-3">Dealer collegato</th>
                   <th className="px-4 py-3">Data richiesta</th>
                   <th className="px-4 py-3 text-right">Azioni</th>
                 </tr>
@@ -301,7 +329,7 @@ export default function AdminDemoRequestsPage() {
               <tbody className="divide-y divide-slate-100">
                 {state.requests.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={9}>
+                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={12}>
                       Nessuna richiesta demo disponibile.
                     </td>
                   </tr>
@@ -324,6 +352,11 @@ export default function AdminDemoRequestsPage() {
                             {toStatusLabel(status)}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-slate-700">{request.demo_status ?? "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {formatDate(request.demo_expires_at)} ({formatDaysRemaining(request.demo_expires_at)})
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{request.linked_dealer_id ?? "-"}</td>
                         <td className="px-4 py-3 text-slate-700">{formatDate(request.created_at)}</td>
                         <td className="px-4 py-3">
                           {actions.length === 0 ? (

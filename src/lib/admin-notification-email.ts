@@ -24,6 +24,15 @@ function normalizeEmail(value: unknown) {
   return text;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function resolveFromHeader() {
   const envFromAddress = normalizeEmail(process.env.RESEND_FROM_EMAIL);
   const fromAddress = envFromAddress ?? DEFAULT_EMAIL_FROM_ADDRESS;
@@ -80,5 +89,77 @@ export async function sendAdminNotificationEmail(input: { subject: string; html:
     toEmail: resolveAdminNotificationEmail(),
     subject: input.subject,
     html: input.html,
+  });
+}
+
+export async function sendDemoLifecycleEmail(input: {
+  toEmail: string;
+  kind: "approved" | "access" | "reminder" | "expired" | "converted" | "revoked";
+  dealerName?: string;
+  expiresAt?: string | null;
+  daysRemaining?: number;
+  supportEmail?: string;
+}) {
+  const toEmail = normalizeEmail(input.toEmail);
+  if (!toEmail) {
+    return { ok: false, reason: "missing_config" as const };
+  }
+
+  const subjectMap = {
+    approved: "Demo Dealer Platform attivata",
+    access: "Accesso alla tua demo Dealer Platform",
+    reminder: "La tua demo Dealer Platform sta per scadere",
+    expired: "La tua demo Dealer Platform e scaduta",
+    converted: "Il tuo account Dealer Platform e stato attivato",
+    revoked: "La tua demo Dealer Platform e stata revocata",
+  } as const;
+
+  const bodyMap = {
+    approved: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Demo attivata</h2>
+        <p style="margin:0 0 12px;">La tua demo Dealer Platform e stata attivata con successo.</p>
+        <p style="margin:0 0 12px;">Concessionaria: <strong>${escapeHtml(input.dealerName ?? "-")}</strong></p>
+        <p style="margin:0 0 12px;">Scadenza: <strong>${escapeHtml(input.expiresAt ?? "-")}</strong></p>
+      </div>
+    `,
+    access: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Accesso demo pronto</h2>
+        <p style="margin:0 0 12px;">Il tuo account demo e pronto. Accedi alla dashboard per esplorare la piattaforma.</p>
+      </div>
+    `,
+    reminder: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Demo in scadenza</h2>
+        <p style="margin:0 0 12px;">La tua demo Dealer Platform scade tra ${input.daysRemaining ?? 0} giorni.</p>
+        <p style="margin:0 0 12px;">Per attivare il piano completo, rispondi a questa email o contatta il supporto.</p>
+      </div>
+    `,
+    expired: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Demo scaduta</h2>
+        <p style="margin:0 0 12px;">La tua demo Dealer Platform e scaduta e l'accesso in scrittura e stato bloccato.</p>
+        <p style="margin:0 0 12px;">Puoi comunque continuare a consultare i dati salvati e richiedere una nuova attivazione.</p>
+      </div>
+    `,
+    converted: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Account attivato</h2>
+        <p style="margin:0 0 12px;">Il tuo account Dealer Platform e stato attivato definitivamente.</p>
+      </div>
+    `,
+    revoked: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Demo revocata</h2>
+        <p style="margin:0 0 12px;">La tua demo Dealer Platform e stata revocata. Se ritieni si tratti di un errore, contatta il supporto.</p>
+      </div>
+    `,
+  } as const;
+
+  return sendPlatformEmail({
+    toEmail,
+    subject: subjectMap[input.kind],
+    html: bodyMap[input.kind],
   });
 }

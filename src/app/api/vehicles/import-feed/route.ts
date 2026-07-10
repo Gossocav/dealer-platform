@@ -12,6 +12,7 @@ import {
   validateVehicleImportRow,
 } from "@/lib/vehicle-import";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
 
 type FeedFormat = "csv" | "xml" | "json";
@@ -193,6 +194,26 @@ export async function POST(request: Request) {
     const dealerId = await resolveDealerId(supabase, user.id, activeDealerId);
     if (!dealerId) {
       return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 400 });
+    }
+
+    const { count: vehicleCount, error: vehicleCountError } = await supabase
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", dealerId);
+
+    if (vehicleCountError) {
+      return NextResponse.json({ error: "Impossibile verificare il limite demo del dealer." }, { status: 500 });
+    }
+
+    const demoAccessContext = await resolveDemoAccessContext(supabase, dealerId, {
+      vehicleCount: vehicleCount ?? 0,
+    });
+
+    if (mode === "import") {
+      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "vehicle");
+      if (demoBlock) {
+        return NextResponse.json({ error: demoBlock.message }, { status: 403 });
+      }
     }
 
     let detectedFormat: FeedFormat;
