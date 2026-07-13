@@ -5,7 +5,9 @@ import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notificat
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected";
-type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo";
+type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document";
+
+const DEMO_DOCUMENT_BUCKET = "demo-documents";
 
 type ProfileRoleRow = {
   role: string | null;
@@ -14,12 +16,18 @@ type ProfileRoleRow = {
 type DemoRequestRow = {
   id: string;
   dealership_name: string;
+  company_name: string | null;
+  vat_number: string | null;
   contact_name: string;
   email: string;
   phone: string;
   city: string;
   vehicle_count: number | null;
   message: string | null;
+  chamber_document_path: string | null;
+  chamber_document_name: string | null;
+  chamber_document_mime_type: string | null;
+  chamber_document_size: number | null;
   status: DemoRequestStatus;
   created_at: string;
   updated_at: string;
@@ -143,7 +151,7 @@ export async function GET(request: Request) {
 
   const requests = await context.supabaseAdmin
     .from("demo_requests")
-    .select("id, dealership_name, contact_name, email, phone, city, vehicle_count, message, status, created_at, updated_at")
+    .select("id, dealership_name, company_name, vat_number, contact_name, email, phone, city, vehicle_count, message, chamber_document_path, chamber_document_name, chamber_document_mime_type, chamber_document_size, status, created_at, updated_at")
     .order("created_at", { ascending: false })
     .returns<DemoRequestRow[]>();
 
@@ -229,13 +237,13 @@ export async function POST(request: Request) {
   const requestId = normalizeText(body.requestId);
   const action = body.action;
 
-  if (!requestId || !action || !["mark_contacted", "activate_demo", "reject", "revoke_demo", "convert_demo"].includes(action)) {
+  if (!requestId || !action || !["mark_contacted", "activate_demo", "reject", "revoke_demo", "convert_demo", "view_document", "download_document"].includes(action)) {
     return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
   }
 
   const targetRequest = await context.supabaseAdmin
     .from("demo_requests")
-    .select("id, dealership_name, contact_name, email, phone, city, vehicle_count, message, status, created_at, updated_at")
+    .select("id, dealership_name, company_name, vat_number, contact_name, email, phone, city, vehicle_count, message, chamber_document_path, chamber_document_name, chamber_document_mime_type, chamber_document_size, status, created_at, updated_at")
     .eq("id", requestId)
     .maybeSingle<DemoRequestRow>();
 
@@ -245,6 +253,46 @@ export async function POST(request: Request) {
 
   if (!targetRequest.data) {
     return NextResponse.json({ error: "Richiesta demo non trovata." }, { status: 404 });
+  }
+
+  if (action === "view_document" || action === "download_document") {
+    const objectPath = normalizeText(targetRequest.data.chamber_document_path);
+    if (!objectPath) {
+      return NextResponse.json({ error: "Documento visura non disponibile per questa richiesta." }, { status: 404 });
+    }
+
+    const signed = await context.supabaseAdmin.storage
+      .from(DEMO_DOCUMENT_BUCKET)
+      .createSignedUrl(objectPath, 120, action === "download_document" ? { download: targetRequest.data.chamber_document_name ?? true } : undefined);
+
+    if (signed.error || !signed.data?.signedUrl) {
+      return NextResponse.json({ error: "Impossibile generare link temporaneo." }, { status: 500 });
+    }
+
+    await context.supabaseAdmin.from("audit_logs").insert({
+      dealer_id: targetRequest.data.linked_dealer_id ?? null,
+      actor_profile_id: context.userId,
+      actor_type: "user",
+      action: "demo.document_accessed",
+      entity_type: "demo_request",
+      entity_id: requestId,
+      metadata_json: {
+        mode: action,
+        path: objectPath,
+      },
+      created_by: context.userId,
+    });
+
+    return NextResponse.json(
+      {
+        requestId,
+        action,
+        signedUrl: signed.data.signedUrl,
+        fileName: targetRequest.data.chamber_document_name,
+        mimeType: targetRequest.data.chamber_document_mime_type,
+      },
+      { status: 200 }
+    );
   }
 
   if (action === "mark_contacted" && targetRequest.data.status !== "pending") {

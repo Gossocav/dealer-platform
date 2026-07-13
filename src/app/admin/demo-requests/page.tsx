@@ -5,17 +5,30 @@ import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-
 import { supabase } from "@/lib/supabaseClient";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected";
-type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo";
+type DemoAdminAction =
+  | "mark_contacted"
+  | "activate_demo"
+  | "reject"
+  | "revoke_demo"
+  | "convert_demo"
+  | "view_document"
+  | "download_document";
 
 type DemoRequestRow = {
   id: string;
   dealership_name: string;
+  company_name: string | null;
+  vat_number: string | null;
   contact_name: string;
   email: string;
   phone: string;
   city: string;
   vehicle_count: number | null;
   message: string | null;
+  chamber_document_path: string | null;
+  chamber_document_name: string | null;
+  chamber_document_mime_type: string | null;
+  chamber_document_size: number | null;
   status: DemoRequestStatus;
   created_at: string;
   updated_at: string;
@@ -106,6 +119,17 @@ function formatDaysRemaining(expiresAt: string | null | undefined) {
 
   const days = Math.max(0, Math.ceil((parsed - Date.now()) / (1000 * 60 * 60 * 24)));
   return `${days}g`;
+}
+
+function formatFileSize(value: number | null | undefined) {
+  const size = Number(value ?? 0);
+  if (!Number.isFinite(size) || size <= 0) {
+    return "-";
+  }
+
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 async function fetchDemoRequests(token: string) {
@@ -273,6 +297,47 @@ export default function AdminDemoRequestsPage() {
     setBusyRequestId(null);
   };
 
+  const openDocument = async (requestId: string, mode: "view_document" | "download_document") => {
+    setBusyRequestId(requestId);
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      setState((current) => ({
+        ...current,
+        error: sessionError?.message || "Sessione non valida.",
+      }));
+      setBusyRequestId(null);
+      return;
+    }
+
+    const response = await fetch("/api/admin/demo-requests", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ requestId, action: mode }),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as { error?: string; signedUrl?: string };
+
+    if (!response.ok || !payload.signedUrl) {
+      setState((current) => ({
+        ...current,
+        error: payload.error || "Impossibile aprire la visura.",
+      }));
+      setBusyRequestId(null);
+      return;
+    }
+
+    window.open(payload.signedUrl, "_blank", "noopener,noreferrer");
+    setBusyRequestId(null);
+  };
+
   if (state.loading) {
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
@@ -314,10 +379,12 @@ export default function AdminDemoRequestsPage() {
                 <tr className="text-left text-xs uppercase tracking-[0.18em] text-slate-500">
                   <th className="px-4 py-3">Azienda</th>
                   <th className="px-4 py-3">Referente</th>
+                  <th className="px-4 py-3">Partita IVA</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Telefono</th>
                   <th className="px-4 py-3">Citta</th>
                   <th className="px-4 py-3">Numero veicoli</th>
+                  <th className="px-4 py-3">Visura</th>
                   <th className="px-4 py-3">Stato richiesta</th>
                   <th className="px-4 py-3">Stato demo</th>
                   <th className="px-4 py-3">Scadenza demo</th>
@@ -329,7 +396,7 @@ export default function AdminDemoRequestsPage() {
               <tbody className="divide-y divide-slate-100">
                 {state.requests.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={12}>
+                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={14}>
                       Nessuna richiesta demo disponibile.
                     </td>
                   </tr>
@@ -343,10 +410,40 @@ export default function AdminDemoRequestsPage() {
                       <tr key={request.id}>
                         <td className="px-4 py-3 font-medium text-slate-900">{request.dealership_name}</td>
                         <td className="px-4 py-3 text-slate-700">{request.contact_name}</td>
+                        <td className="px-4 py-3 text-slate-700">{request.vat_number ?? "-"}</td>
                         <td className="px-4 py-3 text-slate-700">{request.email}</td>
                         <td className="px-4 py-3 text-slate-700">{request.phone}</td>
                         <td className="px-4 py-3 text-slate-700">{request.city}</td>
                         <td className="px-4 py-3 text-slate-700">{request.vehicle_count ?? "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {request.chamber_document_path ? (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-slate-800">{request.chamber_document_name ?? "Documento"}</p>
+                              <p className="text-xs text-slate-500">{formatFileSize(request.chamber_document_size)}</p>
+                              <p className="text-xs text-slate-500">{request.chamber_document_mime_type ?? "-"}</p>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void openDocument(request.id, "view_document")}
+                                  className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                                >
+                                  Visualizza visura
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void openDocument(request.id, "download_document")}
+                                  className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                                >
+                                  Scarica visura
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(status)}`}>
                             {toStatusLabel(status)}
