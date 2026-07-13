@@ -210,7 +210,7 @@ export async function POST(request: Request) {
     });
 
     if (mode === "import") {
-      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "vehicle");
+      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "import");
       if (demoBlock) {
         return NextResponse.json({ error: demoBlock.message }, { status: 403 });
       }

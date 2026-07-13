@@ -17,6 +17,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
+import { DEMO_FULL_VERSION_MESSAGE } from "@/lib/demo-access";
 
 type SidebarItem = {
   label: string;
@@ -38,13 +39,33 @@ const sidebarItems: SidebarItem[] = [
   { label: "Logout", href: "/login", icon: LogOut },
 ];
 
+const demoEnabledItems: SidebarItem[] = [
+  { label: "Dashboard", href: "/dashboard", icon: Gauge },
+  { label: "Veicoli", href: "/veicoli", icon: Car },
+  { label: "Lead", href: "/lead", icon: Inbox },
+  { label: "Marketplace", href: "/auto", icon: Car },
+  { label: "Report", href: "/statistiche", icon: BarChart3 },
+  { label: "Logout", href: "/login", icon: LogOut },
+];
+
+const demoLockedItems: SidebarItem[] = [
+  { label: "Inserisci Veicolo", href: "/veicoli/nuovo", icon: PlusSquare },
+  { label: "Clienti", href: "/clienti", icon: Users },
+  { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
+  { label: "Email", href: "/email", icon: Mail },
+  { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
+  { label: "Impostazioni", href: "/impostazioni", icon: Settings },
+];
+
 type DealerSidebarProps = {
   isOpen: boolean;
   onClose: () => void;
+  isDemo?: boolean;
 };
 
-export function DealerSidebar({ isOpen, onClose }: DealerSidebarProps) {
+export function DealerSidebar({ isOpen, onClose, isDemo = false }: DealerSidebarProps) {
   const pathname = usePathname();
+  const visibleItems = isDemo ? demoEnabledItems : sidebarItems;
 
   return (
     <>
@@ -73,7 +94,7 @@ export function DealerSidebar({ isOpen, onClose }: DealerSidebarProps) {
         </div>
 
         <nav className="mt-5 space-y-1.5">
-          {sidebarItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
 
@@ -94,6 +115,31 @@ export function DealerSidebar({ isOpen, onClose }: DealerSidebarProps) {
               </Link>
             );
           })}
+
+          {isDemo ? (
+            <>
+              {demoLockedItems.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={`${item.label}-locked`}
+                    type="button"
+                    onClick={() => globalThis.alert(DEMO_FULL_VERSION_MESSAGE)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 text-left text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </span>
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-700">
+                      Versione Completa
+                    </span>
+                  </button>
+                );
+              })}
+            </>
+          ) : null}
         </nav>
       </aside>
     </>

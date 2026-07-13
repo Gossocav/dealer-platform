@@ -840,7 +840,7 @@ export async function POST(request: Request) {
 
   if (url === DEMO_FEED_URL) {
     if (action === "import") {
-      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "vehicle");
+      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "import");
       if (demoBlock) {
         return NextResponse.json(
           { success: false, message: demoBlock.message },

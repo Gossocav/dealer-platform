@@ -76,7 +76,7 @@ export function VehiclesManagementPage() {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
-  const ensureDemoWriteAllowed = useCallback(async (feature: "vehicle" | "write") => {
+  const ensureDemoWriteAllowed = useCallback(async (feature: "vehicle" | "write" | "integration") => {
     if (!currentDealerId) {
       return { allowed: false, message: "Concessionaria non associata all'utente." };
     }
@@ -512,7 +512,7 @@ export function VehiclesManagementPage() {
     const confirmed = globalThis.confirm("Confermi l'eliminazione del veicolo?");
     if (!confirmed) return;
 
-    const demoWrite = await ensureDemoWriteAllowed("write");
+    const demoWrite = await ensureDemoWriteAllowed("integration");
     if (!demoWrite.allowed) {
       setError(demoWrite.message);
       return;
@@ -548,7 +548,7 @@ export function VehiclesManagementPage() {
       return;
     }
 
-    const demoWrite = await ensureDemoWriteAllowed("write");
+    const demoWrite = await ensureDemoWriteAllowed("integration");
     if (!demoWrite.allowed) {
       setError(demoWrite.message);
       return;
@@ -659,7 +659,7 @@ export function VehiclesManagementPage() {
     setBusyVehicleId(vehicle.id);
     setError(null);
 
-    const demoWrite = await ensureDemoWriteAllowed("write");
+    const demoWrite = await ensureDemoWriteAllowed("integration");
     if (!demoWrite.allowed) {
       setError(demoWrite.message);
       setBusyVehicleId(null);

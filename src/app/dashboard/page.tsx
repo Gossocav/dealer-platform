@@ -7,7 +7,6 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { PanelCard } from "@/components/ui/panel-card";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
-import { resolveDemoAccessContext } from "@/lib/demo-access";
 import { formatLeadDate, leadStageLabels, normalizeLeadStage, type LeadRecord } from "@/lib/leads";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -19,15 +18,6 @@ type DashboardMetrics = {
   appuntamentiCompletati: number;
   veicoliPubblicati: number;
   veicoliNonPubblicabili: number;
-};
-
-type DemoBannerState = {
-  isDemo: boolean;
-  demoStatus: string | null;
-  demoExpiresAt: string | null;
-  daysRemaining: number;
-  vehicleUsed: number;
-  leadUsed: number;
 };
 
 type LeadListItem = {
@@ -157,7 +147,6 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics>(DEFAULT_METRICS);
   const [latestLeads, setLatestLeads] = useState<LeadListItem[]>([]);
   const [nextAppointments, setNextAppointments] = useState<AppointmentListItem[]>([]);
-  const [demoBanner, setDemoBanner] = useState<DemoBannerState | null>(null);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -294,27 +283,12 @@ export default function DashboardPage() {
         });
         setLatestLeads(mappedLeads);
         setNextAppointments(mappedAppointments);
-
-        const demoAccessContext = await resolveDemoAccessContext(supabase, dealerId, {
-          vehicleCount: vehiclesPublishedCount.count ?? 0,
-          leadCount: leadsTotalCount.count ?? 0,
-        });
-
-        setDemoBanner({
-          isDemo: demoAccessContext.isDemo,
-          demoStatus: demoAccessContext.demoStatus,
-          demoExpiresAt: demoAccessContext.demoExpiresAt,
-          daysRemaining: demoAccessContext.daysRemaining,
-          vehicleUsed: demoAccessContext.usage.vehicle,
-          leadUsed: demoAccessContext.usage.lead,
-        });
       } catch (loadError) {
         setMetrics(DEFAULT_METRICS);
         setLatestLeads([]);
         setNextAppointments([]);
         const message = loadError instanceof Error ? loadError.message : "Errore caricamento dashboard commerciale.";
         setError(message);
-        setDemoBanner(null);
       } finally {
         setLoading(false);
       }
@@ -396,31 +370,6 @@ export default function DashboardPage() {
       avatarInitials="DC"
       unreadNotifications={0}
     >
-      {demoBanner?.isDemo ? (
-        <section
-          className={`rounded-2xl border px-4 py-3 text-sm ${
-            demoBanner.demoStatus === "revoked" || demoBanner.demoStatus === "expired"
-              ? "border-red-200 bg-red-50 text-red-800"
-              : demoBanner.daysRemaining <= 2
-                ? "border-amber-200 bg-amber-50 text-amber-800"
-                : "border-sky-200 bg-sky-50 text-sky-800"
-          }`}
-        >
-          <p className="font-semibold">Versione Demo</p>
-          <p className="mt-1">
-            Stato: {demoBanner.demoStatus ?? "active"} | Scadenza: {demoBanner.demoExpiresAt ? formatDateTime(demoBanner.demoExpiresAt) : "-"} | Giorni rimanenti: {demoBanner.daysRemaining}
-          </p>
-          <p className="mt-1">Veicoli: {demoBanner.vehicleUsed}/10 | Lead: {demoBanner.leadUsed}/20</p>
-          {(demoBanner.demoStatus === "expired" || demoBanner.demoStatus === "revoked") ? (
-            <p className="mt-1 font-medium">Demo in sola lettura: le azioni di scrittura sono bloccate.</p>
-          ) : null}
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <a href="mailto:support@dealerplatform.it" className="font-semibold underline">Attiva Dealer Platform</a>
-            <a href="mailto:support@dealerplatform.it" className="underline">Contatta supporto</a>
-          </div>
-        </section>
-      ) : null}
-
       {error ? <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</section> : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

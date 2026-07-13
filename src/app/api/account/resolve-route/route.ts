@@ -14,9 +14,12 @@ type DealerUserRow = {
 
 type DealerRow = {
   status: string | null;
+  account_type: string | null;
+  demo_status: string | null;
+  demo_expires_at: string | null;
 };
 
-type ResolvedRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/dashboard";
+type ResolvedRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/account/demo-scaduta" | "/dashboard";
 
 type ResolvePayload = {
   status: string;
@@ -152,6 +155,12 @@ function mapDealerRoute(dealerStatus: string | null): ResolvePayload | null {
   return null;
 }
 
+function isDemoExpired(demoExpiresAt: string | null) {
+  if (!demoExpiresAt) return false;
+  const expiresAt = Date.parse(demoExpiresAt);
+  return Number.isFinite(expiresAt) ? Date.now() > expiresAt : false;
+}
+
 export async function GET(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -263,7 +272,7 @@ export async function GET(request: Request) {
 
   const dealerResult = await supabaseAdmin
     .from("dealers")
-    .select("status")
+    .select("status, account_type, demo_status, demo_expires_at")
     .eq("id", resolvedDealerId)
     .maybeSingle<DealerRow>();
 
@@ -280,6 +289,34 @@ export async function GET(request: Request) {
   }
 
   const dealerStatus = normalizeText(dealerResult.data?.status);
+  const accountType = normalizeText(dealerResult.data?.account_type);
+  const demoStatus = normalizeText(dealerResult.data?.demo_status);
+  const demoExpiresAt = dealerResult.data?.demo_expires_at ?? null;
+  const isDemoAccount = accountType === "demo";
+  const demoReadOnly = isDemoAccount && (demoStatus === "revoked" || demoStatus === "expired" || isDemoExpired(demoExpiresAt));
+
+  if (dealerStatus === "approved" && demoReadOnly) {
+    const payload: ResolvePayload = {
+      status: demoStatus === "revoked" ? "demo_revoked" : "demo_expired",
+      route: "/account/demo-scaduta",
+    };
+
+    console.info("[account-resolve-route] resolved", {
+      user_id: user.id,
+      email: user.email ?? null,
+      profile_role: profileRole,
+      profile_dealer_id: profileDealerId,
+      dealer_users_dealer_id: dealerUsersDealerId,
+      dealers_status: dealerStatus,
+      account_type: accountType,
+      demo_status: demoStatus,
+      demo_expires_at: demoExpiresAt,
+      route: payload.route,
+    });
+
+    return NextResponse.json(payload, { status: 200 });
+  }
+
   const payload = mapDealerRoute(dealerStatus);
 
   if (!payload) {
@@ -302,6 +339,9 @@ export async function GET(request: Request) {
     profile_dealer_id: profileDealerId,
     dealer_users_dealer_id: dealerUsersDealerId,
     dealers_status: dealerStatus,
+    account_type: accountType,
+    demo_status: demoStatus,
+    demo_expires_at: demoExpiresAt,
     route: payload.route,
   });
 

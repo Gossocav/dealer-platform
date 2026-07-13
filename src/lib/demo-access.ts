@@ -30,6 +30,8 @@ export type DemoFeatureBlock = {
   message: string;
 };
 
+export const DEMO_FULL_VERSION_MESSAGE = "Questa funzione e disponibile nella versione completa.";
+
 export const DEMO_LIMITS = {
   vehicles: 10,
   leads: 20,
@@ -219,35 +221,35 @@ export function getDemoFeatureBlockReason(context: DemoAccessContext, feature: D
   if (feature === "user" && context.featureLimits.user !== null) {
     return {
       code: "DEMO_USERS_NOT_ALLOWED",
-      message: "Gli utenti aggiuntivi non sono disponibili nella demo.",
+      message: DEMO_FULL_VERSION_MESSAGE,
     };
   }
 
   if (feature === "export") {
     return {
       code: "DEMO_EXPORT_NOT_ALLOWED",
-      message: "L'esportazione non e disponibile nella demo.",
+      message: DEMO_FULL_VERSION_MESSAGE,
     };
   }
 
   if (feature === "import") {
     return {
       code: "DEMO_IMPORT_NOT_ALLOWED",
-      message: "L'importazione CSV massiva non e disponibile nella demo.",
+      message: DEMO_FULL_VERSION_MESSAGE,
     };
   }
 
   if (feature === "billing" || feature === "subscription") {
     return {
       code: "DEMO_FEATURE_NOT_AVAILABLE",
-      message: "Questa funzione non e disponibile nella demo.",
+      message: DEMO_FULL_VERSION_MESSAGE,
     };
   }
 
   if (feature === "admin" || feature === "integration") {
     return {
       code: "DEMO_FEATURE_NOT_AVAILABLE",
-      message: "Questa funzione non e disponibile nella demo.",
+      message: DEMO_FULL_VERSION_MESSAGE,
     };
   }
 

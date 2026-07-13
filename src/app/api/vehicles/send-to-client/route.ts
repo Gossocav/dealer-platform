@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     }
 
     const demoAccessContext = await resolveDemoAccessContext(supabase, resolvedDealerId);
-    const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "write");
+    const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "integration");
 
     if (demoBlock) {
       return NextResponse.json({ error: demoBlock.message, code: demoBlock.code }, { status: 403 });
