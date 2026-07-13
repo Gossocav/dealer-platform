@@ -16,14 +16,14 @@ const stageOptions: Array<{ value: "all" | LeadStage; label: string }> = [
   { value: "all", label: "Tutti gli stati" },
   { value: "nuovo", label: "Nuovo" },
   { value: "contattato", label: "Contattato" },
-  { value: "preventivo", label: "Preventivo" },
-  { value: "trattativa", label: "Trattativa" },
-  { value: "venduto", label: "Venduto" },
-  { value: "perso", label: "Perso" },
+  { value: "appuntamento", label: "Appuntamento" },
+  { value: "proposta_inviata", label: "Proposta inviata" },
+  { value: "chiuso_positivo", label: "Chiuso positivo" },
+  { value: "chiuso_negativo", label: "Chiuso negativo" },
 ];
 
 const priorityOptions: Array<{ value: "all" | LeadPriority; label: string }> = [
-  { value: "all", label: "Tutte le priorita" },
+  { value: "all", label: "Tutte le priorità" },
   { value: "alta", label: "Alta" },
   { value: "media", label: "Media" },
   { value: "bassa", label: "Bassa" },
