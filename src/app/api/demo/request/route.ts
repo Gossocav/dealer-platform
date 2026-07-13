@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       .from("demo_requests")
       .insert({
         dealership_name: dealerName,
+        company_name: dealerName,
         contact_name: contactName,
         email,
         phone,
