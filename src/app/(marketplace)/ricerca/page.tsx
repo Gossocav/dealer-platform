@@ -84,8 +84,14 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   if (filters.fuel) query = query.eq("fuel", filters.fuel);
   if (filters.transmission) query = query.eq("transmission", filters.transmission);
 
-  const yearValue = Number(filters.year);
-  if (Number.isFinite(yearValue)) query = query.eq("year", yearValue);
+  const rawYear = String(filters.year ?? "").trim();
+  if (rawYear.length > 0) {
+    const yearValue = Number(rawYear);
+    const currentYear = new Date().getFullYear();
+    if (Number.isInteger(yearValue) && yearValue > 0 && yearValue >= 1900 && yearValue <= currentYear + 1) {
+      query = query.eq("year", yearValue);
+    }
+  }
 
   const minPrice = parseNullableNumber(filters.minPrice);
   const maxPrice = parseNullableNumber(filters.maxPrice);
@@ -352,7 +358,12 @@ function parsePage(value: string | string[] | undefined) {
 }
 
 function parseNullableNumber(value: string) {
-  const numeric = Number(value);
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const numeric = Number(normalized);
   return Number.isFinite(numeric) ? numeric : null;
 }
 
