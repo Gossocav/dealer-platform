@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
@@ -11,10 +11,6 @@ const DEMO_DOCUMENT_BUCKET = "demo-documents";
 
 type ProfileRoleRow = {
   role: string | null;
-};
-
-type TableColumnRow = {
-  column_name: string;
 };
 
 type DemoRequestRow = {
@@ -73,31 +69,6 @@ function actionToStatus(action: DemoAdminAction): DemoRequestStatus {
   return "rejected";
 }
 
-async function resolveTableColumns(supabaseAdmin: SupabaseClient, tableName: string) {
-  const columnsResult = await supabaseAdmin
-    .from("information_schema.columns")
-    .select("column_name")
-    .eq("table_schema", "public")
-    .eq("table_name", tableName)
-    .returns<TableColumnRow[]>();
-
-  if (columnsResult.error) {
-    return {
-      columns: null,
-      error: columnsResult.error,
-    } as const;
-  }
-
-  return {
-    columns: new Set((columnsResult.data ?? []).map((row) => row.column_name)),
-    error: null,
-  } as const;
-}
-
-function buildSelectColumns(columns: Set<string>, orderedCandidates: string[]) {
-  return orderedCandidates.filter((column) => columns.has(column));
-}
-
 function normalizeVehicleCount(value: unknown) {
   if (value === null || value === undefined) {
     return null;
@@ -121,7 +92,7 @@ function normalizeVehicleCount(value: unknown) {
 }
 
 function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
-  const dealershipName = normalizeText(raw.dealership_name) ?? normalizeText(raw.company_name) ?? "-";
+  const dealershipName = normalizeText(raw.dealership_name) ?? "-";
 
   return {
     id: String(raw.id ?? ""),
@@ -242,39 +213,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
   }
 
-  const demoRequestsColumnsResult = await resolveTableColumns(context.supabaseAdmin, "demo_requests");
-  if (demoRequestsColumnsResult.error || !demoRequestsColumnsResult.columns) {
-    return NextResponse.json({ error: demoRequestsColumnsResult.error?.message || "Errore lettura schema demo_requests." }, { status: 500 });
-  }
-
-  const demoRequestsSelect = buildSelectColumns(demoRequestsColumnsResult.columns, [
-    "id",
-    "dealership_name",
-    "company_name",
-    "vat_number",
-    "contact_name",
-    "email",
-    "phone",
-    "city",
-    "province",
-    "vehicle_count",
-    "brands",
-    "management_software",
-    "notes",
-    "privacy_accepted",
-    "message",
-    "chamber_document_path",
-    "chamber_document_name",
-    "chamber_document_mime_type",
-    "chamber_document_size",
-    "status",
-    "created_at",
-    "updated_at",
-  ]);
-
   const requests = await context.supabaseAdmin
     .from("demo_requests")
-    .select(demoRequestsSelect.join(", "))
+    .select("*")
     .order("created_at", { ascending: false })
     .returns<Record<string, unknown>[]>();
 
@@ -294,27 +235,9 @@ export async function GET(request: Request) {
   }>();
 
   if (requestIds.length > 0) {
-    const dealersColumnsResult = await resolveTableColumns(context.supabaseAdmin, "dealers");
-    if (dealersColumnsResult.error || !dealersColumnsResult.columns) {
-      return NextResponse.json({ error: dealersColumnsResult.error?.message || "Errore lettura schema dealers." }, { status: 500 });
-    }
-
-    if (!dealersColumnsResult.columns.has("demo_request_id")) {
-      return NextResponse.json({ requests: normalizedRequests }, { status: 200 });
-    }
-
-    const dealersSelect = buildSelectColumns(dealersColumnsResult.columns, [
-      "id",
-      "demo_request_id",
-      "account_type",
-      "demo_status",
-      "demo_started_at",
-      "demo_expires_at",
-    ]);
-
     const dealers = await context.supabaseAdmin
       .from("dealers")
-      .select(dealersSelect.join(", "))
+      .select("id, demo_request_id, account_type, demo_status, demo_started_at, demo_expires_at")
       .in("demo_request_id", requestIds)
       .returns<Array<Record<string, unknown>>>();
 
@@ -343,9 +266,9 @@ export async function GET(request: Request) {
       ...request,
       linked_dealer_id: linked?.id ?? null,
       account_type: linked?.account_type ?? null,
-      demo_status: linked?.demo_status ?? null,
-      demo_started_at: linked?.demo_started_at ?? null,
-      demo_expires_at: linked?.demo_expires_at ?? null,
+      demo_status: linked?.demo_status ?? request.demo_status ?? null,
+      demo_started_at: linked?.demo_started_at ?? request.demo_started_at ?? null,
+      demo_expires_at: linked?.demo_expires_at ?? request.demo_expires_at ?? null,
     };
   });
 
@@ -377,39 +300,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
   }
 
-  const demoRequestsColumnsResult = await resolveTableColumns(context.supabaseAdmin, "demo_requests");
-  if (demoRequestsColumnsResult.error || !demoRequestsColumnsResult.columns) {
-    return NextResponse.json({ error: demoRequestsColumnsResult.error?.message || "Errore lettura schema demo_requests." }, { status: 500 });
-  }
-
-  const targetRequestSelect = buildSelectColumns(demoRequestsColumnsResult.columns, [
-    "id",
-    "dealership_name",
-    "company_name",
-    "vat_number",
-    "contact_name",
-    "email",
-    "phone",
-    "city",
-    "province",
-    "vehicle_count",
-    "brands",
-    "management_software",
-    "notes",
-    "privacy_accepted",
-    "message",
-    "chamber_document_path",
-    "chamber_document_name",
-    "chamber_document_mime_type",
-    "chamber_document_size",
-    "status",
-    "created_at",
-    "updated_at",
-  ]);
-
   const targetRequestResult = await context.supabaseAdmin
     .from("demo_requests")
-    .select(targetRequestSelect.join(", "))
+    .select("*")
     .eq("id", requestId)
     .maybeSingle<Record<string, unknown>>();
 
@@ -481,7 +374,7 @@ export async function POST(request: Request) {
 
   const nextStatus = actionToStatus(action);
 
-  if (action === "mark_contacted" || action === "activate_demo" || action === "reject") {
+  if (action === "mark_contacted" || action === "reject") {
     const updateResult = await context.supabaseAdmin
       .from("demo_requests")
       .update({
@@ -536,6 +429,21 @@ export async function POST(request: Request) {
 
     if (dealerUpsert.error) {
       return NextResponse.json({ error: dealerUpsert.error.message || "Errore creazione dealer demo." }, { status: 500 });
+    }
+
+    const demoRequestUpdate = await context.supabaseAdmin
+      .from("demo_requests")
+      .update({
+        status: "activated",
+        demo_status: "active",
+        demo_expires_at: expiresAt,
+        linked_dealer_id: dealerId,
+        updated_at: startedAt,
+      })
+      .eq("id", requestId);
+
+    if (demoRequestUpdate.error) {
+      return NextResponse.json({ error: demoRequestUpdate.error.message || "Errore aggiornamento richiesta demo." }, { status: 500 });
     }
 
     const generatedPassword = `${crypto.randomUUID()}-${Date.now()}`;
@@ -631,6 +539,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: revokeError.message || "Errore revoca demo." }, { status: 500 });
     }
 
+    const demoRequestUpdate = await context.supabaseAdmin
+      .from("demo_requests")
+      .update({
+        demo_status: "revoked",
+        updated_at: now,
+      })
+      .eq("id", requestId);
+
+    if (demoRequestUpdate.error) {
+      return NextResponse.json({ error: demoRequestUpdate.error.message || "Errore aggiornamento richiesta demo." }, { status: 500 });
+    }
+
     await createDemoAccessAuditEntry(context.supabaseAdmin, {
       dealerId: null,
       actorProfileId: context.userId,
@@ -659,6 +579,18 @@ export async function POST(request: Request) {
 
     if (convertError) {
       return NextResponse.json({ error: convertError.message || "Errore conversione demo." }, { status: 500 });
+    }
+
+    const demoRequestUpdate = await context.supabaseAdmin
+      .from("demo_requests")
+      .update({
+        demo_status: "converted",
+        updated_at: now,
+      })
+      .eq("id", requestId);
+
+    if (demoRequestUpdate.error) {
+      return NextResponse.json({ error: demoRequestUpdate.error.message || "Errore aggiornamento richiesta demo." }, { status: 500 });
     }
 
     await createDemoAccessAuditEntry(context.supabaseAdmin, {
