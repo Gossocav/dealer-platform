@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -216,6 +216,8 @@ export default function AdminDemoRequestsPage() {
     requests: [],
   });
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
   const requestSequenceRef = useRef(0);
   const callCounterRef = useRef(0);
   const hasLoadedSuccessfullyRef = useRef(false);
@@ -465,45 +467,99 @@ export default function AdminDemoRequestsPage() {
     setBusyRequestId(null);
   };
 
-  const openDocument = async (requestId: string, mode: "view_document" | "download_document") => {
-    setBusyRequestId(requestId);
+  const viewDocument = async (event: MouseEvent<HTMLButtonElement>, requestId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setViewingDocumentId(requestId);
 
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.access_token) {
-      setState((current) => ({
-        ...current,
-        error: sessionError?.message || "Sessione non valida.",
-      }));
-      setBusyRequestId(null);
-      return;
+      if (sessionError || !session?.access_token) {
+        setState((current) => ({
+          ...current,
+          error: sessionError?.message || "Sessione non valida.",
+        }));
+        return;
+      }
+
+      const response = await fetch("/api/admin/demo-requests", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ requestId, action: "view_document" }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; signedUrl?: string };
+
+      if (!response.ok || !payload.signedUrl) {
+        setState((current) => ({
+          ...current,
+          error: payload.error || "Impossibile aprire la visura.",
+        }));
+        return;
+      }
+
+      window.open(payload.signedUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setViewingDocumentId(null);
     }
+  };
 
-    const response = await fetch("/api/admin/demo-requests", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ requestId, action: mode }),
-    });
+  const downloadDocument = async (event: MouseEvent<HTMLButtonElement>, requestId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDownloadingDocumentId(requestId);
 
-    const payload = (await response.json().catch(() => ({}))) as { error?: string; signedUrl?: string };
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-    if (!response.ok || !payload.signedUrl) {
-      setState((current) => ({
-        ...current,
-        error: payload.error || "Impossibile aprire la visura.",
-      }));
-      setBusyRequestId(null);
-      return;
+      if (sessionError || !session?.access_token) {
+        setState((current) => ({
+          ...current,
+          error: sessionError?.message || "Sessione non valida.",
+        }));
+        return;
+      }
+
+      const response = await fetch("/api/admin/demo-requests", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ requestId, action: "download_document" }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; signedUrl?: string };
+
+      if (!response.ok || !payload.signedUrl) {
+        setState((current) => ({
+          ...current,
+          error: payload.error || "Impossibile scaricare la visura.",
+        }));
+        return;
+      }
+
+      const anchor = document.createElement("a");
+      anchor.href = payload.signedUrl;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.download = "";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } finally {
+      setDownloadingDocumentId(null);
     }
-
-    window.open(payload.signedUrl, "_blank", "noopener,noreferrer");
-    setBusyRequestId(null);
   };
 
   if (state.loading) {
@@ -573,6 +629,8 @@ export default function AdminDemoRequestsPage() {
                     const status = normalizeStatus(request.status);
                     const actions = getActionsForStatus(status);
                     const busy = busyRequestId === request.id;
+                    const viewing = viewingDocumentId === request.id;
+                    const downloading = downloadingDocumentId === request.id;
 
                     return (
                       <tr key={request.id}>
@@ -592,19 +650,19 @@ export default function AdminDemoRequestsPage() {
                               <div className="flex flex-wrap gap-2">
                                 <button
                                   type="button"
-                                  disabled={busy}
-                                  onClick={() => void openDocument(request.id, "view_document")}
+                                  disabled={viewing}
+                                  onClick={(event) => void viewDocument(event, request.id)}
                                   className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
                                 >
-                                  Visualizza visura
+                                  {viewing ? "Apertura..." : "Visualizza visura"}
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={busy}
-                                  onClick={() => void openDocument(request.id, "download_document")}
+                                  disabled={downloading}
+                                  onClick={(event) => void downloadDocument(event, request.id)}
                                   className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
                                 >
-                                  Scarica visura
+                                  {downloading ? "Download..." : "Scarica visura"}
                                 </button>
                               </div>
                             </div>
