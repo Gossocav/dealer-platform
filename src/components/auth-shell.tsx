@@ -11,6 +11,7 @@ type AuthShellProps = {
 
 const PUBLIC_OR_STATUS_ROUTES = [
   "/",
+  "/demo",
   "/login",
   "/forgot-password",
   "/reset-password",

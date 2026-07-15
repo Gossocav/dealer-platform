@@ -514,11 +514,11 @@ export default function DemoPage() {
               <p className="mt-1 text-sm">Abbiamo ricevuto la tua richiesta. Il nostro team ti contattera per l&apos;attivazione della Demo.</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/login" className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
-                Torna al login
+              <Link href="/" className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                Torna alla home
               </Link>
-              <Link href="/" className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                Vai al sito
+              <Link href="/auto" className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Vai al catalogo
               </Link>
             </div>
           </div>
