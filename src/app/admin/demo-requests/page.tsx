@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -49,6 +49,17 @@ type PageState = {
   authorized: boolean;
   error: string | null;
   requests: DemoRequestRow[];
+};
+
+type DemoRequestsApiPayload = {
+  error?: string;
+  requests?: DemoRequestRow[];
+};
+
+type DemoRequestsFetchResult = {
+  status: number;
+  payload: DemoRequestsApiPayload;
+  fromCache: boolean;
 };
 
 function formatDate(value: string | null | undefined) {
@@ -137,20 +148,64 @@ function formatFileSize(value: number | null | undefined) {
   return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-async function fetchDemoRequests(token: string) {
-  const response = await fetch("/api/admin/demo-requests", {
-    method: "GET",
-    headers: {
-      authorization: `Bearer ${token}`,
-    },
-  });
+const DEMO_REQUESTS_DEBUG = process.env.NODE_ENV !== "production";
+const DEMO_REQUESTS_CACHE_TTL_MS = 10_000;
 
-  const payload = (await response.json().catch(() => ({}))) as {
-    error?: string;
-    requests?: DemoRequestRow[];
-  };
+let demoRequestsInFlight: Promise<DemoRequestsFetchResult> | null = null;
+let demoRequestsCache: {
+  token: string;
+  result: DemoRequestsFetchResult;
+  savedAt: number;
+} | null = null;
 
-  return { response, payload };
+function debugDemoRequestsLog(event: string, details: Record<string, unknown>) {
+  if (!DEMO_REQUESTS_DEBUG) {
+    return;
+  }
+
+  console.info("[admin-demo-requests]", event, details);
+}
+
+async function fetchAdminDemoRequests(token: string): Promise<DemoRequestsFetchResult> {
+  const now = Date.now();
+  if (demoRequestsCache && demoRequestsCache.token === token && now - demoRequestsCache.savedAt < DEMO_REQUESTS_CACHE_TTL_MS) {
+    return {
+      ...demoRequestsCache.result,
+      fromCache: true,
+    };
+  }
+
+  if (!demoRequestsInFlight) {
+    demoRequestsInFlight = (async () => {
+      const response = await fetch("/api/admin/demo-requests", {
+        method: "GET",
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as DemoRequestsApiPayload;
+      const result: DemoRequestsFetchResult = {
+        status: response.status,
+        payload,
+        fromCache: false,
+      };
+
+      if (response.ok) {
+        demoRequestsCache = {
+          token,
+          result,
+          savedAt: Date.now(),
+        };
+      }
+
+      return result;
+    })().finally(() => {
+      demoRequestsInFlight = null;
+    });
+  }
+
+  return demoRequestsInFlight;
 }
 
 export default function AdminDemoRequestsPage() {
@@ -161,11 +216,23 @@ export default function AdminDemoRequestsPage() {
     requests: [],
   });
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const requestSequenceRef = useRef(0);
+  const callCounterRef = useRef(0);
+  const hasLoadedSuccessfullyRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
-
     const load = async () => {
+      const requestSeq = ++requestSequenceRef.current;
+      const callNumber = ++callCounterRef.current;
+      const filters: Record<string, string> = {};
+
+      debugDemoRequestsLog("request:start", {
+        callNumber,
+        requestSeq,
+        filters,
+      });
+
       setState((current) => ({ ...current, loading: true, error: null }));
 
       const {
@@ -173,10 +240,24 @@ export default function AdminDemoRequestsPage() {
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (!mounted) return;
+      if (!mounted || requestSeq !== requestSequenceRef.current) return;
 
       if (userError || !user) {
-        setState({ loading: false, authorized: false, error: userError?.message || "Utente non autenticato.", requests: [] });
+        debugDemoRequestsLog("request:user-error", {
+          callNumber,
+          requestSeq,
+          error: userError?.message || "Utente non autenticato.",
+          status: 401,
+          rows: 0,
+          filters,
+        });
+
+        setState((current) => ({
+          loading: false,
+          authorized: false,
+          error: userError?.message || "Utente non autenticato.",
+          requests: current.requests,
+        }));
         return;
       }
 
@@ -191,7 +272,20 @@ export default function AdminDemoRequestsPage() {
       }
 
       if (!canAccess) {
-        setState({ loading: false, authorized: false, error: null, requests: [] });
+        debugDemoRequestsLog("request:access-denied", {
+          callNumber,
+          requestSeq,
+          status: 403,
+          rows: 0,
+          filters,
+        });
+
+        setState((current) => ({
+          loading: false,
+          authorized: false,
+          error: null,
+          requests: current.requests,
+        }));
         return;
       }
 
@@ -200,42 +294,111 @@ export default function AdminDemoRequestsPage() {
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (!mounted) return;
+      if (!mounted || requestSeq !== requestSequenceRef.current) return;
 
       if (sessionError || !session?.access_token) {
-        setState({
+        debugDemoRequestsLog("request:session-error", {
+          callNumber,
+          requestSeq,
+          error: sessionError?.message || "Sessione non valida.",
+          status: 401,
+          rows: 0,
+          filters,
+        });
+
+        setState((current) => ({
+          ...current,
           loading: false,
           authorized: true,
           error: sessionError?.message || "Sessione non valida.",
-          requests: [],
-        });
+        }));
         return;
       }
 
-      const { response, payload } = await fetchDemoRequests(session.access_token);
+      let result: DemoRequestsFetchResult;
 
-      if (!mounted) return;
+      try {
+        result = await fetchAdminDemoRequests(session.access_token);
+      } catch (fetchError) {
+        debugDemoRequestsLog("request:fetch-error", {
+          callNumber,
+          requestSeq,
+          error: fetchError instanceof Error ? fetchError.message : "Errore fetch sconosciuto",
+          aborted: false,
+          filters,
+        });
 
-      if (!response.ok) {
-        if (response.status === 403) {
-          setState({ loading: false, authorized: false, error: null, requests: [] });
+        if (!mounted || requestSeq !== requestSequenceRef.current) {
           return;
         }
 
-        setState({
+        setState((current) => ({
+          ...current,
           loading: false,
           authorized: true,
-          error: payload.error || "Impossibile caricare le richieste demo.",
-          requests: [],
+          error: "Impossibile caricare le richieste demo.",
+        }));
+        return;
+      }
+
+      if (!mounted || requestSeq !== requestSequenceRef.current) {
+        debugDemoRequestsLog("request:ignored-obsolete", {
+          callNumber,
+          requestSeq,
+          status: result.status,
+          rows: result.payload.requests?.length ?? 0,
+          filters,
         });
         return;
       }
+
+      debugDemoRequestsLog("request:response", {
+        callNumber,
+        requestSeq,
+        status: result.status,
+        rows: result.payload.requests?.length ?? 0,
+        fromCache: result.fromCache,
+        filters,
+        error: result.payload.error ?? null,
+      });
+
+      if (result.status < 200 || result.status >= 300) {
+        if (result.status === 403) {
+          if (hasLoadedSuccessfullyRef.current) {
+            setState((current) => ({
+              ...current,
+              loading: false,
+              authorized: true,
+              error: result.payload.error || "Accesso admin temporaneamente non disponibile.",
+            }));
+            return;
+          }
+
+          setState((current) => ({
+            loading: false,
+            authorized: false,
+            error: null,
+            requests: current.requests,
+          }));
+          return;
+        }
+
+        setState((current) => ({
+          ...current,
+          loading: false,
+          authorized: true,
+          error: result.payload.error || "Impossibile caricare le richieste demo.",
+        }));
+        return;
+      }
+
+      hasLoadedSuccessfullyRef.current = true;
 
       setState({
         loading: false,
         authorized: true,
         error: null,
-        requests: payload.requests ?? [],
+        requests: result.payload.requests ?? [],
       });
     };
 
