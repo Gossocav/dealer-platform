@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { hitRateLimit } from "@/lib/api-rate-limit";
@@ -18,6 +18,26 @@ type DemoRequestBody = {
   notes?: string;
   privacyAccepted?: boolean;
   websiteTrap?: string;
+};
+
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+type DemoRequestsColumnRow = {
+  column_name: string;
+  data_type: string;
+  is_nullable: "YES" | "NO";
+  column_default: string | null;
+};
+
+type DemoRequestsColumnMeta = {
+  dataType: string;
+  isNullable: boolean;
+  hasDefault: boolean;
 };
 
 const DEMO_REQUEST_RATE_LIMIT = {
@@ -134,7 +154,181 @@ function buildMessageDetails(details: Array<[string, string | null]>) {
   return rows.map(([label, value]) => `${label}: ${String(value)}`).join("\n");
 }
 
+function logSupabaseFailure(requestId: string, phase: string, error: SupabaseErrorLike | null | undefined, extra?: Record<string, unknown>) {
+  if (!error) {
+    return;
+  }
+
+  console.error("demo-request:supabase-failure", {
+    requestId,
+    phase,
+    code: error.code ?? null,
+    message: error.message ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    ...(extra ?? {}),
+  });
+}
+
+function normalizeColumnMap(rows: DemoRequestsColumnRow[] | null | undefined) {
+  const map = new Map<string, DemoRequestsColumnMeta>();
+
+  for (const row of rows ?? []) {
+    const name = String(row.column_name ?? "").trim();
+    if (!name) {
+      continue;
+    }
+
+    map.set(name, {
+      dataType: String(row.data_type ?? "").trim().toLowerCase(),
+      isNullable: row.is_nullable !== "NO",
+      hasDefault: row.column_default !== null,
+    });
+  }
+
+  return map;
+}
+
+async function resolveDemoRequestsColumns(
+  supabaseAdmin: SupabaseClient,
+  requestId: string
+) {
+  const columnsResult = await supabaseAdmin
+    .from("information_schema.columns")
+    .select("column_name,data_type,is_nullable,column_default")
+    .eq("table_schema", "public")
+    .eq("table_name", "demo_requests")
+    .returns<DemoRequestsColumnRow[]>();
+
+  if (columnsResult.error) {
+    logSupabaseFailure(requestId, "schema.columns", columnsResult.error, {
+      table: "public.demo_requests",
+    });
+    return null;
+  }
+
+  return normalizeColumnMap(columnsResult.data ?? []);
+}
+
+function buildDemoRequestInsertPayload(params: {
+  columns: Map<string, DemoRequestsColumnMeta> | null;
+  companyName: string;
+  contactName: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string;
+  city: string;
+  provinceCode: string;
+  vatNumber: string;
+  vehicleCount: number;
+  brands: string;
+  managementSoftware: string;
+  notes: string;
+  privacyAccepted: boolean;
+  message: string | null;
+}) {
+  const {
+    columns,
+    companyName,
+    contactName,
+    firstName,
+    lastName,
+    email,
+    phone,
+    city,
+    provinceCode,
+    vatNumber,
+    vehicleCount,
+    brands,
+    managementSoftware,
+    notes,
+    privacyAccepted,
+    message,
+  } = params;
+
+  const fallbackColumns = new Set([
+    "dealership_name",
+    "company_name",
+    "contact_name",
+    "email",
+    "phone",
+    "city",
+    "vehicle_count",
+    "message",
+    "status",
+    "vat_number",
+    "chamber_document_path",
+    "chamber_document_name",
+    "chamber_document_mime_type",
+    "chamber_document_size",
+    "created_at",
+    "updated_at",
+  ]);
+
+  const hasColumn = (name: string) => (columns ? columns.has(name) : fallbackColumns.has(name));
+  const getColumn = (name: string) => (columns ? columns.get(name) : null);
+
+  const payload: Record<string, unknown> = {
+    status: "pending",
+  };
+
+  if (hasColumn("dealership_name")) payload.dealership_name = companyName;
+  if (hasColumn("company_name")) payload.company_name = companyName;
+  if (hasColumn("contact_name")) payload.contact_name = contactName;
+  if (hasColumn("first_name") && firstName) payload.first_name = firstName;
+  if (hasColumn("last_name") && lastName) payload.last_name = lastName;
+  if (hasColumn("email")) payload.email = email;
+  if (hasColumn("phone")) payload.phone = phone;
+
+  if (hasColumn("city")) {
+    payload.city = city;
+  }
+
+  if (hasColumn("province")) {
+    payload.province = provinceCode;
+  }
+
+  if (hasColumn("vat_number")) {
+    payload.vat_number = vatNumber;
+  }
+
+  if (hasColumn("vehicle_count")) {
+    const vehicleCountType = getColumn("vehicle_count")?.dataType ?? "";
+    const shouldSendNumeric =
+      vehicleCountType.includes("int") ||
+      vehicleCountType.includes("numeric") ||
+      vehicleCountType.includes("double") ||
+      vehicleCountType.includes("real");
+
+    payload.vehicle_count = shouldSendNumeric ? vehicleCount : String(vehicleCount);
+  }
+
+  if (hasColumn("brands")) {
+    payload.brands = brands;
+  }
+
+  if (hasColumn("management_software")) {
+    payload.management_software = managementSoftware;
+  }
+
+  if (hasColumn("notes")) {
+    payload.notes = notes;
+  }
+
+  if (hasColumn("privacy_accepted")) {
+    payload.privacy_accepted = privacyAccepted;
+  }
+
+  if (hasColumn("message")) {
+    payload.message = message || null;
+  }
+
+  return payload;
+}
+
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID();
   let createdRequestId: string | null = null;
   let uploadedObjectPath: string | null = null;
 
@@ -143,6 +337,13 @@ export async function POST(request: Request) {
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.error("demo-request:missing-env", {
+        requestId,
+        phase: "env.validation",
+        hasSupabaseUrl: Boolean(supabaseUrl),
+        hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
+      });
+
       return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
     }
 
@@ -247,11 +448,19 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (schemaCheck.error) {
+      logSupabaseFailure(requestId, "schema.compatibility_check", schemaCheck.error, {
+        table: "public.demo_requests",
+      });
       return NextResponse.json({ error: "Infrastruttura Demo non allineata. Contatta il supporto." }, { status: 500 });
     }
 
+    const demoRequestsColumns = await resolveDemoRequestsColumns(supabaseAdmin, requestId);
+
     const bucketList = await supabaseAdmin.storage.listBuckets();
     if (bucketList.error) {
+      logSupabaseFailure(requestId, "storage.list_buckets", bucketList.error as SupabaseErrorLike, {
+        bucket: DEMO_DOCUMENT_BUCKET,
+      });
       return NextResponse.json({ error: "Impossibile verificare il bucket documenti." }, { status: 500 });
     }
 
@@ -278,6 +487,9 @@ export async function POST(request: Request) {
       .gte("created_at", duplicateThreshold);
 
     if (duplicateCheckError) {
+      logSupabaseFailure(requestId, "demo_requests.duplicate_check", duplicateCheckError, {
+        table: "public.demo_requests",
+      });
       return NextResponse.json({ error: "Errore interno durante l'invio della richiesta demo." }, { status: 500 });
     }
 
@@ -285,25 +497,79 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Hai gia inviato una richiesta nelle ultime 24 ore." }, { status: 409 });
     }
 
-    const createdRequest = await supabaseAdmin
-      .from("demo_requests")
-      .insert({
-        dealership_name: companyName,
-        company_name: companyName,
-        vat_number: vatNumber,
-        contact_name: contactName,
-        email,
-        phone,
-        city: cityLabel,
-        vehicle_count: vehicleCount,
-        message: message || null,
-        status: "pending",
-      })
-      .select("id")
-      .single<{ id: string }>();
+    const createdRequestPayload = buildDemoRequestInsertPayload({
+      columns: demoRequestsColumns,
+      companyName,
+      contactName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      city,
+      provinceCode,
+      vatNumber,
+      vehicleCount,
+      brands,
+      managementSoftware,
+      notes,
+      privacyAccepted,
+      message,
+    });
 
-    if (createdRequest.error || !createdRequest.data?.id) {
-      return NextResponse.json({ error: "Salvataggio richiesta demo non riuscito." }, { status: 500 });
+    let payloadForInsert: Record<string, unknown> = { ...createdRequestPayload };
+    let createdRequest:
+      | {
+          data: { id: string } | null;
+          error: SupabaseErrorLike | null;
+        }
+      | null = null;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const attemptResult = await supabaseAdmin
+        .from("demo_requests")
+        .insert(payloadForInsert)
+        .select("id")
+        .single<{ id: string }>();
+
+      createdRequest = {
+        data: attemptResult.data,
+        error: attemptResult.error,
+      };
+
+      if (!attemptResult.error && attemptResult.data?.id) {
+        break;
+      }
+
+      logSupabaseFailure(requestId, "demo_requests.insert", attemptResult.error, {
+        table: "public.demo_requests",
+        attempt,
+        payloadColumns: Object.keys(payloadForInsert).sort(),
+      });
+
+      const messageText = String(attemptResult.error?.message ?? "");
+      const missingColumnMatch = attemptResult.error?.code === "PGRST204"
+        ? messageText.match(/Could not find the '([^']+)' column/)
+        : null;
+
+      const missingColumn = missingColumnMatch?.[1];
+      if (!missingColumn || !(missingColumn in payloadForInsert)) {
+        break;
+      }
+
+      const nextPayload = { ...payloadForInsert };
+      delete nextPayload[missingColumn];
+      payloadForInsert = nextPayload;
+
+      console.warn("demo-request:insert-retry-without-column", {
+        requestId,
+        phase: "demo_requests.insert",
+        attempt,
+        removedColumn: missingColumn,
+      });
+    }
+
+    if (!createdRequest?.data?.id) {
+      return NextResponse.json({ error: "Impossibile registrare la richiesta demo. Riprova tra pochi minuti." }, { status: 500 });
     }
 
     createdRequestId = createdRequest.data.id;
@@ -319,7 +585,18 @@ export async function POST(request: Request) {
     });
 
     if (uploaded.error) {
-      await supabaseAdmin.from("demo_requests").delete().eq("id", createdRequestId);
+      logSupabaseFailure(requestId, "storage.upload", uploaded.error as SupabaseErrorLike, {
+        bucket: DEMO_DOCUMENT_BUCKET,
+      });
+
+      const cleanupRequest = await supabaseAdmin.from("demo_requests").delete().eq("id", createdRequestId);
+      if (cleanupRequest.error) {
+        logSupabaseFailure(requestId, "cleanup.delete_request_after_upload_failure", cleanupRequest.error, {
+          table: "public.demo_requests",
+          createdRequestId,
+        });
+      }
+
       return NextResponse.json({ error: "Upload visura non riuscito. Riprova tra pochi minuti." }, { status: 500 });
     }
 
@@ -337,8 +614,27 @@ export async function POST(request: Request) {
       .eq("id", createdRequestId);
 
     if (requestUpdate.error) {
-      await supabaseAdmin.storage.from(DEMO_DOCUMENT_BUCKET).remove([storagePath]);
-      await supabaseAdmin.from("demo_requests").delete().eq("id", createdRequestId);
+      logSupabaseFailure(requestId, "demo_requests.update_document_metadata", requestUpdate.error, {
+        table: "public.demo_requests",
+        createdRequestId,
+      });
+
+      const cleanupStorage = await supabaseAdmin.storage.from(DEMO_DOCUMENT_BUCKET).remove([storagePath]);
+      if (cleanupStorage.error) {
+        logSupabaseFailure(requestId, "cleanup.remove_file_after_metadata_failure", cleanupStorage.error as SupabaseErrorLike, {
+          bucket: DEMO_DOCUMENT_BUCKET,
+          objectPath: storagePath,
+        });
+      }
+
+      const cleanupRequest = await supabaseAdmin.from("demo_requests").delete().eq("id", createdRequestId);
+      if (cleanupRequest.error) {
+        logSupabaseFailure(requestId, "cleanup.delete_request_after_metadata_failure", cleanupRequest.error, {
+          table: "public.demo_requests",
+          createdRequestId,
+        });
+      }
+
       return NextResponse.json({ error: "Errore durante il collegamento del documento alla richiesta." }, { status: 500 });
     }
 
@@ -369,7 +665,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Richiesta Demo inviata" }, { status: 200 });
   } catch (error) {
-    console.error("Demo request API unexpected error", error);
+    console.error("demo-request:unexpected-error", {
+      requestId,
+      phase: "handler.unhandled_exception",
+      error,
+    });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -384,11 +684,23 @@ export async function POST(request: Request) {
       });
 
       if (uploadedObjectPath) {
-        await supabaseAdmin.storage.from(DEMO_DOCUMENT_BUCKET).remove([uploadedObjectPath]);
+        const cleanupStorage = await supabaseAdmin.storage.from(DEMO_DOCUMENT_BUCKET).remove([uploadedObjectPath]);
+        if (cleanupStorage.error) {
+          logSupabaseFailure(requestId, "cleanup.remove_file_after_exception", cleanupStorage.error as SupabaseErrorLike, {
+            bucket: DEMO_DOCUMENT_BUCKET,
+            objectPath: uploadedObjectPath,
+          });
+        }
       }
 
       if (createdRequestId) {
-        await supabaseAdmin.from("demo_requests").delete().eq("id", createdRequestId);
+        const cleanupRequest = await supabaseAdmin.from("demo_requests").delete().eq("id", createdRequestId);
+        if (cleanupRequest.error) {
+          logSupabaseFailure(requestId, "cleanup.delete_request_after_exception", cleanupRequest.error, {
+            table: "public.demo_requests",
+            createdRequestId,
+          });
+        }
       }
     }
 
