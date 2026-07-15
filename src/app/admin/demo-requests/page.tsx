@@ -17,13 +17,18 @@ type DemoAdminAction =
 type DemoRequestRow = {
   id: string;
   dealership_name: string;
-  company_name: string | null;
+  company_name?: string | null;
   vat_number: string | null;
   contact_name: string;
   email: string;
   phone: string;
   city: string;
-  vehicle_count: number | null;
+  province?: string | null;
+  vehicle_count: number | string | null;
+  brands?: string | null;
+  management_software?: string | null;
+  notes?: string | null;
+  privacy_accepted?: boolean | null;
   message: string | null;
   chamber_document_path: string | null;
   chamber_document_name: string | null;
