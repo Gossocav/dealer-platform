@@ -55,7 +55,7 @@ export function resolveUserRoleFromMetadata(user: {
   app_metadata?: unknown;
   user_metadata?: unknown;
 } | null | undefined) {
-  return readRoleFromRecord(user?.app_metadata) ?? readRoleFromRecord(user?.user_metadata);
+  return readRoleFromRecord(user?.app_metadata);
 }
 
 export function isPlatformAdminRole(role: string | null | undefined) {
