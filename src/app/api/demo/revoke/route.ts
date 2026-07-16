@@ -1,7 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { hitRateLimit } from "@/lib/api-rate-limit";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
+
+const ADMIN_DEMO_ACTION_RATE_LIMIT = {
+  windowMs: 60_000,
+  maxRequests: 10,
+} as const;
 
 function extractBearerToken(authHeader: string | null) {
   const raw = String(authHeader ?? "").trim();
@@ -9,6 +15,28 @@ function extractBearerToken(authHeader: string | null) {
     return null;
   }
   return raw.slice(7).trim();
+}
+
+function resolveClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  return "unknown";
+}
+
+function retryAfterSeconds(resetAt: number) {
+  const deltaMs = resetAt - Date.now();
+  return Math.max(1, Math.ceil(deltaMs / 1000));
 }
 
 export async function POST(request: Request) {
@@ -40,6 +68,21 @@ export async function POST(request: Request) {
 
   if (!isAuthorized) {
     return NextResponse.json({ error: "Accesso negato." }, { status: 403 });
+  }
+
+  const clientIp = resolveClientIp(request);
+  const rateLimitKey = `admin-demo-action:revoke:${user.id}:${clientIp}`;
+  const rateLimit = hitRateLimit(rateLimitKey, ADMIN_DEMO_ACTION_RATE_LIMIT);
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: "Troppi tentativi. Riprova tra poco." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSeconds(rateLimit.resetAt)),
+        },
+      }
+    );
   }
 
   const body = (await request.json().catch(() => ({}))) as { dealerId?: string };
