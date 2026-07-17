@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 
 type DealerApprovalAction = "approve" | "reject";
@@ -32,6 +33,11 @@ type ProfileRoleRow = {
   role: string | null;
 };
 
+const ADMIN_DEALER_APPROVAL_RATE_LIMIT = {
+  windowMs: 60_000,
+  maxRequests: 10,
+} as const;
+
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : null;
@@ -45,6 +51,27 @@ function extractBearerToken(authHeader: string | null) {
 
   const token = raw.slice(7).trim();
   return token.length > 0 ? token : null;
+}
+
+function resolveClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  return "unknown";
+}
+
+function retryAfterSeconds(resetAt: number) {
+  return Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
 }
 
 async function resolveAdminContext(request: Request) {
@@ -171,6 +198,21 @@ export async function POST(request: Request) {
 
   if (!dealerId || (action !== "approve" && action !== "reject")) {
     return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
+  }
+
+  const clientIp = resolveClientIp(request);
+  const rateLimitKey = `admin-mutate:dealer-approval:${action}:${context.userId}:${clientIp}`;
+  const rateLimit = hitRateLimit(rateLimitKey, ADMIN_DEALER_APPROVAL_RATE_LIMIT);
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: "Troppi tentativi. Riprova tra poco." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSeconds(rateLimit.resetAt)),
+        },
+      }
+    );
   }
 
   const dealerStatus = action === "approve" ? "approved" : "rejected";

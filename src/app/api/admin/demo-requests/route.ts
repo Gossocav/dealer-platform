@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 
@@ -8,6 +9,10 @@ type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected";
 type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document";
 
 const DEMO_DOCUMENT_BUCKET = "demo-documents";
+const ADMIN_DEMO_REQUESTS_RATE_LIMIT = {
+  windowMs: 60_000,
+  maxRequests: 10,
+} as const;
 
 type ProfileRoleRow = {
   role: string | null;
@@ -61,6 +66,27 @@ function extractBearerToken(authHeader: string | null) {
 
   const token = raw.slice(7).trim();
   return token.length > 0 ? token : null;
+}
+
+function resolveClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) {
+    return realIp;
+  }
+
+  return "unknown";
+}
+
+function retryAfterSeconds(resetAt: number) {
+  return Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
 }
 
 function actionToStatus(action: DemoAdminAction): DemoRequestStatus {
@@ -298,6 +324,21 @@ export async function POST(request: Request) {
 
   if (!requestId || !action || !["mark_contacted", "activate_demo", "reject", "revoke_demo", "convert_demo", "view_document", "download_document"].includes(action)) {
     return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
+  }
+
+  const clientIp = resolveClientIp(request);
+  const rateLimitKey = `admin-mutate:demo-requests:${action}:${context.userId}:${clientIp}`;
+  const rateLimit = hitRateLimit(rateLimitKey, ADMIN_DEMO_REQUESTS_RATE_LIMIT);
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: "Troppi tentativi. Riprova tra poco." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSeconds(rateLimit.resetAt)),
+        },
+      }
+    );
   }
 
   const targetRequestResult = await context.supabaseAdmin
