@@ -347,7 +347,7 @@ export async function writeLeadActivity(
   return true;
 }
 
-export async function detectLeadOptionalColumns(supabase: SupabaseClient<any, any, any>): Promise<LeadColumnSupport> {
+export async function detectLeadOptionalColumns(supabase: SupabaseClient): Promise<LeadColumnSupport> {
   let support: LeadColumnSupport = { source: true, priority: true };
 
   for (let attempts = 0; attempts < 3; attempts += 1) {

@@ -79,7 +79,7 @@ export default function RegistrazioneBasePage() {
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <h2 className="text-2xl font-semibold text-slate-900">Registrazione diretta disattivata</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-            Per attivare un account concessionaria e necessario richiedere la Demo. Dopo la validazione riceverai l'accesso al piano piu adatto.
+            Per attivare un account concessionaria e necessario richiedere la Demo. Dopo la validazione riceverai l&apos;accesso al piano piu adatto.
           </p>
           <Link
             href="/demo"
