@@ -4,7 +4,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 
-type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected";
+type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction =
   | "mark_contacted"
   | "activate_demo"
@@ -77,7 +77,14 @@ function formatDate(value: string | null | undefined) {
 
 function normalizeStatus(value: string | null | undefined): DemoRequestStatus | null {
   const normalized = String(value ?? "").trim().toLowerCase();
-  if (normalized === "pending" || normalized === "contacted" || normalized === "activated" || normalized === "rejected") {
+  if (
+    normalized === "pending" ||
+    normalized === "contacted" ||
+    normalized === "activated" ||
+    normalized === "rejected" ||
+    normalized === "converted" ||
+    normalized === "revoked"
+  ) {
     return normalized;
   }
   return null;
@@ -88,6 +95,8 @@ function toStatusLabel(status: DemoRequestStatus | null) {
   if (status === "contacted") return "contacted";
   if (status === "activated") return "activated";
   if (status === "rejected") return "rejected";
+  if (status === "converted") return "converted";
+  if (status === "revoked") return "revoked";
   return "-";
 }
 
@@ -96,6 +105,8 @@ function getStatusBadgeClass(status: DemoRequestStatus | null) {
   if (status === "contacted") return "bg-sky-100 text-sky-800";
   if (status === "activated") return "bg-emerald-100 text-emerald-800";
   if (status === "rejected") return "bg-rose-100 text-rose-800";
+  if (status === "converted") return "bg-indigo-100 text-indigo-800";
+  if (status === "revoked") return "bg-orange-100 text-orange-800";
   return "bg-slate-100 text-slate-700";
 }
 
@@ -108,7 +119,7 @@ function getActionsForStatus(status: DemoRequestStatus | null): DemoAdminAction[
 
 function getActionLabel(action: DemoAdminAction) {
   if (action === "mark_contacted") return "Segna come contattato";
-  if (action === "activate_demo") return "Attiva demo";
+  if (action === "activate_demo") return "Accetta richiesta";
   if (action === "convert_demo") return "Converti Demo";
   if (action === "revoke_demo") return "Revoca Demo";
   return "Rifiuta";
@@ -218,6 +229,7 @@ export default function AdminDemoRequestsPage() {
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const requestSequenceRef = useRef(0);
   const callCounterRef = useRef(0);
   const hasLoadedSuccessfullyRef = useRef(false);
@@ -413,6 +425,7 @@ export default function AdminDemoRequestsPage() {
 
   const submitAction = async (requestId: string, action: DemoAdminAction) => {
     setBusyRequestId(requestId);
+    setSuccessMessage(null);
 
     const {
       data: { session },
@@ -440,6 +453,9 @@ export default function AdminDemoRequestsPage() {
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
       status?: DemoRequestStatus;
+      demoStatus?: string | null;
+      demoExpiresAt?: string | null;
+      linkedDealerId?: string | null;
     };
 
     if (!response.ok) {
@@ -459,10 +475,15 @@ export default function AdminDemoRequestsPage() {
           ? {
               ...request,
               status: payload.status ?? request.status,
+              demo_status: payload.demoStatus ?? request.demo_status,
+              demo_expires_at: payload.demoExpiresAt ?? request.demo_expires_at,
+              linked_dealer_id: payload.linkedDealerId ?? request.linked_dealer_id,
             }
           : request
       ),
     }));
+
+    setSuccessMessage(action === "activate_demo" ? "Richiesta demo accettata con successo." : "Richiesta demo aggiornata con successo.");
 
     setBusyRequestId(null);
   };
@@ -594,6 +615,10 @@ export default function AdminDemoRequestsPage() {
 
         {state.error ? (
           <section className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 shadow-sm">{state.error}</section>
+        ) : null}
+
+        {successMessage ? (
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800 shadow-sm">{successMessage}</section>
         ) : null}
 
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">

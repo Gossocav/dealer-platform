@@ -100,14 +100,65 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
     maybeSingle: demoRequestTargetMaybeSingle,
   }));
 
-  const demoRequestsSelect = vi.fn(() => ({
-    eq: demoRequestTargetEq,
+  const demoRequestPostMutationMaybeSingle = vi.fn().mockResolvedValue({
+    data: {
+      status: "rejected",
+      demo_status: null,
+      demo_expires_at: null,
+      linked_dealer_id: null,
+    },
+    error: null,
+  });
+
+  const demoRequestPostMutationEq = vi.fn(() => ({
+    maybeSingle: demoRequestPostMutationMaybeSingle,
   }));
+
+  const demoRequestsSelect = vi
+    .fn()
+    .mockImplementationOnce(() => ({
+      eq: demoRequestTargetEq,
+    }))
+    .mockImplementation(() => ({
+      eq: demoRequestPostMutationEq,
+    }));
 
   const demoRequestsUpdateEq = vi.fn().mockResolvedValue({ error: null });
   const demoRequestsUpdate = vi.fn(() => ({
     eq: demoRequestsUpdateEq,
   }));
+
+  const dealersMaybeSingle = vi.fn().mockResolvedValue({
+    data: { id: "dealer-1" },
+    error: null,
+  });
+  const dealersLimit = vi.fn(() => ({
+    maybeSingle: dealersMaybeSingle,
+  }));
+  const dealersEq = vi.fn(() => ({
+    limit: dealersLimit,
+  }));
+  const dealersSelect = vi.fn(() => ({
+    eq: dealersEq,
+  }));
+  const dealersUpdateEq = vi.fn().mockResolvedValue({ error: null });
+  const dealersUpdate = vi.fn(() => ({
+    eq: dealersUpdateEq,
+  }));
+
+  const subscriptionMaybeSingle = vi.fn().mockResolvedValue({
+    data: {
+      dealer_id: "dealer-1",
+      lifecycle_version: 3,
+      demo_status: "active",
+      expires_at: new Date().toISOString(),
+    },
+    error: null,
+  });
+  const subscriptionEq = vi.fn(() => ({ maybeSingle: subscriptionMaybeSingle }));
+  const subscriptionSelect = vi.fn(() => ({ eq: subscriptionEq }));
+  const subscriptionUpdateEq = vi.fn().mockResolvedValue({ error: null });
+  const subscriptionUpdate = vi.fn(() => ({ eq: subscriptionUpdateEq }));
 
   const authAdminCreateUser = vi.fn();
   const createSignedUrl = vi.fn();
@@ -121,6 +172,20 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
       return {
         select: demoRequestsSelect,
         update: demoRequestsUpdate,
+      };
+    }
+
+    if (table === "dealers") {
+      return {
+        select: dealersSelect,
+        update: dealersUpdate,
+      };
+    }
+
+    if (table === "dealer_demo_subscriptions") {
+      return {
+        select: subscriptionSelect,
+        update: subscriptionUpdate,
       };
     }
 
@@ -143,14 +208,170 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
         createSignedUrl,
       })),
     },
+    rpc: vi.fn(),
   };
 
   return {
     supabaseAdmin,
     demoRequestTargetMaybeSingle,
     demoRequestsUpdateEq,
+    dealersMaybeSingle,
+    dealersUpdateEq,
+    subscriptionMaybeSingle,
+    rpc: supabaseAdmin.rpc,
     authAdminCreateUser,
     createSignedUrl,
+  };
+}
+
+function makeSupabaseAdminForActivation(user: UserStub, failureMode: "progress" | "finalize" | null = null) {
+  const { supabaseAdmin } = makeSupabaseAdmin(user);
+
+  const profileMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  const profileEq = vi.fn(() => ({ maybeSingle: profileMaybeSingle }));
+  const profileSelect = vi.fn(() => ({ eq: profileEq }));
+  const profileUpsert = vi.fn().mockResolvedValue({ error: null });
+
+  const demoRequestTargetMaybeSingle = vi
+    .fn()
+    .mockResolvedValueOnce({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "pending",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+      },
+      error: null,
+    })
+    .mockResolvedValue({
+      data: {
+        status: "activated",
+        demo_status: "active",
+        demo_expires_at: "2026-07-24T00:00:00.000Z",
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+  const demoRequestTargetEq = vi.fn(() => ({ maybeSingle: demoRequestTargetMaybeSingle }));
+  const demoRequestsSelect = vi.fn(() => ({ eq: demoRequestTargetEq }));
+  const demoRequestsUpdateEq = vi.fn().mockResolvedValue({ error: null });
+  const demoRequestsUpdate = vi.fn(() => ({ eq: demoRequestsUpdateEq }));
+
+  const dealersMaybeSingle = vi.fn().mockResolvedValue({ data: { id: "dealer-1", status: "approved" }, error: null });
+  const dealersLimit = vi.fn(() => ({ maybeSingle: dealersMaybeSingle }));
+  const dealersEq = vi.fn(() => ({ limit: dealersLimit }));
+  const dealersSelect = vi.fn(() => ({ eq: dealersEq }));
+  const dealersUpsert = vi.fn().mockResolvedValue({ error: null });
+  const dealersUpdateEq = vi.fn().mockResolvedValue({ error: null });
+  const dealersUpdate = vi.fn(() => ({ eq: dealersUpdateEq }));
+
+  const dealerUsersUpsert = vi.fn().mockResolvedValue({ error: null });
+  const subscriptionMaybeSingle = vi.fn().mockResolvedValue({
+    data: {
+      dealer_id: "dealer-1",
+      demo_status: "active",
+      expires_at: "2026-07-24T00:00:00.000Z",
+    },
+    error: null,
+  });
+  const subscriptionEq = vi.fn(() => ({ maybeSingle: subscriptionMaybeSingle }));
+  const subscriptionSelect = vi.fn(() => ({ eq: subscriptionEq }));
+
+  const rpc = vi.fn(async (fn: string) => {
+    if (fn === "configure_demo_profile") return { data: { outcome: "DEMO_CONFIGURED" }, error: null };
+    if (fn === "reserve_demo_activation") return { data: { outcome: "DEMO_RESERVED" }, error: null };
+    if (fn === "record_demo_activation_progress") {
+      if (failureMode === "progress") {
+        return { data: null, error: new Error("activation progress failed") };
+      }
+
+      return { data: { outcome: "DEMO_PROGRESS_RECORDED" }, error: null };
+    }
+
+    if (fn === "finalize_demo_activation") {
+      if (failureMode === "finalize") {
+        return { data: null, error: new Error("activation finalize failed") };
+      }
+
+      return { data: { outcome: "DEMO_ACTIVATED" }, error: null };
+    }
+
+    if (fn === "fail_demo_activation") return { data: { outcome: "DEMO_ACTIVATION_FAILED" }, error: null };
+    return { data: { outcome: "DEMO_UNKNOWN" }, error: null };
+  });
+
+  const from = vi.fn((table: string) => {
+    if (table === "profiles") {
+      return {
+        select: profileSelect,
+        upsert: profileUpsert,
+      };
+    }
+
+    if (table === "demo_requests") {
+      return {
+        select: demoRequestsSelect,
+        update: demoRequestsUpdate,
+      };
+    }
+
+    if (table === "dealers") {
+      return {
+        select: dealersSelect,
+        upsert: dealersUpsert,
+        update: dealersUpdate,
+      };
+    }
+
+    if (table === "dealer_users") {
+      return {
+        upsert: dealerUsersUpsert,
+      };
+    }
+
+    if (table === "dealer_demo_subscriptions") {
+      return {
+        select: subscriptionSelect,
+      };
+    }
+
+    if (table === "audit_logs") {
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      };
+    }
+
+    throw new Error(`Unexpected table: ${table}`);
+  });
+
+  supabaseAdmin.auth.admin.createUser = vi.fn().mockResolvedValue({
+    data: { user: { id: "profile-1" } },
+    error: null,
+  });
+  supabaseAdmin.from = from as unknown as typeof supabaseAdmin.from;
+  supabaseAdmin.storage = {
+    from: vi.fn(() => ({
+      createSignedUrl: vi.fn(),
+    })),
+  };
+  supabaseAdmin.rpc = rpc;
+
+  return {
+    supabaseAdmin,
+    demoRequestsUpdateEq,
+    dealersMaybeSingle,
+    dealersUpsert,
+    rpc,
   };
 }
 
@@ -166,13 +387,30 @@ describe("admin demo-requests route rate limiting", () => {
       id: "admin-1",
       app_metadata: { role: "admin" },
     };
-    const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq } = makeSupabaseAdmin(user);
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq, dealersUpdateEq, rpc } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
     mocks.hitRateLimitMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
+    });
+    rpc.mockResolvedValue({
+      data: {
+        outcome: "DEMO_REJECTED",
+        request: {
+          id: "request-1",
+          status: "revoked",
+          demo_status: "revoked",
+          demo_expires_at: null,
+          linked_dealer_id: "dealer-1",
+        },
+        dealer: {
+          id: "dealer-1",
+          demo_status: "revoked",
+        },
+      },
+      error: null,
     });
 
     const response = await POST(
@@ -185,13 +423,30 @@ describe("admin demo-requests route rate limiting", () => {
     const payload = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(200);
-    expect(payload).toEqual({ requestId: "request-1", status: "rejected" });
+    expect(payload).toEqual({
+      requestId: "request-1",
+      status: "revoked",
+      demoStatus: "revoked",
+      demoExpiresAt: null,
+      linkedDealerId: "dealer-1",
+    });
     expect(mocks.hitRateLimitMock).toHaveBeenCalledWith(
       "admin-mutate:demo-requests:reject:admin-1:203.0.113.9",
       { windowMs: 60_000, maxRequests: 10 }
     );
     expect(demoRequestTargetMaybeSingle).toHaveBeenCalledOnce();
-    expect(demoRequestsUpdateEq).toHaveBeenCalledOnce();
+    expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
+    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith(
+      "reject_demo_request_atomic",
+      expect.objectContaining({
+        p_request_id: "request-1",
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-1",
+        p_reason: "Demo request rejected by admin",
+        p_lifecycle_version: 3,
+      })
+    );
   });
 
   it("returns 429 with Retry-After and performs no side effects when threshold is exceeded", async () => {
@@ -243,5 +498,226 @@ describe("admin demo-requests route rate limiting", () => {
     expect(payload).toEqual({ error: "Accesso negato." });
     expect(mocks.hitRateLimitMock).not.toHaveBeenCalled();
     expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
+  });
+
+  it("uses demo RPC lifecycle flow for activate_demo", async () => {
+    const user: UserStub = {
+      id: "admin-3",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, rpc } = makeSupabaseAdminForActivation(user);
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      requestId: "request-1",
+      status: "activated",
+      demoStatus: "active",
+      demoExpiresAt: "2026-07-24T00:00:00.000Z",
+      linkedDealerId: "dealer-1",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "configure_demo_profile",
+      expect.objectContaining({
+        p_dealer_id: "dealer-1",
+        p_demo_request_id: "request-1",
+        p_profile_code: "base",
+        p_actor_id: "admin-3",
+      })
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      "reserve_demo_activation",
+      expect.objectContaining({
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-3",
+      })
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      "finalize_demo_activation",
+      expect.objectContaining({
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-3",
+        p_profile_id: "profile-1",
+        p_demo_request_id: "request-1",
+      })
+    );
+  });
+  it("keeps the request retryable when activation fails before finalization", async () => {
+    const user: UserStub = {
+      id: "admin-4",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, demoRequestsUpdateEq, rpc } = makeSupabaseAdminForActivation(user, "progress");
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(500);
+    expect(payload).toEqual({ error: "Errore attivazione demo. Riprova." });
+    expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith(
+      "fail_demo_activation",
+      expect.objectContaining({
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-4",
+        p_attempt_id: expect.any(String),
+        p_reason: "Activation flow failed",
+      })
+    );
+
+    const rpcNames = rpc.mock.calls.map(([name]) => String(name));
+    expect(rpcNames.indexOf("reserve_demo_activation")).toBeGreaterThan(-1);
+    expect(rpcNames.indexOf("fail_demo_activation")).toBeGreaterThan(rpcNames.indexOf("reserve_demo_activation"));
+  });
+
+  it("rejects a never-activated request with a plain status update, without requiring a dealer or RPC", async () => {
+    const user: UserStub = {
+      id: "admin-5",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestsUpdateEq, dealersMaybeSingle, rpc } = makeSupabaseAdmin(user);
+
+    dealersMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "reject" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      requestId: "request-1",
+      status: "rejected",
+      demoStatus: null,
+      demoExpiresAt: null,
+      linkedDealerId: null,
+    });
+    expect(demoRequestsUpdateEq).toHaveBeenCalledOnce();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("revokes an activated demo via the atomic RPC", async () => {
+    const user: UserStub = {
+      id: "admin-6",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq, dealersUpdateEq, rpc } = makeSupabaseAdmin(user);
+
+    demoRequestTargetMaybeSingle.mockResolvedValue({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "activated",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+    rpc.mockResolvedValue({
+      data: {
+        outcome: "DEMO_REJECTED",
+        request: {
+          id: "request-1",
+          status: "revoked",
+          demo_status: "revoked",
+          demo_expires_at: null,
+          linked_dealer_id: "dealer-1",
+        },
+        dealer: {
+          id: "dealer-1",
+          demo_status: "revoked",
+        },
+      },
+      error: null,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "revoke_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      requestId: "request-1",
+      status: "revoked",
+      demoStatus: "revoked",
+      demoExpiresAt: null,
+      linkedDealerId: "dealer-1",
+    });
+    expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
+    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith(
+      "reject_demo_request_atomic",
+      expect.objectContaining({
+        p_request_id: "request-1",
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-6",
+        p_reason: "Demo revoked by admin",
+        p_lifecycle_version: 3,
+      })
+    );
+  });
+
+  it("refuses to activate_demo over an existing paid/converted dealer sharing the same email", async () => {
+    const user: UserStub = {
+      id: "admin-7",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, dealersMaybeSingle, dealersUpsert, rpc } = makeSupabaseAdminForActivation(user);
+    dealersMaybeSingle.mockResolvedValue({
+      data: { id: "dealer-1", status: "approved", account_type: "paid", demo_status: "converted" },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(409);
+    expect(payload).toEqual({ error: "Esiste gia un account abbonato con questa email. Attivazione demo non consentita." });
+    expect(dealersUpsert).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
