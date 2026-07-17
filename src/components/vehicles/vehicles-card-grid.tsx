@@ -3,6 +3,7 @@
 import { CalendarDays, Copy, Eye, Gauge, Pencil, Rocket, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { formatDate, type VehicleListItem } from "@/lib/vehicles";
 
 type VehiclesCardGridProps = {
@@ -71,6 +72,10 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
       {items.map((vehicle) => {
         const isBusy = busyVehicleId === vehicle.id;
         const isSelected = selectedVehicleIds.includes(vehicle.id);
+        const health = evaluateVehicleHealth({
+          vehicle: vehicle.raw,
+          imagesCount: Array.isArray(vehicle.raw.vehicle_images) ? vehicle.raw.vehicle_images.length : undefined,
+        });
 
         return (
           <article
@@ -103,6 +108,9 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
                   {vehicle.brand} {vehicle.model}
                 </p>
                 <p className="text-sm text-slate-500">{vehicle.version}</p>
+                <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-slate-700">
+                  Health {health.score}/100 - {health.level}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
@@ -156,7 +164,7 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
                 <button
                   type="button"
                   onClick={() => onTogglePublished(vehicle)}
-                  disabled={isBusy || vehicle.status === "sold"}
+                  disabled={isBusy || vehicle.status === "sold" || (vehicle.status !== "published" && !health.publishable)}
                   className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Rocket className="h-4 w-4" /> {vehicle.status === "published" ? "Bozza" : "Pubblica"}

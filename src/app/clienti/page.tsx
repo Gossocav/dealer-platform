@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { supabase } from "@/lib/supabaseClient";
+import { demoAccessMessageFromUnknown } from "@/lib/demo-access";
 
 type Customer = {
   id: string;
@@ -190,15 +191,31 @@ export default function ClientiPage() {
   }, []);
 
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        void fetchAll();
+      }, 150);
+    };
+
     const channel = supabase
       .channel("crm-customers-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, () => void fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => void fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, () => void fetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => void fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, scheduleRefresh)
       .subscribe();
 
     return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
       void supabase.removeChannel(channel);
     };
   }, []);
@@ -379,7 +396,7 @@ export default function ClientiPage() {
     setSaving(false);
 
     if (error) {
-      setStatusMessage(error.message || "Errore durante il salvataggio cliente.");
+      setStatusMessage(demoAccessMessageFromUnknown(error, error.message || "Errore durante il salvataggio cliente."));
       setStatusMessageType("error");
       return;
     }

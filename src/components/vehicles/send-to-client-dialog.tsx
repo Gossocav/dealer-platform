@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { buildActiveDealerHeaders } from "@/lib/active-tenant";
 import { formatCurrency, safeText } from "@/lib/vehicles";
 
 type SendMode = "email" | "whatsapp" | "copy-link";
@@ -178,16 +180,20 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
   useEffect(() => {
     if (!open) return;
 
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setPhone("");
-    setMode("email");
-    setMessage(defaultMessage);
-    setSubmitting(false);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setToast(null);
+    const timerId = window.setTimeout(() => {
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
+      setMode("email");
+      setMessage(defaultMessage);
+      setSubmitting(false);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      setToast(null);
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
   }, [defaultMessage, open]);
 
   useEffect(() => {
@@ -256,11 +262,19 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
         return;
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        throw new Error("Sessione non valida.");
+      }
+
       const response = await fetch("/api/vehicles/send-to-client", {
         method: "POST",
-        headers: {
+        headers: buildActiveDealerHeaders({
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({
           vehicleId: vehicle.id,
           firstName: firstNameValue,

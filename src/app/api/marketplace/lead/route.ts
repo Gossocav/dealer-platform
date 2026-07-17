@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { demoAccessErrorFromUnknown, DemoAccessError, requireDemoEmail } from "@/lib/demo-access";
+import { resolveDealerDemoAccessContext } from "@/lib/demo-access-server";
 import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
-import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 
 type LeadInsertBody = {
@@ -159,27 +160,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Richiesta non inviata. Contatta il supporto." }, { status: 400 });
     }
 
-    const { count: leadCount, error: leadCountError } = await supabaseAdmin
-      .from("leads")
-      .select("id", { count: "exact", head: true })
-      .eq("dealer_id", vehicleData.dealer_id);
-
-    if (leadCountError) {
-      console.error("Lead count lookup failed before insert", {
-        errorType: leadCountError.name ?? "db_error",
-        dealerId: vehicleData.dealer_id,
-      });
-      return NextResponse.json({ error: "Impossibile verificare il limite demo del dealer." }, { status: 500 });
-    }
-
-    const demoAccessContext = await resolveDemoAccessContext(supabaseAdmin, vehicleData.dealer_id, {
-      leadCount: leadCount ?? 0,
-    });
-    const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "lead");
-    if (demoBlock) {
-      return NextResponse.json({ error: demoBlock.message }, { status: 403 });
-    }
-
     const { data: dealerData, error: dealerError } = await supabaseAdmin
       .from("dealers")
       .select("id, email")
@@ -210,6 +190,8 @@ export async function POST(request: Request) {
     ]).select("id, vehicle_id, created_at").maybeSingle<LeadInsertRow>();
 
     if (insertError) {
+      const demoError = demoAccessErrorFromUnknown(insertError);
+      if (demoError) return NextResponse.json(demoError.toResponseBody(), { status: demoError.status });
       console.error("Marketplace lead insert error", {
         errorType: insertError.name ?? "db_error",
         vehicleId,
@@ -241,8 +223,17 @@ export async function POST(request: Request) {
     // 3) Recupero email concessionario dai dati pubblici del dealer.
     const dealerEmail = normalizeEmail(dealerData.email ?? null);
 
+    let emailAllowed = true;
+    try {
+      const demoContext = await resolveDealerDemoAccessContext(supabaseAdmin, vehicleData.dealer_id);
+      requireDemoEmail(demoContext);
+    } catch (error) {
+      if (error instanceof DemoAccessError) emailAllowed = false;
+      else throw error;
+    }
+
     // Best effort email delivery: lead is already saved and must not fail due to email provider errors.
-    await sendEmailsBestEffort({
+    if (emailAllowed) await sendEmailsBestEffort({
       dealerEmail,
       vehicleLabel,
       vehicleBrand: normalizeText(vehicleData.brand) || "-",

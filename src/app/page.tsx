@@ -1,4 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
+
+const rootCanonical = toAbsoluteUrl("/");
+
+export const metadata: Metadata = {
+  title: "Dealer Platform",
+  description: "Piattaforma multi-tenant per concessionarie: marketplace pubblico e area dealer.",
+  alternates: {
+    canonical: rootCanonical,
+  },
+  openGraph: {
+    title: "Dealer Platform",
+    description: "Piattaforma multi-tenant per concessionarie: marketplace pubblico e area dealer.",
+    url: rootCanonical,
+    type: "website",
+  },
+};
 
 export default function HomePage() {
   return (

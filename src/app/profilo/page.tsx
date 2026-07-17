@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { resolveDealerIdForUser } from "@/lib/dealer-association";
+import { getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
 
 type DealerProfile = {
@@ -104,7 +106,9 @@ export default function ProfiloPage() {
 
       let currentDealerId: string | null = null;
       try {
-        currentDealerId = await resolveDealerIdForUser(user.id);
+        currentDealerId = await resolveDealerIdFromTenantSources(supabase, user.id, {
+          activeDealerId: getActiveDealerId(),
+        });
       } catch (error) {
         if (!mounted) return;
         setLoading(false);
@@ -183,6 +187,17 @@ export default function ProfiloPage() {
       setStatusMessage("Il nome concessionaria è obbligatorio.");
       setStatusType("error");
       return;
+    }
+
+    if (dealerId) {
+      const demoAccessContext = await resolveDemoAccessContext(supabase, dealerId);
+      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "write");
+
+      if (demoBlock) {
+        setStatusMessage(demoBlock.message);
+        setStatusType("error");
+        return;
+      }
     }
 
     setSaving(true);

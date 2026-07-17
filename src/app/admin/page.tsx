@@ -258,7 +258,7 @@ export default function AdminHomePage() {
               href="/admin/demo-requests"
               className="inline-flex items-center justify-center rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
             >
-              Richieste demo
+              Gestione richieste e profili Demo
             </Link>
             <Link
               href="/"

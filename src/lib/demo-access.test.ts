@@ -1,83 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { getDemoFeatureBlockReason, getDemoStatusSummary } from "./demo-access";
+import { buildDemoAccessContext, DEMO_OPERATION_POLICIES, DemoAccessError, isDemoModuleKey, requireDemoEmail, requireDemoModule, requireDemoOperational } from "@/lib/demo-access";
+import { getDemoProfileByCode } from "@/lib/demo-profiles";
 
-describe("demo access helpers", () => {
-  it("marks an active demo as writable within limits", () => {
-    const context = getDemoStatusSummary({
-      accountType: "demo",
-      demoStatus: "active",
-      demoStartedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      demoExpiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-      vehicleCount: 3,
-      leadCount: 4,
-      userCount: 1,
-    });
-
-    expect(context.isDemo).toBe(true);
-    expect(context.isDemoActive).toBe(true);
-    expect(context.canWrite).toBe(true);
-    expect(context.daysRemaining).toBeGreaterThan(0);
-    expect(context.usage.vehicle).toBe(3);
-    expect(getDemoFeatureBlockReason(context, "vehicle")).toBeNull();
+function context(overrides: Record<string, unknown> = {}) {
+  const profile = getDemoProfileByCode("base")!;
+  return buildDemoAccessContext({
+    accountType: "demo", demoStatus: "active", profileCode: "base", dealerId: "dealer-1",
+    profileId: "user-1", userId: "user-1", membershipRole: "dealer_member", membershipActive: true,
+    startedAt: "2026-07-15T00:00:00.000Z", expiresAt: "2026-07-22T00:00:00.000Z",
+    modules: profile.modules, limits: profile.limits, marketingServices: profile.marketing_services,
+    provisioningComplete: true, tenantMatches: true, ...overrides,
   });
+}
 
-  it("blocks write access when the demo is expired", () => {
-    const context = getDemoStatusSummary({
-      accountType: "demo",
-      demoStatus: "expired",
-      demoStartedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      demoExpiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      vehicleCount: 2,
-      leadCount: 3,
-      userCount: 1,
-    });
-
-    expect(context.isDemoExpired).toBe(true);
-    expect(context.canWrite).toBe(false);
-    expect(getDemoFeatureBlockReason(context, "vehicle")).toEqual({ code: "DEMO_EXPIRED", message: "La demo e scaduta. Non e possibile eseguire operazioni di scrittura." });
-  });
-
-  it("allows standard paid accounts to write without demo limits", () => {
-    const context = getDemoStatusSummary({
-      accountType: "paid",
-      demoStatus: "converted",
-      demoStartedAt: null,
-      demoExpiresAt: null,
-      vehicleCount: 12,
-      leadCount: 25,
-      userCount: 2,
-    });
-
-    expect(context.isDemo).toBe(false);
-    expect(context.canWrite).toBe(true);
-    expect(getDemoFeatureBlockReason(context, "vehicle")).toBeNull();
-  });
-
-  it("blocks vehicle writes once the demo limit is reached", () => {
-    const context = getDemoStatusSummary({
-      accountType: "demo",
-      demoStatus: "active",
-      demoStartedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      demoExpiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-      vehicleCount: 10,
-      leadCount: 2,
-      userCount: 1,
-    });
-
-    expect(getDemoFeatureBlockReason(context, "vehicle")).toEqual({ code: "DEMO_VEHICLE_LIMIT_REACHED", message: "Hai raggiunto il limite massimo di 10 veicoli per la demo." });
-  });
-
-  it("blocks write access for demo features that are explicitly disabled", () => {
-    const context = getDemoStatusSummary({
-      accountType: "demo",
-      demoStatus: "active",
-      demoStartedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      demoExpiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-      vehicleCount: 2,
-      leadCount: 2,
-      userCount: 1,
-    });
-
-    expect(getDemoFeatureBlockReason(context, "export")).toEqual({ code: "DEMO_EXPORT_NOT_ALLOWED", message: "L'esportazione non e disponibile nella demo." });
-  });
+describe("centralized Demo access", () => {
+  it("does not alter a normal account", () => expect(() => requireDemoModule(context({ accountType: "paid" }), "billing", new Date("2026-07-16"))).not.toThrow());
+  it("allows a valid active Demo", () => expect(() => requireDemoOperational(context(), new Date("2026-07-16"))).not.toThrow());
+  it("blocks an inactive Demo", () => expectCode(() => requireDemoOperational(context({ demoStatus: "configured" }), new Date("2026-07-16")), "DEMO_INACTIVE"));
+  it("computes expiration at runtime", () => expectCode(() => requireDemoOperational(context(), new Date("2026-07-22T00:00:00.000Z")), "DEMO_EXPIRED"));
+  it("blocks a suspended Demo", () => expectCode(() => requireDemoOperational(context({ demoStatus: "suspended" }), new Date("2026-07-16")), "DEMO_SUSPENDED"));
+  it("blocks a revoked Demo with its stable code", () => expectCode(() => requireDemoOperational(context({ demoStatus: "revoked" }), new Date("2026-07-16")), "DEMO_REVOKED"));
+  it("blocks a stale converted Demo context", () => expectCode(() => requireDemoOperational(context({ demoStatus: "converted" }), new Date("2026-07-16")), "DEMO_CONVERTED"));
+  it("blocks a missing membership", () => expectCode(() => requireDemoOperational(context({ membershipActive: false }), new Date("2026-07-16")), "DEMO_MEMBERSHIP_INVALID"));
+  it("blocks a mismatched dealer", () => expectCode(() => requireDemoOperational(context({ tenantMatches: false }), new Date("2026-07-16")), "DEMO_MEMBERSHIP_INVALID"));
+  it("blocks a missing snapshot", () => expectCode(() => requireDemoOperational(context({ modules: {} }), new Date("2026-07-16")), "DEMO_CONTEXT_INVALID"));
+  it("allows an enabled module", () => expect(() => requireDemoModule(context(), "vehicles", new Date("2026-07-16"))).not.toThrow());
+  it("blocks a disabled module", () => expectCode(() => requireDemoModule(context(), "analytics", new Date("2026-07-16")), "DEMO_MODULE_DISABLED"));
+  it("rejects an unknown module key", () => { expect(isDemoModuleKey("root_access")).toBe(false); expectCode(() => requireDemoModule(context(), "root_access" as never, new Date("2026-07-16")), "DEMO_MODULE_DISABLED"); });
+  it("blocks all Demo email sends", () => expectCode(() => requireDemoEmail(context(), new Date("2026-07-16")), "DEMO_EMAIL_DISABLED"));
+  it("uses stable non-sensitive errors", () => { const error = capture(() => requireDemoEmail(context(), new Date("2026-07-16"))); expect(error.toResponseBody()).toEqual({ code: "DEMO_EMAIL_DISABLED", error: "L’invio email non è disponibile per il profilo Demo." }); expect(JSON.stringify(error.toResponseBody())).not.toMatch(/token|password|service.role/i); });
+  it.each([
+    ["vehicles", "vehicles"], ["leads", "leads"], ["clients", "clients"],
+    ["appointments", "calendar"], ["users", "user_management"], ["email", "email_sending"], ["upload", "vehicles"],
+  ] as const)("protects the %s route/flow", (operation, module) => expect(DEMO_OPERATION_POLICIES[operation].module).toBe(module));
 });
+
+function capture(operation: () => void) { try { operation(); } catch (error) { if (error instanceof DemoAccessError) return error; } throw new Error("Expected DemoAccessError"); }
+function expectCode(operation: () => void, code: string) { expect(capture(operation).code).toBe(code); }

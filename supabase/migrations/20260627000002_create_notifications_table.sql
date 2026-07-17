@@ -146,6 +146,7 @@ as $$
 declare
   v_dealer_id uuid := public.current_dealer_id();
   v_inserted integer := 0;
+  v_last_inserted integer := 0;
 begin
   if v_dealer_id is null then
     return 0;
@@ -210,7 +211,8 @@ begin
   cross join dealer_users du
   on conflict (dealer_id, user_id, type, source_type, source_id) do nothing;
 
-  get diagnostics v_inserted = v_inserted + row_count;
+  get diagnostics v_last_inserted = row_count;
+  v_inserted := v_inserted + v_last_inserted;
 
   return v_inserted;
 end;

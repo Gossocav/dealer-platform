@@ -2,7 +2,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
-import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { DemoAccessError, requireDemoModule } from "@/lib/demo-access";
+import { resolveServerDemoAccessContext } from "@/lib/demo-access-server";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
@@ -809,24 +810,7 @@ export async function POST(request: Request) {
 
   const dealerId = resolvedDealerId;
 
-  const { count: vehicleCount, error: vehicleCountError } = await supabaseAuth
-    .from("vehicles")
-    .select("id", { count: "exact", head: true })
-    .eq("dealer_id", dealerId);
-
-  if (vehicleCountError) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Impossibile verificare il limite demo del dealer.",
-      },
-      { status: 500 },
-    );
-  }
-
-  const demoAccessContext = await resolveDemoAccessContext(supabaseAuth, dealerId, {
-    vehicleCount: vehicleCount ?? 0,
-  });
+  const demoAccessContext = await resolveServerDemoAccessContext({ supabase: supabaseAuth, userId: user.id, requestedDealerId: dealerId });
 
   if (!url) {
     return NextResponse.json(
@@ -840,13 +824,8 @@ export async function POST(request: Request) {
 
   if (url === DEMO_FEED_URL) {
     if (action === "import") {
-      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "import");
-      if (demoBlock) {
-        return NextResponse.json(
-          { success: false, message: demoBlock.message },
-          { status: 403 },
-        );
-      }
+      try { requireDemoModule(demoAccessContext, "bulk_import"); requireDemoModule(demoAccessContext, "vehicles"); }
+      catch (error) { if (error instanceof DemoAccessError) return NextResponse.json({ success: false, message: error.message, code: error.code }, { status: error.status }); throw error; }
 
       if (!dealerId) {
         return NextResponse.json(

@@ -18,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { DEMO_FULL_VERSION_MESSAGE } from "@/lib/demo-access";
+import type { DemoModules } from "@/lib/demo-profiles";
 
 type SidebarItem = {
   label: string;
@@ -39,33 +40,23 @@ const sidebarItems: SidebarItem[] = [
   { label: "Logout", href: "/login", icon: LogOut },
 ];
 
-const demoEnabledItems: SidebarItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: Gauge },
-  { label: "Veicoli", href: "/veicoli", icon: Car },
-  { label: "Lead", href: "/lead", icon: Inbox },
-  { label: "Marketplace", href: "/auto", icon: Car },
-  { label: "Report", href: "/statistiche", icon: BarChart3 },
-  { label: "Logout", href: "/login", icon: LogOut },
-];
-
-const demoLockedItems: SidebarItem[] = [
-  { label: "Inserisci Veicolo", href: "/veicoli/nuovo", icon: PlusSquare },
-  { label: "Clienti", href: "/clienti", icon: Users },
-  { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
-  { label: "Email", href: "/email", icon: Mail },
-  { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
-  { label: "Impostazioni", href: "/impostazioni", icon: Settings },
-];
+const sidebarModuleByHref: Partial<Record<string, keyof DemoModules>> = {
+  "/dashboard": "dashboard", "/veicoli": "vehicles", "/veicoli/nuovo": "vehicles",
+  "/lead": "leads", "/clienti": "clients", "/agenda": "calendar", "/email": "email_sending",
+  "/statistiche": "analytics", "/abbonamento": "billing", "/impostazioni": "advanced_settings",
+};
 
 type DealerSidebarProps = {
   isOpen: boolean;
   onClose: () => void;
   isDemo?: boolean;
+  demoModules?: DemoModules | null;
 };
 
-export function DealerSidebar({ isOpen, onClose, isDemo = false }: DealerSidebarProps) {
+export function DealerSidebar({ isOpen, onClose, isDemo = false, demoModules = null }: DealerSidebarProps) {
   const pathname = usePathname();
-  const visibleItems = isDemo ? demoEnabledItems : sidebarItems;
+  const visibleItems = isDemo ? sidebarItems.filter((item) => item.href === "/login" || demoModules?.[sidebarModuleByHref[item.href] ?? "dashboard"] === true) : sidebarItems;
+  const demoLockedItems = isDemo ? sidebarItems.filter((item) => item.href !== "/login" && demoModules?.[sidebarModuleByHref[item.href] ?? "dashboard"] !== true) : [];
 
   return (
     <>

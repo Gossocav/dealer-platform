@@ -7,6 +7,7 @@ import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
+import type { DemoModules } from "@/lib/demo-profiles";
 
 type DealerDashboardShellProps = {
   title: string;
@@ -21,6 +22,7 @@ type ShellDemoBanner = {
   demoStatus: string | null;
   demoExpiresAt: string | null;
   daysRemaining: number;
+  modules: DemoModules;
 };
 
 function formatDateTime(value: string | null) {
@@ -84,6 +86,7 @@ export function DealerDashboardShell({
           demoStatus: demoContext.demoStatus,
           demoExpiresAt: demoContext.demoExpiresAt,
           daysRemaining: demoContext.daysRemaining,
+          modules: demoContext.modules,
         });
       } catch {
         if (active) setDemoBanner(null);
@@ -99,7 +102,7 @@ export function DealerDashboardShell({
 
   return (
     <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top_right,#e0f2fe_0%,#f8fafc_42%,#f8fafc_100%)] pb-8">
-      <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} />
+      <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} demoModules={demoBanner?.modules ?? null} />
 
       <div className="px-4 pt-4 sm:px-6 lg:ml-[17rem] lg:px-8 lg:pt-6">
         <DealerTopbar
@@ -114,7 +117,7 @@ export function DealerDashboardShell({
           {demoBanner?.isDemo ? (
             <section
               className={`rounded-2xl border px-4 py-3 text-sm ${
-                demoBanner.demoStatus === "revoked" || demoBanner.demoStatus === "expired"
+                demoBanner.demoStatus === "revoked" || demoBanner.demoStatus === "expired" || demoBanner.demoStatus === "suspended"
                   ? "border-red-200 bg-red-50 text-red-800"
                   : demoBanner.daysRemaining <= 2
                     ? "border-amber-200 bg-amber-50 text-amber-800"
@@ -122,11 +125,14 @@ export function DealerDashboardShell({
               }`}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.16em]">Versione Demo</p>
-              <p className="mt-1 font-semibold">La tua prova gratuita e attiva</p>
-              <p className="mt-1">
-                Stato: {demoBanner.demoStatus ?? "active"} | Giorni rimanenti: {demoBanner.daysRemaining} | Scadenza: {formatDateTime(demoBanner.demoExpiresAt)}
+              <p className="mt-1 font-semibold">
+                {demoBanner.demoStatus === "expired" ? "La Demo è scaduta. Contatta l’amministratore per proseguire."
+                  : demoBanner.demoStatus === "suspended" ? "La Demo è temporaneamente sospesa. Contatta l’amministratore."
+                    : demoBanner.demoStatus === "revoked" ? "L’accesso Demo è stato revocato."
+                      : "La tua prova gratuita è attiva"}
               </p>
-              <p className="mt-1">Stai utilizzando Dealer Platform in modalita Demo. Alcune funzioni sono limitate durante il periodo di prova.</p>
+              <p className="mt-1">Stato: {demoBanner.demoStatus ?? "active"} | Giorni rimanenti: {demoBanner.daysRemaining} | Scadenza: {formatDateTime(demoBanner.demoExpiresAt)}</p>
+              {demoBanner.demoStatus === "active" ? <p className="mt-1">Stai utilizzando Dealer Platform in modalità Demo. Alcune funzioni sono limitate durante il periodo di prova.</p> : null}
               <div className="mt-2">
                 <a
                   href="mailto:support@dealerplatform.it"

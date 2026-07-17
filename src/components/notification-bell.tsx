@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { resolveDealerIdForUser } from "@/lib/dealer-association";
+import { getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
 
 type NotificationItem = {
@@ -35,7 +36,9 @@ export function NotificationBell() {
 
       setUserId(user.id);
 
-      const currentDealerId = await resolveDealerIdForUser(user.id);
+      const currentDealerId = await resolveDealerIdFromTenantSources(supabase, user.id, {
+        activeDealerId: getActiveDealerId(),
+      });
 
       if (!mounted) return;
 

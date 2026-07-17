@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { hitRateLimit } from "@/lib/api-rate-limit";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 
 type PlateLookupBody = {
   licensePlate?: string;
@@ -23,9 +26,72 @@ type VehicleLookupResponse = {
 };
 
 const PLATE_PATTERN = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
+const PLATE_LOOKUP_RATE_LIMIT = {
+  windowMs: 60_000,
+  maxRequests: 20,
+};
+
+function normalizeActiveDealerId(value: string | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized;
+}
 
 export async function POST(request: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
+    }
+
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader?.toLowerCase().startsWith("bearer ")) {
+      return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user?.id) {
+      return NextResponse.json({ error: "Utente non autenticato." }, { status: 401 });
+    }
+
+    const resolvedDealerId = await resolveDealerIdFromTenantSources(supabase, user.id, {
+      activeDealerId: normalizeActiveDealerId(request.headers.get("x-active-dealer-id")),
+    });
+
+    if (!resolvedDealerId) {
+      return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 403 });
+    }
+
+    const clientIp = getClientIp(request);
+    const rateLimitKey = `plate-lookup:${user.id}:${clientIp || "unknown"}`;
+
+    const rateLimit = hitRateLimit(rateLimitKey, PLATE_LOOKUP_RATE_LIMIT);
+    if (rateLimit.limited) {
+      return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
+    }
+
     const body = (await request.json()) as PlateLookupBody;
     const normalizedPlate = normalizePlate(body.licensePlate);
 
@@ -56,10 +122,7 @@ export async function POST(request: Request) {
     }
 
     if (!upstreamResponse.ok) {
-      const fallbackMessage = `Lookup targa fallito (HTTP ${upstreamResponse.status}).`;
-      const upstreamError = await safeReadJson(upstreamResponse);
-      const message = findString(upstreamError, ["error", "message", "detail"]) || fallbackMessage;
-      return NextResponse.json({ error: message }, { status: 500 });
+      return NextResponse.json({ error: "Servizio lookup targa temporaneamente non disponibile." }, { status: 502 });
     }
 
     const upstreamData = await safeReadJson(upstreamResponse);
@@ -164,4 +227,20 @@ function toCleanString(value: unknown) {
   }
 
   return value.trim();
+}
+
+function getClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const first = forwardedFor.split(",")[0]?.trim();
+    if (first) return first;
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  const cfConnectingIp = request.headers.get("cf-connecting-ip")?.trim();
+  if (cfConnectingIp) return cfConnectingIp;
+
+  return null;
 }

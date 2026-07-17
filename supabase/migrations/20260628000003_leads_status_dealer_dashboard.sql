@@ -4,6 +4,27 @@ alter table public.leads
   add column if not exists status text,
   add column if not exists updated_at timestamptz default now();
 
+do $$
+declare
+  r record;
+begin
+  for r in
+    select c.conname
+    from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    join pg_namespace n on n.oid = t.relnamespace
+    where n.nspname = 'public'
+      and t.relname = 'leads'
+      and c.contype = 'c'
+      and pg_get_constraintdef(c.oid) ilike '%status%'
+  loop
+    execute format('alter table public.leads drop constraint if exists %I', r.conname);
+  end loop;
+end;
+$$;
+
+alter table public.leads disable trigger trg_enforce_lead_dealer_id;
+
 update public.leads
 set status = case lower(coalesce(status, ''))
   when 'created' then 'nuovo'
@@ -24,24 +45,7 @@ update public.leads
 set updated_at = now()
 where updated_at is null;
 
-do $$
-declare
-  r record;
-begin
-  for r in
-    select c.conname
-    from pg_constraint c
-    join pg_class t on t.oid = c.conrelid
-    join pg_namespace n on n.oid = t.relnamespace
-    where n.nspname = 'public'
-      and t.relname = 'leads'
-      and c.contype = 'c'
-      and pg_get_constraintdef(c.oid) ilike '%status%'
-  loop
-    execute format('alter table public.leads drop constraint if exists %I', r.conname);
-  end loop;
-end;
-$$;
+alter table public.leads enable trigger trg_enforce_lead_dealer_id;
 
 alter table public.leads
   alter column status set default 'nuovo',

@@ -4,7 +4,6 @@ alter table public.dealers
   add column if not exists whatsapp_phone text;
 
 alter table public.profiles
-  alter column email drop not null,
   drop column if exists phone,
   drop column if exists email,
   drop column if exists contact_name;

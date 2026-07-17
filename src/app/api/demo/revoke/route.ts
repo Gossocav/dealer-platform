@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
-import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
+import { normalizeDemoLifecycleReason } from "@/lib/demo-lifecycle";
 
 function extractBearerToken(authHeader: string | null) {
   const raw = String(authHeader ?? "").trim();
@@ -42,29 +42,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Accesso negato." }, { status: 403 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { dealerId?: string };
+  const body = (await request.json().catch(() => ({}))) as { dealerId?: string; reason?: unknown };
   const dealerId = String(body.dealerId ?? "").trim();
-  if (!dealerId) {
-    return NextResponse.json({ error: "dealerId obbligatorio." }, { status: 400 });
+  const reason = normalizeDemoLifecycleReason(body.reason);
+  if (!dealerId || !reason) {
+    return NextResponse.json({ error: "Dealer e motivazione sono obbligatori." }, { status: 400 });
   }
-
-  const now = new Date().toISOString();
-  const { error } = await supabaseAdmin.from("dealers").update({
-    demo_status: "revoked",
-    demo_revoked_at: now,
-    updated_at: now,
-  }).eq("id", dealerId);
-
-  if (error) {
-    return NextResponse.json({ error: error.message || "Errore revoca demo." }, { status: 500 });
-  }
-
-  await createDemoAccessAuditEntry(supabaseAdmin, {
-    dealerId,
-    actorProfileId: user.id,
-    action: "demo.revoked",
-    metadata: { revokedAt: now },
-  });
-
+  const linked = await supabaseAdmin.from("dealers").select("demo_request_id").eq("id", dealerId).maybeSingle<{ demo_request_id: string | null }>();
+  if (linked.error || !linked.data?.demo_request_id) return NextResponse.json({ error: "Demo non trovata." }, { status: 404 });
+  const transition = await supabaseAdmin.rpc("transition_demo_lifecycle", { p_request_id: linked.data.demo_request_id, p_actor_id: user.id, p_action: "revoke_demo", p_reason: reason });
+  const outcome = transition.data && typeof transition.data === "object" && "outcome" in transition.data ? String(transition.data.outcome) : null;
+  if (transition.error || !["updated", "already_applied"].includes(outcome ?? "")) return NextResponse.json({ error: "Revoca Demo non consentita." }, { status: 409 });
   return NextResponse.json({ ok: true }, { status: 200 });
 }

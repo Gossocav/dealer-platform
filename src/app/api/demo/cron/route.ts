@@ -1,12 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
+import { safeEqualSecret } from "@/lib/demo-lifecycle";
 
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;
   const provided = request.headers.get("x-cron-secret");
 
-  if (!secret || provided !== secret) {
+  if (!safeEqualSecret(provided, secret)) {
     return NextResponse.json({ error: "Accesso negato." }, { status: 403 });
   }
 
@@ -21,30 +21,12 @@ export async function POST(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("dealers")
-    .select("id")
-    .eq("account_type", "demo")
-    .eq("demo_status", "active")
-    .lt("demo_expires_at", now);
+  const { data, error } = await supabaseAdmin.rpc("expire_due_demos");
 
   if (error) {
-    return NextResponse.json({ error: error.message || "Errore aggiornamento demo scadute." }, { status: 500 });
+    console.error("[demo-cron]", { action: "expire_due_demos", message: error.message, details: error.details, hint: error.hint });
+    return NextResponse.json({ error: "Scadenza Demo temporaneamente non disponibile." }, { status: 500 });
   }
-
-  for (const dealer of data ?? []) {
-    await supabaseAdmin.from("dealers").update({
-      demo_status: "expired",
-      updated_at: now,
-    }).eq("id", dealer.id);
-
-    await createDemoAccessAuditEntry(supabaseAdmin, {
-      dealerId: dealer.id,
-      action: "demo.expired",
-      metadata: { triggeredAt: now },
-    });
-  }
-
-  return NextResponse.json({ processed: (data ?? []).length }, { status: 200 });
+  const processed = typeof data === "object" && data && "processed" in data ? Number(data.processed) || 0 : 0;
+  return NextResponse.json({ processed }, { status: 200 });
 }

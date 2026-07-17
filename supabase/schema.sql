@@ -41,12 +41,13 @@ create table if not exists public.profiles (
 
 create table if not exists public.demo_requests (
   id uuid primary key default gen_random_uuid(),
-  company_name text not null,
+  dealership_name text not null,
+  company_name text,
   contact_name text not null,
   email text not null,
-  phone text not null,
-  city text not null,
-  vehicle_count text not null,
+  phone text,
+  city text,
+  vehicle_count integer,
   message text,
   status text not null default 'pending',
   created_at timestamptz not null default now(),

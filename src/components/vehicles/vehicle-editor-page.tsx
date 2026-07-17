@@ -10,7 +10,7 @@ import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehi
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
-import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { demoAccessMessageFromUnknown, getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { supabase } from "@/lib/supabaseClient";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -795,7 +795,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .single<{ id: string; dealer_id: string | null }>();
 
       if (createError || !data?.id) {
-        setError(createError?.message || "Errore durante creazione veicolo.");
+        setError(demoAccessMessageFromUnknown(createError, createError?.message || "Errore durante creazione veicolo."));
         setSaving(false);
         return;
       }

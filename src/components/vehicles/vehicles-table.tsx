@@ -1,5 +1,6 @@
 import { ArrowDownAZ, ArrowUpAZ, Copy, Eye, Pencil, Rocket, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { formatDate, type VehicleListItem, type VehicleSortState } from "@/lib/vehicles";
 
 type VehiclesTableProps = {
@@ -103,6 +104,10 @@ export function VehiclesTable({
             {items.map((vehicle) => {
               const isBusy = busyVehicleId === vehicle.id;
               const isSelected = selectedVehicleIds.includes(vehicle.id);
+              const health = evaluateVehicleHealth({
+                vehicle: vehicle.raw,
+                imagesCount: Array.isArray(vehicle.raw.vehicle_images) ? vehicle.raw.vehicle_images.length : undefined,
+              });
 
               return (
                 <tr key={vehicle.id} className="rounded-2xl bg-slate-50 text-slate-700">
@@ -130,6 +135,9 @@ export function VehiclesTable({
                           {vehicle.brand} {vehicle.model}
                         </p>
                         <p className="text-xs text-slate-500">{vehicle.version}</p>
+                        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                          Health {health.score}/100 - {health.level}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -169,7 +177,7 @@ export function VehiclesTable({
                       <button
                         type="button"
                         onClick={() => onTogglePublished(vehicle)}
-                        disabled={isBusy || vehicle.status === "sold"}
+                        disabled={isBusy || vehicle.status === "sold" || (vehicle.status !== "published" && !health.publishable)}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Rocket className="h-3.5 w-3.5" /> {vehicle.status === "published" ? "Bozza" : "Pubblica"}

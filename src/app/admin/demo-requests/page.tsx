@@ -2,6 +2,18 @@
 
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import {
+  DEMO_GOOGLE_ADS_NOTE,
+  DEMO_LIMIT_KEYS,
+  DEMO_MARKETING_SERVICE_KEYS,
+  DEMO_MODULE_KEYS,
+  getDemoProfileByCode,
+  listEnabledDemoProfiles,
+  type DemoLimits,
+  type DemoMarketingServices,
+  type DemoModules,
+  type DemoProfileCode,
+} from "@/lib/demo-profiles";
 import { supabase } from "@/lib/supabaseClient";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected";
@@ -9,6 +21,8 @@ type DemoAdminAction =
   | "mark_contacted"
   | "activate_demo"
   | "reject"
+  | "suspend_demo"
+  | "reactivate_demo"
   | "revoke_demo"
   | "convert_demo"
   | "view_document"
@@ -41,7 +55,24 @@ type DemoRequestRow = {
   demo_status?: string | null;
   demo_started_at?: string | null;
   demo_expires_at?: string | null;
+  activated_at?: string | null;
   linked_dealer_id?: string | null;
+  demo_profile_id?: string | null;
+  demo_profile_code?: DemoProfileCode | null;
+  demo_profile_price_monthly?: number | null;
+  demo_duration_days?: number | null;
+  demo_modules?: DemoModules | Record<string, unknown> | null;
+  demo_limits?: DemoLimits | Record<string, unknown> | null;
+  demo_marketing_services?: DemoMarketingServices | Record<string, unknown> | null;
+  assigned_marketing_manager?: string | null;
+  expired_at?: string | null;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  reactivated_at?: string | null;
+  revoked_at?: string | null;
+  revocation_reason?: string | null;
+  converted_at?: string | null;
+  lifecycle_version?: number | null;
 };
 
 type PageState = {
@@ -54,6 +85,13 @@ type PageState = {
 type DemoRequestsApiPayload = {
   error?: string;
   requests?: DemoRequestRow[];
+  requestId?: string;
+  demoProfileCode?: DemoProfileCode;
+  demoProfileName?: string;
+  demoModules?: Record<string, unknown>;
+  demoLimits?: Record<string, unknown>;
+  demoMarketingServices?: Record<string, unknown>;
+  request?: DemoRequestRow;
 };
 
 type DemoRequestsFetchResult = {
@@ -99,9 +137,13 @@ function getStatusBadgeClass(status: DemoRequestStatus | null) {
   return "bg-slate-100 text-slate-700";
 }
 
-function getActionsForStatus(status: DemoRequestStatus | null): DemoAdminAction[] {
-  if (status === "pending") return ["mark_contacted", "activate_demo", "reject"];
-  if (status === "contacted") return ["activate_demo", "reject"];
+function getActionsForStatus(status: DemoRequestStatus | null, demoStatus: string | null | undefined): DemoAdminAction[] {
+  const canActivate = demoStatus === "configured" || demoStatus === "ready_for_activation";
+  if (demoStatus === "active") return ["suspend_demo", "revoke_demo", "convert_demo"];
+  if (demoStatus === "suspended" || demoStatus === "expired") return ["reactivate_demo", "revoke_demo", "convert_demo"];
+  if (demoStatus === "revoked" || demoStatus === "converted") return [];
+  if (status === "pending") return ["mark_contacted", ...(canActivate ? ["activate_demo" as const] : []), "reject"];
+  if (status === "contacted") return [...(canActivate ? ["activate_demo" as const] : []), "reject"];
   if (status === "activated") return ["convert_demo", "revoke_demo"];
   return [];
 }
@@ -111,6 +153,8 @@ function getActionLabel(action: DemoAdminAction) {
   if (action === "activate_demo") return "Attiva demo";
   if (action === "convert_demo") return "Converti Demo";
   if (action === "revoke_demo") return "Revoca Demo";
+  if (action === "suspend_demo") return "Sospendi Demo";
+  if (action === "reactivate_demo") return "Riattiva Demo";
   return "Rifiuta";
 }
 
@@ -119,6 +163,8 @@ function getActionClass(action: DemoAdminAction) {
   if (action === "activate_demo") return "bg-emerald-600 hover:bg-emerald-700";
   if (action === "convert_demo") return "bg-indigo-600 hover:bg-indigo-700";
   if (action === "revoke_demo") return "bg-orange-600 hover:bg-orange-700";
+  if (action === "suspend_demo") return "bg-amber-600 hover:bg-amber-700";
+  if (action === "reactivate_demo") return "bg-emerald-600 hover:bg-emerald-700";
   return "bg-rose-600 hover:bg-rose-700";
 }
 
@@ -148,10 +194,21 @@ function formatFileSize(value: number | null | undefined) {
   return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function formatDemoProfileLabel(value: DemoProfileCode | null | undefined) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized.length > 0 ? normalized : "-";
+}
+
+function getDemoProfileDetails(code: DemoProfileCode | null | undefined) {
+  return getDemoProfileByCode(code);
+}
+
 const DEMO_REQUESTS_DEBUG = process.env.NODE_ENV !== "production";
 const DEMO_REQUESTS_CACHE_TTL_MS = 10_000;
+const DEMO_PROFILES = listEnabledDemoProfiles();
 
 let demoRequestsInFlight: Promise<DemoRequestsFetchResult> | null = null;
+let demoRequestsCacheGeneration = 0;
 let demoRequestsCache: {
   token: string;
   result: DemoRequestsFetchResult;
@@ -176,6 +233,7 @@ async function fetchAdminDemoRequests(token: string): Promise<DemoRequestsFetchR
   }
 
   if (!demoRequestsInFlight) {
+    const cacheGeneration = demoRequestsCacheGeneration;
     demoRequestsInFlight = (async () => {
       const response = await fetch("/api/admin/demo-requests", {
         method: "GET",
@@ -191,7 +249,7 @@ async function fetchAdminDemoRequests(token: string): Promise<DemoRequestsFetchR
         fromCache: false,
       };
 
-      if (response.ok) {
+      if (response.ok && cacheGeneration === demoRequestsCacheGeneration) {
         demoRequestsCache = {
           token,
           result,
@@ -208,6 +266,12 @@ async function fetchAdminDemoRequests(token: string): Promise<DemoRequestsFetchR
   return demoRequestsInFlight;
 }
 
+function invalidateDemoRequestsCache() {
+  demoRequestsCacheGeneration += 1;
+  demoRequestsCache = null;
+  demoRequestsInFlight = null;
+}
+
 export default function AdminDemoRequestsPage() {
   const [state, setState] = useState<PageState>({
     loading: true,
@@ -216,6 +280,14 @@ export default function AdminDemoRequestsPage() {
     requests: [],
   });
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [configuringRequestId, setConfiguringRequestId] = useState<string | null>(null);
+  const [selectedDemoProfileCode, setSelectedDemoProfileCode] = useState<DemoProfileCode>("base");
+  const [durationDays, setDurationDays] = useState(7);
+  const [moduleOverrides, setModuleOverrides] = useState<DemoModules>(() => ({ ...getDemoProfileByCode("base")!.modules }));
+  const [limitOverrides, setLimitOverrides] = useState<DemoLimits>(() => ({ ...getDemoProfileByCode("base")!.limits }));
+  const [marketingServiceOverrides, setMarketingServiceOverrides] = useState<DemoMarketingServices>(() => ({ ...getDemoProfileByCode("base")!.marketing_services }));
+  const [assignedMarketingManager, setAssignedMarketingManager] = useState("");
+  const [savingDemoConfiguration, setSavingDemoConfiguration] = useState(false);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
   const requestSequenceRef = useRef(0);
@@ -412,6 +484,31 @@ export default function AdminDemoRequestsPage() {
   }, []);
 
   const submitAction = async (requestId: string, action: DemoAdminAction) => {
+    if (action === "activate_demo" && !window.confirm("Confermi l'attivazione della Demo configurata? Verranno associati tenant e accesso cliente.")) {
+      return;
+    }
+    let reason: string | undefined;
+    let durationDays: number | undefined;
+    if (action === "suspend_demo" || action === "revoke_demo") {
+      const entered = window.prompt(action === "suspend_demo" ? "Motivazione della sospensione:" : "Motivazione della revoca definitiva:");
+      if (entered === null) return;
+      reason = entered.trim();
+      if (reason.length < 3 || reason.length > 500) {
+        setState((current) => ({ ...current, error: "Inserisci una motivazione da 3 a 500 caratteri." }));
+        return;
+      }
+    }
+    if (action === "reactivate_demo") {
+      const entered = window.prompt("Durata del nuovo periodo Demo (1-30 giorni):", "7");
+      if (entered === null) return;
+      durationDays = Number(entered);
+      if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
+        setState((current) => ({ ...current, error: "La durata deve essere compresa tra 1 e 30 giorni." }));
+        return;
+      }
+    }
+    if ((action === "convert_demo" || action === "revoke_demo") && !window.confirm(action === "convert_demo" ? "Confermi la conversione definitiva in cliente?" : "Confermi la revoca definitiva della Demo?")) return;
+    const currentRequest = state.requests.find((item) => item.id === requestId);
     setBusyRequestId(requestId);
 
     const {
@@ -428,18 +525,26 @@ export default function AdminDemoRequestsPage() {
       return;
     }
 
-    const response = await fetch("/api/admin/demo-requests", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ requestId, action }),
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/admin/demo-requests", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ requestId, action, reason, durationDays, lifecycleVersion: currentRequest?.lifecycle_version }),
+      });
+    } catch {
+      setState((current) => ({ ...current, error: "Servizio Admin temporaneamente non disponibile." }));
+      setBusyRequestId(null);
+      return;
+    }
 
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
       status?: DemoRequestStatus;
+      request?: DemoRequestRow;
     };
 
     if (!response.ok) {
@@ -451,12 +556,13 @@ export default function AdminDemoRequestsPage() {
       return;
     }
 
+    if (action === "activate_demo" || ["suspend_demo", "reactivate_demo", "revoke_demo", "convert_demo"].includes(action)) invalidateDemoRequestsCache();
     setState((current) => ({
       ...current,
       error: null,
       requests: current.requests.map((request) =>
         request.id === requestId
-          ? {
+          ? payload.request ?? {
               ...request,
               status: payload.status ?? request.status,
             }
@@ -465,6 +571,115 @@ export default function AdminDemoRequestsPage() {
     }));
 
     setBusyRequestId(null);
+  };
+
+  const applyProfileDefaults = (code: DemoProfileCode) => {
+    const profile = getDemoProfileByCode(code);
+    if (!profile) return;
+    setSelectedDemoProfileCode(code);
+    setDurationDays(profile.duration_days);
+    setModuleOverrides({ ...profile.modules });
+    setLimitOverrides({ ...profile.limits });
+    setMarketingServiceOverrides({ ...profile.marketing_services });
+  };
+
+  const openConfiguration = (request: DemoRequestRow) => {
+    const code = request.demo_profile_code ?? "base";
+    const profile = getDemoProfileByCode(code);
+    setConfiguringRequestId(request.id);
+    applyProfileDefaults(code);
+    if (profile && request.demo_profile_code) {
+      setDurationDays(request.demo_duration_days ?? profile.duration_days);
+      setModuleOverrides({ ...profile.modules, ...(request.demo_modules ?? {}) });
+      setLimitOverrides({ ...profile.limits, ...(request.demo_limits ?? {}) });
+      setMarketingServiceOverrides({ ...profile.marketing_services, ...(request.demo_marketing_services ?? {}) });
+      setAssignedMarketingManager(request.assigned_marketing_manager ?? "");
+    } else {
+      setAssignedMarketingManager("");
+    }
+  };
+
+  const closeConfiguration = () => {
+    setConfiguringRequestId(null);
+  };
+
+  const saveDemoConfiguration = async () => {
+    if (!configuringRequestId || savingDemoConfiguration) {
+      return;
+    }
+
+    setSavingDemoConfiguration(true);
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        setState((current) => ({
+          ...current,
+          error: sessionError?.message || "Sessione non valida.",
+        }));
+        return;
+      }
+
+      const response = await fetch("/api/admin/demo-requests", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          requestId: configuringRequestId,
+          action: "configure_demo",
+          demoProfileCode: selectedDemoProfileCode,
+          durationDays,
+          moduleOverrides,
+          limitOverrides,
+          marketingServiceOverrides,
+          assignedMarketingManager: assignedMarketingManager.trim() || null,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        demoProfileCode?: DemoProfileCode;
+        demoModules?: Record<string, unknown>;
+        demoLimits?: Record<string, unknown>;
+        demoMarketingServices?: Record<string, unknown>;
+        request?: DemoRequestRow;
+      };
+
+      if (!response.ok) {
+        setState((current) => ({
+          ...current,
+          error: payload.error || "Aggiornamento configurazione non riuscito.",
+        }));
+        return;
+      }
+
+      if (!payload.request) {
+        setState((current) => ({ ...current, error: "Risposta configurazione incompleta." }));
+        return;
+      }
+
+      invalidateDemoRequestsCache();
+      const updatedRequest = payload.request;
+      setState((current) => ({
+        ...current,
+        error: null,
+        requests: current.requests.map((request) =>
+          request.id === configuringRequestId
+            ? updatedRequest
+            : request
+        ),
+      }));
+
+      closeConfiguration();
+    } finally {
+      setSavingDemoConfiguration(false);
+    }
   };
 
   const viewDocument = async (event: MouseEvent<HTMLButtonElement>, requestId: string) => {
@@ -608,6 +823,7 @@ export default function AdminDemoRequestsPage() {
                   <th className="px-4 py-3">Telefono</th>
                   <th className="px-4 py-3">Citta</th>
                   <th className="px-4 py-3">Numero veicoli</th>
+                  <th className="px-4 py-3">Profilo Demo</th>
                   <th className="px-4 py-3">Visura</th>
                   <th className="px-4 py-3">Stato richiesta</th>
                   <th className="px-4 py-3">Stato demo</th>
@@ -620,14 +836,14 @@ export default function AdminDemoRequestsPage() {
               <tbody className="divide-y divide-slate-100">
                 {state.requests.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={14}>
+                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={15}>
                       Nessuna richiesta demo disponibile.
                     </td>
                   </tr>
                 ) : (
                   state.requests.map((request) => {
                     const status = normalizeStatus(request.status);
-                    const actions = getActionsForStatus(status);
+                    const actions = getActionsForStatus(status, request.demo_status);
                     const busy = busyRequestId === request.id;
                     const viewing = viewingDocumentId === request.id;
                     const downloading = downloadingDocumentId === request.id;
@@ -641,6 +857,37 @@ export default function AdminDemoRequestsPage() {
                         <td className="px-4 py-3 text-slate-700">{request.phone}</td>
                         <td className="px-4 py-3 text-slate-700">{request.city}</td>
                         <td className="px-4 py-3 text-slate-700">{request.vehicle_count ?? "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {request.demo_profile_code ? (
+                            <div className="space-y-2">
+                              <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                                Profilo Demo: {formatDemoProfileLabel(request.demo_profile_code)}
+                              </span>
+                              <div className="space-y-1 text-xs text-slate-600">
+                                <p>Stato: {request.demo_status ?? "-"}</p>
+                                <p>Durata snapshot: {request.demo_duration_days ?? "-"} giorni</p>
+                                <p>Prezzo: {request.demo_profile_price_monthly === null || request.demo_profile_price_monthly === undefined ? "Non definito" : `€ ${request.demo_profile_price_monthly}/mese`}</p>
+                                <p>Moduli attivi: {Object.values(request.demo_modules ?? {}).filter((value) => value === true).length}</p>
+                                {request.assigned_marketing_manager ? <p>Marketing manager: {request.assigned_marketing_manager}</p> : null}
+                                {request.demo_profile_code === "elite" ? (
+                                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                                    <p className="font-semibold">Servizi Marketing inclusi</p>
+                                    <ul className="mt-1 space-y-1">
+                                      <li>✔ Social Dealer Platform</li>
+                                      <li>✔ Gestione Google Ads</li>
+                                      <li>✔ Report Mensile</li>
+                                    </ul>
+                                    <p className="mt-2 text-xs font-medium text-amber-800">{DEMO_GOOGLE_ADS_NOTE}</p>
+                                  </div>
+                                ) : (
+                                  <p className="text-slate-500">Configurazione salvata in snapshot.</p>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Non configurato</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-slate-700">
                           {request.chamber_document_path ? (
                             <div className="space-y-2">
@@ -675,30 +922,43 @@ export default function AdminDemoRequestsPage() {
                             {toStatusLabel(status)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{request.demo_status ?? "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <p>{request.demo_status ?? "-"}</p>
+                          {request.demo_status === "active" ? <p className="mt-1 text-xs text-slate-500">Inizio: {formatDate(request.demo_started_at)}</p> : null}
+                          {request.demo_status === "suspended" && request.suspension_reason ? <p className="mt-1 text-xs text-amber-700">Motivo: {request.suspension_reason}</p> : null}
+                          {request.demo_status === "revoked" && request.revocation_reason ? <p className="mt-1 text-xs text-rose-700">Motivo: {request.revocation_reason}</p> : null}
+                        </td>
                         <td className="px-4 py-3 text-slate-700">
                           {formatDate(request.demo_expires_at)} ({formatDaysRemaining(request.demo_expires_at)})
                         </td>
                         <td className="px-4 py-3 text-slate-700">{request.linked_dealer_id ?? "-"}</td>
                         <td className="px-4 py-3 text-slate-700">{formatDate(request.created_at)}</td>
                         <td className="px-4 py-3">
-                          {actions.length === 0 ? (
-                            <div className="flex items-center justify-end text-xs text-slate-500">Nessuna azione</div>
-                          ) : (
-                            <div className="flex flex-wrap items-center justify-end gap-2">
-                              {actions.map((action) => (
-                                <button
-                                  key={`${request.id}-${action}`}
-                                  type="button"
-                                  onClick={() => void submitAction(request.id, action)}
-                                  disabled={busy}
-                                  className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
-                                >
-                                  {getActionLabel(action)}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openConfiguration(request)}
+                              disabled={["active", "expired", "suspended", "revoked", "converted"].includes(request.demo_status ?? "")}
+                              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {request.demo_profile_code ? "Modifica configurazione" : "Configura Demo"}
+                            </button>
+                            {actions.length === 0 ? null : (
+                              <>
+                                {actions.map((action) => (
+                                  <button
+                                    key={`${request.id}-${action}`}
+                                    type="button"
+                                    onClick={() => void submitAction(request.id, action)}
+                                    disabled={busy}
+                                    className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
+                                  >
+                                    {getActionLabel(action)}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -708,6 +968,242 @@ export default function AdminDemoRequestsPage() {
             </table>
           </div>
         </section>
+
+        {configuringRequestId ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+            <div className="max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_35px_120px_-40px_rgba(15,23,42,0.55)]">
+              <div className="border-b border-slate-200 bg-[linear-gradient(120deg,_#f8fafc_0%,_#eff6ff_50%,_#ecfeff_100%)] px-6 py-5 sm:px-8">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Configura Demo</p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900">Scegli il profilo Demo da salvare sulla richiesta</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  La configurazione salva solo il profilo, i moduli e i limiti associati alla richiesta. Non attiva la demo.
+                </p>
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto px-6 py-6 sm:px-8">
+                <div className="grid gap-4 xl:grid-cols-3">
+                  {DEMO_PROFILES.map((profile) => {
+                    const isSelected = selectedDemoProfileCode === profile.code;
+
+                    return (
+                      <button
+                        key={profile.code}
+                        type="button"
+                        onClick={() => applyProfileDefaults(profile.code)}
+                        className={`group flex h-full flex-col rounded-[28px] border p-5 text-left transition ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50 shadow-[0_22px_60px_-30px_rgba(37,99,235,0.65)]"
+                            : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{profile.code.toUpperCase()}</p>
+                            <h3 className="mt-2 text-xl font-semibold text-slate-900">{profile.name}</h3>
+                          </div>
+                          {profile.code === "elite" ? (
+                            <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                              ⭐ {profile.badgeLabel ?? "Consigliata"}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <p className="mt-4 text-sm leading-6 text-slate-600">{profile.description}</p>
+
+                        <p className="mt-4 text-2xl font-semibold text-slate-900">
+                          {profile.price_monthly === null ? "Prezzo da definire" : `€ ${profile.price_monthly}/mese`}
+                        </p>
+
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Durata</p>
+                          <p className="mt-1 text-lg font-semibold text-slate-900">{profile.duration_days} giorni</p>
+                          <p className="mt-2 text-xs text-slate-500">Profilo scalabile, pronto per futuri livelli di configurazione.</p>
+                        </div>
+
+                        <div className="mt-5 space-y-4 text-sm text-slate-700">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Principali funzionalita</p>
+                            <ul className="mt-2 space-y-1.5">
+                              {profile.mainFeatures.map((feature) => (
+                                <li key={feature} className="flex gap-2">
+                                  <span className="mt-0.5 text-blue-600">•</span>
+                                  <span>{feature}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Numero utenti</p>
+                              <p className="mt-1 text-lg font-semibold text-slate-900">{profile.limits.max_users}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Numero veicoli</p>
+                              <p className="mt-1 text-lg font-semibold text-slate-900">{profile.limits.max_vehicles}</p>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Servizi inclusi</p>
+                            <ul className="mt-2 space-y-1.5">
+                              {profile.includedServices.map((service) => (
+                                <li key={service} className="flex gap-2 text-slate-700">
+                                  <span className="mt-0.5 text-emerald-600">✔</span>
+                                  <span>{service}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {profile.code === "elite" ? (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Marketing Digitale</p>
+                              <p className="mt-2 text-sm font-medium">Visibilità social · Gestione Google Ads · Report mensile</p>
+                              <p className="mt-3 text-xs font-semibold leading-5 text-amber-800">Budget pubblicitario escluso</p>
+                              <p className="mt-2 text-xs leading-5 text-amber-800">{DEMO_GOOGLE_ADS_NOTE}</p>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-xs text-slate-500">
+                          <span>{profile.enabled ? "Profilo attivo" : "Profilo disattivato"}</span>
+                          <span className={isSelected ? "font-semibold text-blue-700" : ""}>{isSelected ? "Selezionato" : "Seleziona"}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 grid gap-5 lg:grid-cols-2">
+                  <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="text-sm font-semibold text-slate-900">Durata e moduli</h3>
+                    <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Durata (1-30 giorni)
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={durationDays}
+                        onChange={(event) => setDurationDays(Number(event.target.value))}
+                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      />
+                    </label>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      {DEMO_MODULE_KEYS.map((key) => (
+                        <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={moduleOverrides[key]}
+                            onChange={(event) => setModuleOverrides((current) => ({ ...current, [key]: event.target.checked }))}
+                          />
+                          {key}
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="text-sm font-semibold text-slate-900">Limiti snapshot</h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {DEMO_LIMIT_KEYS.map((key) => {
+                        const value = limitOverrides[key];
+                        return typeof value === "boolean" ? (
+                          <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={value}
+                              onChange={(event) => setLimitOverrides((current) => ({ ...current, [key]: event.target.checked }))}
+                            />
+                            {key}
+                          </label>
+                        ) : (
+                          <label key={key} className="text-xs font-medium text-slate-600">
+                            {key}
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={value}
+                              onChange={(event) => setLimitOverrides((current) => ({ ...current, [key]: Number(event.target.value) }))}
+                              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="text-sm font-semibold text-slate-900">Servizi marketing</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selectedDemoProfileCode === "elite" ? "Modificabili esclusivamente per il profilo Elite." : "Non disponibili per Base e Pro."}
+                    </p>
+                    <div className="mt-4 grid gap-2">
+                      {DEMO_MARKETING_SERVICE_KEYS.map((key) => (
+                        <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={marketingServiceOverrides[key]}
+                            disabled={selectedDemoProfileCode !== "elite"}
+                            onChange={(event) => setMarketingServiceOverrides((current) => ({ ...current, [key]: event.target.checked }))}
+                          />
+                          {key}
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="text-sm font-semibold text-slate-900">Assegnazione e riepilogo</h3>
+                    <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Marketing manager opzionale
+                      <input
+                        type="text"
+                        value={assignedMarketingManager}
+                        onChange={(event) => setAssignedMarketingManager(event.target.value)}
+                        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      />
+                    </label>
+                    <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+                      <p className="font-semibold">Profilo {formatDemoProfileLabel(selectedDemoProfileCode)}</p>
+                      <p className="mt-1">{durationDays} giorni · {Object.values(moduleOverrides).filter(Boolean).length} moduli attivi</p>
+                      <p className="mt-1">{Object.values(marketingServiceOverrides).filter(Boolean).length} servizi marketing attivi</p>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-white px-6 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8">
+                <button
+                  type="button"
+                  onClick={closeConfiguration}
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyProfileDefaults(selectedDemoProfileCode);
+                    setAssignedMarketingManager("");
+                  }}
+                  className="inline-flex items-center justify-center rounded-2xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                >
+                  Ripristina profilo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveDemoConfiguration()}
+                  disabled={savingDemoConfiguration}
+                  className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingDemoConfiguration ? "Salvataggio..." : "Salva configurazione"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );

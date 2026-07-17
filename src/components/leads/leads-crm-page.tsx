@@ -9,7 +9,7 @@ import { LeadsTable } from "@/components/leads/leads-table";
 import { LeadsToolbar } from "@/components/leads/leads-toolbar";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
-import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { demoAccessMessageFromUnknown, getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import {
   buildLeadSelectClause,
   defaultLeadFilters,
@@ -164,7 +164,7 @@ export function LeadsCrmPage() {
 
         if (updateError) {
           setItems(previous);
-          setError(updateError.message || "Errore durante aggiornamento stato lead.");
+          setError(demoAccessMessageFromUnknown(updateError, updateError.message || "Errore durante aggiornamento stato lead."));
           return;
         }
 

@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { resolveServerSupabaseUrl } from "@/lib/server-supabase-url";
 
 type ProfileRoleRow = {
   role: string | null;
@@ -46,7 +47,7 @@ async function resolveAdminContext(request: Request) {
     } as const;
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const supabaseAdmin = createClient(resolveServerSupabaseUrl(supabaseUrl), supabaseServiceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

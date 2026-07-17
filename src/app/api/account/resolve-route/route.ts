@@ -19,7 +19,7 @@ type DealerRow = {
   demo_expires_at: string | null;
 };
 
-type ResolvedRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/account/demo-scaduta" | "/dashboard";
+type ResolvedRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/account/demo-scaduta" | `/account/demo-scaduta?status=${string}` | "/dashboard";
 
 type ResolvePayload = {
   status: string;
@@ -293,12 +293,12 @@ export async function GET(request: Request) {
   const demoStatus = normalizeText(dealerResult.data?.demo_status);
   const demoExpiresAt = dealerResult.data?.demo_expires_at ?? null;
   const isDemoAccount = accountType === "demo";
-  const demoReadOnly = isDemoAccount && (demoStatus === "revoked" || demoStatus === "expired" || isDemoExpired(demoExpiresAt));
+  const demoReadOnly = isDemoAccount && (["revoked", "expired", "suspended"].includes(demoStatus ?? "") || isDemoExpired(demoExpiresAt));
 
   if (dealerStatus === "approved" && demoReadOnly) {
     const payload: ResolvePayload = {
-      status: demoStatus === "revoked" ? "demo_revoked" : "demo_expired",
-      route: "/account/demo-scaduta",
+      status: demoStatus === "revoked" ? "demo_revoked" : demoStatus === "suspended" ? "demo_suspended" : "demo_expired",
+      route: `/account/demo-scaduta?status=${demoStatus === "revoked" ? "revoked" : demoStatus === "suspended" ? "suspended" : "expired"}`,
     };
 
     console.info("[account-resolve-route] resolved", {

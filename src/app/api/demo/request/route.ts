@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { hitRateLimit } from "@/lib/api-rate-limit";
+import { resolveServerSupabaseUrl } from "@/lib/server-supabase-url";
 
 type DemoRequestBody = {
   companyName?: string;
@@ -347,7 +348,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    const supabaseAdmin = createClient(resolveServerSupabaseUrl(supabaseUrl), supabaseServiceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -675,7 +676,7 @@ export async function POST(request: Request) {
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (supabaseUrl && supabaseServiceRoleKey && (createdRequestId || uploadedObjectPath)) {
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      const supabaseAdmin = createClient(resolveServerSupabaseUrl(supabaseUrl), supabaseServiceRoleKey, {
         auth: {
           persistSession: false,
           autoRefreshToken: false,

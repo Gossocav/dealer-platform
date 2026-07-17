@@ -191,8 +191,8 @@ export function buildInitialVehicleImportMapping(headers: string[]): VehicleImpo
 
 export async function parseVehicleImportFile(file: File): Promise<{ headers: string[]; rows: VehicleImportRawRow[] }> {
   const extension = file.name.toLowerCase().split(".").pop() ?? "";
-  if (!["csv", "xlsx", "xls"].includes(extension)) {
-    throw new Error("Formato file non supportato. Usa CSV, XLSX o XLS.");
+  if (extension !== "csv") {
+    throw new Error("Formato file non supportato. Usa solo CSV.");
   }
 
   const buffer = await file.arrayBuffer();

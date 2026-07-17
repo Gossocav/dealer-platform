@@ -3,6 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AuthShell } from "@/components/auth-shell";
 import "./globals.css";
 
+const appBaseUrl =
+  process.env.APP_BASE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  "http://localhost:3000";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -14,8 +19,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dealer Platform | Registrazione",
-  description: "Pagina di registrazione professionale per concessionarie",
+  metadataBase: new URL(appBaseUrl),
+  title: {
+    default: "Dealer Platform",
+    template: "%s | Dealer Platform",
+  },
+  description: "Piattaforma multi-tenant per concessionarie: marketplace pubblico e area dealer.",
+  applicationName: "Dealer Platform",
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

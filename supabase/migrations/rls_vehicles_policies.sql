@@ -44,9 +44,11 @@ stable
 security definer
 set search_path = public
 as $$
-  select p.dealer_id
-  from public.profiles p
-  where p.id = auth.uid()
+  select du.dealer_id
+  from public.dealer_users du
+  where du.profile_id = auth.uid()
+    and du.status = 'active'
+  order by du.created_at desc nulls last
   limit 1
 $$;
 

@@ -9,6 +9,7 @@ import {
   type AppointmentStatus as DbAppointmentStatus,
 } from "@/lib/appointments";
 import { supabase } from "@/lib/supabaseClient";
+import { demoAccessMessageFromUnknown } from "@/lib/demo-access";
 
 type AppointmentStatus = DbAppointmentStatus;
 type CalendarView = "month" | "week" | "day" | "list";
@@ -376,7 +377,7 @@ export default function AgendaPage() {
     setSaving(false);
 
     if (error) {
-      setStatusMessage(error.message || "Errore durante il salvataggio appuntamento.");
+      setStatusMessage(demoAccessMessageFromUnknown(error, error.message || "Errore durante il salvataggio appuntamento."));
       setStatusMessageType("error");
       return;
     }
