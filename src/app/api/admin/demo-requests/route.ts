@@ -478,11 +478,19 @@ export async function POST(request: Request) {
   }
 
   if (action === "activate_demo" && targetRequest.status === "activated") {
-    return NextResponse.json({ error: "Richiesta demo gia accettata. Azione non consentita." }, { status: 409 });
+    return NextResponse.json({ requestId, status: "activated" }, { status: 200 });
+  }
+
+  if (action === "activate_demo" && (targetRequest.status === "revoked" || targetRequest.status === "converted")) {
+    return NextResponse.json({ error: "Richiesta demo non riattivabile nello stato corrente." }, { status: 409 });
   }
 
   if (action === "reject" && targetRequest.status === "rejected") {
     return NextResponse.json({ error: "Richiesta demo gia rifiutata. Azione non consentita." }, { status: 409 });
+  }
+
+  if (action === "reject" && targetRequest.status === "activated") {
+    return NextResponse.json({ error: "Richiesta demo gia attivata. Usa Revoca Demo." }, { status: 409 });
   }
 
   const nextStatus = actionToStatus(action);
@@ -859,10 +867,18 @@ export async function POST(request: Request) {
       const rejectRequest = rejectPayload.request ?? {};
       const rejectDealer = rejectPayload.dealer ?? {};
 
+      if (action === "revoke_demo") {
+        await sendDemoLifecycleEmail({
+          toEmail: targetRequest.email,
+          kind: "revoked",
+          dealerName: targetRequest.dealership_name,
+        });
+      }
+
       return NextResponse.json(
         {
           requestId,
-          status: normalizeText(rejectRequest.status) ?? "rejected",
+          status: normalizeText(rejectRequest.status) ?? "revoked",
           demoStatus: normalizeText(rejectRequest.demo_status) ?? "revoked",
           demoExpiresAt: normalizeText(rejectRequest.demo_expires_at),
           linkedDealerId: normalizeText(rejectRequest.linked_dealer_id) ?? normalizeText(rejectDealer.id) ?? dealerId,
@@ -873,46 +889,82 @@ export async function POST(request: Request) {
   }
 
   if (action === "convert_demo") {
-    const now = new Date().toISOString();
-    const { error: convertError } = await context.supabaseAdmin
-      .from("dealers")
-      .update({
-        account_type: "paid",
-        demo_status: "converted",
-        demo_converted_at: now,
-        updated_at: now,
-      })
-      .eq("demo_request_id", requestId);
+    let dealerId = normalizeText(targetRequest.linked_dealer_id);
+    if (!dealerId) {
+      const linkedDealerResult = await context.supabaseAdmin
+        .from("dealers")
+        .select("id")
+        .eq("demo_request_id", requestId)
+        .limit(1)
+        .maybeSingle<{ id: string }>();
 
-    if (convertError) {
-      return NextResponse.json({ error: convertError.message || "Errore conversione demo." }, { status: 500 });
+      if (linkedDealerResult.error) {
+        return NextResponse.json({ error: "Errore lettura dealer collegato." }, { status: 500 });
+      }
+
+      dealerId = normalizeText(linkedDealerResult.data?.id);
     }
 
-    const demoRequestUpdate = await context.supabaseAdmin
-      .from("demo_requests")
-      .update({
-        status: "converted",
-        demo_status: "converted",
-        updated_at: now,
-      })
-      .eq("id", requestId);
-
-    if (demoRequestUpdate.error) {
-      return NextResponse.json({ error: demoRequestUpdate.error.message || "Errore aggiornamento richiesta demo." }, { status: 500 });
+    if (!dealerId) {
+      return NextResponse.json({ error: "Errore lettura dealer collegato." }, { status: 404 });
     }
 
-    await createDemoAccessAuditEntry(context.supabaseAdmin, {
-      dealerId: null,
-      actorProfileId: context.userId,
-      action: "demo.converted",
-      metadata: { requestId },
+    const subscriptionResult = await context.supabaseAdmin
+      .from("dealer_demo_subscriptions")
+      .select("dealer_id, lifecycle_version")
+      .eq("dealer_id", dealerId)
+      .maybeSingle<DealerDemoSubscriptionRow>();
+
+    if (subscriptionResult.error) {
+      return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 500 });
+    }
+
+    if (!subscriptionResult.data) {
+      return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 404 });
+    }
+
+    const lifecycleVersion = Number(subscriptionResult.data.lifecycle_version);
+    if (!Number.isFinite(lifecycleVersion)) {
+      return NextResponse.json({ error: "Errore stato demo non valido." }, { status: 500 });
+    }
+
+    const convertResult = await context.supabaseAdmin.rpc("convert_demo_request_atomic", {
+      p_request_id: requestId,
+      p_dealer_id: dealerId,
+      p_actor_id: context.userId,
+      p_lifecycle_version: lifecycleVersion,
     });
+
+    if (convertResult.error) {
+      return NextResponse.json({ error: "Errore conversione demo. Riprova." }, { status: 500 });
+    }
+
+    const convertPayload = normalizeRpcPayload(convertResult.data);
+    const convertOutcome = normalizeText(convertPayload.outcome) ?? "DEMO_UNKNOWN_ERROR";
+
+    if (convertOutcome !== "DEMO_CONVERTED") {
+      return NextResponse.json({ error: "Conversione demo non consentita nello stato corrente." }, { status: toHttpStatusFromOutcome(convertOutcome) });
+    }
 
     await sendDemoLifecycleEmail({
       toEmail: targetRequest.email,
       kind: "converted",
       dealerName: targetRequest.dealership_name,
     });
+
+    const convertRequest = convertPayload.request ?? {};
+    const convertDealer = convertPayload.dealer ?? {};
+
+    return NextResponse.json(
+      {
+        requestId,
+        status: normalizeText(convertRequest.status) ?? "converted",
+        demoStatus: normalizeText(convertRequest.demo_status) ?? "converted",
+        demoExpiresAt: normalizeText(convertRequest.demo_expires_at),
+        linkedDealerId: normalizeText(convertRequest.linked_dealer_id) ?? normalizeText(convertDealer.id) ?? dealerId,
+      },
+      { status: 200 }
+    );
   }
 
   const refreshedRequest = await context.supabaseAdmin

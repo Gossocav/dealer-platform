@@ -691,6 +691,219 @@ describe("admin demo-requests route rate limiting", () => {
         p_lifecycle_version: 3,
       })
     );
+    expect(mocks.sendDemoLifecycleEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: "dealer@example.com", kind: "revoked" })
+    );
+  });
+
+  it("refuses to reject an already-activated demo request and does not fall back to revoke", async () => {
+    const user: UserStub = {
+      id: "admin-8",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq, dealersUpdateEq, rpc } = makeSupabaseAdmin(user);
+
+    demoRequestTargetMaybeSingle.mockResolvedValue({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "activated",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "reject" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(409);
+    expect(payload).toEqual({ error: "Richiesta demo gia attivata. Usa Revoca Demo." });
+    expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
+    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(mocks.sendDemoLifecycleEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("treats a repeat activate_demo on an already-activated request as an idempotent success", async () => {
+    const user: UserStub = {
+      id: "admin-9",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, dealersUpdateEq, rpc } = makeSupabaseAdmin(user);
+
+    demoRequestTargetMaybeSingle.mockResolvedValue({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "activated",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({ requestId: "request-1", status: "activated" });
+    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("refuses to re-activate a revoked demo request instead of hitting createUser", async () => {
+    const user: UserStub = {
+      id: "admin-10",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, dealersUpdateEq, authAdminCreateUser, rpc } = makeSupabaseAdmin(user);
+
+    demoRequestTargetMaybeSingle.mockResolvedValue({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "revoked",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(409);
+    expect(payload).toEqual({ error: "Richiesta demo non riattivabile nello stato corrente." });
+    expect(authAdminCreateUser).not.toHaveBeenCalled();
+    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("converts an activated demo via the atomic RPC instead of raw table updates", async () => {
+    const user: UserStub = {
+      id: "admin-11",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq, dealersUpdateEq, rpc } = makeSupabaseAdmin(user);
+
+    demoRequestTargetMaybeSingle.mockResolvedValue({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "activated",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+    rpc.mockResolvedValue({
+      data: {
+        outcome: "DEMO_CONVERTED",
+        request: {
+          id: "request-1",
+          status: "converted",
+          demo_status: "converted",
+          demo_expires_at: null,
+          linked_dealer_id: "dealer-1",
+        },
+        dealer: {
+          id: "dealer-1",
+          demo_status: "converted",
+        },
+      },
+      error: null,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "convert_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      requestId: "request-1",
+      status: "converted",
+      demoStatus: "converted",
+      demoExpiresAt: null,
+      linkedDealerId: "dealer-1",
+    });
+    expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
+    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith(
+      "convert_demo_request_atomic",
+      expect.objectContaining({
+        p_request_id: "request-1",
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-11",
+        p_lifecycle_version: 3,
+      })
+    );
+    expect(mocks.sendDemoLifecycleEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: "dealer@example.com", kind: "converted" })
+    );
   });
 
   it("refuses to activate_demo over an existing paid/converted dealer sharing the same email", async () => {
