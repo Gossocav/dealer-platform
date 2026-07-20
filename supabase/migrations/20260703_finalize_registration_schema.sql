@@ -1,9 +1,6 @@
 begin;
 
 alter table public.profiles
-  alter column email drop not null;
-
-alter table public.profiles
   add column if not exists full_name text,
   add column if not exists role text,
   add column if not exists status text,
