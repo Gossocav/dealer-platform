@@ -5,6 +5,7 @@ import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
+import { normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document";
@@ -52,6 +53,7 @@ type DemoRequestRow = {
 type DemoRequestActionBody = {
   requestId?: string;
   action?: DemoAdminAction;
+  planCode?: string;
 };
 
 type DemoRpcPayload = {
@@ -870,11 +872,14 @@ export async function POST(request: Request) {
     }
     const { lifecycleVersion } = lifecycleVersionResult;
 
+    const planCode = normalizeDemoPlanCode(body.planCode) ?? "base";
+
     const convertResult = await context.supabaseAdmin.rpc("convert_demo_request_atomic", {
       p_request_id: requestId,
       p_dealer_id: dealerId,
       p_actor_id: context.userId,
       p_lifecycle_version: lifecycleVersion,
+      p_plan_code: planCode,
     });
 
     if (convertResult.error) {
@@ -904,6 +909,7 @@ export async function POST(request: Request) {
         demoStatus: normalizeText(convertRequest.demo_status) ?? "converted",
         demoExpiresAt: normalizeText(convertRequest.demo_expires_at),
         linkedDealerId: normalizeText(convertRequest.linked_dealer_id) ?? normalizeText(convertDealer.id) ?? dealerId,
+        planCode,
       },
       { status: 200 }
     );
