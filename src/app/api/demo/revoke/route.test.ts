@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const createClientMock = vi.fn();
   const hitRateLimitMock = vi.fn();
-  const createDemoAccessAuditEntryMock = vi.fn().mockResolvedValue(undefined);
 
   return {
     createClientMock,
     hitRateLimitMock,
-    createDemoAccessAuditEntryMock,
   };
 });
 
@@ -18,10 +16,6 @@ vi.mock("@supabase/supabase-js", () => ({
 
 vi.mock("@/lib/api-rate-limit", () => ({
   hitRateLimit: mocks.hitRateLimitMock,
-}));
-
-vi.mock("@/lib/demo-audit", () => ({
-  createDemoAccessAuditEntry: mocks.createDemoAccessAuditEntryMock,
 }));
 
 vi.mock("@/lib/account-approval", () => ({
@@ -68,10 +62,21 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
     eq: profileEq,
   }));
 
-  const dealersUpdateEq = vi.fn().mockResolvedValue({ error: null });
-  const dealersUpdate = vi.fn(() => ({
-    eq: dealersUpdateEq,
-  }));
+  const dealerLookupMaybeSingle = vi.fn().mockResolvedValue({
+    data: { demo_request_id: "request-1" },
+    error: null,
+  });
+  const dealerLookupEq = vi.fn(() => ({ maybeSingle: dealerLookupMaybeSingle }));
+  const dealersSelect = vi.fn(() => ({ eq: dealerLookupEq }));
+
+  const subscriptionMaybeSingle = vi.fn().mockResolvedValue({
+    data: { lifecycle_version: 3 },
+    error: null,
+  });
+  const subscriptionEq = vi.fn(() => ({ maybeSingle: subscriptionMaybeSingle }));
+  const subscriptionSelect = vi.fn(() => ({ eq: subscriptionEq }));
+
+  const rpc = vi.fn().mockResolvedValue({ data: { outcome: "DEMO_REJECTED" }, error: null });
 
   const from = vi.fn((table: string) => {
     if (table === "profiles") {
@@ -82,7 +87,13 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
 
     if (table === "dealers") {
       return {
-        update: dealersUpdate,
+        select: dealersSelect,
+      };
+    }
+
+    if (table === "dealer_demo_subscriptions") {
+      return {
+        select: subscriptionSelect,
       };
     }
 
@@ -97,11 +108,14 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
       }),
     },
     from,
+    rpc,
   };
 
   return {
     supabaseAdmin,
-    dealersUpdateEq,
+    dealerLookupMaybeSingle,
+    subscriptionMaybeSingle,
+    rpc,
   };
 }
 
@@ -117,7 +131,7 @@ describe("demo revoke route rate limiting", () => {
       id: "admin-1",
       app_metadata: { role: "admin" },
     };
-    const { supabaseAdmin, dealersUpdateEq } = makeSupabaseAdmin(user);
+    const { supabaseAdmin, rpc } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
     mocks.hitRateLimitMock.mockReturnValue({
@@ -141,8 +155,16 @@ describe("demo revoke route rate limiting", () => {
       "admin-demo-action:revoke:admin-1:198.51.100.7",
       { windowMs: 60_000, maxRequests: 10 }
     );
-    expect(dealersUpdateEq).toHaveBeenCalledOnce();
-    expect(mocks.createDemoAccessAuditEntryMock).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith(
+      "reject_demo_request_atomic",
+      expect.objectContaining({
+        p_request_id: "request-1",
+        p_dealer_id: "dealer-1",
+        p_actor_id: "admin-1",
+        p_reason: "Demo revoked by admin",
+        p_lifecycle_version: 3,
+      })
+    );
   });
 
   it("returns 429 with Retry-After and performs no mutation when threshold is exceeded", async () => {
@@ -150,7 +172,7 @@ describe("demo revoke route rate limiting", () => {
       id: "admin-2",
       app_metadata: { role: "admin" },
     };
-    const { supabaseAdmin, dealersUpdateEq } = makeSupabaseAdmin(user);
+    const { supabaseAdmin, rpc } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
     mocks.hitRateLimitMock.mockReturnValue({
@@ -169,8 +191,7 @@ describe("demo revoke route rate limiting", () => {
     expect(retryAfter).not.toBeNull();
     expect(Number(retryAfter)).toBeGreaterThanOrEqual(1);
 
-    expect(dealersUpdateEq).not.toHaveBeenCalled();
-    expect(mocks.createDemoAccessAuditEntryMock).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("keeps authz behavior and does not use rate limit as authz substitute", async () => {
@@ -178,7 +199,7 @@ describe("demo revoke route rate limiting", () => {
       id: "user-1",
       app_metadata: { role: "dealer_member" },
     };
-    const { supabaseAdmin, dealersUpdateEq } = makeSupabaseAdmin(user, "dealer_member");
+    const { supabaseAdmin, rpc } = makeSupabaseAdmin(user, "dealer_member");
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
 
@@ -188,6 +209,51 @@ describe("demo revoke route rate limiting", () => {
     expect(response.status).toBe(403);
     expect(payload).toEqual({ error: "Accesso negato." });
     expect(mocks.hitRateLimitMock).not.toHaveBeenCalled();
-    expect(dealersUpdateEq).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("refuses to revoke a dealer with no linked demo request", async () => {
+    const user: UserStub = {
+      id: "admin-4",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, dealerLookupMaybeSingle, rpc } = makeSupabaseAdmin(user);
+    dealerLookupMaybeSingle.mockResolvedValue({ data: { demo_request_id: null }, error: null });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ dealerId: "dealer-4" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(404);
+    expect(payload).toEqual({ error: "Nessuna richiesta demo collegata a questo dealer." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("propagates a terminal-state rejection from the atomic RPC (cannot revoke a converted dealer)", async () => {
+    const user: UserStub = {
+      id: "admin-5",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, rpc } = makeSupabaseAdmin(user);
+    rpc.mockResolvedValue({ data: { outcome: "DEMO_TERMINAL_STATE" }, error: null });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ dealerId: "dealer-5" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(409);
+    expect(payload).toEqual({ error: "Revoca demo non consentita nello stato corrente." });
   });
 });
