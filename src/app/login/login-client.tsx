@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
@@ -62,15 +62,12 @@ export default function LoginClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageType, setMessageType] = useState<"success" | "error" | null>(null);
-
-  useEffect(() => {
-    if (accessReason === "admin_only") {
-      setMessage("Accesso non autorizzato: questa area e riservata ai platform owner.");
-      setMessageType("error");
-    }
-  }, [accessReason]);
+  const [message, setMessage] = useState<string | null>(() =>
+    accessReason === "admin_only" ? "Accesso non autorizzato: questa area e riservata ai platform owner." : null
+  );
+  const [messageType, setMessageType] = useState<"success" | "error" | null>(() =>
+    accessReason === "admin_only" ? "error" : null
+  );
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

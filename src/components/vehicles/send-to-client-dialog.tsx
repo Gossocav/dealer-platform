@@ -175,20 +175,22 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
       .join("\n");
   }, [publicUrl, vehicle]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    setFirstName("");
-    setLastName("");
-    setEmail("");
-    setPhone("");
-    setMode("email");
-    setMessage(defaultMessage);
-    setSubmitting(false);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setToast(null);
-  }, [defaultMessage, open]);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
+      setMode("email");
+      setMessage(defaultMessage);
+      setSubmitting(false);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      setToast(null);
+    }
+  }
 
   useEffect(() => {
     if (!toast) return;
