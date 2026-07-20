@@ -1,5 +1,16 @@
 begin;
 
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
 create table if not exists public.email_threads (
   id uuid primary key default gen_random_uuid(),
   dealer_id uuid not null references public.dealers(id) on delete cascade,
