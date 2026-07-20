@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { hitRateLimit } from "@/lib/api-rate-limit";
-import { toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
+import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
 
 const ADMIN_DEMO_ACTION_RATE_LIMIT = {
   windowMs: 60_000,
@@ -106,24 +106,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nessuna richiesta demo collegata a questo dealer." }, { status: 404 });
   }
 
-  const subscriptionLookup = await supabaseAdmin
-    .from("dealer_demo_subscriptions")
-    .select("lifecycle_version")
-    .eq("dealer_id", dealerId)
-    .maybeSingle<{ lifecycle_version: number | string }>();
-
-  if (subscriptionLookup.error) {
-    return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 500 });
+  const lifecycleVersionResult = await resolveDemoLifecycleVersion(supabaseAdmin, dealerId);
+  if (!lifecycleVersionResult.ok) {
+    return lifecycleVersionResult.response;
   }
-
-  if (!subscriptionLookup.data) {
-    return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 404 });
-  }
-
-  const lifecycleVersion = Number(subscriptionLookup.data.lifecycle_version);
-  if (!Number.isFinite(lifecycleVersion)) {
-    return NextResponse.json({ error: "Errore stato demo non valido." }, { status: 500 });
-  }
+  const { lifecycleVersion } = lifecycleVersionResult;
 
   const revokeResult = await supabaseAdmin.rpc("reject_demo_request_atomic", {
     p_request_id: requestId,

@@ -4,7 +4,7 @@ import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-
 import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
-import { toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
+import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document";
@@ -73,13 +73,6 @@ type DemoRpcPayload = {
     id?: string | null;
     demo_status?: string | null;
   } | null;
-};
-
-type DealerDemoSubscriptionRow = {
-  dealer_id: string;
-  lifecycle_version: number | string;
-  demo_status: string | null;
-  expires_at: string | null;
 };
 
 function normalizeText(value: unknown) {
@@ -801,24 +794,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: updateResult.error.message || "Errore aggiornamento stato richiesta demo." }, { status: 500 });
       }
     } else {
-      const subscriptionResult = await context.supabaseAdmin
-        .from("dealer_demo_subscriptions")
-        .select("dealer_id, lifecycle_version")
-        .eq("dealer_id", dealerId)
-        .maybeSingle<DealerDemoSubscriptionRow>();
-
-      if (subscriptionResult.error) {
-        return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 500 });
+      const lifecycleVersionResult = await resolveDemoLifecycleVersion(context.supabaseAdmin, dealerId);
+      if (!lifecycleVersionResult.ok) {
+        return lifecycleVersionResult.response;
       }
-
-      if (!subscriptionResult.data) {
-        return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 404 });
-      }
-
-      const lifecycleVersion = Number(subscriptionResult.data.lifecycle_version);
-      if (!Number.isFinite(lifecycleVersion)) {
-        return NextResponse.json({ error: "Errore stato demo non valido." }, { status: 500 });
-      }
+      const { lifecycleVersion } = lifecycleVersionResult;
 
       const rejectResult = await context.supabaseAdmin.rpc("reject_demo_request_atomic", {
         p_request_id: requestId,
@@ -884,24 +864,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Errore lettura dealer collegato." }, { status: 404 });
     }
 
-    const subscriptionResult = await context.supabaseAdmin
-      .from("dealer_demo_subscriptions")
-      .select("dealer_id, lifecycle_version")
-      .eq("dealer_id", dealerId)
-      .maybeSingle<DealerDemoSubscriptionRow>();
-
-    if (subscriptionResult.error) {
-      return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 500 });
+    const lifecycleVersionResult = await resolveDemoLifecycleVersion(context.supabaseAdmin, dealerId);
+    if (!lifecycleVersionResult.ok) {
+      return lifecycleVersionResult.response;
     }
-
-    if (!subscriptionResult.data) {
-      return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 404 });
-    }
-
-    const lifecycleVersion = Number(subscriptionResult.data.lifecycle_version);
-    if (!Number.isFinite(lifecycleVersion)) {
-      return NextResponse.json({ error: "Errore stato demo non valido." }, { status: 500 });
-    }
+    const { lifecycleVersion } = lifecycleVersionResult;
 
     const convertResult = await context.supabaseAdmin.rpc("convert_demo_request_atomic", {
       p_request_id: requestId,
