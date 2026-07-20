@@ -7,6 +7,7 @@ import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
+import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -334,6 +335,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   );
   const selectedFuel = state.fuel.trim();
   const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
+  const brandOptions = useMemo(() => [...VEHICLE_BRAND_OPTIONS], []);
+  const selectedBrand = state.brand.trim();
+  const hasCustomSelectedBrand = selectedBrand.length > 0 && !brandOptions.includes(selectedBrand as (typeof VEHICLE_BRAND_OPTIONS)[number]);
   const colorOptions = useMemo(() => [...VEHICLE_COLOR_OPTIONS], []);
   const tractionOptions = useMemo(() => [...VEHICLE_TRACTION_OPTIONS], []);
   const selectedTraction = state.traction.trim();
@@ -1123,7 +1127,22 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <EditorField label="Marca" value={state.brand} onChange={(value) => updateField("brand", value)} required missing={missingFieldSet.has("brand")} />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("brand"))}>Marca *</span>
+                <select
+                  value={state.brand}
+                  onChange={(event) => updateField("brand", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("brand"))}
+                >
+                  <option value="">Seleziona marca</option>
+                  {hasCustomSelectedBrand ? <option value={state.brand}>{state.brand}</option> : null}
+                  {brandOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required missing={missingFieldSet.has("model")} />
               <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} required missing={missingFieldSet.has("version")} />
               <EditorField
