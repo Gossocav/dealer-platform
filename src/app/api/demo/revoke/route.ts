@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { hitRateLimit } from "@/lib/api-rate-limit";
-import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
+import { toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
 
 const ADMIN_DEMO_ACTION_RATE_LIMIT = {
   windowMs: 60_000,
@@ -91,23 +91,56 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "dealerId obbligatorio." }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
-  const { error } = await supabaseAdmin.from("dealers").update({
-    demo_status: "revoked",
-    demo_revoked_at: now,
-    updated_at: now,
-  }).eq("id", dealerId);
+  const dealerLookup = await supabaseAdmin
+    .from("dealers")
+    .select("demo_request_id")
+    .eq("id", dealerId)
+    .maybeSingle<{ demo_request_id: string | null }>();
 
-  if (error) {
-    return NextResponse.json({ error: error.message || "Errore revoca demo." }, { status: 500 });
+  if (dealerLookup.error) {
+    return NextResponse.json({ error: "Errore lettura dealer." }, { status: 500 });
   }
 
-  await createDemoAccessAuditEntry(supabaseAdmin, {
-    dealerId,
-    actorProfileId: user.id,
-    action: "demo.revoked",
-    metadata: { revokedAt: now },
+  const requestId = String(dealerLookup.data?.demo_request_id ?? "").trim();
+  if (!requestId) {
+    return NextResponse.json({ error: "Nessuna richiesta demo collegata a questo dealer." }, { status: 404 });
+  }
+
+  const subscriptionLookup = await supabaseAdmin
+    .from("dealer_demo_subscriptions")
+    .select("lifecycle_version")
+    .eq("dealer_id", dealerId)
+    .maybeSingle<{ lifecycle_version: number | string }>();
+
+  if (subscriptionLookup.error) {
+    return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 500 });
+  }
+
+  if (!subscriptionLookup.data) {
+    return NextResponse.json({ error: "Errore lettura stato demo." }, { status: 404 });
+  }
+
+  const lifecycleVersion = Number(subscriptionLookup.data.lifecycle_version);
+  if (!Number.isFinite(lifecycleVersion)) {
+    return NextResponse.json({ error: "Errore stato demo non valido." }, { status: 500 });
+  }
+
+  const revokeResult = await supabaseAdmin.rpc("reject_demo_request_atomic", {
+    p_request_id: requestId,
+    p_dealer_id: dealerId,
+    p_actor_id: user.id,
+    p_reason: "Demo revoked by admin",
+    p_lifecycle_version: lifecycleVersion,
   });
+
+  if (revokeResult.error) {
+    return NextResponse.json({ error: "Errore revoca demo. Riprova." }, { status: 500 });
+  }
+
+  const outcome = String((revokeResult.data as { outcome?: string } | null)?.outcome ?? "DEMO_UNKNOWN_ERROR");
+  if (outcome !== "DEMO_REJECTED") {
+    return NextResponse.json({ error: "Revoca demo non consentita nello stato corrente." }, { status: toHttpStatusFromOutcome(outcome) });
+  }
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }
