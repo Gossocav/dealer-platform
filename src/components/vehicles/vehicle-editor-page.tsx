@@ -8,6 +8,7 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
+import { getVehicleModelsForBrand } from "@/lib/vehicle-models";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -315,6 +316,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [originalStatus, setOriginalStatus] = useState<string | null>(mode === "create" ? "draft" : null);
   const [originalPublished, setOriginalPublished] = useState<boolean>(false);
   const [existingVehicleDealerId, setExistingVehicleDealerId] = useState<string | null>(null);
+  const [showCustomModelField, setShowCustomModelField] = useState(false);
 
   const title = useMemo(() => (mode === "create" ? "Nuovo Veicolo" : "Modifica Veicolo"), [mode]);
   const maxRegistrationDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -338,6 +340,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const brandOptions = useMemo(() => [...VEHICLE_BRAND_OPTIONS], []);
   const selectedBrand = state.brand.trim();
   const hasCustomSelectedBrand = selectedBrand.length > 0 && !brandOptions.includes(selectedBrand as (typeof VEHICLE_BRAND_OPTIONS)[number]);
+  const modelOptions = useMemo(() => getVehicleModelsForBrand(selectedBrand), [selectedBrand]);
+  const selectedModel = state.model.trim();
+  const hasCustomSelectedModel = selectedModel.length > 0 && !modelOptions.includes(selectedModel);
   const colorOptions = useMemo(() => [...VEHICLE_COLOR_OPTIONS], []);
   const tractionOptions = useMemo(() => [...VEHICLE_TRACTION_OPTIONS], []);
   const selectedTraction = state.traction.trim();
@@ -1143,7 +1148,51 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   ))}
                 </select>
               </label>
-              <EditorField label="Modello" value={state.model} onChange={(value) => updateField("model", value)} required missing={missingFieldSet.has("model")} />
+              <label className="block space-y-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("model"))}>Modello *</span>
+                {showCustomModelField || hasCustomSelectedModel ? (
+                  <div className="space-y-1">
+                    <input
+                      type="text"
+                      value={state.model}
+                      onChange={(event) => updateField("model", event.target.value)}
+                      placeholder="Inserisci modello"
+                      className={getFieldInputClass(missingFieldSet.has("model"))}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCustomModelField(false);
+                        updateField("model", "");
+                      }}
+                      className="text-xs font-medium text-sky-600 hover:underline"
+                    >
+                      Scegli dalla lista
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={state.model}
+                    onChange={(event) => {
+                      if (event.target.value === "__custom__") {
+                        setShowCustomModelField(true);
+                        updateField("model", "");
+                        return;
+                      }
+                      updateField("model", event.target.value);
+                    }}
+                    className={getFieldInputClass(missingFieldSet.has("model"))}
+                  >
+                    <option value="">{selectedBrand ? "Seleziona modello" : "Seleziona prima la marca"}</option>
+                    {modelOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                    <option value="__custom__">Altro (inserisci manualmente)</option>
+                  </select>
+                )}
+              </label>
               <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} required missing={missingFieldSet.has("version")} />
               <EditorField
                 label="Cilindrata"
