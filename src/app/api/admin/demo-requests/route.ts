@@ -545,8 +545,11 @@ export async function POST(request: Request) {
       },
     });
 
-    if (createdUser.error || !createdUser.data?.user?.id) {
-      return NextResponse.json({ error: createdUser.error?.message || "Errore creazione utente demo." }, { status: 500 });
+    const createdUserErrorCode = normalizeText(createdUser.error?.code);
+    const userAlreadyExists = createdUserErrorCode === "email_exists" || createdUserErrorCode === "user_already_exists";
+
+    if (createdUser.error && !userAlreadyExists) {
+      return NextResponse.json({ error: createdUser.error.message || "Errore creazione utente demo." }, { status: 500 });
     }
 
     const recoveryLinkResult = await context.supabaseAdmin.auth.admin.generateLink({
@@ -556,7 +559,14 @@ export async function POST(request: Request) {
     });
     const passwordSetupLink = recoveryLinkResult.error ? null : (recoveryLinkResult.data?.properties?.action_link ?? null);
 
-    const profileId = createdUser.data.user.id;
+    // A previous, only-partially-completed activation attempt (e.g. interrupted by a
+    // timeout) can leave an auth user behind without finishing the rest of this flow.
+    // Reuse that existing user instead of failing the retry outright.
+    const profileId = userAlreadyExists ? recoveryLinkResult.data?.user?.id : createdUser.data?.user?.id;
+
+    if (!profileId) {
+      return NextResponse.json({ error: "Utente demo gia esistente ma non recuperabile. Contatta il supporto." }, { status: 500 });
+    }
     const profileUpsert = await context.supabaseAdmin.from("profiles").upsert(
       {
         id: profileId,
