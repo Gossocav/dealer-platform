@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 
 type RequestInformationFormProps = {
   vehicleId: string;
@@ -12,10 +13,19 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [province, setProvince] = useState<ItalianProvinceCode | "">("");
+  const [city, setCity] = useState("");
+  const [zipCode, setZipCode] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const cityOptions = useMemo(() => {
+    if (!province) return [] as string[];
+    return ITALIAN_CITIES_BY_PROVINCE[province] ?? [];
+  }, [province]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,6 +34,8 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     const normalizedLastName = lastName.trim();
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPhone = phone.trim();
+    const normalizedAddress = address.trim();
+    const normalizedZipCode = zipCode.trim();
     const normalizedMessage = message.trim();
 
     if (!normalizedFirstName || !normalizedLastName) {
@@ -46,6 +58,10 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
       last_name: normalizedLastName,
       email: normalizedEmail || null,
       phone: normalizedPhone || null,
+      address: normalizedAddress || null,
+      province: province || null,
+      city: city || null,
+      zip_code: normalizedZipCode || null,
       message: normalizedMessage || null,
     };
 
@@ -72,6 +88,10 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     setLastName("");
     setEmail("");
     setPhone("");
+    setAddress("");
+    setProvince("");
+    setCity("");
+    setZipCode("");
     setMessage("");
   };
 
@@ -96,6 +116,48 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
         </div>
         <Field label="Email" type="email" value={email} onChange={setEmail} />
         <Field label="Telefono" type="tel" value={phone} onChange={setPhone} />
+        <Field label="Indirizzo" value={address} onChange={setAddress} />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Provincia</span>
+            <select
+              value={province}
+              onChange={(event) => {
+                const nextValue = event.target.value as ItalianProvinceCode | "";
+                setProvince(nextValue);
+                setCity("");
+              }}
+              className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="">Seleziona provincia</option>
+              {ITALIAN_PROVINCES.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name} ({item.code})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Città</span>
+            <select
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              disabled={!province}
+              className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">{province ? "Seleziona città" : "Seleziona prima la provincia"}</option>
+              {cityOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <Field label="CAP" value={zipCode} onChange={setZipCode} />
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Messaggio</span>
