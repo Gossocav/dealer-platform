@@ -80,4 +80,32 @@ describe("demo access helpers", () => {
 
     expect(getDemoFeatureBlockReason(context, "export")).toEqual({ code: "DEMO_EXPORT_NOT_ALLOWED", message: "L'esportazione non e disponibile nella demo." });
   });
+
+  it("blocks sending email for demo accounts", () => {
+    const context = getDemoStatusSummary({
+      accountType: "demo",
+      demoStatus: "active",
+      demoStartedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      demoExpiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+      vehicleCount: 2,
+      leadCount: 2,
+      userCount: 1,
+    });
+
+    expect(getDemoFeatureBlockReason(context, "email")).toEqual({ code: "DEMO_FEATURE_NOT_AVAILABLE", message: "Questa funzione e disponibile nella versione completa." });
+  });
+
+  it("allows email for paid accounts", () => {
+    const context = getDemoStatusSummary({
+      accountType: "paid",
+      demoStatus: "converted",
+      demoStartedAt: null,
+      demoExpiresAt: null,
+      vehicleCount: 12,
+      leadCount: 25,
+      userCount: 2,
+    });
+
+    expect(getDemoFeatureBlockReason(context, "email")).toBeNull();
+  });
 });
