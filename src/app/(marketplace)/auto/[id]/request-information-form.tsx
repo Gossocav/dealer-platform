@@ -38,13 +38,18 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     const normalizedZipCode = zipCode.trim();
     const normalizedMessage = message.trim();
 
-    if (!normalizedFirstName || !normalizedLastName) {
-      setErrorMessage("Nome e cognome sono obbligatori.");
-      return;
-    }
-
-    if (!normalizedEmail && !normalizedPhone) {
-      setErrorMessage("Inserisci almeno email o telefono.");
+    if (
+      !normalizedFirstName ||
+      !normalizedLastName ||
+      !normalizedEmail ||
+      !normalizedPhone ||
+      !normalizedAddress ||
+      !province ||
+      !city ||
+      !normalizedZipCode ||
+      !normalizedMessage
+    ) {
+      setErrorMessage("Tutti i campi sono obbligatori.");
       return;
     }
 
@@ -111,16 +116,16 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
 
       <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome" value={firstName} onChange={setFirstName} required />
-          <Field label="Cognome" value={lastName} onChange={setLastName} required />
+          <Field label="Nome *" value={firstName} onChange={setFirstName} required />
+          <Field label="Cognome *" value={lastName} onChange={setLastName} required />
         </div>
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
-        <Field label="Telefono" type="tel" value={phone} onChange={setPhone} />
-        <Field label="Indirizzo" value={address} onChange={setAddress} />
+        <Field label="Email *" type="email" value={email} onChange={setEmail} required />
+        <Field label="Telefono *" type="tel" value={phone} onChange={setPhone} required />
+        <Field label="Indirizzo *" value={address} onChange={setAddress} required />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Provincia</span>
+            <span className="text-sm font-medium text-slate-700">Provincia *</span>
             <select
               value={province}
               onChange={(event) => {
@@ -128,6 +133,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
                 setProvince(nextValue);
                 setCity("");
               }}
+              required
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
             >
               <option value="">Seleziona provincia</option>
@@ -140,11 +146,12 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Città</span>
+            <span className="text-sm font-medium text-slate-700">Città *</span>
             <select
               value={city}
               onChange={(event) => setCity(event.target.value)}
               disabled={!province}
+              required
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">{province ? "Seleziona città" : "Seleziona prima la provincia"}</option>
@@ -157,14 +164,15 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
           </label>
         </div>
 
-        <Field label="CAP" value={zipCode} onChange={setZipCode} />
+        <Field label="CAP *" value={zipCode} onChange={setZipCode} required />
 
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Messaggio</span>
+          <span className="text-sm font-medium text-slate-700">Messaggio *</span>
           <textarea
             rows={5}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
+            required
             className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
             placeholder="Scrivi la tua richiesta"
           />
