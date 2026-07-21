@@ -1,7 +1,7 @@
 export type DemoAccountType = "demo" | "paid" | "internal" | string;
 export type DemoStatus = "active" | "expired" | "converted" | "revoked" | string;
 
-export type DemoFeatureKey = "vehicle" | "lead" | "user" | "export" | "import" | "billing" | "subscription" | "admin" | "integration" | "write";
+export type DemoFeatureKey = "vehicle" | "lead" | "user" | "export" | "import" | "billing" | "subscription" | "admin" | "integration" | "email" | "write";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -246,7 +246,7 @@ export function getDemoFeatureBlockReason(context: DemoAccessContext, feature: D
     };
   }
 
-  if (feature === "admin" || feature === "integration") {
+  if (feature === "admin" || feature === "integration" || feature === "email") {
     return {
       code: "DEMO_FEATURE_NOT_AVAILABLE",
       message: DEMO_FULL_VERSION_MESSAGE,
