@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { getActiveDealerId } from "@/lib/active-tenant";
+import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
 
 type SettingsState = {
@@ -8,12 +12,20 @@ type SettingsState = {
   email: string | null;
   role: string | null;
   dealerLabel: string | null;
-  supabaseStatus: "attivo" | "non disponibile";
-  systemMessage: string | null;
+  errorMessage: string | null;
 };
 
 function displayValue(value: string | null | undefined) {
   return value && value.trim().length > 0 ? value : "Non disponibile";
+}
+
+function humanizeRole(role: string | null) {
+  if (!role) return null;
+  return role
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 export default function ImpostazioniPage() {
@@ -22,16 +34,8 @@ export default function ImpostazioniPage() {
     email: null,
     role: null,
     dealerLabel: null,
-    supabaseStatus: "non disponibile",
-    systemMessage: null,
+    errorMessage: null,
   });
-
-  const environment = useMemo(
-    () => process.env.NEXT_PUBLIC_APP_ENV || process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NODE_ENV || "Non disponibile",
-    []
-  );
-
-  const buildVersion = useMemo(() => process.env.NEXT_PUBLIC_APP_VERSION || process.env.NEXT_PUBLIC_BUILD_ID || "Non disponibile", []);
 
   useEffect(() => {
     let mounted = true;
@@ -50,39 +54,27 @@ export default function ImpostazioniPage() {
         const userRole =
           (typeof user?.app_metadata?.role === "string" && user.app_metadata.role) ||
           (typeof user?.user_metadata?.role === "string" && user.user_metadata.role) ||
-          (typeof user?.user_metadata?.profile === "string" && user.user_metadata.profile) ||
           null;
 
-        const dealerId =
-          (typeof user?.app_metadata?.dealer_id === "string" && user.app_metadata.dealer_id) ||
-          (typeof user?.user_metadata?.dealer_id === "string" && user.user_metadata.dealer_id) ||
-          null;
+        let dealerLabel: string | null = null;
 
-        let dealerLabel: string | null = dealerId;
+        if (user?.id) {
+          const dealerId = await resolveDealerIdFromTenantSources(supabase, user.id, {
+            activeDealerId: getActiveDealerId(),
+          });
 
-        if (dealerId) {
-          const { data: dealerData, error: dealerError } = await supabase
-            .from("dealers")
-            .select("id, name")
-            .eq("id", dealerId)
-            .maybeSingle<{ id: string; name: string | null }>();
+          if (dealerId) {
+            const { data: dealerData, error: dealerError } = await supabase
+              .from("dealers")
+              .select("id, name")
+              .eq("id", dealerId)
+              .maybeSingle<{ id: string; name: string | null }>();
 
-          if (!dealerError && dealerData) {
-            dealerLabel = dealerData.name?.trim() ? `${dealerData.name} (${dealerData.id})` : dealerData.id;
-          }
-        } else if (user?.id) {
-          const { data: dealerData, error: dealerError } = await supabase
-            .from("dealers")
-            .select("id, name")
-            .eq("user_id", user.id)
-            .maybeSingle<{ id: string; name: string | null }>();
-
-          if (!dealerError && dealerData) {
-            dealerLabel = dealerData.name?.trim() ? `${dealerData.name} (${dealerData.id})` : dealerData.id;
+            if (!dealerError && dealerData) {
+              dealerLabel = dealerData.name?.trim() ? dealerData.name : dealerData.id;
+            }
           }
         }
-
-        const { error: pingError } = await supabase.from("dealers").select("id").limit(1);
 
         if (!mounted) return;
 
@@ -91,16 +83,14 @@ export default function ImpostazioniPage() {
           email: user?.email ?? null,
           role: userRole,
           dealerLabel,
-          supabaseStatus: pingError ? "non disponibile" : "attivo",
-          systemMessage: pingError ? pingError.message || "Connessione Supabase non disponibile." : null,
+          errorMessage: null,
         });
       } catch (error) {
         if (!mounted) return;
         setState((current) => ({
           ...current,
           loading: false,
-          supabaseStatus: "non disponibile",
-          systemMessage: error instanceof Error ? error.message : "Errore nel caricamento impostazioni.",
+          errorMessage: error instanceof Error ? error.message : "Errore nel caricamento impostazioni.",
         }));
       }
     };
@@ -113,12 +103,18 @@ export default function ImpostazioniPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
+    <DealerDashboardShell title="Impostazioni" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={0}>
       <div className="mx-auto w-full max-w-5xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <h1 className="text-3xl font-semibold text-slate-900">Impostazioni</h1>
-          <p className="mt-3 text-sm text-slate-600">Pagina impostazioni account e piattaforma in sola lettura.</p>
+          <p className="mt-3 text-sm text-slate-600">Dati del tuo account e della concessionaria.</p>
         </section>
+
+        {state.errorMessage ? (
+          <section className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
+            {state.errorMessage}
+          </section>
+        ) : null}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <h2 className="text-xl font-semibold text-slate-900">Account</h2>
@@ -129,17 +125,18 @@ export default function ImpostazioniPage() {
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
               <dt className="font-medium text-slate-500">Ruolo/Profilo</dt>
-              <dd className="mt-1 text-slate-900">{state.loading ? "Caricamento..." : displayValue(state.role)}</dd>
+              <dd className="mt-1 text-slate-900">{state.loading ? "Caricamento..." : displayValue(humanizeRole(state.role))}</dd>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4 sm:col-span-2">
-              <dt className="font-medium text-slate-500">Dealer associato</dt>
+              <dt className="font-medium text-slate-500">Concessionaria</dt>
               <dd className="mt-1 text-slate-900">{state.loading ? "Caricamento..." : displayValue(state.dealerLabel)}</dd>
             </div>
           </dl>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="text-xl font-semibold text-slate-900">Preferenze piattaforma</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Piattaforma</h2>
+          <p className="mt-2 text-sm text-slate-600">Impostazioni fisse, uguali per tutte le concessionarie.</p>
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
             <div className="rounded-2xl bg-slate-50 p-4">
               <dt className="font-medium text-slate-500">Lingua</dt>
@@ -150,7 +147,7 @@ export default function ImpostazioniPage() {
               <dd className="mt-1 text-slate-900">EUR</dd>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <dt className="font-medium text-slate-500">Timezone</dt>
+              <dt className="font-medium text-slate-500">Fuso orario</dt>
               <dd className="mt-1 text-slate-900">Europe/Rome</dd>
             </div>
           </dl>
@@ -158,46 +155,15 @@ export default function ImpostazioniPage() {
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <h2 className="text-xl font-semibold text-slate-900">Sicurezza</h2>
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            Gestione password tramite Supabase/Auth.
-          </div>
-          <button
-            type="button"
-            disabled
-            className="mt-4 inline-flex cursor-not-allowed items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500"
+          <p className="mt-2 text-sm text-slate-600">Cambia la password del tuo account.</p>
+          <Link
+            href="/reset-password"
+            className="mt-4 inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
-            Modifica password (in preparazione)
-          </button>
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="text-xl font-semibold text-slate-900">Sistema</h2>
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <dt className="font-medium text-slate-500">Ambiente corrente</dt>
-              <dd className="mt-1 text-slate-900">{displayValue(environment)}</dd>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <dt className="font-medium text-slate-500">Versione/Build</dt>
-              <dd className="mt-1 text-slate-900">{displayValue(buildVersion)}</dd>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <dt className="font-medium text-slate-500">Stato collegamento Supabase</dt>
-              <dd className={`mt-1 font-semibold ${state.supabaseStatus === "attivo" ? "text-emerald-700" : "text-red-700"}`}>
-                {state.loading ? "Verifica in corso..." : state.supabaseStatus}
-              </dd>
-            </div>
-          </dl>
-
-          {state.systemMessage ? (
-            <p className="mt-4 text-sm text-red-700">{state.systemMessage}</p>
-          ) : null}
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm sm:p-8">
-          Questa sezione sara ampliata con notifiche, permessi utente e preferenze operative.
+            Modifica password
+          </Link>
         </section>
       </div>
-    </main>
+    </DealerDashboardShell>
   );
 }
