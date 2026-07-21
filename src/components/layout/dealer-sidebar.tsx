@@ -77,7 +77,7 @@ export function DealerSidebar({ isOpen, onClose, isDemo = false }: DealerSidebar
 
       <aside
         className={[
-          "fixed left-0 top-[73px] z-50 h-[calc(100vh-73px)] w-[17rem] border-r border-slate-200/80",
+          "fixed left-0 top-[73px] z-50 h-[calc(100vh-73px)] w-[17rem] overflow-y-auto border-r border-slate-200/80",
           "bg-white/95 px-4 py-5 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.55)] backdrop-blur",
           "transition-transform duration-300 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
