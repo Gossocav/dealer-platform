@@ -19,6 +19,7 @@ type DealerRow = {
 type SubscriptionRow = {
   requested_plan_code: string | null;
   requested_plan_at: string | null;
+  converted_plan_code: string | null;
 };
 
 function normalizeText(value: unknown) {
@@ -132,24 +133,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: dealer.error.message || "Errore lettura concessionaria." }, { status: 500 });
   }
 
-  if (normalizeText(dealer.data?.account_type)?.toLowerCase() !== "demo") {
-    return NextResponse.json({ requestedPlanCode: null, requestedPlanAt: null }, { status: 200 });
-  }
-
+  // dealer_demo_subscriptions is looked up regardless of account_type: a
+  // dealer whose demo was just converted is now account_type "paid", but
+  // this row (and its converted_plan_code) is still the only record of
+  // which plan they actually have -- dealers.subscription_plan is a
+  // separate, legacy base/pro-only field never touched by the demo
+  // conversion flow.
   const subscription = await context.supabaseAdmin
     .from("dealer_demo_subscriptions")
-    .select("requested_plan_code, requested_plan_at")
+    .select("requested_plan_code, requested_plan_at, converted_plan_code")
     .eq("dealer_id", context.dealerId)
     .maybeSingle<SubscriptionRow>();
 
   if (subscription.error) {
-    return NextResponse.json({ error: subscription.error.message || "Errore lettura richiesta piano." }, { status: 500 });
+    return NextResponse.json({ error: subscription.error.message || "Errore lettura piano." }, { status: 500 });
   }
+
+  const isDemo = normalizeText(dealer.data?.account_type)?.toLowerCase() === "demo";
 
   return NextResponse.json(
     {
-      requestedPlanCode: normalizeDemoPlanCode(subscription.data?.requested_plan_code) ?? null,
-      requestedPlanAt: normalizeText(subscription.data?.requested_plan_at),
+      requestedPlanCode: isDemo ? (normalizeDemoPlanCode(subscription.data?.requested_plan_code) ?? null) : null,
+      requestedPlanAt: isDemo ? normalizeText(subscription.data?.requested_plan_at) : null,
+      activePlanCode: normalizeDemoPlanCode(subscription.data?.converted_plan_code) ?? null,
     },
     { status: 200 }
   );
