@@ -148,11 +148,13 @@ export default function AdminHomePage() {
           return;
         }
 
-        if (response.status === 403) {
-          router.replace("/dashboard");
-          return;
-        }
-
+        // A 403 here used to bounce straight to /dashboard, kicking the admin
+        // back out even though the check just above already confirmed they
+        // ARE authorized -- two independent admin checks (this page's own,
+        // and /api/admin/overview's) disagreeing looked exactly like being
+        // logged in as admin one moment and redirected to the dealer
+        // dashboard the next. Show it inline instead, same as any other
+        // stats-loading failure; the page's own gate already let them in.
         setState({
           loading: false,
           authorized: true,
