@@ -606,7 +606,8 @@ export async function POST(request: Request) {
     });
 
     if (configureResult.error) {
-      return NextResponse.json({ error: "Errore attivazione demo. Riprova." }, { status: 500 });
+      console.error("demo-activation:configure_demo_profile", configureResult.error);
+      return NextResponse.json({ error: configureResult.error.message || "Errore attivazione demo (configurazione profilo). Riprova." }, { status: 500 });
     }
 
     const configurePayload = normalizeRpcPayload(configureResult.data);
@@ -624,7 +625,8 @@ export async function POST(request: Request) {
     });
 
     if (reserveResult.error) {
-      return NextResponse.json({ error: "Errore attivazione demo. Riprova." }, { status: 500 });
+      console.error("demo-activation:reserve_demo_activation", reserveResult.error);
+      return NextResponse.json({ error: reserveResult.error.message || "Errore attivazione demo (prenotazione). Riprova." }, { status: 500 });
     }
 
     const reservePayload = normalizeRpcPayload(reserveResult.data);
@@ -648,13 +650,14 @@ export async function POST(request: Request) {
         });
 
         if (progressResult.error) {
+          console.error("demo-activation:record_demo_activation_progress", { state, error: progressResult.error });
           await context.supabaseAdmin.rpc("fail_demo_activation", {
             p_dealer_id: dealerId,
             p_actor_id: context.userId,
             p_attempt_id: activationAttemptId,
             p_reason: "Activation flow failed",
           });
-          return NextResponse.json({ error: "Errore attivazione demo. Riprova." }, { status: 500 });
+          return NextResponse.json({ error: progressResult.error.message || `Errore attivazione demo (${state}). Riprova.` }, { status: 500 });
         }
 
         const progressPayload = normalizeRpcPayload(progressResult.data);
@@ -679,13 +682,14 @@ export async function POST(request: Request) {
       });
 
       if (finalizeResult.error) {
+        console.error("demo-activation:finalize_demo_activation", finalizeResult.error);
         await context.supabaseAdmin.rpc("fail_demo_activation", {
           p_dealer_id: dealerId,
           p_actor_id: context.userId,
           p_attempt_id: activationAttemptId,
           p_reason: "Activation flow failed",
         });
-        return NextResponse.json({ error: "Errore attivazione demo. Riprova." }, { status: 500 });
+        return NextResponse.json({ error: finalizeResult.error.message || "Errore attivazione demo (finalizzazione). Riprova." }, { status: 500 });
       }
 
       const finalizePayload = normalizeRpcPayload(finalizeResult.data);

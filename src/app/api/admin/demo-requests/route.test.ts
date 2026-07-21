@@ -617,7 +617,7 @@ describe("admin demo-requests route rate limiting", () => {
     const payload = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(500);
-    expect(payload).toEqual({ error: "Errore attivazione demo. Riprova." });
+    expect(payload).toEqual({ error: "activation progress failed" });
     expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith(
       "fail_demo_activation",
