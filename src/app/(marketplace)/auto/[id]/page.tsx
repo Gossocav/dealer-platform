@@ -265,6 +265,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Marca" value={formatText(vehicle.brand)} />
                 <Field label="Modello" value={formatText(vehicle.model)} />
                 <Field label="Versione" value={formatText(vehicle.version)} />
+                <Field label="Anno" value={formatText(vehicle.year)} />
                 <Field label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <Field label="Cambio" value={formatText(vehicle.transmission)} />
                 <Field label="Trazione" value={formatText(vehicle.traction)} />
@@ -369,27 +370,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <InfoRow label="WhatsApp" value={formatText(dealerWhatsAppPhone)} />
                 <InfoRow label="Email" value={formatText(dealerEmail)} />
                 <InfoRow label="Sito web" value={formatText(dealerWebsite)} />
-              </div>
-            </div>
-
-            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-slate-500">Scheda tecnica</p>
-              <div className="mt-4 space-y-3">
-                <InfoRow label="Alimentazione" value={formatText(vehicle.fuel)} />
-                <InfoRow label="Cambio" value={formatText(vehicle.transmission)} />
-                <InfoRow label="Trazione" value={formatText(vehicle.traction)} />
-                <InfoRow label="Cilindrata" value={formatText(vehicle.engine_size)} />
-                <InfoRow label="Potenza kW" value={formatText(vehicle.power_kw)} />
-                <InfoRow label="Potenza CV" value={formatText(vehicle.power_cv)} />
-                <InfoRow label="Porte" value={formatText(vehicle.doors)} />
-                <InfoRow label="Classe Euro" value={formatText(vehicle.emission_class)} />
-                <InfoRow label="Immatricolazione" value={formatText(vehicle.registration_date)} />
-                <InfoRow label="Colore" value={formatText(vehicle.color)} />
-                <InfoRow label="Interni" value={formatText(vehicle.interior_type)} />
-                <InfoRow label="Telaio" value={formatText(vehicle.vin)} />
-                <InfoRow label="Chilometri" value={formatMileage(vehicle.mileage)} />
-                <InfoRow label="Prezzo" value={formatPrice(vehicle.price)} />
-                <InfoRow label="Stato annuncio" value="Pubblicato" />
               </div>
             </div>
 
