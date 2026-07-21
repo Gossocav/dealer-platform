@@ -43,6 +43,30 @@ function extractRecipients(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildMessageHtml(bodyText: string, replyToEmail: string | null) {
+  const escapedBody = escapeHtml(bodyText).replace(/\n/g, "<br />");
+
+  return `
+    <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;max-width:600px;">
+      <div>${escapedBody}</div>
+      <hr style="margin:24px 0;border:none;border-top:1px solid #e2e8f0;" />
+      <p style="font-size:12px;color:#64748b;margin:0;">
+        Messaggio inviato tramite Dealer Platform per conto della concessionaria.
+        ${replyToEmail ? `Per rispondere direttamente scrivi a <a href="mailto:${escapeHtml(replyToEmail)}">${escapeHtml(replyToEmail)}</a>.` : ""}
+      </p>
+    </div>
+  `.trim();
+}
+
 async function resolveDealerContext(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -171,6 +195,8 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
 
+  const htmlBody = message.data.body_html || (message.data.body_text ? buildMessageHtml(message.data.body_text, message.data.reply_to_email) : null);
+
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -182,7 +208,7 @@ export async function POST(request: Request) {
       to: toRecipients,
       ...(message.data.reply_to_email ? { reply_to: message.data.reply_to_email } : {}),
       subject: message.data.subject,
-      ...(message.data.body_html ? { html: message.data.body_html } : {}),
+      ...(htmlBody ? { html: htmlBody } : {}),
       ...(message.data.body_text ? { text: message.data.body_text } : {}),
     }),
   });
@@ -217,6 +243,7 @@ export async function POST(request: Request) {
       sent_at: now,
       from_email: fromEmail,
       from_name: "Dealer Platform",
+      body_html: htmlBody,
       provider: "resend",
       provider_message_id: resendPayload?.id ?? null,
     })
