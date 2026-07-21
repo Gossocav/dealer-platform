@@ -94,7 +94,7 @@ export async function sendAdminNotificationEmail(input: { subject: string; html:
 
 export async function sendDemoLifecycleEmail(input: {
   toEmail: string;
-  kind: "approved" | "access" | "reminder" | "expired" | "converted" | "revoked";
+  kind: "received" | "approved" | "access" | "reminder" | "expired" | "converted" | "revoked";
   dealerName?: string;
   expiresAt?: string | null;
   daysRemaining?: number;
@@ -106,6 +106,7 @@ export async function sendDemoLifecycleEmail(input: {
   }
 
   const subjectMap = {
+    received: "Richiesta Demo ricevuta - Dealer Platform",
     approved: "Demo Dealer Platform attivata",
     access: "Accesso alla tua demo Dealer Platform",
     reminder: "La tua demo Dealer Platform sta per scadere",
@@ -115,6 +116,14 @@ export async function sendDemoLifecycleEmail(input: {
   } as const;
 
   const bodyMap = {
+    received: `
+      <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+        <h2 style="margin:0 0 12px;">Richiesta ricevuta</h2>
+        <p style="margin:0 0 12px;">Ciao,</p>
+        <p style="margin:0 0 12px;">abbiamo ricevuto la tua richiesta di Demo Dealer Platform per <strong>${escapeHtml(input.dealerName ?? "-")}</strong>.</p>
+        <p style="margin:0 0 12px;">Il nostro team verifichera i dati inviati e ti contattera per l'attivazione. Tempi stimati: 1-2 giorni lavorativi.</p>
+      </div>
+    `,
     approved: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Demo attivata</h2>
