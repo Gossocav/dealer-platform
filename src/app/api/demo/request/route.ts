@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
+import { sendAdminNotificationEmail, sendDemoLifecycleEmail } from "@/lib/admin-notification-email";
 import { hitRateLimit } from "@/lib/api-rate-limit";
 
 type DemoRequestBody = {
@@ -661,6 +661,16 @@ export async function POST(request: Request) {
 
     if (!notificationResult.ok) {
       console.error("Demo request admin notification provider error", notificationResult);
+    }
+
+    const dealerConfirmationResult = await sendDemoLifecycleEmail({
+      toEmail: email,
+      kind: "received",
+      dealerName: companyName,
+    });
+
+    if (!dealerConfirmationResult.ok) {
+      console.error("Demo request dealer confirmation provider error", dealerConfirmationResult);
     }
 
     return NextResponse.json({ message: "Richiesta Demo inviata" }, { status: 200 });
