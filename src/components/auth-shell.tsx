@@ -94,35 +94,21 @@ export function AuthShell({ children }: AuthShellProps) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
+      // Only react to an actual sign-out here. This listener also fires for
+      // unrelated events (token refresh, tab focus, etc.) using a possibly
+      // stale cached session/JWT -- re-running the admin authorization check
+      // on every one of those caused a flash-then-revert bug where a
+      // correctly authorized admin view would immediately bounce back to
+      // /dashboard. The one-time check in ensureAuthenticated() above (which
+      // always uses a fresh auth.getUser() call) is the sole authority for
+      // whether this page view is authenticated/authorized.
       const hasUser = Boolean(session?.user);
 
       if (!hasUser || event === "SIGNED_OUT") {
         setChecked(true);
         setAuthenticated(false);
         router.replace(isAdminRoute ? "/admin/login" : "/login");
-        return;
       }
-
-      if (isAdminRoute && session?.user) {
-        void (async () => {
-          const isAuthorized = await resolveAdminAuthorization(session.user.id, resolveUserRoleFromMetadata(session.user));
-          if (!mounted) return;
-
-          if (!isAuthorized) {
-            setChecked(true);
-            setAuthenticated(false);
-            router.replace("/dashboard");
-            return;
-          }
-
-          setChecked(true);
-          setAuthenticated(true);
-        })();
-        return;
-      }
-
-      setChecked(true);
-      setAuthenticated(true);
     });
 
     return () => {
