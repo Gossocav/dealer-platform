@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 type Lead = {
   id: string;
+  customer_type: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -37,7 +38,7 @@ export default function LeadDetailPage() {
       const { data, error } = await supabase
         .from("leads")
         .select(
-          "id, first_name, last_name, email, phone, message, status, created_at, vehicle:vehicles(brand, model, version, year)"
+          "id, customer_type, first_name, last_name, email, phone, message, status, created_at, vehicle:vehicles(brand, model, version, year)"
         )
         .eq("id", leadId)
         .maybeSingle();
@@ -125,6 +126,11 @@ export default function LeadDetailPage() {
           <section className="space-y-6">
 
             <Card title="Dati Cliente">
+
+              <Info
+                label="Tipo cliente"
+                value={formatCustomerType(lead.customer_type)}
+              />
 
               <Info
                 label="Nome"
@@ -371,4 +377,10 @@ function formatStatus(value: string | null) {
 
 function cleanPhone(phone: string) {
   return phone.replace(/\D/g, "");
+}
+
+function formatCustomerType(value: string | null) {
+  if (value === "azienda") return "Azienda";
+  if (value === "privato") return "Privato";
+  return null;
 }

@@ -8,12 +8,15 @@ import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 type LeadInsertBody = {
   vehicleId?: string;
   vehicle_id?: string;
+  customer_type?: string | null;
   first_name?: string;
   last_name?: string;
   email?: string | null;
   phone?: string | null;
   message?: string | null;
 };
+
+const VALID_CUSTOMER_TYPES = new Set(["privato", "azienda"]);
 
 type ResendResponse = {
   id?: string;
@@ -86,6 +89,7 @@ export async function POST(request: Request) {
     }
 
     const vehicleId = String(body.vehicleId ?? body.vehicle_id ?? "").trim();
+    const customerType = normalizeText(body.customer_type);
     const firstName = String(body.first_name ?? "").trim();
     const lastName = String(body.last_name ?? "").trim();
     const customerEmail = normalizeEmail(body.email);
@@ -100,7 +104,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
     }
 
-    if (!vehicleId || !firstName || !lastName || !customerEmail || !customerPhone || !customerMessage) {
+    if (
+      !vehicleId ||
+      !customerType ||
+      !VALID_CUSTOMER_TYPES.has(customerType) ||
+      !firstName ||
+      !lastName ||
+      !customerEmail ||
+      !customerPhone ||
+      !customerMessage
+    ) {
       return NextResponse.json({ error: "Tutti i campi sono obbligatori." }, { status: 400 });
     }
 
@@ -196,6 +209,7 @@ export async function POST(request: Request) {
       {
         vehicle_id: vehicleId,
         dealer_id: vehicleData.dealer_id,
+        customer_type: customerType,
         first_name: firstName,
         last_name: lastName,
         email: customerEmail,
