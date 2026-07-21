@@ -45,6 +45,7 @@ const demoEnabledItems: SidebarItem[] = [
   { label: "Lead", href: "/lead", icon: Inbox },
   { label: "Marketplace", href: "/auto", icon: Car },
   { label: "Report", href: "/statistiche", icon: BarChart3 },
+  { label: "Scegli il tuo piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Logout", href: "/login", icon: LogOut },
 ];
 
@@ -53,7 +54,6 @@ const demoLockedItems: SidebarItem[] = [
   { label: "Clienti", href: "/clienti", icon: Users },
   { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
   { label: "Email", href: "/email", icon: Mail },
-  { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
 ];
 

@@ -3,7 +3,7 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
-import { DEMO_PLAN_CATALOG, type DemoPlanCode } from "@/lib/demo-plan-catalog";
+import { DEMO_PLAN_CATALOG, normalizeDemoPlanCode, type DemoPlanCode } from "@/lib/demo-plan-catalog";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction =
@@ -43,6 +43,8 @@ type DemoRequestRow = {
   demo_started_at?: string | null;
   demo_expires_at?: string | null;
   linked_dealer_id?: string | null;
+  requested_plan_code?: string | null;
+  requested_plan_at?: string | null;
 };
 
 type PageState = {
@@ -714,6 +716,11 @@ export default function AdminDemoRequestsPage() {
                         <td className="px-4 py-3 text-slate-700">{request.linked_dealer_id ?? "-"}</td>
                         <td className="px-4 py-3 text-slate-700">{formatDate(request.created_at)}</td>
                         <td className="px-4 py-3">
+                          {request.requested_plan_code ? (
+                            <div className="mb-2 text-right text-xs font-medium text-indigo-700">
+                              Piano richiesto dal dealer: {DEMO_PLAN_CATALOG.find((plan) => plan.code === request.requested_plan_code)?.name ?? request.requested_plan_code}
+                            </div>
+                          ) : null}
                           {actions.length === 0 ? (
                             <div className="flex items-center justify-end text-xs text-slate-500">Nessuna azione</div>
                           ) : (
@@ -722,7 +729,7 @@ export default function AdminDemoRequestsPage() {
                                 action === "convert_demo" ? (
                                   <div key={`${request.id}-${action}`} className="flex items-center gap-2">
                                     <select
-                                      value={selectedPlanByRequest[request.id] ?? "base"}
+                                      value={selectedPlanByRequest[request.id] ?? normalizeDemoPlanCode(request.requested_plan_code) ?? "base"}
                                       onChange={(event) =>
                                         setSelectedPlanByRequest((current) => ({
                                           ...current,
@@ -741,7 +748,13 @@ export default function AdminDemoRequestsPage() {
                                     </select>
                                     <button
                                       type="button"
-                                      onClick={() => void submitAction(request.id, action, selectedPlanByRequest[request.id] ?? "base")}
+                                      onClick={() =>
+                                        void submitAction(
+                                          request.id,
+                                          action,
+                                          selectedPlanByRequest[request.id] ?? normalizeDemoPlanCode(request.requested_plan_code) ?? "base"
+                                        )
+                                      }
                                       disabled={busy}
                                       className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
                                     >

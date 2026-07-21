@@ -48,6 +48,8 @@ type DemoRequestRow = {
   demo_started_at?: string | null;
   demo_expires_at?: string | null;
   linked_dealer_id?: string | null;
+  requested_plan_code?: string | null;
+  requested_plan_at?: string | null;
 };
 
 type DemoRequestActionBody = {
@@ -326,8 +328,33 @@ export async function GET(request: Request) {
     }
   }
 
+  const requestedPlanByRequestId = new Map<string, { requested_plan_code: string | null; requested_plan_at: string | null }>();
+
+  if (requestIds.length > 0) {
+    const subscriptions = await context.supabaseAdmin
+      .from("dealer_demo_subscriptions")
+      .select("demo_request_id, requested_plan_code, requested_plan_at")
+      .in("demo_request_id", requestIds)
+      .returns<Array<Record<string, unknown>>>();
+
+    if (!subscriptions.error) {
+      for (const subscription of subscriptions.data ?? []) {
+        const key = String(subscription.demo_request_id ?? "").trim();
+        if (!key) {
+          continue;
+        }
+
+        requestedPlanByRequestId.set(key, {
+          requested_plan_code: normalizeText(subscription.requested_plan_code),
+          requested_plan_at: normalizeText(subscription.requested_plan_at),
+        });
+      }
+    }
+  }
+
   const enriched = normalizedRequests.map((request) => {
     const linked = dealerByRequestId.get(request.id);
+    const requestedPlan = requestedPlanByRequestId.get(request.id);
 
     return {
       ...request,
@@ -336,6 +363,8 @@ export async function GET(request: Request) {
       demo_status: linked?.demo_status ?? request.demo_status ?? null,
       demo_started_at: linked?.demo_started_at ?? request.demo_started_at ?? null,
       demo_expires_at: linked?.demo_expires_at ?? request.demo_expires_at ?? null,
+      requested_plan_code: requestedPlan?.requested_plan_code ?? null,
+      requested_plan_at: requestedPlan?.requested_plan_at ?? null,
     };
   });
 
