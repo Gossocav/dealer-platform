@@ -162,7 +162,10 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
 
   const authAdminCreateUser = vi.fn();
   const authAdminGenerateLink = vi.fn().mockResolvedValue({
-    data: { properties: { action_link: "https://dealer-platform-six.vercel.app/reset-password?token=test" } },
+    data: {
+      properties: { action_link: "https://dealer-platform-six.vercel.app/reset-password?token=test" },
+      user: { id: "recovered-profile-1" },
+    },
     error: null,
   });
   const createSignedUrl = vi.fn();
@@ -556,6 +559,46 @@ describe("admin demo-requests route rate limiting", () => {
       })
     );
   });
+
+  it("reuses the existing auth user when a prior interrupted attempt already created it", async () => {
+    const user: UserStub = {
+      id: "admin-3",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, rpc } = makeSupabaseAdminForActivation(user);
+    supabaseAdmin.auth.admin.createUser = vi.fn().mockResolvedValue({
+      data: { user: null },
+      error: { message: "A user with this email address has already been registered", code: "email_exists" },
+    });
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      requestId: "request-1",
+      status: "activated",
+      demoStatus: "active",
+      demoExpiresAt: "2026-07-24T00:00:00.000Z",
+      linkedDealerId: "dealer-1",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "finalize_demo_activation",
+      expect.objectContaining({
+        p_dealer_id: "dealer-1",
+        p_profile_id: "recovered-profile-1",
+        p_demo_request_id: "request-1",
+      })
+    );
+  });
+
   it("keeps the request retryable when activation fails before finalization", async () => {
     const user: UserStub = {
       id: "admin-4",
