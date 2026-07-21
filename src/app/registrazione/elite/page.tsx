@@ -2,9 +2,49 @@ import Link from "next/link";
 
 const eliteFeatures = [
   {
-    title: "Software Dealer Platform completo",
+    title: "Annunci veicolo attivi illimitati",
     description:
-      "Accedi a tutte le funzionalita della piattaforma senza limiti, dalla gestione veicoli alla ricezione lead, con la stessa base tecnica dei piani Pro.",
+      "Gestisci volumi elevati di stock senza limiti operativi, mantenendo sempre ampia disponibilita online per intercettare piu richieste.",
+  },
+  {
+    title: "Gestione completa delle schede veicolo",
+    description:
+      "Standardizza la qualita delle schede su tutto il parco auto, con dati completi e presentazioni professionali per ogni veicolo pubblicato.",
+  },
+  {
+    title: "Ricezione e gestione dei lead",
+    description:
+      "Centralizza i contatti in ingresso, assegna priorita alle opportunita migliori e migliora il tasso di conversione commerciale.",
+  },
+  {
+    title: "Dashboard concessionario avanzata",
+    description:
+      "Monitora KPI operativi e commerciali in un ambiente evoluto, utile per prendere decisioni rapide su stock e strategie di vendita.",
+  },
+  {
+    title: "CRM Lead avanzato",
+    description:
+      "Traccia lo storico di ogni trattativa, organizza follow-up e coordina il team commerciale con un flusso strutturato e replicabile.",
+  },
+  {
+    title: "Statistiche e KPI dettagliati",
+    description:
+      "Analizza performance di annunci, sorgenti lead e risultati commerciali per ottimizzare campagne e investimenti con dati concreti.",
+  },
+  {
+    title: "Esportazione dati",
+    description:
+      "Esporta informazioni strategiche per condivisione interna, reportistica e integrazione con processi amministrativi o strumenti esterni.",
+  },
+  {
+    title: "Supporto prioritario",
+    description:
+      "Accedi a un canale di assistenza con priorita alta per ridurre tempi di attesa e mantenere continuita nelle attivita quotidiane.",
+  },
+  {
+    title: "Maggiore visibilita sulla piattaforma",
+    description:
+      "Aumenta la presenza dei tuoi veicoli nel marketplace e migliora le possibilita di essere scelto dai clienti nelle fasi di ricerca.",
   },
   {
     title: "Visibilita sui social ufficiali Dealer Platform",
@@ -31,7 +71,7 @@ export default function RegistrazioneElitePage() {
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-600">Piano Elite</p>
           <h1 className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Piano Elite</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            La soluzione completa per concessionarie che vogliono affidare a Dealer Platform anche la visibilita online e la gestione della pubblicita.
+            Tutte le funzionalita del Piano Pro, con in piu i servizi di visibilita social e la gestione della pubblicita online.
           </p>
           <p className="mt-4 text-2xl font-semibold text-slate-900">€699/mese</p>
           <p className="mt-2 text-xs leading-5 text-slate-500">

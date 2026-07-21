@@ -35,7 +35,7 @@ export default function RegistrazionePage() {
 
           <article className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
             <h2 className="text-2xl font-semibold text-slate-900">Piano Elite</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">Piattaforma completa piu gestione della visibilita social e delle campagne Google Ads.</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">Tutto il Piano Pro, con in piu la gestione della visibilita social e delle campagne Google Ads.</p>
             <Link
               href="/registrazione/elite"
               className="mt-6 inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
