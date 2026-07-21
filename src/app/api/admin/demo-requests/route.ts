@@ -5,6 +5,7 @@ import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
+import { normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document";
@@ -52,6 +53,7 @@ type DemoRequestRow = {
 type DemoRequestActionBody = {
   requestId?: string;
   action?: DemoAdminAction;
+  planCode?: string;
 };
 
 type DemoRpcPayload = {
@@ -184,6 +186,13 @@ function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
     demo_expires_at: normalizeText(raw.demo_expires_at),
     linked_dealer_id: normalizeText(raw.linked_dealer_id),
   };
+}
+
+const FALLBACK_PRODUCTION_APP_URL = "https://dealer-platform-six.vercel.app";
+
+function resolveAppBaseUrl() {
+  const configured = normalizeText(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || null);
+  return (configured ?? FALLBACK_PRODUCTION_APP_URL).replace(/\/+$/, "");
 }
 
 async function resolveAdminContext(request: Request) {
@@ -540,6 +549,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: createdUser.error?.message || "Errore creazione utente demo." }, { status: 500 });
     }
 
+    const recoveryLinkResult = await context.supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: targetRequest.email,
+      options: { redirectTo: `${resolveAppBaseUrl()}/reset-password` },
+    });
+    const passwordSetupLink = recoveryLinkResult.error ? null : (recoveryLinkResult.data?.properties?.action_link ?? null);
+
     const profileId = createdUser.data.user.id;
     const profileUpsert = await context.supabaseAdmin.from("profiles").upsert(
       {
@@ -747,6 +763,10 @@ export async function POST(request: Request) {
           <p style="margin:0 0 12px;">Concessionaria: <strong>${targetRequest.dealership_name}</strong></p>
           <p style="margin:0 0 12px;">Scadenza: <strong>${expiresAt}</strong></p>
           <p style="margin:0 0 12px;">Limiti: max 10 veicoli, 20 lead, nessuna esportazione/importazione di massa.</p>
+          ${passwordSetupLink
+            ? `<p style="margin:0 0 12px;"><a href="${passwordSetupLink}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Imposta la password e accedi</a></p>`
+            : `<p style="margin:0 0 12px;">Per accedere, vai su <a href="${resolveAppBaseUrl()}/forgot-password">${resolveAppBaseUrl()}/forgot-password</a> e richiedi il recupero password con questo indirizzo email.</p>`
+          }
         </div>
       `.trim(),
     });
@@ -870,11 +890,14 @@ export async function POST(request: Request) {
     }
     const { lifecycleVersion } = lifecycleVersionResult;
 
+    const planCode = normalizeDemoPlanCode(body.planCode) ?? "base";
+
     const convertResult = await context.supabaseAdmin.rpc("convert_demo_request_atomic", {
       p_request_id: requestId,
       p_dealer_id: dealerId,
       p_actor_id: context.userId,
       p_lifecycle_version: lifecycleVersion,
+      p_plan_code: planCode,
     });
 
     if (convertResult.error) {
@@ -904,6 +927,7 @@ export async function POST(request: Request) {
         demoStatus: normalizeText(convertRequest.demo_status) ?? "converted",
         demoExpiresAt: normalizeText(convertRequest.demo_expires_at),
         linkedDealerId: normalizeText(convertRequest.linked_dealer_id) ?? normalizeText(convertDealer.id) ?? dealerId,
+        planCode,
       },
       { status: 200 }
     );

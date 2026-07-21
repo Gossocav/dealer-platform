@@ -7,10 +7,10 @@ export default function RegistrazionePage() {
         <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-600">Accesso Dealer</p>
         <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Scegli il percorso piu adatto alla tua concessionaria</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-          Seleziona Piano Base, Piano Pro oppure richiedi la Demo gratuita di 7 giorni.
+          Seleziona Piano Base, Piano Pro, Piano Elite oppure richiedi la Demo gratuita di 7 giorni.
         </p>
 
-        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+        <div className="mt-8 grid gap-5 lg:grid-cols-4">
           <article className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
             <h2 className="text-2xl font-semibold text-slate-900">Piano Base</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">Ideale per partire con i flussi fondamentali di gestione concessionaria.</p>
@@ -30,6 +30,17 @@ export default function RegistrazionePage() {
               className="mt-6 inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
             >
               Vai al Piano Pro
+            </Link>
+          </article>
+
+          <article className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+            <h2 className="text-2xl font-semibold text-slate-900">Piano Elite</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">Tutto il Piano Pro, con in piu la gestione della visibilita social e delle campagne Google Ads.</p>
+            <Link
+              href="/registrazione/elite"
+              className="mt-6 inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+            >
+              Vai al Piano Elite
             </Link>
           </article>
 

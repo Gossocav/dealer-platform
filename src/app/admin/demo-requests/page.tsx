@@ -3,6 +3,7 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
+import { DEMO_PLAN_CATALOG, type DemoPlanCode } from "@/lib/demo-plan-catalog";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction =
@@ -229,6 +230,7 @@ export default function AdminDemoRequestsPage() {
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
   const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
+  const [selectedPlanByRequest, setSelectedPlanByRequest] = useState<Record<string, DemoPlanCode>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const requestSequenceRef = useRef(0);
   const callCounterRef = useRef(0);
@@ -423,7 +425,7 @@ export default function AdminDemoRequestsPage() {
     };
   }, []);
 
-  const submitAction = async (requestId: string, action: DemoAdminAction) => {
+  const submitAction = async (requestId: string, action: DemoAdminAction, planCode?: DemoPlanCode) => {
     setBusyRequestId(requestId);
     setSuccessMessage(null);
 
@@ -447,7 +449,7 @@ export default function AdminDemoRequestsPage() {
         "content-type": "application/json",
         authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ requestId, action }),
+      body: JSON.stringify(action === "convert_demo" ? { requestId, action, planCode: planCode ?? "base" } : { requestId, action }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
@@ -711,17 +713,48 @@ export default function AdminDemoRequestsPage() {
                             <div className="flex items-center justify-end text-xs text-slate-500">Nessuna azione</div>
                           ) : (
                             <div className="flex flex-wrap items-center justify-end gap-2">
-                              {actions.map((action) => (
-                                <button
-                                  key={`${request.id}-${action}`}
-                                  type="button"
-                                  onClick={() => void submitAction(request.id, action)}
-                                  disabled={busy}
-                                  className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
-                                >
-                                  {getActionLabel(action)}
-                                </button>
-                              ))}
+                              {actions.map((action) =>
+                                action === "convert_demo" ? (
+                                  <div key={`${request.id}-${action}`} className="flex items-center gap-2">
+                                    <select
+                                      value={selectedPlanByRequest[request.id] ?? "base"}
+                                      onChange={(event) =>
+                                        setSelectedPlanByRequest((current) => ({
+                                          ...current,
+                                          [request.id]: event.target.value as DemoPlanCode,
+                                        }))
+                                      }
+                                      disabled={busy}
+                                      className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {DEMO_PLAN_CATALOG.map((plan) => (
+                                        <option key={plan.code} value={plan.code}>
+                                          {plan.name}
+                                          {plan.priceMonthly ? ` (€${plan.priceMonthly}/mese)` : ""}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => void submitAction(request.id, action, selectedPlanByRequest[request.id] ?? "base")}
+                                      disabled={busy}
+                                      className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
+                                    >
+                                      {getActionLabel(action)}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    key={`${request.id}-${action}`}
+                                    type="button"
+                                    onClick={() => void submitAction(request.id, action)}
+                                    disabled={busy}
+                                    className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
+                                  >
+                                    {getActionLabel(action)}
+                                  </button>
+                                )
+                              )}
                             </div>
                           )}
                         </td>

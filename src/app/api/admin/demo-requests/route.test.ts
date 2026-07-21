@@ -161,6 +161,10 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
   const subscriptionUpdate = vi.fn(() => ({ eq: subscriptionUpdateEq }));
 
   const authAdminCreateUser = vi.fn();
+  const authAdminGenerateLink = vi.fn().mockResolvedValue({
+    data: { properties: { action_link: "https://dealer-platform-six.vercel.app/reset-password?token=test" } },
+    error: null,
+  });
   const createSignedUrl = vi.fn();
 
   const from = vi.fn((table: string) => {
@@ -200,6 +204,7 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
       }),
       admin: {
         createUser: authAdminCreateUser,
+        generateLink: authAdminGenerateLink,
       },
     },
     from,
@@ -889,6 +894,7 @@ describe("admin demo-requests route rate limiting", () => {
       demoStatus: "converted",
       demoExpiresAt: null,
       linkedDealerId: "dealer-1",
+      planCode: "base",
     });
     expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
     expect(dealersUpdateEq).not.toHaveBeenCalled();
@@ -899,10 +905,70 @@ describe("admin demo-requests route rate limiting", () => {
         p_dealer_id: "dealer-1",
         p_actor_id: "admin-11",
         p_lifecycle_version: 3,
+        p_plan_code: "base",
       })
     );
     expect(mocks.sendDemoLifecycleEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ toEmail: "dealer@example.com", kind: "converted" })
+    );
+  });
+
+  it("forwards an explicitly chosen plan code to the atomic conversion RPC", async () => {
+    const user: UserStub = {
+      id: "admin-11",
+      app_metadata: { role: "admin" },
+    };
+    const { supabaseAdmin, demoRequestTargetMaybeSingle, rpc } = makeSupabaseAdmin(user);
+
+    demoRequestTargetMaybeSingle.mockResolvedValue({
+      data: {
+        id: "request-1",
+        dealership_name: "Dealer Demo",
+        contact_name: "Mario Rossi",
+        email: "dealer@example.com",
+        phone: "123",
+        city: "Roma",
+        status: "activated",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        chamber_document_path: null,
+        chamber_document_name: null,
+        chamber_document_mime_type: null,
+        chamber_document_size: null,
+        linked_dealer_id: "dealer-1",
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+    rpc.mockResolvedValue({
+      data: {
+        outcome: "DEMO_CONVERTED",
+        request: {
+          id: "request-1",
+          status: "converted",
+          demo_status: "converted",
+          demo_expires_at: null,
+          linked_dealer_id: "dealer-1",
+        },
+        dealer: { id: "dealer-1", demo_status: "converted" },
+      },
+      error: null,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "convert_demo", planCode: "elite" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload.planCode).toBe("elite");
+    expect(rpc).toHaveBeenCalledWith(
+      "convert_demo_request_atomic",
+      expect.objectContaining({ p_plan_code: "elite" })
     );
   });
 
