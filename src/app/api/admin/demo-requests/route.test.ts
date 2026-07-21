@@ -42,7 +42,7 @@ vi.mock("@/lib/admin-notification-email", () => ({
   sendDemoLifecycleEmail: mocks.sendDemoLifecycleEmailMock,
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 type UserStub = {
   id: string;
@@ -1041,5 +1041,86 @@ describe("admin demo-requests route rate limiting", () => {
     expect(payload).toEqual({ error: "Esiste gia un account abbonato con questa email. Attivazione demo non consentita." });
     expect(dealersUpsert).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("admin demo-requests route GET", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+  });
+
+  it("includes the dealer-requested plan code in the enriched response", async () => {
+    const user: UserStub = {
+      id: "admin-1",
+      app_metadata: { role: "admin" },
+    };
+
+    const demoRequestsOrder = vi.fn(() => ({
+      returns: () =>
+        Promise.resolve({
+          data: [
+            {
+              id: "request-1",
+              dealership_name: "Dealer Demo",
+              contact_name: "Mario Rossi",
+              email: "dealer@example.com",
+              phone: "123",
+              city: "Roma",
+              status: "activated",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              chamber_document_path: null,
+              chamber_document_name: null,
+              chamber_document_mime_type: null,
+              chamber_document_size: null,
+            },
+          ],
+          error: null,
+        }),
+    }));
+    const demoRequestsSelectAll = vi.fn(() => ({ order: demoRequestsOrder }));
+
+    const dealersIn = vi.fn(() => ({ returns: () => Promise.resolve({ data: [], error: null }) }));
+    const dealersSelect = vi.fn(() => ({ in: dealersIn }));
+
+    const subscriptionsIn = vi.fn(() => ({
+      returns: () =>
+        Promise.resolve({
+          data: [{ demo_request_id: "request-1", requested_plan_code: "elite", requested_plan_at: "2026-07-21T00:00:00.000Z" }],
+          error: null,
+        }),
+    }));
+    const subscriptionsSelect = vi.fn(() => ({ in: subscriptionsIn }));
+
+    const from = vi.fn((table: string) => {
+      if (table === "demo_requests") return { select: demoRequestsSelectAll };
+      if (table === "dealers") return { select: dealersSelect };
+      if (table === "dealer_demo_subscriptions") return { select: subscriptionsSelect };
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const supabaseAdmin = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }),
+      },
+      from,
+    };
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+
+    const request = new Request("http://localhost/api/admin/demo-requests", {
+      method: "GET",
+      headers: { authorization: "Bearer test-token" },
+    });
+
+    const response = await GET(request);
+    const payload = (await response.json()) as { requests: Array<Record<string, unknown>> };
+
+    expect(response.status).toBe(200);
+    expect(payload.requests).toHaveLength(1);
+    expect(payload.requests[0].requested_plan_code).toBe("elite");
+    expect(subscriptionsIn).toHaveBeenCalledWith("demo_request_id", ["request-1"]);
   });
 });
