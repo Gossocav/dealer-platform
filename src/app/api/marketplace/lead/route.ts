@@ -108,12 +108,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
     }
 
-    if (!vehicleId || !firstName || !lastName) {
-      return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
-    }
-
-    if (!customerEmail && !customerPhone) {
-      return NextResponse.json({ error: "Inserisci almeno email o telefono." }, { status: 400 });
+    if (
+      !vehicleId ||
+      !firstName ||
+      !lastName ||
+      !customerEmail ||
+      !customerPhone ||
+      !customerAddress ||
+      !customerProvince ||
+      !customerCity ||
+      !customerZipCode ||
+      !customerMessage
+    ) {
+      return NextResponse.json({ error: "Tutti i campi sono obbligatori." }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
