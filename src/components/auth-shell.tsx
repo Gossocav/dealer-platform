@@ -34,8 +34,25 @@ export function AuthShell({ children }: AuthShellProps) {
     [pathname]
   );
 
+  const routeKind = isPublicOrStatusRoute ? "public" : isAdminRoute ? "admin" : "protected";
+
   const [checked, setChecked] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  const [checkedRouteKind, setCheckedRouteKind] = useState(routeKind);
+
+  // AuthShell stays mounted for the whole app, so checked/authenticated
+  // persist across client-side route changes. Without this, navigating from
+  // a public route (e.g. /admin/login) straight into a protected one would
+  // reuse whatever authenticated value was left over from the last
+  // protected route this session visited, painting that page's real content
+  // for a frame before the fresh check (in the effect below) corrects it.
+  // Resetting during render, rather than inside the effect, means React
+  // discards the stale render before it ever commits/paints.
+  if (routeKind !== checkedRouteKind) {
+    setCheckedRouteKind(routeKind);
+    setChecked(false);
+    setAuthenticated(false);
+  }
 
   useEffect(() => {
     if (isPublicOrStatusRoute) {
