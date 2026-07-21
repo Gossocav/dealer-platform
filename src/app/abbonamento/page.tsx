@@ -99,6 +99,7 @@ export default function AbbonamentoPage() {
   const [loadingContext, setLoadingContext] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
   const [requestedPlanCode, setRequestedPlanCode] = useState<PlanId | null>(null);
+  const [activePlanCode, setActivePlanCode] = useState<PlanId | null>(null);
   const [submittingPlan, setSubmittingPlan] = useState<PlanId | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -130,12 +131,9 @@ export default function AbbonamentoPage() {
 
         if (!active) return;
 
-        if (!demoContext.isDemo) {
-          setLoadingContext(false);
-          return;
+        if (demoContext.isDemo) {
+          setIsDemo(true);
         }
-
-        setIsDemo(true);
 
         const {
           data: { session },
@@ -147,9 +145,14 @@ export default function AbbonamentoPage() {
           });
 
           if (response.ok) {
-            const payload = (await response.json().catch(() => ({}))) as { requestedPlanCode?: PlanId | null };
-            if (active && payload.requestedPlanCode) {
-              setRequestedPlanCode(payload.requestedPlanCode);
+            const payload = (await response.json().catch(() => ({}))) as {
+              requestedPlanCode?: PlanId | null;
+              activePlanCode?: PlanId | null;
+            };
+
+            if (active) {
+              if (payload.requestedPlanCode) setRequestedPlanCode(payload.requestedPlanCode);
+              if (payload.activePlanCode) setActivePlanCode(payload.activePlanCode);
             }
           }
         }
@@ -213,6 +216,62 @@ export default function AbbonamentoPage() {
         <p className="text-sm text-slate-500">Caricamento...</p>
       </main>
     );
+  }
+
+  if (!isDemo && activePlanCode) {
+    const activePlan = demoPlans.find((plan) => plan.id === activePlanCode);
+
+    if (activePlan) {
+      return (
+        <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
+          <section className="mx-auto w-full max-w-3xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">Il mio piano</p>
+                <h2 className="mt-3 text-3xl font-semibold text-slate-900 sm:text-4xl">Il tuo piano attivo</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+                  Questo e il piano attualmente attivo sulla tua concessionaria.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+                <ShieldCheck className="h-4 w-4" />
+                Abbonamento sicuro
+              </div>
+            </div>
+
+            <article className="relative mt-8 flex flex-col rounded-3xl border border-emerald-300 bg-gradient-to-b from-emerald-50 via-white to-white p-6 shadow-sm shadow-emerald-100 sm:p-7">
+              <div className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+                <Check className="h-3.5 w-3.5" />
+                Attivo
+              </div>
+
+              <div>
+                <h3 className="text-2xl font-semibold text-slate-900">{activePlan.name}</h3>
+                <div className="mt-3 flex items-end gap-1">
+                  <p className="text-3xl font-semibold text-slate-900">{activePlan.price}</p>
+                  <p className="pb-1 text-sm font-medium text-slate-500">{activePlan.period}</p>
+                </div>
+              </div>
+
+              <ul className="mt-6 space-y-3 text-sm text-slate-700">
+                {activePlan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <span className="mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-6 text-sm text-slate-600">
+                Per modificare il piano contatta il supporto Dealer Platform.
+              </p>
+            </article>
+          </section>
+        </main>
+      );
+    }
   }
 
   const visiblePlans = isDemo ? demoPlans : plans;

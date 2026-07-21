@@ -67,7 +67,7 @@ function makeSupabaseAdmin(user: UserStub | null, dealerRow: { account_type?: st
   const subscriptionsUpdate = vi.fn(() => ({ eq: subscriptionsUpdateEq }));
 
   const subscriptionsMaybeSingle = vi.fn().mockResolvedValue({
-    data: { requested_plan_code: null, requested_plan_at: null },
+    data: { requested_plan_code: null, requested_plan_at: null, converted_plan_code: null },
     error: null,
   });
   const subscriptionsEq = vi.fn(() => ({ maybeSingle: subscriptionsMaybeSingle }));
@@ -163,5 +163,23 @@ describe("demo plan-request route", () => {
 
     expect(response.status).toBe(200);
     expect(payload.requestedPlanCode).toBe("pro");
+  });
+
+  it("returns the active (converted) plan for a dealer no longer in demo", async () => {
+    const { supabaseAdmin, subscriptionsMaybeSingle } = makeSupabaseAdmin({ id: "user-1" }, { account_type: "paid" });
+    subscriptionsMaybeSingle.mockResolvedValue({
+      data: { requested_plan_code: "elite", requested_plan_at: "2026-07-20T00:00:00.000Z", converted_plan_code: "elite" },
+      error: null,
+    });
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.resolveDealerIdFromTenantSourcesMock.mockResolvedValue("dealer-1");
+
+    const response = await GET(makeGetRequest());
+    const payload = (await response.json()) as { requestedPlanCode?: string | null; activePlanCode?: string | null };
+
+    expect(response.status).toBe(200);
+    expect(payload.activePlanCode).toBe("elite");
+    // no longer in demo, so the (now stale) requested-plan flag shouldn't be surfaced anymore
+    expect(payload.requestedPlanCode).toBeNull();
   });
 });
