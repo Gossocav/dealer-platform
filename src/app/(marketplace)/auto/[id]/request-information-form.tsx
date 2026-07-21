@@ -8,6 +8,7 @@ type RequestInformationFormProps = {
 };
 
 export default function RequestInformationForm({ vehicleId, vehicleLabel }: RequestInformationFormProps) {
+  const [customerType, setCustomerType] = useState<"privato" | "azienda" | "">("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,7 +27,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     const normalizedPhone = phone.trim();
     const normalizedMessage = message.trim();
 
-    if (!normalizedFirstName || !normalizedLastName || !normalizedEmail || !normalizedPhone || !normalizedMessage) {
+    if (!customerType || !normalizedFirstName || !normalizedLastName || !normalizedEmail || !normalizedPhone || !normalizedMessage) {
       setErrorMessage("Tutti i campi sono obbligatori.");
       return;
     }
@@ -37,6 +38,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
 
     const payload = {
       vehicleId,
+      customer_type: customerType,
       first_name: normalizedFirstName,
       last_name: normalizedLastName,
       email: normalizedEmail || null,
@@ -63,6 +65,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     }
 
     setSuccessMessage(result?.message || "Richiesta inviata correttamente.");
+    setCustomerType("");
     setFirstName("");
     setLastName("");
     setEmail("");
@@ -85,6 +88,36 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
       ) : null}
 
       <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
+        <div>
+          <span className="text-sm font-medium text-slate-700">Tipo cliente *</span>
+          <div className="mt-2 flex gap-3">
+            <label className="flex flex-1 cursor-pointer items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+              <input
+                type="radio"
+                name="customerType"
+                value="privato"
+                checked={customerType === "privato"}
+                onChange={() => setCustomerType("privato")}
+                required
+                className="sr-only"
+              />
+              Privato
+            </label>
+            <label className="flex flex-1 cursor-pointer items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+              <input
+                type="radio"
+                name="customerType"
+                value="azienda"
+                checked={customerType === "azienda"}
+                onChange={() => setCustomerType("azienda")}
+                required
+                className="sr-only"
+              />
+              Azienda
+            </label>
+          </div>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nome *" value={firstName} onChange={setFirstName} required />
           <Field label="Cognome *" value={lastName} onChange={setLastName} required />
