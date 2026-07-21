@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
-import { ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
+import { useMemo, useRef, useState } from "react";
+import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 
 type DemoFormState = {
   companyName: string;
@@ -152,7 +152,7 @@ export default function DemoPage() {
   const companyNameRef = useRef<HTMLInputElement | null>(null);
   const vatNumberRef = useRef<HTMLInputElement | null>(null);
   const provinceRef = useRef<HTMLSelectElement | null>(null);
-  const cityRef = useRef<HTMLInputElement | null>(null);
+  const cityRef = useRef<HTMLSelectElement | null>(null);
   const chamberDocumentTriggerRef = useRef<HTMLButtonElement | null>(null);
   const firstNameRef = useRef<HTMLInputElement | null>(null);
   const lastNameRef = useRef<HTMLInputElement | null>(null);
@@ -163,6 +163,14 @@ export default function DemoPage() {
   const managementSoftwareRef = useRef<HTMLInputElement | null>(null);
   const notesRef = useRef<HTMLTextAreaElement | null>(null);
   const privacyAcceptedRef = useRef<HTMLInputElement | null>(null);
+
+  const cityOptions = useMemo(() => {
+    if (!values.province) {
+      return [];
+    }
+
+    return ITALIAN_CITIES_BY_PROVINCE[values.province] ?? [];
+  }, [values.province]);
 
   const getFieldClassName = (hasError: boolean) =>
     `w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 outline-none ${
@@ -562,7 +570,20 @@ export default function DemoPage() {
                   </div>
                   <div>
                     <label htmlFor="city" className="mb-2 block text-sm font-medium text-slate-700">Citta *</label>
-                    <input ref={cityRef} id="city" value={values.city} onChange={handleChange("city")} className={getFieldClassName(Boolean(errors.city))} required />
+                    <select
+                      ref={cityRef}
+                      id="city"
+                      value={values.city}
+                      onChange={handleChange("city")}
+                      disabled={!values.province}
+                      className={`${getFieldClassName(Boolean(errors.city))} disabled:cursor-not-allowed disabled:opacity-60`}
+                      required
+                    >
+                      <option value="">{values.province ? "Seleziona citta" : "Seleziona prima la provincia"}</option>
+                      {cityOptions.map((city) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
                     {errors.city ? <p className="mt-1 text-xs font-medium text-red-600">{errors.city}</p> : null}
                   </div>
                 </div>
