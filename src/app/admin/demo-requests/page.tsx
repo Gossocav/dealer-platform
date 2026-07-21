@@ -429,65 +429,70 @@ export default function AdminDemoRequestsPage() {
     setBusyRequestId(requestId);
     setSuccessMessage(null);
 
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.access_token) {
+      if (sessionError || !session?.access_token) {
+        setState((current) => ({
+          ...current,
+          error: sessionError?.message || "Sessione non valida.",
+        }));
+        return;
+      }
+
+      const response = await fetch("/api/admin/demo-requests", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(action === "convert_demo" ? { requestId, action, planCode: planCode ?? "base" } : { requestId, action }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        status?: DemoRequestStatus;
+        demoStatus?: string | null;
+        demoExpiresAt?: string | null;
+        linkedDealerId?: string | null;
+      };
+
+      if (!response.ok) {
+        setState((current) => ({
+          ...current,
+          error: payload.error || "Aggiornamento stato non riuscito.",
+        }));
+        return;
+      }
+
       setState((current) => ({
         ...current,
-        error: sessionError?.message || "Sessione non valida.",
+        error: null,
+        requests: current.requests.map((request) =>
+          request.id === requestId
+            ? {
+                ...request,
+                status: payload.status ?? request.status,
+                demo_status: payload.demoStatus ?? request.demo_status,
+                demo_expires_at: payload.demoExpiresAt ?? request.demo_expires_at,
+                linked_dealer_id: payload.linkedDealerId ?? request.linked_dealer_id,
+              }
+            : request
+        ),
       }));
-      setBusyRequestId(null);
-      return;
-    }
 
-    const response = await fetch("/api/admin/demo-requests", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify(action === "convert_demo" ? { requestId, action, planCode: planCode ?? "base" } : { requestId, action }),
-    });
-
-    const payload = (await response.json().catch(() => ({}))) as {
-      error?: string;
-      status?: DemoRequestStatus;
-      demoStatus?: string | null;
-      demoExpiresAt?: string | null;
-      linkedDealerId?: string | null;
-    };
-
-    if (!response.ok) {
+      setSuccessMessage(action === "activate_demo" ? "Richiesta demo accettata con successo." : "Richiesta demo aggiornata con successo.");
+    } catch (error) {
       setState((current) => ({
         ...current,
-        error: payload.error || "Aggiornamento stato non riuscito.",
+        error: error instanceof Error ? error.message : "Errore di rete. Riprova.",
       }));
+    } finally {
       setBusyRequestId(null);
-      return;
     }
-
-    setState((current) => ({
-      ...current,
-      error: null,
-      requests: current.requests.map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              status: payload.status ?? request.status,
-              demo_status: payload.demoStatus ?? request.demo_status,
-              demo_expires_at: payload.demoExpiresAt ?? request.demo_expires_at,
-              linked_dealer_id: payload.linkedDealerId ?? request.linked_dealer_id,
-            }
-          : request
-      ),
-    }));
-
-    setSuccessMessage(action === "activate_demo" ? "Richiesta demo accettata con successo." : "Richiesta demo aggiornata con successo.");
-
-    setBusyRequestId(null);
   };
 
   const viewDocument = async (event: MouseEvent<HTMLButtonElement>, requestId: string) => {
