@@ -95,6 +95,10 @@ function threadSubjectFallback(thread: EmailThread) {
   return formatPersonName(thread.customer) ?? formatPersonName(thread.lead) ?? "Nuova conversazione";
 }
 
+function normalizeSearchText(value: string) {
+  return value.trim().toLowerCase();
+}
+
 const STATUS_LABEL: Record<string, string> = {
   draft: "Bozza",
   sent: "Inviata",
@@ -117,8 +121,10 @@ export default function EmailPage() {
 
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [messages, setMessages] = useState<EmailMessage[]>([]);
+  const [messageSummaries, setMessageSummaries] = useState<EmailMessage[]>([]);
   const [leadOptions, setLeadOptions] = useState<PickerOption[]>([]);
   const [customerOptions, setCustomerOptions] = useState<PickerOption[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [composingNew, setComposingNew] = useState(false);
@@ -207,6 +213,19 @@ export default function EmailPage() {
     );
   };
 
+  const fetchMessageSummaries = async () => {
+    const result = await supabase
+      .from("email_messages")
+      .select("id, thread_id, direction, status, subject, to_recipients, body_text, body_html, created_at, sent_at, failed_at, error_message")
+      .order("created_at", { ascending: false });
+
+    if (result.error) {
+      return;
+    }
+
+    setMessageSummaries((result.data ?? []) as EmailMessage[]);
+  };
+
   const fetchMessages = async (threadId: string) => {
     const result = await supabase
       .from("email_messages")
@@ -250,7 +269,7 @@ export default function EmailPage() {
 
     const loadAll = async () => {
       setLoading(true);
-      await Promise.all([fetchThreads(), fetchPickerOptions()]);
+      await Promise.all([fetchThreads(), fetchPickerOptions(), fetchMessageSummaries()]);
       if (active) setLoading(false);
     };
 
@@ -267,6 +286,7 @@ export default function EmailPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "email_threads" }, () => void fetchThreads())
       .on("postgres_changes", { event: "*", schema: "public", table: "email_messages" }, () => {
         void fetchThreads();
+        void fetchMessageSummaries();
         if (selectedThreadId) void fetchMessages(selectedThreadId);
       })
       .subscribe();
@@ -294,6 +314,50 @@ export default function EmailPage() {
   };
 
   const selectedThread = useMemo(() => threads.find((t) => t.id === selectedThreadId) ?? null, [threads, selectedThreadId]);
+
+  const latestMessageByThread = useMemo(() => {
+    const map = new Map<string, EmailMessage>();
+    for (const message of messageSummaries) {
+      if (!map.has(message.thread_id)) {
+        map.set(message.thread_id, message);
+      }
+    }
+    return map;
+  }, [messageSummaries]);
+
+  const filteredThreads = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return threads;
+
+    const threadMatchesQuery = (thread: EmailThread) => {
+      const haystack = [
+        formatPersonName(thread.customer),
+        thread.customer?.email,
+        formatPersonName(thread.lead),
+        thread.lead?.email,
+        thread.vehicle?.brand,
+        thread.vehicle?.model,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      if (haystack.includes(query)) return true;
+
+      return messageSummaries.some((message) => {
+        if (message.thread_id !== thread.id) return false;
+
+        const messageHaystack = [message.subject, message.body_text, ...extractRecipients(message.to_recipients)]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return messageHaystack.includes(query);
+      });
+    };
+
+    return threads.filter(threadMatchesQuery);
+  }, [threads, messageSummaries, searchQuery]);
 
   const replyRecipientEmail = useMemo(() => {
     if (!selectedThread) return null;
@@ -525,31 +589,47 @@ export default function EmailPage() {
             <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
               <p className="mb-4 text-sm font-semibold text-slate-500">Conversazioni</p>
 
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Cerca per nome, email, oggetto o testo del messaggio"
+                className="mb-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+              />
+
               {loading ? (
                 <p className="text-sm text-slate-500">Caricamento...</p>
               ) : threads.length === 0 ? (
                 <p className="text-sm text-slate-500">Nessuna conversazione ancora. Clicca &quot;Nuovo messaggio&quot; per iniziare.</p>
+              ) : filteredThreads.length === 0 ? (
+                <p className="text-sm text-slate-500">Nessuna conversazione trovata per &quot;{searchQuery}&quot;.</p>
               ) : (
                 <ul className="space-y-2">
-                  {threads.map((thread) => (
-                    <li key={thread.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectThread(thread.id)}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                          selectedThreadId === thread.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-slate-900">{threadSubjectFallback(thread)}</p>
-                        {thread.vehicle ? (
+                  {filteredThreads.map((thread) => {
+                    const latestMessage = latestMessageByThread.get(thread.id);
+                    const contactName = threadSubjectFallback(thread);
+                    const primaryLabel = latestMessage?.subject ?? contactName;
+
+                    return (
+                      <li key={thread.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectThread(thread.id)}
+                          className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                            selectedThreadId === thread.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{primaryLabel}</p>
                           <p className="mt-0.5 text-xs text-slate-500">
-                            {[thread.vehicle.brand, thread.vehicle.model].filter(Boolean).join(" ")}
+                            {[contactName, thread.vehicle ? [thread.vehicle.brand, thread.vehicle.model].filter(Boolean).join(" ") : null]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </p>
-                        ) : null}
-                        <p className="mt-1 text-xs text-slate-500">{formatDateTime(thread.lastMessageAt ?? thread.createdAt)}</p>
-                      </button>
-                    </li>
-                  ))}
+                          <p className="mt-1 text-xs text-slate-500">{formatDateTime(thread.lastMessageAt ?? thread.createdAt)}</p>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
