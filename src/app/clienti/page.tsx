@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -500,7 +501,7 @@ export default function ClientiPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-6">
           <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -570,19 +571,35 @@ export default function ClientiPage() {
               </table>
             </div>
           </section>
+        </div>
 
-          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-            {!selectedCustomer ? (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-                Seleziona un cliente per visualizzare dettaglio, modifica e cronologia.
-              </div>
-            ) : (
-              <div className="space-y-6">
+        {selectedCustomer ? (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-3 sm:items-center sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-detail-title"
+          >
+            <div className="absolute inset-0" onClick={() => selectCustomer(null)} aria-hidden="true" />
+            <div className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_30px_80px_-30px_rgba(15,23,42,0.45)]">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.35em] text-blue-600">Dettaglio cliente</p>
-                  <h2 className="mt-3 text-2xl font-semibold text-slate-900">{formatCustomerName(selectedCustomer)}</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">Dettaglio cliente</p>
+                  <h2 id="customer-detail-title" className="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">
+                    {formatCustomerName(selectedCustomer)}
+                  </h2>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => selectCustomer(null)}
+                  className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                  aria-label="Chiudi finestra"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
 
+              <div className="space-y-6 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
                 <Panel title="Informazioni">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextInput label="Nome" value={draft.first_name} onChange={(v) => setDraft((c) => ({ ...c, first_name: v }))} />
@@ -698,9 +715,9 @@ export default function ClientiPage() {
                   </button>
                 </div>
               </div>
-            )}
-          </section>
-        </div>
+            </div>
+          </div>
+        ) : null}
         </div>
       </div>
     </DealerDashboardShell>

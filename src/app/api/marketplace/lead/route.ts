@@ -12,6 +12,10 @@ type LeadInsertBody = {
   last_name?: string;
   email?: string | null;
   phone?: string | null;
+  address?: string | null;
+  province?: string | null;
+  city?: string | null;
+  zip_code?: string | null;
   message?: string | null;
 };
 
@@ -90,6 +94,10 @@ export async function POST(request: Request) {
     const lastName = String(body.last_name ?? "").trim();
     const customerEmail = normalizeEmail(body.email);
     const customerPhone = normalizeText(body.phone);
+    const customerAddress = normalizeText(body.address);
+    const customerProvince = normalizeText(body.province);
+    const customerCity = normalizeText(body.city);
+    const customerZipCode = normalizeText(body.zip_code);
     const customerMessage = normalizeText(body.message);
 
     const clientIp = getClientIp(request);
@@ -204,6 +212,10 @@ export async function POST(request: Request) {
         last_name: lastName,
         email: customerEmail,
         phone: customerPhone,
+        address: customerAddress,
+        province: customerProvince,
+        city: customerCity,
+        zip_code: customerZipCode,
         message: customerMessage,
         source: "marketplace",
       },
