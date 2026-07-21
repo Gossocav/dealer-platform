@@ -111,6 +111,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function EmailPage() {
   const [dealerId, setDealerId] = useState<string | null>(null);
+  const [dealerEmail, setDealerEmail] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [demoBlockMessage, setDemoBlockMessage] = useState<string | null>(null);
 
@@ -156,6 +157,11 @@ export default function EmailPage() {
       }
 
       setDealerId(resolvedDealerId);
+
+      const dealerRow = await supabase.from("dealers").select("email").eq("id", resolvedDealerId).maybeSingle<{ email: string | null }>();
+      if (active && !dealerRow.error && dealerRow.data?.email) {
+        setDealerEmail(dealerRow.data.email);
+      }
 
       const demoContext = await resolveDemoAccessContext(supabase, resolvedDealerId);
       if (!active) return;
@@ -387,6 +393,7 @@ export default function EmailPage() {
         status: "draft",
         subject: subject.trim(),
         to_recipients: [recipientEmail],
+        reply_to_email: dealerEmail,
         body_text: body.trim(),
         created_by: user?.id ?? null,
         updated_by: user?.id ?? null,
@@ -449,6 +456,7 @@ export default function EmailPage() {
         status: "draft",
         subject: replySubject,
         to_recipients: [replyRecipientEmail],
+        reply_to_email: dealerEmail,
         body_text: body.trim(),
         created_by: user?.id ?? null,
         updated_by: user?.id ?? null,
