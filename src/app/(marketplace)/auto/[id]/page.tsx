@@ -265,7 +265,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <Field label="Marca" value={formatText(vehicle.brand)} />
                 <Field label="Modello" value={formatText(vehicle.model)} />
                 <Field label="Versione" value={formatText(vehicle.version)} />
-                <Field label="Anno" value={formatText(vehicle.year)} />
                 <Field label="Alimentazione" value={formatText(vehicle.fuel)} />
                 <Field label="Cambio" value={formatText(vehicle.transmission)} />
                 <Field label="Trazione" value={formatText(vehicle.traction)} />
