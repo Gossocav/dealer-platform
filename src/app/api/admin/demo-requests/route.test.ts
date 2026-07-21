@@ -161,6 +161,10 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
   const subscriptionUpdate = vi.fn(() => ({ eq: subscriptionUpdateEq }));
 
   const authAdminCreateUser = vi.fn();
+  const authAdminGenerateLink = vi.fn().mockResolvedValue({
+    data: { properties: { action_link: "https://dealer-platform-six.vercel.app/reset-password?token=test" } },
+    error: null,
+  });
   const createSignedUrl = vi.fn();
 
   const from = vi.fn((table: string) => {
@@ -200,6 +204,7 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
       }),
       admin: {
         createUser: authAdminCreateUser,
+        generateLink: authAdminGenerateLink,
       },
     },
     from,

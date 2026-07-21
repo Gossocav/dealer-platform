@@ -188,6 +188,13 @@ function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
   };
 }
 
+const FALLBACK_PRODUCTION_APP_URL = "https://dealer-platform-six.vercel.app";
+
+function resolveAppBaseUrl() {
+  const configured = normalizeText(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || null);
+  return (configured ?? FALLBACK_PRODUCTION_APP_URL).replace(/\/+$/, "");
+}
+
 async function resolveAdminContext(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -542,6 +549,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: createdUser.error?.message || "Errore creazione utente demo." }, { status: 500 });
     }
 
+    const recoveryLinkResult = await context.supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: targetRequest.email,
+      options: { redirectTo: `${resolveAppBaseUrl()}/reset-password` },
+    });
+    const passwordSetupLink = recoveryLinkResult.error ? null : (recoveryLinkResult.data?.properties?.action_link ?? null);
+
     const profileId = createdUser.data.user.id;
     const profileUpsert = await context.supabaseAdmin.from("profiles").upsert(
       {
@@ -749,6 +763,10 @@ export async function POST(request: Request) {
           <p style="margin:0 0 12px;">Concessionaria: <strong>${targetRequest.dealership_name}</strong></p>
           <p style="margin:0 0 12px;">Scadenza: <strong>${expiresAt}</strong></p>
           <p style="margin:0 0 12px;">Limiti: max 10 veicoli, 20 lead, nessuna esportazione/importazione di massa.</p>
+          ${passwordSetupLink
+            ? `<p style="margin:0 0 12px;"><a href="${passwordSetupLink}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Imposta la password e accedi</a></p>`
+            : `<p style="margin:0 0 12px;">Per accedere, vai su <a href="${resolveAppBaseUrl()}/forgot-password">${resolveAppBaseUrl()}/forgot-password</a> e richiedi il recupero password con questo indirizzo email.</p>`
+          }
         </div>
       `.trim(),
     });
