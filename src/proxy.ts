@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.app.github.dev wss://*.app.github.dev; font-src 'self' data:; frame-ancestors 'none';";
+// Local dev and GitHub Codespaces need to reach a local/forwarded Supabase
+// instance; production never does. Next.js sets NODE_ENV to "development"
+// only for `next dev` and to "production" for every built/deployed run
+// (including Vercel), so these origins never ship to real users.
+const DEV_ONLY_CONNECT_SRC =
+  process.env.NODE_ENV === "production" ? "" : " http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.app.github.dev wss://*.app.github.dev";
+
+const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-ancestors 'none';`;
 
 export function proxy(request: NextRequest) {
   void request;
