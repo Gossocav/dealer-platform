@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatMileage, formatPrice, formatText, logMarketplaceQueryError, normalizeVehicleDealerName, publicSupabase, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { VehicleCard } from "@/components/marketplace/vehicle-card";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatText, logMarketplaceQueryError, normalizeVehicleDealerName, publicSupabase, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
     .eq("dealer_id", matchedDealer.id)
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -104,81 +105,60 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   const totalVehicles = dealerVehicles.length;
 
   return (
-    <main className="px-4 py-8 sm:px-6 lg:px-8">
+    <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl space-y-8">
-        <section className="rounded-[36px] border border-slate-200 bg-slate-950 px-8 py-10 text-white shadow-[0_40px_120px_-40px_rgba(15,23,42,0.55)] sm:px-10 sm:py-12 lg:px-12 lg:py-14">
-          <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">Concessionaria pubblica</p>
-          <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl">{dealerName}</h1>
-          <p className="mt-4 text-base leading-7 text-slate-300 sm:text-lg">
+        <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-8 py-10 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)] sm:px-10 sm:py-12 lg:px-12 lg:py-14">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-40 blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(76,130,247,0.5), transparent 70%)" }}
+          />
+          <p className="relative text-sm font-semibold uppercase tracking-[0.32em] text-cyan-300">Concessionaria pubblica</p>
+          <h1 className="relative mt-4 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ textWrap: "balance" }}>
+            {dealerName}
+          </h1>
+          <p className="relative mt-4 text-base leading-7 text-slate-400 sm:text-lg">
             {totalVehicles} veicoli pubblicati{cities.length > 0 ? ` • ${cities.join(" • ")}` : ""}
           </p>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-slate-500">Profilo concessionaria</p>
-            <div className="mt-4 space-y-3">
-              <InfoRow label="Ragione Sociale" value={dealerName} />
-              <InfoRow label="Veicoli pubblicati" value={String(totalVehicles)} />
-              <InfoRow label="Città" value={cities.length > 0 ? cities.join(", ") : "-"} />
+        <section className="flex flex-col gap-5 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-gradient-to-br from-white via-blue-100 to-blue-300 text-xl font-extrabold text-slate-950">
+              {dealerName.charAt(0)}
             </div>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/concessionarie" className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-                Tutte le concessionarie
-              </Link>
-              <Link href="/auto" className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700">
-                Catalogo auto
-              </Link>
+            <div className="min-w-0">
+              <h2 className="min-w-0 break-words text-lg font-bold text-white [overflow-wrap:anywhere]">{dealerName}</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                {totalVehicles} veicoli pubblicati{cities.length > 0 ? ` • ${cities.join(", ")}` : ""}
+              </p>
             </div>
           </div>
+          <div className="flex flex-none flex-wrap gap-3">
+            <Link
+              href="/concessionarie"
+              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              Tutte le concessionarie
+            </Link>
+            <Link
+              href="/auto"
+              className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105"
+            >
+              Catalogo auto
+            </Link>
+          </div>
+        </section>
 
-          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-slate-500">Veicoli della concessionaria</p>
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {dealerVehicles.map((vehicle) => (
-                <DealerVehicleCard key={vehicle.id} vehicle={vehicle} />
-              ))}
-            </div>
+        <section>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Veicoli della concessionaria</p>
+          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {dealerVehicles.map((vehicle) => (
+              <VehicleCard key={vehicle.id} vehicle={vehicle} />
+            ))}
           </div>
         </section>
       </div>
     </main>
-  );
-}
-
-async function DealerVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
-  const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
-  const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
-
-  return (
-    <article className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 transition hover:-translate-y-1 hover:bg-white hover:shadow-lg">
-      <div className="h-44 bg-slate-200">
-        {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full object-cover" />
-        ) : null}
-      </div>
-      <div className="space-y-3 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">{formatText(vehicle.city)}</p>
-        <h2 className="text-lg font-semibold text-slate-900">{resolveVehicleLabel(vehicle)}</h2>
-        <p className="text-sm text-slate-600">{formatText(vehicle.year)} • {formatText(vehicle.fuel)}</p>
-        <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
-          <span>{formatMileage(vehicle.mileage)}</span>
-          <span>{formatPrice(vehicle.price)}</span>
-        </div>
-        <Link href={`/auto/${vehicle.id}`} className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
-          Visualizza
-        </Link>
-      </div>
-    </article>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
-      <span className="text-sm text-slate-600">{label}</span>
-      <span className="text-sm font-semibold text-slate-900">{value}</span>
-    </div>
   );
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function MarketplaceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_38%),linear-gradient(180deg,_#f8fafc_0%,_#ffffff_52%,_#f1f5f9_100%)] text-slate-900">
+    <div className="flex min-h-screen flex-col bg-slate-950 text-white">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3 text-sm font-semibold tracking-[0.2em] text-white">
