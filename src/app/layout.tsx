@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dealer Platform | Registrazione",
+  title: "KeyAuto | Registrazione",
   description: "Pagina di registrazione professionale per concessionarie",
 };
 

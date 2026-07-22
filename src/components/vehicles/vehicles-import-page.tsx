@@ -524,8 +524,8 @@ export function VehiclesImportPage() {
             <h3 className="text-base font-semibold text-slate-900">1. Carica file</h3>
             <p className="mt-1 text-sm text-slate-600">Formato supportato temporaneamente: .csv</p>
 
-            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-sky-50/50 p-8 text-center transition hover:border-sky-300 hover:from-white hover:to-sky-50">
-              <UploadCloud className="h-8 w-8 text-sky-600" />
+            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-blue-50/50 p-8 text-center transition hover:border-blue-300 hover:from-white hover:to-blue-50">
+              <UploadCloud className="h-8 w-8 text-blue-600" />
               <span className="mt-3 text-sm font-medium text-slate-700">Seleziona un file da importare</span>
               <span className="mt-1 text-xs text-slate-500">Le righe vuote verranno ignorate automaticamente.</span>
               <input
@@ -560,7 +560,7 @@ export function VehiclesImportPage() {
                     <select
                       value={mapping[field] ?? ""}
                       onChange={(event) => updateMapping(field, event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
                     >
                       <option value="">Non mappato</option>
                       {headers.map((header) => (
@@ -578,7 +578,7 @@ export function VehiclesImportPage() {
                 <select
                   value={initialStatus}
                   onChange={(event) => setInitialStatus(event.target.value as VehicleImportStatus)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
                 >
                   <option value="draft">Bozza</option>
                   <option value="published">Pubblicato</option>
@@ -686,7 +686,7 @@ export function VehiclesImportPage() {
                   <select
                     value={feedFormat}
                     onChange={(event) => setFeedFormat(event.target.value as FeedFormatOption)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
                   >
                     <option value="auto">Automatico</option>
                     <option value="csv">CSV</option>
@@ -700,7 +700,7 @@ export function VehiclesImportPage() {
                   <select
                     value={feedVehicleStatus}
                     onChange={(event) => setFeedVehicleStatus(event.target.value as VehicleImportStatus)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
                   >
                     <option value="published">Pubblicato</option>
                     <option value="draft">Bozza</option>
@@ -712,7 +712,7 @@ export function VehiclesImportPage() {
                   <select
                     value={feedFrequency}
                     onChange={(event) => setFeedFrequency(event.target.value as FeedFrequencyOption)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
                   >
                     <option value="manual">Solo manuale</option>
                     <option value="nightly">Ogni notte</option>

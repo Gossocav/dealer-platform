@@ -481,7 +481,7 @@ export default function DemoPage() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(8,145,178,0.18),_transparent_42%),linear-gradient(180deg,_#f8fafc_0%,_#ffffff_48%,_#fefce8_100%)] px-4 py-10 sm:px-6 lg:px-8">
       <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-[36px] border border-slate-200 bg-white shadow-[0_45px_120px_-48px_rgba(15,23,42,0.35)]">
         <div className="border-b border-slate-200 bg-[linear-gradient(120deg,_#f8fafc_0%,_#eef2ff_45%,_#ecfeff_100%)] px-6 py-8 sm:px-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-700">Dealer Platform</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-700">KeyAuto</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Richiedi la tua Demo gratuita di 7 giorni</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
             Compila il modulo in meno di un minuto. Il nostro team verifichera la richiesta e ti contattera per attivare l&apos;accesso Demo.

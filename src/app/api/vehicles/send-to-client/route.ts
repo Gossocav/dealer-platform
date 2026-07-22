@@ -38,7 +38,7 @@ type VehicleOwnershipRow = {
 };
 
 const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
-const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_NAME = "KeyAuto";
 const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
 const REQUIRED_FROM_DOMAIN = "dealerplatform.it";
 
@@ -46,7 +46,7 @@ function buildStandardEmailFooterHtml() {
   return `
     <p style="margin:24px 0 12px 0;color:#64748b;font-size:13px;">--------------------------------</p>
     <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Cordiali saluti,</p>
-    <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Supporto Dealer Platform</p>
+    <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Supporto KeyAuto</p>
     <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
     <p style="margin:0 0 12px 0;color:#64748b;font-size:13px;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
     <p style="margin:0;color:#64748b;font-size:13px;">--------------------------------</p>

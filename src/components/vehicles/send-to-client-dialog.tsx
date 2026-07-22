@@ -66,11 +66,11 @@ function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: st
 }
 
 function getFieldClass(missing = false): string {
-  return `h-11 w-full rounded-xl border bg-white px-3 text-sm text-slate-900 outline-none transition ${missing ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 focus:border-sky-300"}`;
+  return `h-11 w-full rounded-xl border bg-white px-3 text-sm text-slate-900 outline-none transition ${missing ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 focus:border-blue-300"}`;
 }
 
 function getTextAreaClass(): string {
-  return "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300";
+  return "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-300";
 }
 
 function getToastClass(kind: "success" | "error"): string {

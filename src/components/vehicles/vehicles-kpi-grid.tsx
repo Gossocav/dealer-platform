@@ -25,7 +25,7 @@ export function VehiclesKpiGrid({ items }: VehiclesKpiGridProps) {
                 <p className="mt-2 text-xs uppercase tracking-[0.12em] text-emerald-600">{item.delta}</p>
               </div>
               {Icon ? (
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                   <Icon className="h-5 w-5" />
                 </span>
               ) : null}

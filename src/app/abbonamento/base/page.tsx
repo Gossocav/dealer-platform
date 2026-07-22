@@ -13,7 +13,7 @@ export default function AbbonamentoBasePage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
       <section className="mx-auto w-full max-w-5xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">Dettaglio Piano</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-700">Dettaglio Piano</p>
         <h2 className="mt-3 text-3xl font-semibold text-slate-900 sm:text-4xl">Piano Base</h2>
 
         <div className="mt-4 flex items-end gap-1">

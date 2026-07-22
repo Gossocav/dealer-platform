@@ -64,7 +64,7 @@ export default function LeadDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] p-8">
         <p>Caricamento lead...</p>
       </main>
     );
@@ -72,7 +72,7 @@ export default function LeadDetailPage() {
 
   if (!lead) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] p-8">
         <div className="rounded-3xl bg-white p-8 shadow-sm">
           <h1 className="text-2xl font-bold">Lead non trovato</h1>
 
@@ -101,7 +101,7 @@ export default function LeadDetailPage() {
     .join(" ");
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-8 lg:px-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] px-4 py-8 lg:px-8">
 
       <div className="mx-auto max-w-7xl space-y-6">
 

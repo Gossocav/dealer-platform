@@ -12,21 +12,21 @@ export type DemoPlan = {
 export const DEMO_PLAN_CATALOG: DemoPlan[] = [
   {
     code: "base",
-    name: "Dealer Platform Base",
+    name: "KeyAuto Base",
     priceMonthly: null,
     description: "Soluzione essenziale per il flusso operativo base della concessionaria.",
     includedServices: ["Accesso alla piattaforma", "Supporto operativo", "Pubblicazione veicoli"],
   },
   {
     code: "pro",
-    name: "Dealer Platform Pro",
+    name: "KeyAuto Pro",
     priceMonthly: null,
     description: "Soluzione evoluta per concessionarie con volumi maggiori.",
     includedServices: ["Accesso alla piattaforma", "Funzioni avanzate", "Supporto prioritario"],
   },
   {
     code: "elite",
-    name: "Dealer Platform Elite",
+    name: "KeyAuto Elite",
     priceMonthly: 699,
     description: "Tutte le funzionalità del piano Pro, con in più i servizi di visibilità social e la gestione della pubblicità online.",
     includedServices: [
@@ -39,7 +39,7 @@ export const DEMO_PLAN_CATALOG: DemoPlan[] = [
       "Esportazione dati",
       "Supporto prioritario",
       "Maggiore visibilità sulla piattaforma",
-      "Visibilità sui social ufficiali Dealer Platform",
+      "Visibilità sui social ufficiali KeyAuto",
       "Gestione campagna Google Ads",
       "Report mensile delle performance marketing",
     ],

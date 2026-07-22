@@ -1,6 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatMileage, formatPrice, formatText, logMarketplaceQueryError, normalizeVehicleDealerName, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { AnimatedCounter } from "@/components/marketplace/animated-counter";
+import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
+import { MarqueeBrands } from "@/components/marketplace/marquee-brands";
+import { RevealOnScroll } from "@/components/marketplace/reveal-on-scroll";
+import { SpecShowcase, type SpecShowcaseVehicle } from "@/components/marketplace/spec-showcase";
+import {
+  MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
+  MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
+  formatMileage,
+  formatPrice,
+  formatText,
+  logMarketplaceQueryError,
+  normalizeVehicleDealerName,
+  publicSupabase,
+  resolveDealerSlug,
+  resolveVehicleImageUrl,
+  resolveVehicleImages,
+  resolveVehicleLabel,
+  toAbsoluteUrl,
+  type MarketplaceDealer,
+  type MarketplaceVehicle,
+} from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -11,24 +32,22 @@ type DealerCluster = {
 };
 
 const PRICE_BANDS = [
-  { label: "Fino a 15.000 €", value: "0-15000" },
-  { label: "15.000 - 25.000 €", value: "15000-25000" },
-  { label: "25.000 - 40.000 €", value: "25000-40000" },
-  { label: "Oltre 40.000 €", value: "40000-99999999" },
+  { label: "Fino a 15.000 €", value: "15000" },
+  { label: "Fino a 25.000 €", value: "25000" },
+  { label: "Fino a 35.000 €", value: "35000" },
+  { label: "Fino a 50.000 €", value: "50000" },
 ] as const;
 
 export function generateMetadata(): Metadata {
-  const description = "Marketplace auto pubblico: esplora veicoli, confronta offerte e scopri concessionarie partner in tutta Italia.";
+  const description = "KeyAuto: il marketplace auto con concessionarie verificate. Esplora veicoli, confronta offerte e trova la tua prossima auto in tutta Italia.";
   const canonical = toAbsoluteUrl("/");
 
   return {
-    title: "Marketplace Auto",
+    title: "KeyAuto | Trova la tua prossima auto",
     description,
-    alternates: {
-      canonical,
-    },
+    alternates: { canonical },
     openGraph: {
-      title: "Marketplace Auto | Dealer Platform",
+      title: "KeyAuto | Trova la tua prossima auto",
       description,
       url: canonical,
       type: "website",
@@ -37,14 +56,40 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function MarketplaceHomePage() {
-  const { data, error } = await publicSupabase
+  const [{ data, error }, { count: totalVehicleCount }, { data: dealerIdRows }] = await Promise.all([
+    publicSupabase
       .from("vehicles")
-      .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
+      .select(
+        "id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)"
+      )
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
       .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
       .order("created_at", { ascending: false })
-      .limit(24);
+      .limit(24),
+    // Head-only count for the true "Veicoli pubblicati" total: the query
+    // above is capped at 24 rows (the "latest arrivals" window), so
+    // vehicles.length alone would understate the real number.
+    publicSupabase
+      .from("vehicles")
+      .select("id, dealers!inner(status)", { count: "exact", head: true })
+      .eq("published", true)
+      .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+      .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
+    // dealer_id only (not head-only): counting distinct dealers needs the
+    // actual values. This deliberately counts dealers that have at least one
+    // published vehicle, not just any dealer marked active/approved in the
+    // system — a "partner" with zero live inventory isn't a real partner yet.
+    publicSupabase
+      .from("vehicles")
+      .select("dealer_id, dealers!inner(status)")
+      .eq("published", true)
+      .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+      .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
+  ]);
+
+  const totalDealerCount = new Set((dealerIdRows ?? []).map((row) => row.dealer_id)).size;
+
   if (error) {
     logMarketplaceQueryError("home", error);
     return (
@@ -59,199 +104,422 @@ export default async function MarketplaceHomePage() {
   }
 
   const vehicles = (data ?? []) as unknown as MarketplaceVehicle[];
-  const latestVehicles = [...vehicles].sort(byNewest).slice(0, 8);
-  const featuredVehicles = [...vehicles].sort(byFeatured).slice(0, 4);
+  const latestVehicles = [...vehicles].sort(byNewest).slice(0, 6);
+  const featuredVehicles = [...vehicles].sort(byFeatured);
   const partnerDealers = groupDealers(vehicles).slice(0, 4);
   const brands = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
   const fuels = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
+  const cities = uniqueValues(vehicles.map((vehicle) => vehicle.city));
+
+  const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
+  const showcaseVehicle = await buildShowcaseVehicle(featuredVehicles[0] ?? vehicles[0] ?? null);
+
+  const categories: MarketplaceCategory[] = [
+    ...fuels.map((fuel) => ({
+      label: fuel,
+      description: `Veicoli alimentati a ${fuel.toLowerCase()}.`,
+      href: `/ricerca?fuel=${encodeURIComponent(fuel)}`,
+      count: vehicles.filter((vehicle) => formatText(vehicle.fuel) === fuel).length,
+    })),
+    ...transmissions.map((transmission) => ({
+      label: `Cambio ${transmission.toLowerCase()}`,
+      description: `Guida con cambio ${transmission.toLowerCase()}.`,
+      href: `/ricerca?transmission=${encodeURIComponent(transmission)}`,
+      count: vehicles.filter((vehicle) => formatText(vehicle.transmission) === transmission).length,
+    })),
+  ].filter((category) => category.count > 0);
+
+  const quickChips = [
+    ...fuels.slice(0, 3).map((fuel) => ({ label: fuel, href: `/ricerca?fuel=${encodeURIComponent(fuel)}` })),
+    { label: "Sotto 15.000 €", href: "/ricerca?maxPrice=15000" },
+    ...transmissions.slice(0, 1).map((transmission) => ({ label: transmission, href: `/ricerca?transmission=${encodeURIComponent(transmission)}` })),
+  ];
 
   return (
-    <main className="px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl space-y-8">
-        <section className="overflow-hidden rounded-[40px] border border-slate-200 bg-slate-950 shadow-[0_40px_120px_-40px_rgba(15,23,42,0.55)]">
-          <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="px-8 py-10 sm:px-10 sm:py-12 lg:px-12 lg:py-16">
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold tracking-[0.18em] text-white/90">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-xs font-bold text-slate-950">DP</span>
-                MARKETPLACE
-              </div>
-              <h1 className="mt-8 max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl">
-                Trova la tua prossima auto
-              </h1>
-              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-                Un marketplace pubblico, moderno e veloce per esplorare veicoli pubblicati da concessionarie reali con un linguaggio visivo coerente alla Dealer Platform.
-              </p>
+    <main className="bg-slate-950">
+      {/* ============ HERO — search-first ============ */}
+      <section className="relative overflow-hidden px-4 pb-20 pt-16 sm:px-6 sm:pt-20 lg:px-8">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(60% 45% at 18% 0%, rgba(76,130,247,0.22), transparent 60%), radial-gradient(55% 40% at 88% 15%, rgba(55,224,232,0.14), transparent 62%), linear-gradient(180deg, #070a14 0%, #0a0e1a 55%, #070a14 100%)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="marketplace-halo pointer-events-none absolute left-1/2 top-[38%] -z-10 aspect-square w-[min(72vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-full blur-md"
+          style={{ background: "radial-gradient(circle, rgba(76,130,247,0.3), rgba(55,224,232,0.08) 45%, transparent 68%)" }}
+        />
 
-              <form action="/ricerca" method="GET" className="mt-8 rounded-[32px] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/10 backdrop-blur sm:p-5">
-                <div className="grid gap-4 lg:grid-cols-[1.4fr_repeat(4,minmax(0,1fr))_auto]">
-                  <HeroField label="Cerca" name="q" placeholder="Marca, modello, città o versione" />
-                  <HeroSelect label="Marca" name="brand" options={brands} />
-                  <HeroSelect label="Prezzo" name="priceBand" options={PRICE_BANDS.map((band) => band.label)} values={PRICE_BANDS.map((band) => band.value)} />
-                  <HeroSelect label="Carburante" name="fuel" options={fuels} />
-                  <HeroSelect label="Cambio" name="transmission" options={transmissions} />
-                  <button type="submit" className="inline-flex items-center justify-center rounded-3xl bg-white px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-black/10 transition hover:bg-slate-100">
-                    Cerca
-                  </button>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <QuickLink href="/auto">Catalogo completo</QuickLink>
-                  <QuickLink href="/ricerca">Ricerca avanzata</QuickLink>
-                  <QuickLink href="/concessionarie">Concessionarie partner</QuickLink>
-                </div>
-              </form>
+        <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
+          <span className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300">
+            <CheckIcon className="text-cyan-300" />
+            Solo concessionarie verificate · Km e storico certificati
+          </span>
+
+          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl" style={{ textWrap: "balance" }}>
+            Trova la tua{" "}
+            <span className="bg-gradient-to-r from-white via-blue-100 to-cyan-300 bg-clip-text text-transparent">prossima auto</span>
+          </h1>
+          <p className="max-w-xl text-lg leading-relaxed text-slate-400">
+            Migliaia di veicoli usati, km 0 e a noleggio dalle migliori concessionarie d&apos;Italia. Un&apos;unica ricerca, zero rumore.
+          </p>
+
+          <form
+            action="/ricerca"
+            method="GET"
+            className="mt-2 w-full max-w-3xl rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-2.5 shadow-[0_30px_80px_-30px_rgba(76,130,247,0.45)] backdrop-blur"
+          >
+            <div className="grid gap-1 sm:grid-cols-[1.1fr_1fr_1fr_auto]">
+              <HeroField label="Marca" name="brand" options={brands} placeholder="Qualsiasi marca" />
+              <HeroTextField label="Modello" name="model" placeholder="Es. Serie 3, Golf..." />
+              <HeroField
+                label="Prezzo max"
+                name="maxPrice"
+                placeholder="Nessun limite"
+                options={PRICE_BANDS.map((band) => band.label)}
+                values={PRICE_BANDS.map((band) => band.value)}
+              />
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-3xl bg-gradient-to-br from-white via-blue-100 to-blue-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105"
+              >
+                <SearchIcon /> Cerca
+              </button>
             </div>
+          </form>
 
-            <div className="relative min-h-[420px] bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.28),_transparent_45%),linear-gradient(180deg,_rgba(15,23,42,0.75)_0%,_rgba(15,23,42,0.95)_100%)] px-8 py-10 sm:px-10 sm:py-12 lg:px-12 lg:py-16">
-              <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:32px_32px]" />
-              <div className="relative flex h-full flex-col justify-between gap-6">
-                <div className="space-y-4">
-                  <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">Mercato reale</p>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Metric label="Veicoli pubblicati" value={String(vehicles.length)} />
-                    <Metric label="Concessionarie partner" value={String(groupDealers(vehicles).length)} />
-                    <Metric label="Disponibilità" value="Aggiornata" />
-                    <Metric label="Accesso" value="Pubblico" />
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <InfoPill title="Ultimi arrivi" text="Stock sempre aggiornato dai dealer." />
-                  <InfoPill title="Schede chiare" text="Foto, km, cambio, alimentazione e prezzo." />
-                  <InfoPill title="Partner verificati" text="Concessionarie pubbliche con pagine dedicate." />
-                  <InfoPill title="Esperienza veloce" text="Navigazione immediata, senza login." />
-                </div>
-              </div>
+          {quickChips.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-xs text-slate-500">Ricerche popolari</span>
+              {quickChips.map((chip) => (
+                <Link
+                  key={chip.label}
+                  href={chip.href}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-500/10 hover:text-white"
+                >
+                  {chip.label}
+                </Link>
+              ))}
             </div>
-          </div>
+          ) : null}
+        </div>
+      </section>
+
+      <MarqueeBrands brands={brands} />
+
+      {/* ============ STATS ============ */}
+      <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
+        <RevealOnScroll className="mx-auto grid max-w-5xl grid-cols-2 gap-x-6 gap-y-10 text-center sm:grid-cols-4">
+          <Stat value={totalVehicleCount ?? vehicles.length} label="Veicoli pubblicati" />
+          <Stat value={totalDealerCount} label="Concessionarie partner" />
+          <Stat value={cities.length} suffix="+" label="Città coperte" />
+          <Stat value={brands.length} suffix="+" label="Marche disponibili" />
+        </RevealOnScroll>
+      </section>
+
+      {/* ============ CATEGORIES ============ */}
+      {categories.length > 0 ? (
+        <section className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
+          <RevealOnScroll className="mx-auto mb-8 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Parti da qui</p>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Esplora per categoria</h2>
+          </RevealOnScroll>
+          <CategoryRail categories={categories} />
         </section>
+      ) : null}
 
-        <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)] sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.32em] text-blue-600">Ultimi arrivi</p>
-                <h2 className="mt-3 text-3xl font-semibold text-slate-900">I veicoli appena pubblicati</h2>
-              </div>
-              <Link href="/auto" className="rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-                Vedi tutti
-              </Link>
+      {/* ============ SPEC SHOWCASE (real featured vehicle) ============ */}
+      {showcaseVehicle ? <SpecShowcase vehicle={showcaseVehicle} /> : null}
+
+      {/* ============ ULTIMI ARRIVI ============ */}
+      <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <RevealOnScroll className="mb-10 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">In evidenza</p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Gli ultimi arrivi</h2>
             </div>
+            <Link href="/auto" className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+              Vedi tutte le auto <ArrowIcon />
+            </Link>
+          </RevealOnScroll>
 
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {latestVehicles.map((vehicle) => (
-                <HomeVehicleCard key={vehicle.id} vehicle={vehicle} />
+          {latestVehicleCards.length > 0 ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {latestVehicleCards.map((card, index) => (
+                <RevealOnScroll key={card.id} delayMs={(index % 3) * 80}>
+                  <DarkVehicleCard {...card} />
+                </RevealOnScroll>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-slate-400">
+              Nessun veicolo pubblicato al momento. Torna presto per vedere le nuove offerte.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* ============ CONCESSIONARIE PARTNER ============ */}
+      {partnerDealers.length > 0 ? (
+        <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl">
+            <RevealOnScroll className="mb-10 flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">La rete</p>
+                <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Concessionarie partner</h2>
+              </div>
+              <Link href="/concessionarie" className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+                Tutte le concessionarie <ArrowIcon />
+              </Link>
+            </RevealOnScroll>
+
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {partnerDealers.map((group, index) => (
+                <RevealOnScroll key={group.dealerId} delayMs={(index % 4) * 70}>
+                  <PartnerDealerCard group={group} />
+                </RevealOnScroll>
               ))}
             </div>
           </div>
-
-          <aside className="space-y-6">
-            <div className="rounded-[32px] border border-slate-200 bg-slate-950 p-6 text-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white/70">Perché scegliere Dealer Platform</p>
-              <h2 className="mt-3 text-2xl font-semibold">Una piattaforma pensata per vendere meglio.</h2>
-              <div className="mt-5 space-y-3 text-sm leading-7 text-slate-300">
-                <p>• Stile coerente tra marketplace e gestionale dealer.</p>
-                <p>• Navigazione mobile-first e struttura editoriale moderna.</p>
-                <p>• Concessionarie e veicoli pubblicati con contenuti chiari e leggibili.</p>
-                <p>• Base pronta per evoluzioni SaaS future senza cambiare impianto UX.</p>
-              </div>
-            </div>
-
-            <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-slate-500">Percorso rapido</p>
-              <div className="mt-4 space-y-3 text-sm text-slate-700">
-                <Link href="/auto" className="block rounded-3xl bg-slate-50 px-4 py-3 font-semibold transition hover:bg-slate-100">Vai al catalogo</Link>
-                <Link href="/ricerca" className="block rounded-3xl bg-slate-50 px-4 py-3 font-semibold transition hover:bg-slate-100">Ricerca avanzata</Link>
-                <Link href="/concessionarie" className="block rounded-3xl bg-slate-50 px-4 py-3 font-semibold transition hover:bg-slate-100">Elenco concessionarie</Link>
-              </div>
-            </div>
-          </aside>
         </section>
+      ) : null}
 
-        <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)] sm:p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-blue-600">Veicoli in evidenza</p>
-              <h2 className="mt-3 text-3xl font-semibold text-slate-900">Le opportunità più interessanti</h2>
-            </div>
-            <Link href="/auto" className="rounded-3xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-              Apri catalogo
+      {/* ============ TRUST ============ */}
+      <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.15fr_1fr] lg:items-center">
+          <RevealOnScroll>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Perché KeyAuto</p>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl" style={{ textWrap: "balance" }}>
+              Comprare usato, senza ansia
+            </h2>
+            <p className="mt-4 max-w-lg text-slate-400">
+              Ogni annuncio arriva da concessionarie verificate. Niente privati improvvisati, solo realtà con partita IVA e reputazione controllata.
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={80} className="grid gap-3">
+            <TrustLine title="Concessionarie verificate" text="Partita IVA, sede e reputazione controllate prima della pubblicazione." />
+            <TrustLine title="Km e storico dichiarati" text="Chilometraggio, alimentazione e cambio sempre indicati in scheda." />
+            <TrustLine title="Contatto diretto" text="Parli con la concessionaria, senza intermediari nascosti." />
+          </RevealOnScroll>
+        </div>
+      </section>
+
+      {/* ============ CTA ============ */}
+      <section className="bg-slate-950 px-4 pb-24 pt-4 sm:px-6 lg:px-8">
+        <RevealOnScroll
+          className="relative mx-auto max-w-5xl overflow-hidden rounded-[34px] border border-white/10 px-6 py-16 text-center sm:px-10"
+          style={{ background: "linear-gradient(160deg, #12224a, #0b1120 70%)" }}
+        >
+          <h2 className="mx-auto max-w-lg text-3xl font-extrabold tracking-tight text-white sm:text-4xl" style={{ textWrap: "balance" }}>
+            La tua prossima auto ti sta aspettando
+          </h2>
+          <p className="mx-auto mt-4 max-w-md text-slate-400">
+            Inizia dalla ricerca. Sei una concessionaria? Pubblica il tuo stock e raggiungi migliaia di acquirenti.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/auto"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-[0_16px_40px_-14px_rgba(76,130,247,0.8)] transition hover:brightness-105"
+            >
+              <SearchIcon /> Cerca un&apos;auto
+            </Link>
+            <Link
+              href="/registrazione"
+              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              Sei una concessionaria?
             </Link>
           </div>
-
-          <div className="mt-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-            {featuredVehicles.map((vehicle) => (
-              <FeaturedVehicleCard key={vehicle.id} vehicle={vehicle} />
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)] sm:p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-blue-600">Concessionarie partner</p>
-              <h2 className="mt-3 text-3xl font-semibold text-slate-900">I dealer più presenti nel marketplace</h2>
-            </div>
-            <Link href="/concessionarie" className="rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-              Tutte le concessionarie
-            </Link>
-          </div>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {partnerDealers.map((group) => (
-              <PartnerDealerCard key={group.dealerId} group={group} />
-            ))}
-          </div>
-        </section>
-      </div>
+        </RevealOnScroll>
+      </section>
     </main>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
-      <p className="text-sm font-medium text-slate-300">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-    </div>
-  );
+/* ============================================================
+   Server-side data shaping
+   ============================================================ */
+
+async function buildVehicleCard(vehicle: MarketplaceVehicle) {
+  const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
+  const imageUrl = cover ? await resolveVehicleImageUrl(cover) : null;
+
+  return {
+    id: vehicle.id,
+    title: resolveVehicleLabel(vehicle),
+    dealerName: normalizeVehicleDealerName(vehicle.dealers),
+    dealerSlug: resolveDealerSlug(vehicle.dealers),
+    city: formatText(vehicle.city),
+    year: formatText(vehicle.year),
+    mileage: formatMileage(vehicle.mileage),
+    fuel: formatText(vehicle.fuel),
+    transmission: formatText(vehicle.transmission),
+    price: formatPrice(vehicle.price),
+    imageUrl,
+  };
 }
 
-function InfoPill({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur">
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
-    </div>
-  );
+async function buildShowcaseVehicle(vehicle: MarketplaceVehicle | null): Promise<SpecShowcaseVehicle | null> {
+  if (!vehicle) return null;
+
+  const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
+  const imageUrl = cover ? await resolveVehicleImageUrl(cover) : null;
+
+  return {
+    id: vehicle.id,
+    title: resolveVehicleLabel(vehicle),
+    subtitle: [formatText(vehicle.city), normalizeVehicleDealerName(vehicle.dealers)].join(" · "),
+    priceLabel: formatPrice(vehicle.price),
+    imageUrl,
+    rows: [
+      { key: "year", label: "Anno", value: formatText(vehicle.year), icon: "calendar" },
+      { key: "fuel", label: "Alimentazione", value: formatText(vehicle.fuel), icon: "fuel" },
+      { key: "dealer", label: "Concessionaria", value: normalizeVehicleDealerName(vehicle.dealers), icon: "shield" },
+      { key: "mileage", label: "Percorrenza", value: formatMileage(vehicle.mileage), icon: "gauge" },
+      { key: "transmission", label: "Cambio", value: formatText(vehicle.transmission), icon: "gearbox" },
+      { key: "city", label: "Città", value: formatText(vehicle.city), icon: "check" },
+    ],
+  };
 }
 
-function HeroField({ label, name, placeholder }: { label: string; name: string; placeholder: string }) {
+/* ============================================================
+   Presentational pieces
+   ============================================================ */
+
+function Stat({ value, label, suffix }: { value: number; label: string; suffix?: string }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">{label}</span>
-      <input
-        name={name}
-        placeholder={placeholder}
-        className="w-full rounded-3xl border border-white/10 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+    <div>
+      <AnimatedCounter
+        value={value}
+        suffix={suffix}
+        className="bg-gradient-to-b from-white to-blue-200 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl"
       />
-    </label>
+      <p className="mt-2 text-sm text-slate-400">{label}</p>
+    </div>
   );
 }
 
-function HeroSelect({ label, name, options, values }: { label: string; name: string; options: string[]; values?: string[] }) {
+function TrustLine({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+      <span className="mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-lg bg-cyan-400/15 text-cyan-300">
+        <CheckIcon />
+      </span>
+      <div>
+        <p className="font-semibold text-white">{title}</p>
+        <p className="mt-0.5 text-sm text-slate-400">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+type VehicleCardData = Awaited<ReturnType<typeof buildVehicleCard>>;
+
+function DarkVehicleCard(vehicle: VehicleCardData) {
+  return (
+    <Link
+      href={`/auto/${vehicle.id}`}
+      className="group block overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20"
+    >
+      <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
+        {vehicle.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={vehicle.imageUrl}
+            alt={vehicle.title}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : null}
+        {vehicle.fuel !== "-" ? (
+          <span className="absolute right-3 top-3 rounded-full bg-gradient-to-br from-emerald-300 to-cyan-300 px-3 py-1 text-xs font-bold text-slate-950">
+            {vehicle.fuel}
+          </span>
+        ) : null}
+      </div>
+      <div className="p-5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="font-semibold text-white">{vehicle.title}</h3>
+          <span className="text-xs text-slate-500">{vehicle.year}</span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Tag>{vehicle.mileage}</Tag>
+          <Tag>{vehicle.transmission}</Tag>
+          <Tag>{vehicle.city}</Tag>
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+          <span className="text-xl font-extrabold tracking-tight text-white">{vehicle.price}</span>
+          <span className="text-right text-xs text-slate-500">{vehicle.dealerName}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300">{children}</span>;
+}
+
+function PartnerDealerCard({ group }: { group: DealerCluster }) {
+  const dealerName = group.dealer?.legal_name ?? group.dealer?.name ?? "Concessionaria";
+  const dealerSlug = resolveDealerSlug(group.dealer ? [group.dealer] : null);
+
+  return (
+    <Link
+      href={`/concessionarie/${dealerSlug}`}
+      className="block rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-800 to-slate-950 p-5 transition hover:-translate-y-1 hover:border-cyan-300/40"
+    >
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-white via-blue-100 to-blue-300 text-lg font-extrabold text-slate-950">
+        {dealerName.charAt(0)}
+      </div>
+      <h3 className="mt-4 font-semibold text-white">{dealerName}</h3>
+      <p className="mt-3 border-t border-white/10 pt-3 text-sm text-slate-400">
+        <span className="font-semibold text-cyan-300">{group.vehicles.length}</span> veicoli disponibili
+      </p>
+    </Link>
+  );
+}
+
+function HeroField({
+  label,
+  name,
+  placeholder,
+  options,
+  values,
+}: {
+  label: string;
+  name: string;
+  placeholder: string;
+  options: string[];
+  values?: string[];
+}) {
   const finalValues = values ?? options;
 
+  // Colors are set inline (not via Tailwind classes) on purpose: globals.css
+  // has an UNLAYERED `select { color: ... }` rule for the app's light forms,
+  // and unlayered rules beat Tailwind's layered utilities regardless of
+  // specificity — so `text-white` alone loses and the value renders dark on
+  // this dark hero. Inline styles win, and colorScheme:dark makes the native
+  // dropdown render dark so the light option text stays readable when open.
   return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">{label}</span>
+    <label className="block rounded-2xl px-4 py-2.5 transition hover:bg-white/[0.04]">
+      <span className="block text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span>
       <select
         name={name}
-        className="w-full rounded-3xl border border-white/10 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+        defaultValue=""
+        style={{ color: "#f8fafc", colorScheme: "dark" }}
+        className="mt-0.5 w-full appearance-none bg-transparent text-sm font-semibold outline-none"
       >
-        <option value="">Tutti</option>
+        <option value="" style={{ color: "#cbd5e1", backgroundColor: "#0f172a" }}>
+          {placeholder}
+        </option>
         {options.map((option, index) => (
-          <option key={`${name}-${option}-${index}`} value={finalValues[index] ?? option}>
+          <option key={option} value={finalValues[index] ?? option} style={{ color: "#f8fafc", backgroundColor: "#0f172a" }}>
             {option}
           </option>
         ))}
@@ -260,117 +528,52 @@ function HeroSelect({ label, name, options, values }: { label: string; name: str
   );
 }
 
-function QuickLink({ href, children }: { href: string; children: React.ReactNode }) {
+function HeroTextField({ label, name, placeholder }: { label: string; name: string; placeholder: string }) {
   return (
-    <Link href={href} className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10">
-      {children}
-    </Link>
+    <label className="block rounded-2xl px-4 py-2.5 transition hover:bg-white/[0.04]">
+      <span className="block text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span>
+      <input
+        name={name}
+        placeholder={placeholder}
+        autoComplete="off"
+        suppressHydrationWarning
+        // Inline color for the same unlayered-globals.css reason as HeroField:
+        // the typed value would otherwise render dark on this dark hero.
+        style={{ color: "#f8fafc" }}
+        className="mt-0.5 w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-500 placeholder:font-medium"
+      />
+    </label>
   );
 }
 
-async function HomeVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
-  const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
-  const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
-  const dealerSlug = resolveDealerSlug(vehicle.dealers);
-
+function SearchIcon() {
   return (
-    <article className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 transition hover:-translate-y-1 hover:bg-white hover:shadow-lg">
-      <div className="h-44 bg-slate-200">
-        {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full object-cover" />
-        ) : null}
-      </div>
-      <div className="space-y-3 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">{normalizeVehicleDealerName(vehicle.dealers)}</p>
-        <h3 className="text-lg font-semibold text-slate-900">{resolveVehicleLabel(vehicle)}</h3>
-        <p className="text-sm text-slate-600">{formatText(vehicle.city)} • {formatPrice(vehicle.price)}</p>
-        <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
-          <span>{formatText(vehicle.year)}</span>
-          <span>{formatMileage(vehicle.mileage)}</span>
-        </div>
-        <div className="flex gap-2 pt-1">
-          <Link href={`/auto/${vehicle.id}`} className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
-            Visualizza
-          </Link>
-          <Link href={`/concessionarie/${dealerSlug}`} className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-            Concessionaria
-          </Link>
-        </div>
-      </div>
-    </article>
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[2.4]" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+    </svg>
   );
 }
 
-async function FeaturedVehicleCard({ vehicle }: { vehicle: MarketplaceVehicle }) {
-  const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
-  const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
-  const dealerSlug = resolveDealerSlug(vehicle.dealers);
-
+function ArrowIcon() {
   return (
-    <article className="overflow-hidden rounded-[30px] border border-slate-200 bg-slate-50 transition hover:-translate-y-1 hover:bg-white hover:shadow-lg">
-      <div className="h-52 bg-slate-200">
-        {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full object-cover" />
-        ) : null}
-      </div>
-      <div className="space-y-3 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">In evidenza</p>
-            <h3 className="mt-2 text-lg font-semibold text-slate-900">{resolveVehicleLabel(vehicle)}</h3>
-          </div>
-          <p className="text-sm font-semibold text-slate-900">{formatPrice(vehicle.price)}</p>
-        </div>
-        <p className="text-sm text-slate-600">{formatText(normalizeVehicleDealerName(vehicle.dealers))}</p>
-        <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
-          <span>{formatText(vehicle.year)}</span>
-          <span>{formatMileage(vehicle.mileage)}</span>
-          <span>{formatText(vehicle.fuel)}</span>
-          <span>{formatText(vehicle.transmission)}</span>
-        </div>
-        <div className="flex gap-2 pt-1">
-          <Link href={`/auto/${vehicle.id}`} className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
-            Visualizza
-          </Link>
-          <Link href={`/concessionarie/${dealerSlug}`} className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-            Partner
-          </Link>
-        </div>
-      </div>
-    </article>
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[2.2]" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-function PartnerDealerCard({ group }: { group: DealerCluster }) {
-  const dealerName = group.dealer?.legal_name ?? group.dealer?.name ?? "Concessionaria";
-  const dealerSlug = resolveDealerSlug(group.dealer ? [group.dealer] : null);
-  const priceAverage = averagePrice(group.vehicles);
-  const cities = uniqueValues(group.vehicles.map((vehicle) => vehicle.city));
-
+function CheckIcon({ className }: { className?: string }) {
   return (
-    <article className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.24)] transition hover:-translate-y-1 hover:shadow-[0_30px_80px_-35px_rgba(15,23,42,0.32)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">Partner</p>
-      <h3 className="mt-2 text-xl font-semibold text-slate-900">{dealerName}</h3>
-      <p className="mt-2 text-sm text-slate-600">{group.vehicles.length} veicoli pubblicati</p>
-      <div className="mt-4 space-y-2 text-sm text-slate-600">
-        <p>Città: {cities.length > 0 ? cities.join(" • ") : "-"}</p>
-        <p>Prezzo medio: {priceAverage}</p>
-      </div>
-      <div className="mt-5 flex gap-2">
-        <Link href={`/concessionarie/${dealerSlug}`} className="inline-flex items-center justify-center rounded-3xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-          Apri profilo
-        </Link>
-        {group.vehicles[0] ? (
-          <Link href={`/auto/${group.vehicles[0].id}`} className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-            Primo veicolo
-          </Link>
-        ) : null}
-      </div>
-    </article>
+    <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 fill-none stroke-current stroke-[3] ${className ?? ""}`} aria-hidden="true">
+      <path d="M20 7 9 18l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
+
+/* ============================================================
+   Data helpers (unchanged logic from the previous home page)
+   ============================================================ */
 
 function groupDealers(vehicles: MarketplaceVehicle[]) {
   const map = new Map<string, DealerCluster>();
@@ -389,21 +592,10 @@ function groupDealers(vehicles: MarketplaceVehicle[]) {
   return [...map.values()].sort((a, b) => b.vehicles.length - a.vehicles.length);
 }
 
-function uniqueValues(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) => a.localeCompare(b, "it-IT"));
-}
-
-function averagePrice(vehicles: MarketplaceVehicle[]) {
-  const numericValues = vehicles
-    .map((vehicle) => Number(vehicle.price ?? 0))
-    .filter((value) => Number.isFinite(value) && value > 0);
-
-  if (numericValues.length === 0) {
-    return "-";
-  }
-
-  const average = numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length;
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(average);
+function uniqueValues(values: Array<string | number | null | undefined>) {
+  return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) =>
+    a.localeCompare(b, "it-IT")
+  );
 }
 
 function byNewest(a: MarketplaceVehicle, b: MarketplaceVehicle) {

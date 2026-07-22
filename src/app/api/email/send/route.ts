@@ -60,7 +60,7 @@ function buildMessageHtml(bodyText: string, replyToEmail: string | null) {
       <div>${escapedBody}</div>
       <hr style="margin:24px 0;border:none;border-top:1px solid #e2e8f0;" />
       <p style="font-size:12px;color:#64748b;margin:0;">
-        Messaggio inviato tramite Dealer Platform per conto della concessionaria.
+        Messaggio inviato tramite KeyAuto per conto della concessionaria.
         ${replyToEmail ? `Per rispondere direttamente scrivi a <a href="mailto:${escapeHtml(replyToEmail)}">${escapeHtml(replyToEmail)}</a>.` : ""}
       </p>
     </div>
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      from: `Dealer Platform <${fromEmail}>`,
+      from: `KeyAuto <${fromEmail}>`,
       to: toRecipients,
       ...(message.data.reply_to_email ? { reply_to: message.data.reply_to_email } : {}),
       subject: message.data.subject,
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
       status: "sent",
       sent_at: now,
       from_email: fromEmail,
-      from_name: "Dealer Platform",
+      from_name: "KeyAuto",
       body_html: htmlBody,
       provider: "resend",
       provider_message_id: resendPayload?.id ?? null,

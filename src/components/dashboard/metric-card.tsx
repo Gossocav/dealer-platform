@@ -16,7 +16,7 @@ export function MetricCard({ label, value, delta, tone, icon: Icon }: MetricCard
           <p className="text-sm font-medium text-slate-500">{label}</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
         </div>
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
           <Icon className="h-5 w-5" />
         </span>
       </div>

@@ -24,7 +24,7 @@ function priorityClasses(priority: LeadPriority): string {
 
 function stageClasses(stage: LeadStage): string {
   if (stage === "nuovo") return "bg-blue-100 text-blue-700";
-  if (stage === "contattato") return "bg-sky-100 text-sky-700";
+  if (stage === "contattato") return "bg-blue-100 text-blue-700";
   if (stage === "appuntamento") return "bg-indigo-100 text-indigo-700";
   if (stage === "proposta_inviata") return "bg-violet-100 text-violet-700";
   if (stage === "chiuso_positivo") return "bg-emerald-100 text-emerald-700";
@@ -84,7 +84,7 @@ export function LeadsTable({ items, onStageChange, pendingLeadId }: LeadsTablePr
                           void onStageChange(lead.id, nextStage);
                         }}
                         disabled={pendingLeadId === lead.id}
-                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none transition focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none transition focus:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {leadStages.map((stage) => (
                           <option key={stage} value={stage}>

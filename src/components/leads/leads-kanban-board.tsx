@@ -49,7 +49,7 @@ export function LeadsKanbanBoard({ items, onStageChange, pendingLeadId }: LeadsK
               <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-700">{leadStageLabels[column.stage]}</h3>
               <p className="text-xs text-slate-500">{stageDescriptions[column.stage]}</p>
             </div>
-            <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+            <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
               {column.leads.length}
             </span>
           </div>
@@ -88,7 +88,7 @@ export function LeadsKanbanBoard({ items, onStageChange, pendingLeadId }: LeadsK
                         void onStageChange(lead.id, nextStage);
                       }}
                       disabled={pendingLeadId === lead.id}
-                      className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none transition focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none transition focus:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {leadStages.map((stage) => (
                         <option key={stage} value={stage}>

@@ -83,7 +83,7 @@ const demoPlans: Plan[] = [
       "Esportazione dati",
       "Supporto prioritario",
       "Maggiore visibilità sulla piattaforma",
-      "Visibilità sui social ufficiali Dealer Platform",
+      "Visibilità sui social ufficiali KeyAuto",
       "Gestione campagna Google Ads",
       "Report mensile delle performance marketing",
     ],
@@ -230,13 +230,13 @@ export default function AbbonamentoPage() {
           <section className="mx-auto w-full max-w-3xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">Il mio piano</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-700">Il mio piano</p>
                 <h2 className="mt-3 text-3xl font-semibold text-slate-900 sm:text-4xl">Il tuo piano attivo</h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
                   Questo e il piano attualmente attivo sulla tua concessionaria.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
                 <ShieldCheck className="h-4 w-4" />
                 Abbonamento sicuro
               </div>
@@ -268,7 +268,7 @@ export default function AbbonamentoPage() {
               </ul>
 
               <p className="mt-6 text-sm text-slate-600">
-                Per modificare il piano contatta il supporto Dealer Platform.
+                Per modificare il piano contatta il supporto KeyAuto.
               </p>
             </article>
           </section>
@@ -284,7 +284,7 @@ export default function AbbonamentoPage() {
       <section className="mx-auto w-full max-w-6xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">Piani Dealer</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-700">Piani Dealer</p>
             <h2 className="mt-3 text-3xl font-semibold text-slate-900 sm:text-4xl">
               {isDemo ? "Scegli il tuo piano" : "Scegli il piano piu adatto alla tua concessionaria"}
             </h2>
@@ -294,7 +294,7 @@ export default function AbbonamentoPage() {
                 : "Confronta i servizi inclusi e attiva il piano piu adatto alla fase di crescita del tuo business."}
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
             <ShieldCheck className="h-4 w-4" />
             Abbonamento sicuro
           </div>
@@ -329,7 +329,7 @@ export default function AbbonamentoPage() {
                   isRequested
                     ? "border-emerald-300 bg-gradient-to-b from-emerald-50 via-white to-white shadow-emerald-100"
                     : plan.recommended
-                      ? "border-sky-300 bg-gradient-to-b from-sky-50 via-white to-white shadow-sky-100"
+                      ? "border-blue-300 bg-gradient-to-b from-blue-50 via-white to-white shadow-blue-100"
                       : "border-slate-200 bg-slate-50/50",
                 ].join(" ")}
               >
@@ -339,7 +339,7 @@ export default function AbbonamentoPage() {
                     Richiesto
                   </div>
                 ) : plan.recommended ? (
-                  <div className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-sky-600 px-3 py-1 text-xs font-semibold text-white">
+                  <div className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
                     <Sparkles className="h-3.5 w-3.5" />
                     Consigliato
                   </div>
@@ -359,7 +359,7 @@ export default function AbbonamentoPage() {
                       <span
                         className={[
                           "mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full",
-                          plan.recommended ? "bg-sky-100 text-sky-700" : "bg-slate-200 text-slate-700",
+                          plan.recommended ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-700",
                         ].join(" ")}
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -389,7 +389,7 @@ export default function AbbonamentoPage() {
                     className={[
                       "mt-8 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4",
                       plan.recommended
-                        ? "bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-200"
+                        ? "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-200"
                         : "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-300",
                     ].join(" ")}
                   >
