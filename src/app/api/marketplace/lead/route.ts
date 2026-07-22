@@ -64,7 +64,7 @@ const MARKETPLACE_LEAD_RATE_LIMIT = {
 };
 
 const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
-const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_NAME = "KeyAuto";
 const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
 const REQUIRED_FROM_DOMAIN = "dealerplatform.it";
 
@@ -72,7 +72,7 @@ function buildStandardEmailFooterHtml() {
   return `
     <p style="margin:24px 0 12px 0;color:#334155;">--------------------------------</p>
     <p style="margin:0 0 12px 0;color:#334155;">Cordiali saluti,</p>
-    <p style="margin:0 0 12px 0;color:#334155;">Supporto Dealer Platform</p>
+    <p style="margin:0 0 12px 0;color:#334155;">Supporto KeyAuto</p>
     <p style="margin:0 0 12px 0;color:#334155;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
     <p style="margin:0 0 12px 0;color:#334155;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
     <p style="margin:0;color:#334155;">--------------------------------</p>
@@ -387,7 +387,7 @@ async function sendEmailsBestEffort({
           <p style="margin:0 0 12px 0;color:#334155;">Veicolo richiesto: <strong>${escapeHtml(vehicleLabel)}</strong></p>
           <p style="margin:0 0 12px 0;color:#334155;">La concessionaria prendera in carico la tua richiesta nel piu breve tempo possibile.</p>
           <p style="margin:0 0 12px 0;color:#334155;">Riceverai un contatto direttamente dal venditore.</p>
-          <p style="margin:24px 0 12px 0;color:#334155;">Cordiali saluti.<br />Dealer Platform</p>
+          <p style="margin:24px 0 12px 0;color:#334155;">Cordiali saluti.<br />KeyAuto</p>
           ${buildStandardEmailFooterHtml()}
         </div>
       </div>

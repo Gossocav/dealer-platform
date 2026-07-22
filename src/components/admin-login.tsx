@@ -106,10 +106,10 @@ export function AdminLogin() {
         <section className="flex flex-col justify-between rounded-[36px] border border-slate-200 bg-slate-950 px-8 py-10 text-white shadow-[0_40px_120px_-40px_rgba(15,23,42,0.55)] sm:px-10 sm:py-12">
           <div>
             <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold tracking-[0.18em] text-white/90">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-xs font-bold text-slate-950">DP</span>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-bold text-white">KA</span>
               <span suppressHydrationWarning>ADMIN ACCESS</span>
             </div>
-            <h1 className="mt-8 text-4xl font-semibold tracking-tight sm:text-5xl">Area Amministrazione Dealer Platform</h1>
+            <h1 className="mt-8 text-4xl font-semibold tracking-tight sm:text-5xl">Area Amministrazione KeyAuto</h1>
             <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">
               Accesso riservato alla gestione della piattaforma, approvazioni dealer e controllo operativo.
             </p>

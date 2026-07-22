@@ -29,7 +29,7 @@ async function resolveDealerBySlug(slug: string) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const canonical = toAbsoluteUrl(`/concessionarie/${slug}`);
-  const fallbackDescription = "Pagina concessionaria con i veicoli pubblicati nel marketplace Dealer Platform.";
+  const fallbackDescription = "Pagina concessionaria con i veicoli pubblicati nel marketplace KeyAuto.";
   const matchedDealer = await resolveDealerBySlug(slug);
 
   if (!matchedDealer) {
@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         canonical,
       },
       openGraph: {
-        title: "Concessionaria non trovata | Dealer Platform",
+        title: "Concessionaria non trovata | KeyAuto",
         description: fallbackDescription,
         url: canonical,
         type: "website",
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       canonical,
     },
     openGraph: {
-      title: `${dealerName} | Dealer Platform`,
+      title: `${dealerName} | KeyAuto`,
       description,
       url: canonical,
       type: "website",

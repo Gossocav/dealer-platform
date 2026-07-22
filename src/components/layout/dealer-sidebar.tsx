@@ -15,7 +15,6 @@ import {
   Settings,
   ShieldCheck,
   Users,
-  Wrench,
 } from "lucide-react";
 import { DEMO_FULL_VERSION_MESSAGE } from "@/lib/demo-access";
 
@@ -84,12 +83,14 @@ export function DealerSidebar({ isOpen, onClose, isDemo = false }: DealerSidebar
         ].join(" ")}
       >
         <div className="rounded-2xl bg-slate-900 px-4 py-3 text-white">
-          <p className="text-xs uppercase tracking-[0.22em] text-slate-300">Marketplace</p>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-sky-400/30">
-              <Wrench className="h-4 w-4" />
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-bold shadow-[0_6px_16px_-6px_rgba(76,130,247,0.8)]">
+              KA
             </span>
-            <p className="text-sm font-semibold">Dealer Console</p>
+            <div className="leading-tight">
+              <p className="text-sm font-semibold tracking-wide">KeyAuto</p>
+              <p className="text-[0.65rem] uppercase tracking-[0.2em] text-slate-400">Dealer Console</p>
+            </div>
           </div>
         </div>
 
@@ -105,7 +106,7 @@ export function DealerSidebar({ isOpen, onClose, isDemo = false }: DealerSidebar
                 className={[
                   "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition",
                   isActive
-                    ? "bg-sky-50 text-sky-700 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.2)]"
+                    ? "bg-blue-50 text-blue-700 shadow-[inset_0_0_0_1px_rgba(76,130,247,0.25)]"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
                 ].join(" ")}
                 onClick={onClose}

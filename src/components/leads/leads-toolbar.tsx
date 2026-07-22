@@ -46,7 +46,7 @@ function SelectField({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-sky-300"
+        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -108,7 +108,7 @@ export function LeadsToolbar({
               value={filters.query}
               onChange={(event) => onFiltersChange({ ...filters, query: event.target.value })}
               placeholder="Cerca cliente, email, telefono, veicolo"
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-sky-300"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-blue-300"
             />
           </span>
         </label>

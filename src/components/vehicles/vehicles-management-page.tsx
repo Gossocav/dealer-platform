@@ -821,7 +821,7 @@ export function VehiclesManagementPage() {
       <section className="dashboard-fade-up rounded-3xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-600">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2">
-            <CarFront className="h-4 w-4 text-sky-600" />
+            <CarFront className="h-4 w-4 text-blue-600" />
             {totalCount} veicoli totali, {items.length} visualizzati in pagina.
           </span>
 

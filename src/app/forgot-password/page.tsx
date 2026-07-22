@@ -116,8 +116,8 @@ export default function ForgotPasswordPage() {
         <section className="order-1 flex flex-col justify-between rounded-[36px] border border-slate-200 bg-slate-950 px-8 py-10 text-white shadow-[0_40px_120px_-40px_rgba(15,23,42,0.55)] sm:px-10 sm:py-12 lg:order-2 lg:px-12 lg:py-14">
           <div>
             <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold tracking-[0.18em] text-white/90">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-xs font-bold text-slate-950">DP</span>
-              <span suppressHydrationWarning>DEALER PLATFORM</span>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-bold text-white">KA</span>
+              <span suppressHydrationWarning>KEYAUTO</span>
             </div>
             <h2 className="mt-8 max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">Rientra in sicurezza nel tuo account.</h2>
             <p className="mt-5 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">

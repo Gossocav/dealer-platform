@@ -221,7 +221,7 @@ export function LeadsCrmPage() {
             <p className="mt-2 text-sm text-slate-600">Gestisci priorità commerciali, follow-up e conversione in un unico flusso.</p>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-xl bg-sky-50 px-4 py-2.5 text-sm font-medium text-sky-700">
+          <div className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700">
             <Inbox className="h-4 w-4" />
             {loading ? "Caricamento lead..." : `${filteredLeads.length} lead in vista corrente`}
           </div>

@@ -14,7 +14,7 @@ export function LeadTrendChart({ points }: LeadTrendChartProps) {
           const height = `${Math.max((point.value / maxValue) * 100, 8)}%`;
           return (
             <div key={point.label} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2">
-              <div className="w-full rounded-full bg-sky-500/90 transition duration-300 hover:bg-sky-600" style={{ height }} aria-label={`${point.label}: ${point.value} lead`} />
+              <div className="w-full rounded-full bg-blue-500/90 transition duration-300 hover:bg-blue-600" style={{ height }} aria-label={`${point.label}: ${point.value} lead`} />
               <span className="text-[11px] font-semibold text-slate-500">{point.label}</span>
             </div>
           );

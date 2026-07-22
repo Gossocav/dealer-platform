@@ -8,7 +8,7 @@ type ResendApiPayload = {
 
 const DEFAULT_ADMIN_NOTIFICATION_EMAIL = "info@keyplanrental.it";
 const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
-const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_NAME = "KeyAuto";
 
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
@@ -106,13 +106,13 @@ export async function sendDemoLifecycleEmail(input: {
   }
 
   const subjectMap = {
-    received: "Richiesta Demo ricevuta - Dealer Platform",
-    approved: "Demo Dealer Platform attivata",
-    access: "Accesso alla tua demo Dealer Platform",
-    reminder: "La tua demo Dealer Platform sta per scadere",
-    expired: "La tua demo Dealer Platform e scaduta",
-    converted: "Il tuo account Dealer Platform e stato attivato",
-    revoked: "La tua demo Dealer Platform e stata revocata",
+    received: "Richiesta Demo ricevuta - KeyAuto",
+    approved: "Demo KeyAuto attivata",
+    access: "Accesso alla tua demo KeyAuto",
+    reminder: "La tua demo KeyAuto sta per scadere",
+    expired: "La tua demo KeyAuto e scaduta",
+    converted: "Il tuo account KeyAuto e stato attivato",
+    revoked: "La tua demo KeyAuto e stata revocata",
   } as const;
 
   const bodyMap = {
@@ -120,14 +120,14 @@ export async function sendDemoLifecycleEmail(input: {
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Richiesta ricevuta</h2>
         <p style="margin:0 0 12px;">Ciao,</p>
-        <p style="margin:0 0 12px;">abbiamo ricevuto la tua richiesta di Demo Dealer Platform per <strong>${escapeHtml(input.dealerName ?? "-")}</strong>.</p>
+        <p style="margin:0 0 12px;">abbiamo ricevuto la tua richiesta di Demo KeyAuto per <strong>${escapeHtml(input.dealerName ?? "-")}</strong>.</p>
         <p style="margin:0 0 12px;">Il nostro team verifichera i dati inviati e ti contattera per l'attivazione. Tempi stimati: 1-2 giorni lavorativi.</p>
       </div>
     `,
     approved: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Demo attivata</h2>
-        <p style="margin:0 0 12px;">La tua demo Dealer Platform e stata attivata con successo.</p>
+        <p style="margin:0 0 12px;">La tua demo KeyAuto e stata attivata con successo.</p>
         <p style="margin:0 0 12px;">Concessionaria: <strong>${escapeHtml(input.dealerName ?? "-")}</strong></p>
         <p style="margin:0 0 12px;">Scadenza: <strong>${escapeHtml(input.expiresAt ?? "-")}</strong></p>
       </div>
@@ -141,27 +141,27 @@ export async function sendDemoLifecycleEmail(input: {
     reminder: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Demo in scadenza</h2>
-        <p style="margin:0 0 12px;">La tua demo Dealer Platform scade tra ${input.daysRemaining ?? 0} giorni.</p>
+        <p style="margin:0 0 12px;">La tua demo KeyAuto scade tra ${input.daysRemaining ?? 0} giorni.</p>
         <p style="margin:0 0 12px;">Per attivare il piano completo, rispondi a questa email o contatta il supporto.</p>
       </div>
     `,
     expired: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Demo scaduta</h2>
-        <p style="margin:0 0 12px;">La tua demo Dealer Platform e scaduta e l'accesso in scrittura e stato bloccato.</p>
+        <p style="margin:0 0 12px;">La tua demo KeyAuto e scaduta e l'accesso in scrittura e stato bloccato.</p>
         <p style="margin:0 0 12px;">Puoi comunque continuare a consultare i dati salvati e richiedere una nuova attivazione.</p>
       </div>
     `,
     converted: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Account attivato</h2>
-        <p style="margin:0 0 12px;">Il tuo account Dealer Platform e stato attivato definitivamente.</p>
+        <p style="margin:0 0 12px;">Il tuo account KeyAuto e stato attivato definitivamente.</p>
       </div>
     `,
     revoked: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Demo revocata</h2>
-        <p style="margin:0 0 12px;">La tua demo Dealer Platform e stata revocata. Se ritieni si tratti di un errore, contatta il supporto.</p>
+        <p style="margin:0 0 12px;">La tua demo KeyAuto e stata revocata. Se ritieni si tratti di un errore, contatta il supporto.</p>
       </div>
     `,
   } as const;

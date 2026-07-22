@@ -47,14 +47,14 @@ const eliteFeatures = [
       "Aumenta la presenza dei tuoi veicoli nel marketplace e migliora le possibilita di essere scelto dai clienti nelle fasi di ricerca.",
   },
   {
-    title: "Visibilita sui social ufficiali Dealer Platform",
+    title: "Visibilita sui social ufficiali KeyAuto",
     description:
-      "I tuoi veicoli e la tua concessionaria vengono promossi sui canali social ufficiali di Dealer Platform, ampliando la copertura oltre il marketplace.",
+      "I tuoi veicoli e la tua concessionaria vengono promossi sui canali social ufficiali di KeyAuto, ampliando la copertura oltre il marketplace.",
   },
   {
     title: "Gestione campagna Google Ads",
     description:
-      "Il team Dealer Platform imposta e gestisce per te le campagne Google Ads. Il budget pubblicitario e concordato con il cliente e sostenuto direttamente da lui, separatamente dal canone.",
+      "Il team KeyAuto imposta e gestisce per te le campagne Google Ads. Il budget pubblicitario e concordato con il cliente e sostenuto direttamente da lui, separatamente dal canone.",
   },
   {
     title: "Report mensile delle performance marketing",
@@ -82,7 +82,7 @@ export default function RegistrazioneElitePage() {
             <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <h2 className="text-lg font-semibold text-slate-900">Chi siamo</h2>
               <p className="mt-2 text-sm leading-6 text-slate-700 sm:text-base">
-                Dealer Platform e una piattaforma pensata per aiutare concessionarie e rivenditori automotive a pubblicare, gestire e valorizzare il proprio parco veicoli online.
+                KeyAuto e una piattaforma pensata per aiutare concessionarie e rivenditori automotive a pubblicare, gestire e valorizzare il proprio parco veicoli online.
               </p>
             </article>
 
@@ -101,7 +101,7 @@ export default function RegistrazioneElitePage() {
             <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <h2 className="text-lg font-semibold text-slate-900">A chi e adatto</h2>
               <p className="mt-2 text-sm leading-6 text-slate-700 sm:text-base">
-                Concessionarie che vogliono delegare a Dealer Platform anche la promozione online, senza gestire in autonomia campagne pubblicitarie e canali social.
+                Concessionarie che vogliono delegare a KeyAuto anche la promozione online, senza gestire in autonomia campagne pubblicitarie e canali social.
               </p>
             </article>
           </div>

@@ -35,7 +35,7 @@ export function DealerTopbar({ title, dealerName, avatarInitials, unreadNotifica
             <input
               type="search"
               placeholder="Cerca veicolo, lead o cliente"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-sky-300 focus:bg-white"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white"
             />
           </label>
 
@@ -45,7 +45,7 @@ export function DealerTopbar({ title, dealerName, avatarInitials, unreadNotifica
             aria-label="Notifiche"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1 text-[11px] font-semibold text-white">
+            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1 text-[11px] font-semibold text-white">
               {unreadNotifications}
             </span>
           </button>

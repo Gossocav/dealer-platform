@@ -29,7 +29,7 @@ export function LeadsKpiGrid({ items }: LeadsKpiGridProps) {
                 <p className="mt-2 text-3xl font-semibold text-slate-900">{item.value}</p>
                 <p className="mt-2 text-sm text-slate-500">{item.delta}</p>
               </div>
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
                 <Icon className="h-5 w-5" />
               </span>
             </div>

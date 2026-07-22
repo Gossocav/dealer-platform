@@ -44,7 +44,7 @@ export default function RegistrazioneBasePage() {
             <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <h2 className="text-lg font-semibold text-slate-900">Chi siamo</h2>
               <p className="mt-2 text-sm leading-6 text-slate-700 sm:text-base">
-                Dealer Platform e una piattaforma pensata per aiutare concessionarie e rivenditori automotive a pubblicare, gestire e valorizzare il proprio parco veicoli online.
+                KeyAuto e una piattaforma pensata per aiutare concessionarie e rivenditori automotive a pubblicare, gestire e valorizzare il proprio parco veicoli online.
               </p>
             </article>
 

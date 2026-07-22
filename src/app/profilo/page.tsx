@@ -358,7 +358,7 @@ export default function ProfiloPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={form.logo_url} alt={form.name || "Logo concessionaria"} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">DP</div>
+                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">KA</div>
                     )}
                   </div>
                 </div>

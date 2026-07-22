@@ -27,67 +27,84 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
   const registrationDate = resolveVehicleRegistrationDate(vehicle);
 
   return (
-    <article className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_30px_90px_-40px_rgba(15,23,42,0.22)] transition hover:-translate-y-1 hover:shadow-[0_40px_120px_-40px_rgba(15,23,42,0.34)]">
-      <div className="relative h-52 overflow-hidden bg-slate-200">
+    <article className="group overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)]">
+      <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={coverUrl} alt={vehicleLabel} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
             <svg viewBox="0 0 64 64" aria-hidden="true" className="h-14 w-14 fill-current opacity-40">
               <path d="M12 18a8 8 0 0 0-8 8v13a8 8 0 0 0 8 8h4a7 7 0 0 0 14 0h4a7 7 0 0 0 14 0h4a8 8 0 0 0 8-8V26a8 8 0 0 0-8-8h-4.6a3 3 0 0 1-2.5-1.3l-1.8-2.8A6 6 0 0 0 38 12H26a6 6 0 0 0-5 2.7l-1.8 2.8A3 3 0 0 1 16.6 19H12Zm10 25a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm20 0a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" />
             </svg>
             <span className="text-xs font-medium tracking-wide">Immagine non disponibile</span>
           </div>
         )}
-        <div className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-4 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
-          {formatPrice(vehicle.price)}
-        </div>
+        {formatText(vehicle.fuel) !== "-" ? (
+          <span className="absolute right-3 top-3 rounded-full bg-gradient-to-br from-emerald-300 to-cyan-300 px-3 py-1 text-xs font-bold text-slate-950">
+            {formatText(vehicle.fuel)}
+          </span>
+        ) : null}
       </div>
 
       <div className="space-y-4 p-5">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-            {dealerLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={dealerLogo} alt={dealerName} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-[9px] font-bold text-slate-500">DP</div>
-            )}
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="min-w-0 truncate text-lg font-bold text-white">{vehicleLabel}</h3>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Tag>{registrationDate}</Tag>
+          <Tag>{formatMileage(vehicle.mileage)}</Tag>
+          <Tag>{formatText(vehicle.transmission)}</Tag>
+          <Tag>{formatText(vehicle.city)}</Tag>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-4">
+          <div className="min-w-0">
+            <span className="block text-xl font-extrabold tracking-tight text-white">{formatPrice(vehicle.price)}</span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-white/10 bg-white/[0.04] text-[7px] font-bold text-slate-400">
+                {dealerLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={dealerLogo} alt={dealerName} className="h-full w-full object-cover" />
+                ) : (
+                  "KA"
+                )}
+              </span>
+              <span className="truncate">{dealerName}</span>
+            </span>
           </div>
-          <p className="truncate text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">{dealerName}</p>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">{vehicleLabel}</h3>
-          <p className="mt-2 text-sm text-slate-600">{formatText(vehicle.city)}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <Spec label="DATA IMM.NE" value={registrationDate} />
-          <Spec label="KM" value={formatMileage(vehicle.mileage)} />
-          <Spec label="ALIMENTAZIONE" value={formatText(vehicle.fuel)} />
-          <Spec label="CAMBIO" value={formatText(vehicle.transmission)} />
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <Link href={`/auto/${vehicle.id}`} className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
-            Visualizza
-          </Link>
-          <Link href={`/concessionarie/${dealerSlug}`} className="inline-flex items-center justify-center rounded-3xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200">
-            Concessionaria
-          </Link>
+          <div className="flex flex-none gap-2">
+            <Link
+              href={`/auto/${vehicle.id}`}
+              className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:brightness-105"
+            >
+              Vedi
+            </Link>
+            <Link
+              href={`/concessionarie/${dealerSlug}`}
+              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              aria-label={`Vai alla concessionaria ${dealerName}`}
+              title={`Vai alla concessionaria ${dealerName}`}
+            >
+              <StoreIcon />
+            </Link>
+          </div>
         </div>
       </div>
     </article>
   );
 }
 
-function Spec({ label, value }: { label: string; value: string }) {
+function StoreIcon() {
   return (
-    <div className="flex h-full min-h-[5.1rem] flex-col justify-start rounded-2xl bg-slate-50 px-4 py-2.5">
-      <p className="text-[11px] font-semibold uppercase leading-tight tracking-[0.18em] whitespace-normal break-words text-slate-500">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold leading-tight break-words text-slate-900">{value}</p>
-    </div>
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[2]" aria-hidden="true">
+      <path d="M3 9.5 4.5 4h15L21 9.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 9.5V20h16V9.5M9 20v-6h6v6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300">{children}</span>;
 }

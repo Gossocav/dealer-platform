@@ -15,7 +15,7 @@ type ResendApiPayload = {
 };
 
 const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
-const EMAIL_FROM_NAME = "Dealer Platform";
+const EMAIL_FROM_NAME = "KeyAuto";
 
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
@@ -51,7 +51,7 @@ function buildStandardEmailFooterHtml() {
   return `
     <p style="margin: 0 0 12px;">--------------------------------</p>
     <p style="margin: 0 0 12px;">Cordiali saluti,</p>
-    <p style="margin: 0 0 12px;">Supporto Dealer Platform</p>
+    <p style="margin: 0 0 12px;">Supporto KeyAuto</p>
     <p style="margin: 0 0 12px;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
     <p style="margin: 0 0 12px;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
     <p style="margin: 0;">--------------------------------</p>
@@ -105,12 +105,12 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
 
   if (input.kind === "suspended") {
     return {
-      subject: "Il tuo account Dealer Platform e stato sospeso",
+      subject: "Il tuo account KeyAuto e stato sospeso",
       html: `
         <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
           <p style="margin: 0 0 12px;">Gentile <strong>${dealerName}</strong>,</p>
           <p style="margin: 0 0 12px;">
-            ti informiamo che il tuo account su Dealer Platform e stato temporaneamente sospeso.
+            ti informiamo che il tuo account su KeyAuto e stato temporaneamente sospeso.
           </p>
           <p style="margin: 0 0 12px;">
             A partire da questo momento non sara possibile accedere all'area riservata ne utilizzare i servizi della piattaforma.
@@ -126,12 +126,12 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
 
   if (input.kind === "reactivated") {
     return {
-      subject: "Il tuo account Dealer Platform e stato riattivato",
+      subject: "Il tuo account KeyAuto e stato riattivato",
       html: `
         <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
           <p style="margin: 0 0 12px;">Gentile <strong>${dealerName}</strong>,</p>
           <p style="margin: 0 0 12px;">
-            ti informiamo che il tuo account su Dealer Platform e stato riattivato.
+            ti informiamo che il tuo account su KeyAuto e stato riattivato.
           </p>
           <p style="margin: 0 0 12px;">
             Da questo momento puoi accedere nuovamente all'area riservata e utilizzare i servizi della piattaforma.

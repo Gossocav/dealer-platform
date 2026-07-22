@@ -46,7 +46,7 @@ export default function RegistrazionePage() {
 
           <article className="rounded-3xl border border-cyan-200 bg-cyan-50 p-6">
             <h2 className="text-2xl font-semibold text-slate-900">Demo gratuita</h2>
-            <p className="mt-2 text-sm font-medium text-cyan-800">Prova Dealer Platform per 7 giorni</p>
+            <p className="mt-2 text-sm font-medium text-cyan-800">Prova KeyAuto per 7 giorni</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               Accesso dimostrativo riservato ai professionisti automotive, con alcune funzionalita limitate.
             </p>

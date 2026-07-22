@@ -33,11 +33,12 @@ type VehicleEditorPageProps = {
 };
 
 type EditorState = {
+  vehicleCategory: string;
+  vehicleCondition: string;
   brand: string;
   model: string;
   version: string;
   interiorType: string;
-  year: string;
   engineSize: string;
   traction: string;
   powerKw: string;
@@ -59,6 +60,8 @@ type EditorState = {
 };
 
 const REQUIRED_EDITOR_FIELDS = [
+  "vehicleCategory",
+  "vehicleCondition",
   "brand",
   "model",
   "version",
@@ -83,6 +86,8 @@ type RequiredEditorFieldKey = (typeof REQUIRED_EDITOR_FIELDS)[number];
 type RequiredFieldKey = RequiredEditorFieldKey;
 
 const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
+  vehicleCategory: "Tipo veicolo",
+  vehicleCondition: "Condizioni",
   brand: "Marca",
   model: "Modello",
   version: "Versione",
@@ -105,7 +110,7 @@ const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
 
 function getFieldInputClass(missing: boolean): string {
   return `h-11 w-full rounded-xl border px-3 text-sm text-slate-900 outline-none transition ${
-    missing ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-sky-300"
+    missing ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-blue-300"
   }`;
 }
 
@@ -156,7 +161,6 @@ type PlateLookupVehicle = {
   brand?: string;
   model?: string;
   version?: string;
-  year?: string;
   fuel?: string;
   transmission?: string;
   engineSize?: string;
@@ -260,11 +264,12 @@ function parseMileageForSave(value: string) {
 }
 
 const INITIAL_STATE: EditorState = {
+  vehicleCategory: "",
+  vehicleCondition: "",
   brand: "",
   model: "",
   version: "",
   interiorType: "",
-  year: String(new Date().getFullYear()),
   engineSize: "",
   traction: "",
   powerKw: "",
@@ -409,7 +414,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
+          "id, dealer_id, vehicle_category, vehicle_condition, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .eq("dealer_id", currentDealerId)
@@ -451,11 +456,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       if (!alive) return;
 
       setState({
+        vehicleCategory: String((data as Record<string, unknown>).vehicle_category ?? ""),
+        vehicleCondition: String((data as Record<string, unknown>).vehicle_condition ?? ""),
         brand: String(data.brand ?? ""),
         model: String(data.model ?? ""),
         version: String(data.version ?? ""),
         interiorType: String((data as Record<string, unknown>).interior_type ?? ""),
-        year: data.year === null || data.year === undefined ? "" : String(data.year),
         engineSize: String((data as Record<string, unknown>).engine_size ?? ""),
         traction: String((data as Record<string, unknown>).traction ?? ""),
         powerKw: String((data as Record<string, unknown>).power_kw ?? ""),
@@ -579,7 +585,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         brand: pick(vehicleSource.brand, dataSource.CarMake, dataSource.MakeDescription) || prev.brand,
         model: pick(vehicleSource.model, dataSource.CarModel, dataSource.ModelDescription) || prev.model,
         version: pick(vehicleSource.version, dataSource.Version, dataSource.Description) || prev.version,
-        year: pick(vehicleSource.year, dataSource.RegistrationYear) || prev.year,
         engineSize: pick(vehicleSource.engineSize, dataSource.EngineSize) || prev.engineSize,
         powerKw: pick(vehicleSource.powerKw, dataSource.PowerKW) || prev.powerKw,
         powerCv: pick(vehicleSource.powerHp, dataSource.PowerCV) || prev.powerCv,
@@ -706,11 +711,16 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
     const vehiclePayload = {
       dealer_id: vehicleDealerId,
+      vehicle_category: state.vehicleCategory.trim() || null,
+      vehicle_condition: state.vehicleCondition.trim() || null,
       brand: state.brand.trim() || null,
       model: state.model.trim() || null,
       version: state.version.trim() || null,
       interior_type: state.interiorType.trim() || null,
-      year: state.year.trim() || null,
+      // "Anno" non è un campo compilabile a parte: si ricava sempre dalla
+      // data di immatricolazione (obbligatoria), così i due valori non
+      // possono mai disallinearsi.
+      year: state.registrationDate.trim() ? state.registrationDate.trim().slice(0, 4) : null,
       engine_size: state.engineSize.trim() || null,
       traction: normalizeVehicleTraction(state.traction),
       power_kw: state.powerKw.trim() ? Number(state.powerKw) : null,
@@ -1117,13 +1127,13 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   value={licensePlate}
                   onChange={(event) => setLicensePlate(event.target.value.toUpperCase())}
                   placeholder="AA123BB"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-300"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
                 />
                 <button
                   type="button"
                   onClick={handlePlateLookup}
                   disabled={plateLookupLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {plateLookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Compila da targa
@@ -1132,6 +1142,32 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-2 sm:col-span-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("vehicleCategory"))}>Tipo veicolo *</span>
+                <select
+                  value={state.vehicleCategory}
+                  onChange={(event) => updateField("vehicleCategory", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("vehicleCategory"))}
+                >
+                  <option value="">Seleziona tipo...</option>
+                  <option value="Auto">Auto</option>
+                  <option value="Veicolo commerciale">Veicolo commerciale</option>
+                </select>
+              </label>
+              <label className="block space-y-2 sm:col-span-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("vehicleCondition"))}>Condizioni *</span>
+                <select
+                  value={state.vehicleCondition}
+                  onChange={(event) => updateField("vehicleCondition", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("vehicleCondition"))}
+                >
+                  <option value="">Seleziona condizioni...</option>
+                  <option value="Nuovo">Nuovo</option>
+                  <option value="Usato">Usato</option>
+                  <option value="Aziendale">Aziendale</option>
+                  <option value="Km/0">Km/0</option>
+                </select>
+              </label>
               <label className="block space-y-2">
                 <span className={getFieldLabelClass(missingFieldSet.has("brand"))}>Marca *</span>
                 <select
@@ -1165,7 +1201,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                         setShowCustomModelField(false);
                         updateField("model", "");
                       }}
-                      className="text-xs font-medium text-sky-600 hover:underline"
+                      className="text-xs font-medium text-blue-600 hover:underline"
                     >
                       Scegli dalla lista
                     </button>
@@ -1398,7 +1434,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 onChange={(event) => updateField("description", event.target.value)}
                 placeholder="Descrizione commerciale del veicolo"
                 className={`w-full rounded-xl border px-3 py-2.5 text-sm text-slate-900 outline-none transition ${
-                  missingFieldSet.has("description") ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-sky-300"
+                  missingFieldSet.has("description") ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-blue-300"
                 }`}
               />
             </label>
@@ -1415,7 +1451,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleEquipment(item)}
-                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                       <span>{item}</span>
                     </label>
@@ -1428,7 +1464,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
           <section className="dashboard-fade-up space-y-4 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
               <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                <ImagePlus className="h-4 w-4 text-sky-600" />
+                <ImagePlus className="h-4 w-4 text-blue-600" />
                 Upload immagini
               </p>
               <input

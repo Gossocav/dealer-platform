@@ -798,11 +798,11 @@ export async function POST(request: Request) {
 
     await sendPlatformEmail({
       toEmail: targetRequest.email,
-      subject: "Demo Dealer Platform attivata",
+      subject: "Demo KeyAuto attivata",
       html: `
         <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
           <h2 style="margin:0 0 12px;">Demo attivata</h2>
-          <p style="margin:0 0 12px;">La tua demo Dealer Platform e stata attivata per 7 giorni.</p>
+          <p style="margin:0 0 12px;">La tua demo KeyAuto e stata attivata per 7 giorni.</p>
           <p style="margin:0 0 12px;">Concessionaria: <strong>${targetRequest.dealership_name}</strong></p>
           <p style="margin:0 0 12px;">Scadenza: <strong>${expiresAt}</strong></p>
           <p style="margin:0 0 12px;">Limiti: max 10 veicoli, 20 lead, nessuna esportazione/importazione di massa.</p>

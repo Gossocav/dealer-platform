@@ -74,24 +74,24 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
   };
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_30px_90px_-40px_rgba(15,23,42,0.28)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.32em] text-blue-600">Richiedi informazioni</p>
-      <h2 className="mt-3 min-w-0 max-w-full break-words text-2xl font-semibold text-slate-900 [overflow-wrap:anywhere]">{vehicleLabel}</h2>
-      <p className="mt-3 text-sm leading-7 text-slate-600">Compila il form per essere ricontattato dalla concessionaria.</p>
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Richiedi informazioni</p>
+      <h2 className="mt-3 min-w-0 max-w-full break-words text-xl font-bold text-white [overflow-wrap:anywhere]">{vehicleLabel}</h2>
+      <p className="mt-3 text-sm leading-7 text-slate-400">Compila il form per essere ricontattato dalla concessionaria.</p>
 
       {successMessage ? (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{successMessage}</div>
+        <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">{successMessage}</div>
       ) : null}
 
       {errorMessage ? (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{errorMessage}</div>
+        <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{errorMessage}</div>
       ) : null}
 
       <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
         <div>
-          <span className="text-sm font-medium text-slate-700">Tipo cliente *</span>
+          <span className="text-sm font-medium text-slate-300">Tipo cliente *</span>
           <div className="mt-2 flex gap-3">
-            <label className="flex flex-1 cursor-pointer items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+            <label className="flex flex-1 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-300 transition has-[:checked]:border-blue-400/50 has-[:checked]:bg-blue-500/15 has-[:checked]:text-white">
               <input
                 type="radio"
                 name="customerType"
@@ -103,7 +103,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
               />
               Privato
             </label>
-            <label className="flex flex-1 cursor-pointer items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700">
+            <label className="flex flex-1 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-300 transition has-[:checked]:border-blue-400/50 has-[:checked]:bg-blue-500/15 has-[:checked]:text-white">
               <input
                 type="radio"
                 name="customerType"
@@ -126,13 +126,15 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
         <Field label="Telefono *" type="tel" value={phone} onChange={setPhone} required />
 
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Messaggio *</span>
+          <span className="text-sm font-medium text-slate-300">Messaggio *</span>
           <textarea
             rows={5}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             required
-            className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+            suppressHydrationWarning
+            style={{ color: "#f8fafc" }}
+            className="mt-2 w-full rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-blue-400/50 focus:bg-white/[0.06]"
             placeholder="Scrivi la tua richiesta"
           />
         </label>
@@ -140,7 +142,7 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "Invio in corso..." : "Invia richiesta"}
         </button>
@@ -164,13 +166,15 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-slate-300">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
-        className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+        suppressHydrationWarning
+        style={{ color: "#f8fafc" }}
+        className="mt-2 w-full rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm outline-none transition focus:border-blue-400/50 focus:bg-white/[0.06]"
       />
     </label>
   );

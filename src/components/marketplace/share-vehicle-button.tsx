@@ -97,20 +97,20 @@ export default function ShareVehicleButton({ title, text, url }: ShareVehicleBut
         onClick={() => {
           void handleShareClick();
         }}
-        className="inline-flex items-center justify-center rounded-3xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
       >
         Condividi
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.35)]">
+        <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.7)]">
           {links.map((item) => (
             <a
               key={item.label}
               href={item.href}
               target="_blank"
               rel="noreferrer"
-              className="block rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              className="block rounded-xl px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
             >
               {item.label}
             </a>
@@ -120,14 +120,14 @@ export default function ShareVehicleButton({ title, text, url }: ShareVehicleBut
             onClick={() => {
               void handleCopyLink();
             }}
-            className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
           >
             Copia link
           </button>
         </div>
       ) : null}
 
-      {copied ? <p className="absolute right-0 mt-2 text-xs font-semibold text-emerald-600">Link copiato</p> : null}
+      {copied ? <p className="absolute right-0 mt-2 text-xs font-semibold text-cyan-300">Link copiato</p> : null}
     </div>
   );
 }

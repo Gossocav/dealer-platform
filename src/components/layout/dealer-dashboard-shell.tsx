@@ -98,7 +98,7 @@ export function DealerDashboardShell({
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top_right,#e0f2fe_0%,#f8fafc_42%,#f8fafc_100%)] pb-8">
+    <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] pb-8">
       <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} />
 
       <div className="px-4 pt-4 sm:px-6 lg:ml-[17rem] lg:px-8 lg:pt-6">
@@ -118,7 +118,7 @@ export function DealerDashboardShell({
                   ? "border-red-200 bg-red-50 text-red-800"
                   : demoBanner.daysRemaining <= 2
                     ? "border-amber-200 bg-amber-50 text-amber-800"
-                    : "border-sky-200 bg-sky-50 text-sky-800"
+                    : "border-blue-200 bg-blue-50 text-blue-800"
               }`}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.16em]">Versione Demo</p>
@@ -126,7 +126,7 @@ export function DealerDashboardShell({
               <p className="mt-1">
                 Stato: {demoBanner.demoStatus ?? "active"} | Giorni rimanenti: {demoBanner.daysRemaining} | Scadenza: {formatDateTime(demoBanner.demoExpiresAt)}
               </p>
-              <p className="mt-1">Stai utilizzando Dealer Platform in modalita Demo. Alcune funzioni sono limitate durante il periodo di prova.</p>
+              <p className="mt-1">Stai utilizzando KeyAuto in modalita Demo. Alcune funzioni sono limitate durante il periodo di prova.</p>
               <div className="mt-2">
                 <a
                   href="mailto:support@dealerplatform.it"
