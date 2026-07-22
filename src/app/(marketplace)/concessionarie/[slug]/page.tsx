@@ -127,12 +127,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             <div className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-gradient-to-br from-white via-blue-100 to-blue-300 text-xl font-extrabold text-slate-950">
               {dealerName.charAt(0)}
             </div>
-            <div className="min-w-0">
-              <h2 className="min-w-0 break-words text-lg font-bold text-white [overflow-wrap:anywhere]">{dealerName}</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                {totalVehicles} veicoli pubblicati{cities.length > 0 ? ` • ${cities.join(", ")}` : ""}
-              </p>
-            </div>
+            <h2 className="min-w-0 break-words text-lg font-bold text-white [overflow-wrap:anywhere]">{dealerName}</h2>
           </div>
           <div className="flex flex-none flex-wrap gap-3">
             <Link
