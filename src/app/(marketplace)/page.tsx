@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
+import { HeroBrandModelFields } from "@/components/marketplace/hero-brand-model-fields";
 import { MarqueeBrands } from "@/components/marketplace/marquee-brands";
 import { RevealOnScroll } from "@/components/marketplace/reveal-on-scroll";
 import { SpecShowcase, type SpecShowcaseVehicle } from "@/components/marketplace/spec-showcase";
@@ -108,6 +109,13 @@ export default async function MarketplaceHomePage() {
   const featuredVehicles = [...vehicles].sort(byFeatured);
   const partnerDealers = groupDealers(vehicles).slice(0, 4);
   const brands = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
+  const allModels = uniqueValues(vehicles.map((vehicle) => vehicle.model));
+  const brandModelMap: Record<string, string[]> = {};
+  for (const brand of brands) {
+    brandModelMap[brand] = uniqueValues(
+      vehicles.filter((vehicle) => formatText(vehicle.brand) === brand).map((vehicle) => vehicle.model)
+    );
+  }
   const fuels = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
   const bodyTypes = uniqueValues(vehicles.map((vehicle) => vehicle.body_type));
@@ -175,8 +183,7 @@ export default async function MarketplaceHomePage() {
             className="mt-2 w-full max-w-3xl rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-2.5 shadow-[0_30px_80px_-30px_rgba(76,130,247,0.45)] backdrop-blur"
           >
             <div className="grid gap-1 sm:grid-cols-[1.1fr_1fr_1fr_auto]">
-              <HeroField label="Marca" name="brand" options={brands} placeholder="Qualsiasi marca" />
-              <HeroTextField label="Modello" name="model" placeholder="Es. Serie 3, Golf..." />
+              <HeroBrandModelFields brands={brands} brandModelMap={brandModelMap} allModels={allModels} />
               <HeroField
                 label="Prezzo max"
                 name="maxPrice"
@@ -533,24 +540,6 @@ function HeroField({
           </option>
         ))}
       </select>
-    </label>
-  );
-}
-
-function HeroTextField({ label, name, placeholder }: { label: string; name: string; placeholder: string }) {
-  return (
-    <label className="block rounded-2xl px-4 py-2.5 transition hover:bg-white/[0.04]">
-      <span className="block text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</span>
-      <input
-        name={name}
-        placeholder={placeholder}
-        autoComplete="off"
-        suppressHydrationWarning
-        // Inline color for the same unlayered-globals.css reason as HeroField:
-        // the typed value would otherwise render dark on this dark hero.
-        style={{ color: "#f8fafc" }}
-        className="mt-0.5 w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-500 placeholder:font-medium"
-      />
     </label>
   );
 }
