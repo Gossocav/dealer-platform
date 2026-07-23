@@ -192,6 +192,13 @@ export default async function MarketplaceHomePage() {
               </button>
             </div>
           </form>
+
+          <Link
+            href="/ricerca"
+            className="mt-1 inline-flex items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-400/10 px-6 py-3 text-sm font-bold text-cyan-200 shadow-[0_12px_30px_-12px_rgba(55,224,232,0.55)] transition hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
+          >
+            Ricerca avanzata <ArrowIcon />
+          </Link>
         </div>
       </section>
 
