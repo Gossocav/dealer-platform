@@ -28,6 +28,7 @@ type DemoRequestRow = {
   contact_name: string;
   email: string;
   phone: string;
+  mobile_phone: string | null;
   city: string;
   vehicle_count: number | string | null;
   message: string | null;
@@ -164,6 +165,7 @@ function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
     contact_name: normalizeText(raw.contact_name) ?? "-",
     email: normalizeText(raw.email) ?? "-",
     phone: normalizeText(raw.phone) ?? "-",
+    mobile_phone: normalizeText(raw.mobile_phone),
     city: normalizeText(raw.city) ?? "-",
     vehicle_count: normalizeVehicleCount(raw.vehicle_count),
     message: normalizeText(raw.message),
@@ -546,6 +548,7 @@ export async function POST(request: Request) {
         contact_person: targetRequest.contact_name,
         email: targetRequest.email,
         phone: targetRequest.phone,
+        whatsapp_phone: targetRequest.mobile_phone,
         city: targetRequest.city,
         status: existingDealer.data?.status ?? "approved",
         account_type: "demo",
