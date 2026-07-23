@@ -192,21 +192,6 @@ export default async function MarketplaceHomePage() {
               </button>
             </div>
           </form>
-
-          {quickChips.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="text-xs text-slate-500">Ricerche popolari</span>
-              {quickChips.map((chip) => (
-                <Link
-                  key={chip.label}
-                  href={chip.href}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-500/10 hover:text-white"
-                >
-                  {chip.label}
-                </Link>
-              ))}
-            </div>
-          ) : null}
         </div>
       </section>
 
@@ -223,13 +208,29 @@ export default async function MarketplaceHomePage() {
       </section>
 
       {/* ============ CATEGORIES ============ */}
-      {categories.length > 0 ? (
+      {categories.length > 0 || quickChips.length > 0 ? (
         <section className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
           <RevealOnScroll className="mx-auto mb-8 max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Parti da qui</p>
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Esplora per categoria</h2>
           </RevealOnScroll>
-          <CategoryRail categories={categories} />
+
+          {categories.length > 0 ? <CategoryRail categories={categories} /> : null}
+
+          {quickChips.length > 0 ? (
+            <div className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">Ricerche popolari</span>
+              {quickChips.map((chip) => (
+                <Link
+                  key={chip.label}
+                  href={chip.href}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-500/10 hover:text-white"
+                >
+                  {chip.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
