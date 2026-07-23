@@ -14,6 +14,7 @@ type SearchState = {
   q: string;
   vehicleCategory: string;
   vehicleCondition: string;
+  bodyType: string;
   brand: string;
   model: string;
   fuel: string;
@@ -29,6 +30,8 @@ type SearchState = {
 const VEHICLE_CATEGORY_OPTIONS = ["Auto", "Veicolo commerciale"] as const;
 
 const VEHICLE_CONDITION_OPTIONS = ["Nuovo", "Usato", "Aziendale", "Km/0"] as const;
+
+const BODY_TYPE_OPTIONS = ["SUV/Pick-up", "Berlina", "Station Wagon", "City Car", "Monovolume", "Coupé", "Cabrio", "Furgone/Van"] as const;
 
 const SORT_OPTIONS = [
   { value: "created_desc", label: "Data inserimento (piu recenti)" },
@@ -88,6 +91,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   if (filters.vehicleCategory) query = query.eq("vehicle_category", filters.vehicleCategory);
   if (filters.vehicleCondition) query = query.eq("vehicle_condition", filters.vehicleCondition);
+  if (filters.bodyType) query = query.eq("body_type", filters.bodyType);
   if (filters.brand) query = query.eq("brand", filters.brand);
   if (filters.model) query = query.eq("model", filters.model);
   if (filters.fuel) query = query.eq("fuel", filters.fuel);
@@ -206,6 +210,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchField label="Cerca" name="q" defaultValue={filters.q} placeholder="Marca, modello, versione" />
             <SearchSelect label="Tipo veicolo" name="vehicleCategory" defaultValue={filters.vehicleCategory} options={[...VEHICLE_CATEGORY_OPTIONS]} />
             <SearchSelect label="Condizioni" name="vehicleCondition" defaultValue={filters.vehicleCondition} options={[...VEHICLE_CONDITION_OPTIONS]} />
+            <SearchSelect label="Carrozzeria" name="bodyType" defaultValue={filters.bodyType} options={[...BODY_TYPE_OPTIONS]} />
             <SearchSelect label="Marca" name="brand" defaultValue={filters.brand} options={brandOptions} />
             <SearchSelect label="Modello" name="model" defaultValue={filters.model} options={modelOptions} />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
@@ -353,6 +358,7 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     q: asValue(searchParams.q),
     vehicleCategory: asValue(searchParams.vehicleCategory),
     vehicleCondition: asValue(searchParams.vehicleCondition),
+    bodyType: asValue(searchParams.bodyType),
     brand: asValue(searchParams.brand),
     model: asValue(searchParams.model),
     fuel: asValue(searchParams.fuel),
@@ -373,6 +379,7 @@ function buildSearchParams(filters: SearchState) {
     ["q", filters.q],
     ["vehicleCategory", filters.vehicleCategory],
     ["vehicleCondition", filters.vehicleCondition],
+    ["bodyType", filters.bodyType],
     ["brand", filters.brand],
     ["model", filters.model],
     ["fuel", filters.fuel],

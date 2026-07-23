@@ -35,6 +35,7 @@ type VehicleEditorPageProps = {
 type EditorState = {
   vehicleCategory: string;
   vehicleCondition: string;
+  bodyType: string;
   brand: string;
   model: string;
   version: string;
@@ -62,6 +63,7 @@ type EditorState = {
 const REQUIRED_EDITOR_FIELDS = [
   "vehicleCategory",
   "vehicleCondition",
+  "bodyType",
   "brand",
   "model",
   "version",
@@ -88,6 +90,7 @@ type RequiredFieldKey = RequiredEditorFieldKey;
 const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   vehicleCategory: "Tipo veicolo",
   vehicleCondition: "Condizioni",
+  bodyType: "Carrozzeria",
   brand: "Marca",
   model: "Modello",
   version: "Versione",
@@ -266,6 +269,7 @@ function parseMileageForSave(value: string) {
 const INITIAL_STATE: EditorState = {
   vehicleCategory: "",
   vehicleCondition: "",
+  bodyType: "",
   brand: "",
   model: "",
   version: "",
@@ -414,7 +418,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, vehicle_category, vehicle_condition, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
+          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, city, province, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .eq("dealer_id", currentDealerId)
@@ -458,6 +462,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       setState({
         vehicleCategory: String((data as Record<string, unknown>).vehicle_category ?? ""),
         vehicleCondition: String((data as Record<string, unknown>).vehicle_condition ?? ""),
+        bodyType: String((data as Record<string, unknown>).body_type ?? ""),
         brand: String(data.brand ?? ""),
         model: String(data.model ?? ""),
         version: String(data.version ?? ""),
@@ -713,6 +718,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       dealer_id: vehicleDealerId,
       vehicle_category: state.vehicleCategory.trim() || null,
       vehicle_condition: state.vehicleCondition.trim() || null,
+      body_type: state.bodyType.trim() || null,
       brand: state.brand.trim() || null,
       model: state.model.trim() || null,
       version: state.version.trim() || null,
@@ -1166,6 +1172,24 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   <option value="Usato">Usato</option>
                   <option value="Aziendale">Aziendale</option>
                   <option value="Km/0">Km/0</option>
+                </select>
+              </label>
+              <label className="block space-y-2 sm:col-span-2">
+                <span className={getFieldLabelClass(missingFieldSet.has("bodyType"))}>Carrozzeria *</span>
+                <select
+                  value={state.bodyType}
+                  onChange={(event) => updateField("bodyType", event.target.value)}
+                  className={getFieldInputClass(missingFieldSet.has("bodyType"))}
+                >
+                  <option value="">Seleziona carrozzeria...</option>
+                  <option value="SUV/Pick-up">SUV/Pick-up</option>
+                  <option value="Berlina">Berlina</option>
+                  <option value="Station Wagon">Station Wagon</option>
+                  <option value="City Car">City Car</option>
+                  <option value="Monovolume">Monovolume</option>
+                  <option value="Coupé">Coupé</option>
+                  <option value="Cabrio">Cabrio</option>
+                  <option value="Furgone/Van">Furgone/Van</option>
                 </select>
               </label>
               <label className="block space-y-2">
