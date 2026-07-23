@@ -16,6 +16,8 @@ const SORT_OPTIONS = [
   { value: "price_desc", label: "Prezzo decrescente" },
   { value: "year_desc", label: "Immatricolazione piu recente" },
   { value: "year_asc", label: "Immatricolazione piu vecchia" },
+  { value: "mileage_asc", label: "Km crescente" },
+  { value: "mileage_desc", label: "Km decrescente" },
 ] as const;
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -89,6 +91,12 @@ export default async function MarketplaceCatalogPage({ searchParams }: { searchP
       break;
     case "year_desc":
       query = query.order("registration_date", { ascending: false });
+      break;
+    case "mileage_asc":
+      query = query.order("mileage", { ascending: true });
+      break;
+    case "mileage_desc":
+      query = query.order("mileage", { ascending: false });
       break;
     case "created_asc":
       query = query.order("created_at", { ascending: true });
