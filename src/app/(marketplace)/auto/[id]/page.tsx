@@ -312,7 +312,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-400/15 text-cyan-300">
                     <SpecIcon name={spec.icon} />
                   </span>
-                  <p className="mt-2.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{spec.label}</p>
+                  <p className="mt-2.5 min-w-0 truncate text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{spec.label}</p>
                   <p className="mt-0.5 min-w-0 truncate text-sm font-bold text-white">{spec.value}</p>
                 </div>
               ))}
