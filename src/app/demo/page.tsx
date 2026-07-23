@@ -13,6 +13,7 @@ type DemoFormState = {
   lastName: string;
   email: string;
   phone: string;
+  mobilePhone: string;
   vehicleCount: string;
   brands: string;
   managementSoftware: string;
@@ -30,6 +31,7 @@ const initialValues: DemoFormState = {
   lastName: "",
   email: "",
   phone: "",
+  mobilePhone: "",
   vehicleCount: "",
   brands: "",
   managementSoftware: "",
@@ -49,6 +51,7 @@ const REQUIRED_FIELDS_ORDER: RequiredFieldKey[] = [
   "lastName",
   "email",
   "phone",
+  "mobilePhone",
   "city",
   "province",
   "vehicleCount",
@@ -66,6 +69,7 @@ const STEP_BY_REQUIRED_FIELD: Record<RequiredFieldKey, StepKey> = {
   lastName: 2,
   email: 2,
   phone: 2,
+  mobilePhone: 2,
   city: 1,
   province: 1,
   vehicleCount: 3,
@@ -158,6 +162,7 @@ export default function DemoPage() {
   const lastNameRef = useRef<HTMLInputElement | null>(null);
   const emailRef = useRef<HTMLInputElement | null>(null);
   const phoneRef = useRef<HTMLInputElement | null>(null);
+  const mobilePhoneRef = useRef<HTMLInputElement | null>(null);
   const vehicleCountRef = useRef<HTMLSelectElement | null>(null);
   const brandsRef = useRef<HTMLInputElement | null>(null);
   const managementSoftwareRef = useRef<HTMLInputElement | null>(null);
@@ -207,6 +212,9 @@ export default function DemoPage() {
         return;
       case "phone":
         phoneRef.current?.focus();
+        return;
+      case "mobilePhone":
+        mobilePhoneRef.current?.focus();
         return;
       case "vehicleCount":
         vehicleCountRef.current?.focus();
@@ -351,6 +359,10 @@ export default function DemoPage() {
       if (!isValidPhone(state.phone)) {
         nextErrors.phone = "Inserisci un numero di telefono valido.";
       }
+
+      if (!isValidPhone(state.mobilePhone)) {
+        nextErrors.mobilePhone = "Inserisci un numero di cellulare valido.";
+      }
     }
 
     if (step === 3) {
@@ -447,6 +459,7 @@ export default function DemoPage() {
     formData.set("lastName", values.lastName.trim());
     formData.set("email", values.email.trim().toLowerCase());
     formData.set("phone", values.phone.trim());
+    formData.set("mobilePhone", values.mobilePhone.trim());
     formData.set("vehicleCount", values.vehicleCount.trim());
     formData.set("brands", values.brands.trim());
     formData.set("managementSoftware", values.managementSoftware.trim());
@@ -670,9 +683,14 @@ export default function DemoPage() {
                     {errors.email ? <p className="mt-1 text-xs font-medium text-red-600">{errors.email}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono *</label>
+                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono fisso *</label>
                     <input ref={phoneRef} id="phone" type="tel" value={values.phone} onChange={handleChange("phone")} className={getFieldClassName(Boolean(errors.phone))} placeholder="+39 ..." required />
                     {errors.phone ? <p className="mt-1 text-xs font-medium text-red-600">{errors.phone}</p> : null}
+                  </div>
+                  <div>
+                    <label htmlFor="mobilePhone" className="mb-2 block text-sm font-medium text-slate-700">Cellulare *</label>
+                    <input ref={mobilePhoneRef} id="mobilePhone" type="tel" value={values.mobilePhone} onChange={handleChange("mobilePhone")} className={getFieldClassName(Boolean(errors.mobilePhone))} placeholder="+39 ..." required />
+                    {errors.mobilePhone ? <p className="mt-1 text-xs font-medium text-red-600">{errors.mobilePhone}</p> : null}
                   </div>
                 </div>
               </div>

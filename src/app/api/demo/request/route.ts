@@ -12,6 +12,7 @@ type DemoRequestBody = {
   lastName?: string;
   email?: string;
   phone?: string;
+  mobilePhone?: string;
   vehicleCount?: string;
   brands?: string;
   managementSoftware?: string;
@@ -218,6 +219,7 @@ function buildDemoRequestInsertPayload(params: {
   lastName: string | null;
   email: string;
   phone: string;
+  mobilePhone: string;
   city: string;
   provinceCode: string;
   vatNumber: string;
@@ -236,6 +238,7 @@ function buildDemoRequestInsertPayload(params: {
     lastName,
     email,
     phone,
+    mobilePhone,
     city,
     provinceCode,
     vatNumber,
@@ -253,6 +256,7 @@ function buildDemoRequestInsertPayload(params: {
     "contact_name",
     "email",
     "phone",
+    "mobile_phone",
     "city",
     "vehicle_count",
     "message",
@@ -280,6 +284,7 @@ function buildDemoRequestInsertPayload(params: {
   if (hasColumn("last_name") && lastName) payload.last_name = lastName;
   if (hasColumn("email")) payload.email = email;
   if (hasColumn("phone")) payload.phone = phone;
+  if (hasColumn("mobile_phone")) payload.mobile_phone = mobilePhone;
 
   if (hasColumn("city")) {
     payload.city = city;
@@ -373,6 +378,7 @@ export async function POST(request: Request) {
         lastName: String(formData.get("lastName") ?? ""),
         email: String(formData.get("email") ?? ""),
         phone: String(formData.get("phone") ?? ""),
+        mobilePhone: String(formData.get("mobilePhone") ?? ""),
         vehicleCount: String(formData.get("vehicleCount") ?? ""),
         brands: String(formData.get("brands") ?? ""),
         managementSoftware: String(formData.get("managementSoftware") ?? ""),
@@ -409,6 +415,7 @@ export async function POST(request: Request) {
     const lastName = normalizeText(body.lastName);
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
+    const mobilePhone = normalizeText(body.mobilePhone);
     const vehicleCount = normalizeInteger(body.vehicleCount);
     const brands = normalizeText(body.brands);
     const managementSoftware = normalizeText(body.managementSoftware);
@@ -417,7 +424,7 @@ export async function POST(request: Request) {
     const contactName = [firstName, lastName].filter(Boolean).join(" ").trim();
     const cityLabel = [city, provinceCode].filter(Boolean).join(" (").replace(/\($/, "") + (provinceCode ? ")" : "");
 
-    if (!companyName || !contactName || !email || !phone || !city || !provinceCode || !vehicleCount || !brands || !managementSoftware || !notes) {
+    if (!companyName || !contactName || !email || !phone || !mobilePhone || !city || !provinceCode || !vehicleCount || !brands || !managementSoftware || !notes) {
       return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 });
     }
 
@@ -505,6 +512,7 @@ export async function POST(request: Request) {
       lastName,
       email,
       phone,
+      mobilePhone,
       city,
       provinceCode,
       vatNumber,
@@ -648,7 +656,8 @@ export async function POST(request: Request) {
             <tr><td style="padding:6px 0;font-weight:600;">Concessionaria</td><td style="padding:6px 0;">${escapeHtml(companyName)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Referente</td><td style="padding:6px 0;">${escapeHtml(contactName)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Email</td><td style="padding:6px 0;">${escapeHtml(email)}</td></tr>
-            <tr><td style="padding:6px 0;font-weight:600;">Telefono</td><td style="padding:6px 0;">${escapeHtml(phone)}</td></tr>
+            <tr><td style="padding:6px 0;font-weight:600;">Telefono fisso</td><td style="padding:6px 0;">${escapeHtml(phone)}</td></tr>
+            <tr><td style="padding:6px 0;font-weight:600;">Cellulare</td><td style="padding:6px 0;">${escapeHtml(mobilePhone)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Partita IVA</td><td style="padding:6px 0;">${escapeHtml(vatNumber)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Citta</td><td style="padding:6px 0;">${escapeHtml(cityLabel)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Numero veicoli indicativo</td><td style="padding:6px 0;">${escapeHtml(String(vehicleCount))}</td></tr>
