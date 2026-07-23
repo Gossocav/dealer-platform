@@ -60,7 +60,7 @@ export default async function MarketplaceHomePage() {
     publicSupabase
       .from("vehicles")
       .select(
-        "id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)"
+        "id, brand, model, version, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)"
       )
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -110,17 +110,18 @@ export default async function MarketplaceHomePage() {
   const brands = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
   const fuels = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
+  const bodyTypes = uniqueValues(vehicles.map((vehicle) => vehicle.body_type));
   const cities = uniqueValues(vehicles.map((vehicle) => vehicle.city));
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
   const showcaseVehicle = await buildShowcaseVehicle(featuredVehicles[0] ?? vehicles[0] ?? null);
 
   const categories: MarketplaceCategory[] = [
-    ...fuels.map((fuel) => ({
-      label: fuel,
-      description: `Veicoli alimentati a ${fuel.toLowerCase()}.`,
-      href: `/ricerca?fuel=${encodeURIComponent(fuel)}`,
-      count: vehicles.filter((vehicle) => formatText(vehicle.fuel) === fuel).length,
+    ...bodyTypes.map((bodyType) => ({
+      label: bodyType,
+      description: `Veicoli con carrozzeria ${bodyType}.`,
+      href: `/ricerca?bodyType=${encodeURIComponent(bodyType)}`,
+      count: vehicles.filter((vehicle) => formatText(vehicle.body_type) === bodyType).length,
     })),
     ...transmissions.map((transmission) => ({
       label: `Cambio ${transmission.toLowerCase()}`,
