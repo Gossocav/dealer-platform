@@ -12,7 +12,9 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
             >
               KA
             </span>
-            <span suppressHydrationWarning>KEYAUTO</span>
+            <span suppressHydrationWarning>
+              KEYAUTO <span className="hidden font-medium tracking-[0.15em] text-slate-400 sm:inline">MARKETPLACE</span>
+            </span>
           </Link>
 
           <nav className="hidden items-center gap-2 md:flex">
