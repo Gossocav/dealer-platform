@@ -78,7 +78,7 @@ describe("demo access helpers", () => {
       userCount: 1,
     });
 
-    expect(getDemoFeatureBlockReason(context, "export")).toEqual({ code: "DEMO_EXPORT_NOT_ALLOWED", message: "L'esportazione non e disponibile nella demo." });
+    expect(getDemoFeatureBlockReason(context, "export")).toEqual({ code: "DEMO_EXPORT_NOT_ALLOWED", message: "Questa funzione e disponibile nella versione completa." });
   });
 
   it("blocks sending email for demo accounts", () => {
