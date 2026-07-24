@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { formatCurrency, safeText } from "@/lib/vehicles";
+import { supabase } from "@/lib/supabaseClient";
 
 type SendMode = "email" | "whatsapp" | "copy-link";
 
@@ -258,9 +259,17 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
         return;
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        throw new Error("Sessione non valida.");
+      }
+
       const response = await fetch("/api/vehicles/send-to-client", {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
