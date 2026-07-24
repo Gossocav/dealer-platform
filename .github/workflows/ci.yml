@@ -33,38 +33,15 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
       - name: Build
         # Build-only placeholders for CI; not real Supabase credentials.
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MCwiZXhwIjo0MTAyNDQ0ODAwfQ.ci_placeholder_signature
         run: npm run build
-
-  quality-advisory:
-    name: quality-advisory
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        # Temporary: advisory-only until pre-existing lint debt is fixed.
-        run: npm run lint
-        continue-on-error: true
-
-      - name: Test
-        # Temporary: advisory-only until pre-existing test debt is fixed.
-        run: npm run test
-        continue-on-error: true
