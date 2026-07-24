@@ -14,7 +14,7 @@ type ResendApiPayload = {
   message?: string;
 };
 
-const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@keyauto.it";
 const EMAIL_FROM_NAME = "KeyAuto";
 
 function normalizeText(value: unknown) {
@@ -53,7 +53,7 @@ function buildStandardEmailFooterHtml() {
     <p style="margin: 0 0 12px;">Cordiali saluti,</p>
     <p style="margin: 0 0 12px;">Supporto KeyAuto</p>
     <p style="margin: 0 0 12px;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
-    <p style="margin: 0 0 12px;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
+    <p style="margin: 0 0 12px;">Per assistenza:<br /><a href="mailto:info@keyauto.it">info@keyauto.it</a></p>
     <p style="margin: 0;">--------------------------------</p>
   `.trim();
 }

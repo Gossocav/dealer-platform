@@ -6,8 +6,8 @@ type ResendApiPayload = {
   message?: string;
 };
 
-const DEFAULT_ADMIN_NOTIFICATION_EMAIL = "info@keyplanrental.it";
-const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const DEFAULT_ADMIN_NOTIFICATION_EMAIL = "info@keyauto.it";
+const DEFAULT_EMAIL_FROM_ADDRESS = "no-reply@keyauto.it";
 const EMAIL_FROM_NAME = "KeyAuto";
 
 function normalizeText(value: unknown) {

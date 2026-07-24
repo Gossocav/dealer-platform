@@ -5,14 +5,14 @@ export default function AccountSospesoPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-600">Stato account</p>
         <h1 className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Account sospeso</h1>
         <p className="mt-4 text-base leading-7 text-slate-700">
-          Il tuo account è stato sospeso. Per assistenza contatta support@dealerplatform.it.
+          Il tuo account è stato sospeso. Per assistenza contatta info@keyauto.it.
         </p>
         <div className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
           <p>
             Stato attuale: <span className="font-semibold text-slate-900">account sospeso</span>
           </p>
           <p>
-            Assistenza: <a className="font-semibold text-blue-700 underline" href="mailto:support@dealerplatform.it">support@dealerplatform.it</a>
+            Assistenza: <a className="font-semibold text-blue-700 underline" href="mailto:info@keyauto.it">info@keyauto.it</a>
           </p>
         </div>
       </section>

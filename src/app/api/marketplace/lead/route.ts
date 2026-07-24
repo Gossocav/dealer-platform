@@ -63,10 +63,10 @@ const MARKETPLACE_LEAD_RATE_LIMIT = {
   maxRequests: 20,
 };
 
-const EMAIL_FROM_ADDRESS = "no-reply@dealerplatform.it";
+const EMAIL_FROM_ADDRESS = "no-reply@keyauto.it";
 const EMAIL_FROM_NAME = "KeyAuto";
 const EMAIL_FROM_HEADER = `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDRESS}>`;
-const REQUIRED_FROM_DOMAIN = "dealerplatform.it";
+const REQUIRED_FROM_DOMAIN = "keyauto.it";
 
 function buildStandardEmailFooterHtml() {
   return `
@@ -74,7 +74,7 @@ function buildStandardEmailFooterHtml() {
     <p style="margin:0 0 12px 0;color:#334155;">Cordiali saluti,</p>
     <p style="margin:0 0 12px 0;color:#334155;">Supporto KeyAuto</p>
     <p style="margin:0 0 12px 0;color:#334155;">Questa e un'email automatica.<br />Ti chiediamo di non rispondere a questo messaggio.</p>
-    <p style="margin:0 0 12px 0;color:#334155;">Per assistenza:<br /><a href="mailto:support@dealerplatform.it">support@dealerplatform.it</a></p>
+    <p style="margin:0 0 12px 0;color:#334155;">Per assistenza:<br /><a href="mailto:info@keyauto.it">info@keyauto.it</a></p>
     <p style="margin:0;color:#334155;">--------------------------------</p>
   `.trim();
 }

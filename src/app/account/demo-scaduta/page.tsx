@@ -16,7 +16,7 @@ export default function AccountDemoScadutaPage() {
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <a
-            href="mailto:support@dealerplatform.it"
+            href="mailto:info@keyauto.it"
             className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Attiva la versione completa

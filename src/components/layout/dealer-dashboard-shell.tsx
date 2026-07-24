@@ -129,7 +129,7 @@ export function DealerDashboardShell({
               <p className="mt-1">Stai utilizzando KeyAuto in modalita Demo. Alcune funzioni sono limitate durante il periodo di prova.</p>
               <div className="mt-2">
                 <a
-                  href="mailto:support@dealerplatform.it"
+                  href="mailto:info@keyauto.it"
                   className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
                 >
                   Attiva la versione completa
