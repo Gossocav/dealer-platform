@@ -33,6 +33,8 @@ type DealerCluster = {
 };
 
 const PRICE_BANDS = [
+  { label: "Fino a 5.000 €", value: "5000" },
+  { label: "Fino a 10.000 €", value: "10000" },
   { label: "Fino a 15.000 €", value: "15000" },
   { label: "Fino a 25.000 €", value: "25000" },
   { label: "Fino a 35.000 €", value: "35000" },
