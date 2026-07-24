@@ -1,12 +1,57 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 
-export async function POST(request: Request) {
+// Authorizes the caller against CRON_SECRET. Accepts two header styles:
+// - `Authorization: Bearer <secret>` -> sent automatically by Vercel Cron;
+// - `x-cron-secret: <secret>`        -> for manual / external triggering.
+// Fails closed when CRON_SECRET is not configured.
+function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  const provided = request.headers.get("x-cron-secret");
+  if (!secret) {
+    return false;
+  }
 
-  if (!secret || provided !== secret) {
+  if (request.headers.get("authorization") === `Bearer ${secret}`) {
+    return true;
+  }
+
+  if (request.headers.get("x-cron-secret") === secret) {
+    return true;
+  }
+
+  return false;
+}
+
+async function expireDueDemos(supabaseAdmin: SupabaseClient, nowIso: string) {
+  // Single atomic update that flips every due demo and returns the affected
+  // ids (previously a SELECT followed by one UPDATE per row).
+  const { data, error } = await supabaseAdmin
+    .from("dealers")
+    .update({ demo_status: "expired", updated_at: nowIso })
+    .eq("account_type", "demo")
+    .eq("demo_status", "active")
+    .lt("demo_expires_at", nowIso)
+    .select("id");
+
+  if (error) {
+    return { processed: 0, error };
+  }
+
+  const expired = data ?? [];
+  for (const dealer of expired) {
+    await createDemoAccessAuditEntry(supabaseAdmin, {
+      dealerId: dealer.id,
+      action: "demo.expired",
+      metadata: { triggeredAt: nowIso },
+    });
+  }
+
+  return { processed: expired.length, error: null };
+}
+
+async function handle(request: Request) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Accesso negato." }, { status: 403 });
   }
 
@@ -21,30 +66,23 @@ export async function POST(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("dealers")
-    .select("id")
-    .eq("account_type", "demo")
-    .eq("demo_status", "active")
-    .lt("demo_expires_at", now);
+  const nowIso = new Date().toISOString();
+  const { processed, error } = await expireDueDemos(supabaseAdmin, nowIso);
 
   if (error) {
-    return NextResponse.json({ error: error.message || "Errore aggiornamento demo scadute." }, { status: 500 });
+    const message = (error as { message?: string }).message || "Errore aggiornamento demo scadute.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  for (const dealer of data ?? []) {
-    await supabaseAdmin.from("dealers").update({
-      demo_status: "expired",
-      updated_at: now,
-    }).eq("id", dealer.id);
+  return NextResponse.json({ processed }, { status: 200 });
+}
 
-    await createDemoAccessAuditEntry(supabaseAdmin, {
-      dealerId: dealer.id,
-      action: "demo.expired",
-      metadata: { triggeredAt: now },
-    });
-  }
+// Vercel Cron invokes the endpoint with a GET request.
+export async function GET(request: Request) {
+  return handle(request);
+}
 
-  return NextResponse.json({ processed: (data ?? []).length }, { status: 200 });
+// Retained for manual / external triggering.
+export async function POST(request: Request) {
+  return handle(request);
 }
