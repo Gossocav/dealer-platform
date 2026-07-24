@@ -56,6 +56,7 @@ Follow this sequence for write endpoints:
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
 - `APP_BASE_URL`
+- `CRON_SECRET` (authorizes the scheduled demo-expiry job at `/api/demo/cron`)
 
 ## DB Workflow Notes
 
