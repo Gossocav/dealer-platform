@@ -9,10 +9,29 @@ const DEV_ONLY_CONNECT_SRC =
 
 const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-ancestors 'none';`;
 
+// Standard hardening headers applied to every dynamic response. X-Frame-Options
+// duplicates the CSP frame-ancestors directive for older browsers.
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "DENY",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+};
+
 export function proxy(request: NextRequest) {
   void request;
   const response = NextResponse.next();
   response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(name, value);
+  }
+
+  // HSTS only in production: it must never be sent over plain-http local dev,
+  // where a browser caching it for localhost would be a persistent nuisance.
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
+  }
 
   return response;
 }
