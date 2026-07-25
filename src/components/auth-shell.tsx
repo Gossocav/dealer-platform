@@ -20,6 +20,7 @@ const PUBLIC_OR_STATUS_ROUTES = [
   "/auto",
   "/ricerca",
   "/concessionarie",
+  "/privacy",
   "/account/sospeso",
   "/account/in-attesa",
 ];

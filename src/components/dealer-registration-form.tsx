@@ -479,6 +479,11 @@ export function DealerRegistrationForm({ plan }: DealerRegistrationFormProps) {
         >
           {isSubmitting ? "Registrazione in corso..." : "Registrati"}
         </button>
+
+        <p className="text-center text-xs leading-5 text-slate-500">
+          Registrandoti dichiari di aver letto l&apos;
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 underline">informativa sulla privacy</a>.
+        </p>
       </form>
     </section>
   );
