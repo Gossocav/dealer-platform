@@ -3,7 +3,6 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import ShareVehicleButton from "@/components/marketplace/share-vehicle-button";
 import {
-  buildTelLink,
   buildWhatsAppLink,
   formatMileage,
   formatPrice,
@@ -187,7 +186,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     .map((value) => String(value ?? "").trim())
     .filter((value) => value.length > 0)
     .join(" • ");
-  const dealerTelLink = buildTelLink(dealerPhone);
   const whatsappMessage = [
     "Buongiorno, sono interessato al veicolo:",
     resolveVehicleLabel(vehicle),
@@ -195,7 +193,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     "Visualizzato su KeyAuto.",
   ].join("\n");
   const dealerWhatsAppLink = buildWhatsAppLink(dealerWhatsAppPhone, whatsappMessage);
-  const contactUnavailableMessage = "Numero di telefono non disponibile.";
   const whatsappUnavailableMessage = "Numero WhatsApp non disponibile.";
   const dealershipLocality = [formatText(dealerCity), formatText(vehicle.city), formatText(vehicle.province)]
     .filter((value) => value !== "-")
@@ -369,25 +366,12 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           <aside className="order-2 min-w-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
-                {dealerTelLink ? (
-                  <a
-                    href={dealerTelLink}
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105"
-                  >
-                    <PhoneIcon /> Contatta il venditore
-                  </a>
-                ) : (
-                  <span title={contactUnavailableMessage}>
-                    <button
-                      type="button"
-                      disabled
-                      aria-label={contactUnavailableMessage}
-                      className="inline-flex cursor-not-allowed items-center justify-center rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-slate-500"
-                    >
-                      Contatta il venditore
-                    </button>
-                  </span>
-                )}
+                <a
+                  href="#contatta-venditore"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105"
+                >
+                  <PhoneIcon /> Contatta il venditore
+                </a>
                 {dealerWhatsAppLink ? (
                   <a
                     href={dealerWhatsAppLink}
