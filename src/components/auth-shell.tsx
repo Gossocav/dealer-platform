@@ -22,6 +22,7 @@ const PUBLIC_OR_STATUS_ROUTES = [
   "/concessionarie",
   "/privacy",
   "/termini",
+  "/termini-concessionari",
   "/account/sospeso",
   "/account/in-attesa",
 ];

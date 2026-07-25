@@ -11,9 +11,9 @@ const OPERATOR = {
 };
 
 export const metadata: Metadata = {
-  title: "Termini e Condizioni | KeyAuto",
+  title: "Termini e Condizioni per gli utenti | KeyAuto",
   description:
-    "Termini e Condizioni Generali di utilizzo della piattaforma KeyAuto: ruolo di intermediario, uso del servizio, account concessionari e responsabilità.",
+    "Termini e Condizioni per gli utenti del marketplace KeyAuto: ruolo di intermediario, uso del servizio e responsabilità.",
 };
 
 export default function TermsPage() {
@@ -21,10 +21,13 @@ export default function TermsPage() {
     <main className="px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">Note legali</p>
-        <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Termini e Condizioni Generali</h1>
+        <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Termini e Condizioni per gli utenti</h1>
         <p className="mt-3 text-sm text-slate-400">
           Ultimo aggiornamento: {LAST_UPDATED}. Le presenti condizioni regolano l&apos;utilizzo della piattaforma
-          KeyAuto. Utilizzando il servizio dichiari di averle lette e accettate.
+          KeyAuto da parte degli utenti che consultano il marketplace e contattano i concessionari. Utilizzando il
+          servizio dichiari di averle lette e accettate. Se sei un concessionario e vuoi pubblicare veicoli su KeyAuto,
+          fanno fede le{" "}
+          <a className="text-cyan-300 underline" href="/termini-concessionari">Condizioni Generali per i concessionari</a>.
         </p>
 
         <div className="mt-10 space-y-9">
@@ -80,13 +83,11 @@ export default function TermsPage() {
             </ul>
           </Section>
 
-          <Section title="6. Account e servizi per i concessionari">
+          <Section title="6. Concessionari">
             <p>
-              La registrazione di un account concessionario è soggetta a verifica da parte di KeyAuto. Il concessionario
-              è responsabile della veridicità dei dati forniti, dei contenuti pubblicati e della custodia delle proprie
-              credenziali. È disponibile un periodo di prova (Demo) con funzionalità limitate; al termine, l&apos;accesso
-              in scrittura può essere sospeso in assenza di attivazione del servizio completo. KeyAuto può sospendere o
-              chiudere gli account in caso di violazione delle presenti condizioni o di uso improprio del servizio.
+              I concessionari che desiderano registrarsi e pubblicare veicoli su KeyAuto sono soggetti a condizioni
+              specifiche, comprensive dei termini dell&apos;abbonamento al servizio, disciplinate dalle{" "}
+              <a className="text-cyan-300 underline" href="/termini-concessionari">Condizioni Generali per i concessionari</a>.
             </p>
           </Section>
 

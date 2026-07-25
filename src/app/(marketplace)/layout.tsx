@@ -68,7 +68,8 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
           <p>Marketplace pubblico KeyAuto.</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <Link href="/privacy" className="transition hover:text-white">Privacy</Link>
-            <Link href="/termini" className="transition hover:text-white">Termini e Condizioni</Link>
+            <Link href="/termini" className="transition hover:text-white">Termini e Condizioni utenti</Link>
+            <Link href="/termini-concessionari" className="transition hover:text-white">Termini e Condizioni concessionari</Link>
             <span className="hidden text-slate-600 md:inline">·</span>
             <p>Veicoli, concessionarie e ricerca avanzata senza autenticazione.</p>
           </div>
