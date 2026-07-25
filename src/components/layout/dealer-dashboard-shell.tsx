@@ -143,6 +143,8 @@ export function DealerDashboardShell({
 
         <footer className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
           <a href="/privacy" className="transition hover:text-slate-700">Informativa sulla privacy</a>
+          <span className="mx-2 text-slate-300">·</span>
+          <a href="/termini" className="transition hover:text-slate-700">Termini e Condizioni</a>
         </footer>
       </div>
     </div>
