@@ -66,7 +66,11 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
       <footer className="border-t border-white/10 bg-slate-950">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-slate-400 sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
           <p>Marketplace pubblico KeyAuto.</p>
-          <p>Veicoli, concessionarie e ricerca avanzata senza autenticazione.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="transition hover:text-white">Privacy</Link>
+            <span className="hidden text-slate-600 md:inline">·</span>
+            <p>Veicoli, concessionarie e ricerca avanzata senza autenticazione.</p>
+          </div>
         </div>
       </footer>
     </div>

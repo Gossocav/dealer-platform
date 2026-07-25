@@ -140,6 +140,10 @@ export function DealerDashboardShell({
 
           {children}
         </main>
+
+        <footer className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
+          <a href="/privacy" className="transition hover:text-slate-700">Informativa sulla privacy</a>
+        </footer>
       </div>
     </div>
   );
