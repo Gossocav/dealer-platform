@@ -732,7 +732,9 @@ export default function DemoPage() {
                   <label className="flex items-start gap-3 text-sm text-slate-700">
                     <input ref={privacyAcceptedRef} type="checkbox" checked={values.privacyAccepted} onChange={handleCheckboxChange("privacyAccepted")} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" required />
                     <span>
-                      Dichiaro di aver letto l&apos;informativa privacy e acconsento al trattamento dei dati per essere ricontattato in merito alla Demo. *
+                      Dichiaro di aver letto l&apos;
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-cyan-700 underline">informativa privacy</a>
+                      {" "}e acconsento al trattamento dei dati per essere ricontattato in merito alla Demo. *
                     </span>
                   </label>
                   {errors.privacyAccepted ? <p className="text-xs font-medium text-red-600">{errors.privacyAccepted}</p> : null}

@@ -146,6 +146,12 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
         >
           {loading ? "Invio in corso..." : "Invia richiesta"}
         </button>
+
+        <p className="text-xs leading-5 text-slate-500">
+          Inviando la richiesta dichiari di aver letto l&apos;
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">informativa sulla privacy</a>
+          {" "}e acconsenti al trattamento dei tuoi dati per essere ricontattato dalla concessionaria.
+        </p>
       </form>
     </div>
   );
