@@ -64,12 +64,48 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
       <div className="flex-1">{children}</div>
 
       <footer className="border-t border-white/10 bg-slate-950">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-sm text-slate-400 sm:px-6 lg:px-8 md:flex-row md:items-center md:justify-between">
-          <p>Marketplace pubblico KeyAuto.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/privacy" className="transition hover:text-white">Privacy</Link>
-            <span className="hidden text-slate-600 md:inline">·</span>
-            <p>Veicoli, concessionarie e ricerca avanzata senza autenticazione.</p>
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-14 sm:px-6 lg:grid-cols-5 lg:gap-x-8 lg:px-8">
+          <div className="col-span-2 lg:col-span-2">
+            <Link href="/" className="flex items-center gap-3 text-sm font-semibold tracking-[0.2em] text-white">
+              <span
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-bold text-white shadow-[0_8px_20px_-8px_rgba(76,130,247,0.8)]"
+                suppressHydrationWarning
+              >
+                KA
+              </span>
+              <span suppressHydrationWarning>KEYAUTO</span>
+            </Link>
+            <p className="mt-4 max-w-xs text-sm leading-6 text-slate-400">
+              Il marketplace che mette in contatto acquirenti e concessionarie verificate in tutta Italia.
+            </p>
+          </div>
+
+          <FooterColumn title="Marketplace">
+            <FooterLink href="/">Home</FooterLink>
+            <FooterLink href="/auto">Auto</FooterLink>
+            <FooterLink href="/ricerca">Ricerca</FooterLink>
+            <FooterLink href="/concessionarie">Concessionarie</FooterLink>
+            <FooterLink href="/come-funziona">Come funziona</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="Per i concessionari">
+            <FooterLink href="/demo">Richiedi una Demo</FooterLink>
+            <FooterLink href="/registrazione">Registrati</FooterLink>
+            <FooterLink href="/login">Accedi</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="Condizioni Generali">
+            <FooterLink href="/privacy">Informativa sulla privacy</FooterLink>
+            <FooterLink href="/termini">Termini e Condizioni utenti</FooterLink>
+            <FooterLink href="/termini-concessionari">Termini e Condizioni concessionari</FooterLink>
+            <FooterLink href="/consenso-marketing">Consenso al Marketing</FooterLink>
+          </FooterColumn>
+        </div>
+
+        <div className="border-t border-white/10">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:px-6 lg:px-8 sm:flex-row sm:items-center sm:justify-between">
+            <p>&copy; {new Date().getFullYear()} KeyAuto Marketplace. Tutti i diritti riservati. P.IVA 02543220970</p>
+            <Link href="/privacy" className="transition hover:text-slate-300">Privacy</Link>
           </div>
         </div>
       </footer>
@@ -80,6 +116,23 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link href={href} className="rounded-3xl px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white">
+      {children}
+    </Link>
+  );
+}
+
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</p>
+      <div className="mt-4 flex flex-col gap-3">{children}</div>
+    </div>
+  );
+}
+
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="text-sm text-slate-400 transition hover:text-white">
       {children}
     </Link>
   );
