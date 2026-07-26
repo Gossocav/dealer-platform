@@ -330,9 +330,9 @@ export function VehiclesManagementPage() {
       }
 
       const imageMap = new Map<string, string | null>();
-      const signedUrlCache = new Map<string, Promise<string | null>>();
+      const imageUrlCache = new Map<string, Promise<string | null>>();
 
-      const resolveSignedVehicleImageUrl = (rawValue: string) => {
+      const resolveVehiclePhotoUrl = (rawValue: string) => {
         const normalized = rawValue.trim();
         if (!normalized) {
           return Promise.resolve(null);
@@ -349,24 +349,18 @@ export function VehiclesManagementPage() {
           return Promise.resolve(null);
         }
 
-        const cached = signedUrlCache.get(path);
+        const cached = imageUrlCache.get(path);
         if (cached) {
           return cached;
         }
 
-        const pending = (async () => {
-          const { data: signed, error } = await supabase.storage
-            .from("vehicle-images")
-            .createSignedUrl(path, 3600);
+        // The "vehicle-images" bucket is public, so its public URL needs no
+        // network call -- unlike a signed URL, which would cost one Storage
+        // API request per thumbnail just to render this list.
+        const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+        const pending = Promise.resolve(publicData.publicUrl || null);
 
-          if (!error && signed?.signedUrl) {
-            return signed.signedUrl;
-          }
-
-          return null;
-        })();
-
-        signedUrlCache.set(path, pending);
+        imageUrlCache.set(path, pending);
         return pending;
       };
 
@@ -382,7 +376,7 @@ export function VehiclesManagementPage() {
 
           if (cover.startsWith("http://") || cover.startsWith("https://")) {
             if (cover.includes(".supabase.co")) {
-              imageMap.set(row.id, await resolveSignedVehicleImageUrl(cover));
+              imageMap.set(row.id, await resolveVehiclePhotoUrl(cover));
               return;
             }
 
@@ -390,7 +384,7 @@ export function VehiclesManagementPage() {
             return;
           }
 
-          imageMap.set(row.id, await resolveSignedVehicleImageUrl(cover));
+          imageMap.set(row.id, await resolveVehiclePhotoUrl(cover));
         })
       );
 
