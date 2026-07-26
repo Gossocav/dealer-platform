@@ -1442,9 +1442,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 >
                   <option value="draft">Bozza</option>
                   <option value="published">Pubblicato</option>
-                  <option value="review">In revisione</option>
-                  <option value="sold">Venduto</option>
-                  <option value="archived">Archiviato</option>
+                  {/* A vehicle can still hold another lifecycle state (set by
+                      feed import or an earlier version of this form), so keep
+                      that value selectable rather than silently rewriting it. */}
+                  {state.status !== "draft" && state.status !== "published" ? (
+                    <option value={state.status}>{formatVehicleStatus(state.status)}</option>
+                  ) : null}
                 </select>
                 <p className="text-xs text-slate-500">Stato attuale: {formatVehicleStatus(state.status)}</p>
               </label>
