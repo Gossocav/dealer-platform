@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
@@ -92,9 +93,47 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Messaggio troppo lungo." }, { status: 400 });
     }
 
-    // The email IS the deliverable here -- there is no table backing this
-    // request -- so unlike the lead/demo endpoints a provider failure must
-    // surface to the caller instead of being swallowed as a side effect.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.error("dealer-info-request:missing-env", {
+        hasSupabaseUrl: Boolean(supabaseUrl),
+        hasServiceRoleKey: Boolean(supabaseServiceRoleKey),
+      });
+
+      return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+
+    // Persist first: the row is the record of the enquiry, so it must not
+    // depend on the email provider succeeding.
+    const insert = await supabaseAdmin.from("dealer_info_requests").insert({
+      company_name: companyName,
+      contact_name: contactName,
+      email,
+      phone,
+      message,
+    });
+
+    if (insert.error) {
+      console.error("dealer-info-request:insert-failed", {
+        code: insert.error.code ?? null,
+        message: insert.error.message ?? null,
+      });
+
+      return NextResponse.json(
+        { error: "Invio non riuscito. Scrivici direttamente a info@keyauto.it." },
+        { status: 500 }
+      );
+    }
+
+    // Notification is best effort now that the request is stored: a provider
+    // failure (Resend warm-up cap) must not tell the dealer their enquiry was
+    // lost, because it wasn't -- it is visible in the admin area.
     const notification = await sendAdminNotificationEmail({
       subject: `Richiesta informazioni da ${companyName}`,
       html: `
@@ -117,11 +156,6 @@ export async function POST(request: Request) {
       console.error("dealer-info-request:notification-failed", {
         reason: notification.reason ?? null,
       });
-
-      return NextResponse.json(
-        { error: "Invio non riuscito. Scrivici direttamente a info@keyauto.it." },
-        { status: 502 }
-      );
     }
 
     return NextResponse.json({ message: "Richiesta inviata. Ti risponderemo al piu presto." }, { status: 200 });
