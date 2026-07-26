@@ -23,6 +23,7 @@ import {
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
 import RequestInformationForm from "./request-information-form";
+import VehicleGallery from "./vehicle-gallery";
 
 export const dynamic = "force-dynamic";
 
@@ -173,7 +174,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const resolvedImages = (await Promise.all(images.map((image) => resolveVehicleImageUrl(image)))).filter(
     (value): value is string => typeof value === "string" && value.length > 0
   );
-  const coverUrl = resolvedImages[0] ?? null;
   const dealerDisplayName = resolveDealerDisplayName(vehicle.dealers);
   const dealerPhone = resolveDealerPhone(vehicle.dealers);
   const dealerWhatsAppPhone = resolveDealerWhatsAppPhone(vehicle.dealers);
@@ -265,39 +265,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
         <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start">
           <section className="order-1 min-w-0 space-y-6">
             {/* ============ GALLERY ============ */}
-            <div className="overflow-hidden rounded-[32px] border border-white/10 bg-slate-900 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)]">
-              <div className="relative h-[460px] max-w-full overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
-                {coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverUrl} alt={resolveVehicleLabel(vehicle)} className="h-full w-full max-w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-slate-600">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-16 w-16 fill-current opacity-50">
-                      <path d="M5 6a3 3 0 0 0-3 3v5a3 3 0 0 0 3 3h1.5a2.5 2.5 0 1 0 5 0h1a2.5 2.5 0 1 0 5 0H19a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3h-1.35a1 1 0 0 1-.83-.45l-.64-.97A2 2 0 0 0 14.53 4h-5.1a2 2 0 0 0-1.65.88l-.64.97A1 1 0 0 1 6.31 6H5Zm4 9.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
-                    </svg>
-                  </div>
-                )}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
-              </div>
-
-              {resolvedImages.length > 1 ? (
-                <div className="grid min-w-0 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {resolvedImages.slice(0, 8).map((image, index) => (
-                    <a
-                      key={`${image}-${index}`}
-                      href={image}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="max-w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-800 transition hover:border-blue-400/40"
-                      aria-label={`Apri immagine ${index + 1}`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={image} alt={`Immagine ${index + 1}`} className="h-32 w-full max-w-full object-cover" />
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <VehicleGallery images={resolvedImages} label={resolveVehicleLabel(vehicle)} />
 
             {/* ============ HERO SPEC STRIP ============ */}
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
