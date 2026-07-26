@@ -13,7 +13,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
               KA
             </span>
             <span suppressHydrationWarning>
-              KEYAUTO <span className="hidden font-medium tracking-[0.15em] text-slate-400 sm:inline">MARKETPLACE</span>
+              KEYAUTO <span className="hidden sm:inline">MARKETPLACE</span>
             </span>
           </Link>
 
@@ -73,7 +73,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
               >
                 KA
               </span>
-              <span suppressHydrationWarning>KEYAUTO</span>
+              <span suppressHydrationWarning>KEYAUTO MARKETPLACE</span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-6 text-slate-400">
               Il marketplace che mette in contatto acquirenti e concessionarie verificate in tutta Italia.
