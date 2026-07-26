@@ -198,11 +198,21 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           return cached;
         }
 
-        // The "vehicle-images" bucket is public, so its public URL needs no
-        // network call -- unlike a signed URL, which would cost one Storage
-        // API request per image just to open this page.
-        const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-        const pending = Promise.resolve(publicData.publicUrl || null);
+        // Production's "vehicle-images" bucket is actually private (drifted
+        // from the migration that declares it public -- verified against the
+        // Storage API). getPublicUrl() alone builds a URL the browser can't
+        // load there, which shows the broken <img>'s alt text instead of the
+        // photo. createSignedUrl() works regardless of the bucket's
+        // public/private setting, so try that first.
+        const pending = (async () => {
+          const { data: signed, error } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
+          if (!error && signed?.signedUrl) {
+            return signed.signedUrl;
+          }
+
+          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+          return publicData.publicUrl || null;
+        })();
 
         imageUrlCache.set(path, pending);
         return pending;
