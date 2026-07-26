@@ -86,6 +86,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
             <FooterLink href="/ricerca">Ricerca</FooterLink>
             <FooterLink href="/concessionarie">Concessionarie</FooterLink>
             <FooterLink href="/come-funziona">Come funziona</FooterLink>
+            <FooterLink href="/faq">Domande Frequenti</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="Per i concessionari">
