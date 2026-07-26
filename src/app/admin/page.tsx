@@ -263,6 +263,12 @@ export default function AdminHomePage() {
               Richieste demo
             </Link>
             <Link
+              href="/admin/info-requests"
+              className="inline-flex items-center justify-center rounded-2xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700"
+            >
+              Richieste informazioni
+            </Link>
+            <Link
               href="/"
               className="inline-flex items-center justify-center rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
             >

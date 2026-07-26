@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   sendAdminNotificationEmailMock: vi.fn(),
   hitRateLimitMock: vi.fn(),
+  createClientMock: vi.fn(),
+  insertMock: vi.fn(),
 }));
 
 vi.mock("@/lib/admin-notification-email", () => ({
@@ -11,6 +13,10 @@ vi.mock("@/lib/admin-notification-email", () => ({
 
 vi.mock("@/lib/api-rate-limit", () => ({
   hitRateLimit: mocks.hitRateLimitMock,
+}));
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: mocks.createClientMock,
 }));
 
 import { POST } from "./route";
@@ -33,22 +39,35 @@ function makeRequest(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
+
   mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 4, resetAt: Date.now() + 1000 });
   mocks.sendAdminNotificationEmailMock.mockResolvedValue({ ok: true, id: "email-1" });
+
+  mocks.insertMock.mockResolvedValue({ error: null });
+  mocks.createClientMock.mockReturnValue({
+    from: vi.fn(() => ({ insert: mocks.insertMock })),
+  });
 });
 
 describe("dealer info request route", () => {
-  it("sends the admin notification and confirms", async () => {
+  it("persists the request and sends the admin notification", async () => {
     const response = await POST(makeRequest(validBody));
 
     expect(response.status).toBe(200);
-    expect(mocks.sendAdminNotificationEmailMock).toHaveBeenCalledTimes(1);
+    expect(mocks.insertMock).toHaveBeenCalledTimes(1);
+    expect(mocks.insertMock.mock.calls[0][0]).toMatchObject({
+      company_name: "Auto Rossi",
+      contact_name: "Mario Rossi",
+      email: "mario@autorossi.it",
+      phone: "0521 123456",
+    });
 
+    expect(mocks.sendAdminNotificationEmailMock).toHaveBeenCalledTimes(1);
     const payload = mocks.sendAdminNotificationEmailMock.mock.calls[0][0];
     expect(payload.subject).toContain("Auto Rossi");
     expect(payload.html).toContain("Mario Rossi");
-    // Email is normalized to lowercase before being reported.
-    expect(payload.html).toContain("mario@autorossi.it");
   });
 
   it("escapes HTML so a message cannot inject markup into the email", async () => {
@@ -67,6 +86,7 @@ describe("dealer info request route", () => {
     const response = await POST(makeRequest(body));
 
     expect(response.status).toBe(400);
+    expect(mocks.insertMock).not.toHaveBeenCalled();
     expect(mocks.sendAdminNotificationEmailMock).not.toHaveBeenCalled();
   });
 
@@ -74,27 +94,28 @@ describe("dealer info request route", () => {
     const response = await POST(makeRequest({ ...validBody, email: "not-an-email" }));
 
     expect(response.status).toBe(400);
-    expect(mocks.sendAdminNotificationEmailMock).not.toHaveBeenCalled();
+    expect(mocks.insertMock).not.toHaveBeenCalled();
   });
 
   it("accepts a missing phone (optional field)", async () => {
     const response = await POST(makeRequest({ ...validBody, phone: "" }));
 
     expect(response.status).toBe(200);
-    expect(mocks.sendAdminNotificationEmailMock).toHaveBeenCalledTimes(1);
+    expect(mocks.insertMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an over-long message with 400", async () => {
     const response = await POST(makeRequest({ ...validBody, message: "x".repeat(4001) }));
 
     expect(response.status).toBe(400);
-    expect(mocks.sendAdminNotificationEmailMock).not.toHaveBeenCalled();
+    expect(mocks.insertMock).not.toHaveBeenCalled();
   });
 
-  it("silently drops a honeypot submission without emailing", async () => {
+  it("silently drops a honeypot submission without saving or emailing", async () => {
     const response = await POST(makeRequest({ ...validBody, websiteTrap: "http://spam.example" }));
 
     expect(response.status).toBe(200);
+    expect(mocks.insertMock).not.toHaveBeenCalled();
     expect(mocks.sendAdminNotificationEmailMock).not.toHaveBeenCalled();
   });
 
@@ -104,17 +125,27 @@ describe("dealer info request route", () => {
     const response = await POST(makeRequest(validBody));
 
     expect(response.status).toBe(429);
+    expect(mocks.insertMock).not.toHaveBeenCalled();
+  });
+
+  it("fails the request when the database insert fails (the row is the record of the enquiry)", async () => {
+    mocks.insertMock.mockResolvedValue({ error: { code: "23505", message: "boom" } });
+
+    const response = await POST(makeRequest(validBody));
+
+    expect(response.status).toBe(500);
+    const payload = (await response.json()) as { error?: string };
+    expect(payload.error).toContain("info@keyauto.it");
     expect(mocks.sendAdminNotificationEmailMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces a provider failure as 502 instead of a false success", async () => {
+  it("still succeeds when the request is saved but the notification email fails (best effort)", async () => {
     mocks.sendAdminNotificationEmailMock.mockResolvedValue({ ok: false, reason: "provider_error" });
 
     const response = await POST(makeRequest(validBody));
 
-    expect(response.status).toBe(502);
-    const payload = (await response.json()) as { error?: string };
-    expect(payload.error).toContain("info@keyauto.it");
+    expect(response.status).toBe(200);
+    expect(mocks.insertMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns 400 on a malformed JSON body", async () => {
