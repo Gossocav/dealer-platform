@@ -397,13 +397,25 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
    return resolveVehicleImageUrlByStoragePath(storagePath);
 }
 
-// The "vehicle-images" bucket is public (see the bucket-creation migration),
-// so a public URL is just a string built from the bucket + path -- no network
-// round trip. A signed URL would cost one Storage API call per image, per
-// request, for no access-control benefit this bucket doesn't already have.
-const resolveVehicleImageUrlByStoragePath = cache((storagePath: string) => {
+// The bucket-creation migration declares "vehicle-images" as public, but
+// production's actual bucket is private (drifted from the migration --
+// verified directly against the Storage API: `public: false`). getPublicUrl()
+// alone builds a URL the browser can't actually load there ("Bucket not
+// found"), which made the broken <img>'s alt text -- the vehicle's title --
+// show up as visible text inside the photo box. createSignedUrl() works
+// regardless of the bucket's public/private setting, so try that first and
+// only fall back to the public URL if it fails.
+const resolveVehicleImageUrlByStoragePath = cache(async (storagePath: string) => {
   if (!storagePath) {
     return null;
+  }
+
+  const { data: signedData, error: signedError } = await publicSupabase.storage
+    .from("vehicle-images")
+    .createSignedUrl(storagePath, 60 * 60);
+
+  if (!signedError && signedData?.signedUrl) {
+    return signedData.signedUrl;
   }
 
   const { data: publicUrlData } = publicSupabase.storage.from("vehicle-images").getPublicUrl(storagePath);

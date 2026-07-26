@@ -440,20 +440,30 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .eq("vehicle_id", vehicleId)
         .order("position", { ascending: true });
 
-      // The "vehicle-images" bucket is public, so its public URL needs no
-      // network call -- unlike a signed URL, which would cost one Storage
-      // API request per image just to render the editor.
-      const resolvedImages = (imageRows ?? []).map((row) => {
-        const raw = String(row.image_url ?? "").trim();
-        const path = extractVehicleImagePath(raw);
+      // Production's "vehicle-images" bucket is actually private (drifted
+      // from the migration that declares it public -- verified against the
+      // Storage API). getPublicUrl() alone builds a URL the browser can't
+      // load there, which shows the broken <img>'s alt text instead of the
+      // photo. createSignedUrl() works regardless of the bucket's
+      // public/private setting, so try that first.
+      const resolvedImages = await Promise.all(
+        (imageRows ?? []).map(async (row) => {
+          const raw = String(row.image_url ?? "").trim();
+          const path = extractVehicleImagePath(raw);
 
-        if (!path) {
-          return { ...row, previewUrl: raw || null } as ViewImage;
-        }
+          if (!path) {
+            return { ...row, previewUrl: raw || null } as ViewImage;
+          }
 
-        const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-        return { ...row, previewUrl: publicData.publicUrl || raw } as ViewImage;
-      });
+          const { data: signed } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
+          if (signed?.signedUrl) {
+            return { ...row, previewUrl: signed.signedUrl } as ViewImage;
+          }
+
+          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+          return { ...row, previewUrl: publicData.publicUrl || raw } as ViewImage;
+        })
+      );
 
       if (!alive) return;
 
