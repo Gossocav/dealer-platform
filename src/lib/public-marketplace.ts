@@ -274,8 +274,46 @@ export function resolveVehicleImages(images?: MarketplaceVehicleImage[] | null) 
     .filter((value) => value.length > 0);
 }
 
+// Dealer data entry / feed imports are inconsistently cased -- e.g. a real
+// vehicle in production has version "sprint" (all lowercase) while its
+// brand/model are properly cased, and another has brand "PORSCHE" and
+// version "TURBO" (all uppercase), so the joined title read "Alfa Romeo
+// Stelvio sprint" and "PORSCHE GT3 TURBO". Normalize each word instead of
+// each field, so "Alfa Romeo" (already two properly-cased words) is left
+// alone while "sprint"/"PORSCHE"/"TURBO" get Title Cased. Short all-caps
+// tokens (<=4 chars, e.g. "GT3", "TDI", "AMG", "BMW") are assumed to be
+// acronyms/trim codes and kept as-is rather than mangled into "Gt3"/"Bmw".
+function normalizeVehicleLabelWord(word: string): string {
+  if (!word) return word;
+
+  const hasUpper = /[A-Z]/.test(word);
+  const hasLower = /[a-z]/.test(word);
+
+  if (hasUpper && hasLower) {
+    return word;
+  }
+
+  if (hasUpper && !hasLower && word.length <= 4) {
+    return word;
+  }
+
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function normalizeVehicleLabelField(value: string): string {
+  return value
+    .split(" ")
+    .map((word) => normalizeVehicleLabelWord(word))
+    .join(" ");
+}
+
 export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">) {
-  return [vehicle.brand, vehicle.model, vehicle.version].filter(Boolean).join(" ") || "Veicolo";
+  return (
+    [vehicle.brand, vehicle.model, vehicle.version]
+      .filter(Boolean)
+      .map((field) => normalizeVehicleLabelField(String(field)))
+      .join(" ") || "Veicolo"
+  );
 }
 
 export function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
