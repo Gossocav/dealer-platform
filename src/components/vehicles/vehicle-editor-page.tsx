@@ -32,6 +32,8 @@ type VehicleEditorPageProps = {
   vehicleId?: string;
 };
 
+const MAX_VEHICLE_IMAGES = 20;
+
 type EditorState = {
   vehicleCategory: string;
   vehicleCondition: string;
@@ -438,24 +440,20 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .eq("vehicle_id", vehicleId)
         .order("position", { ascending: true });
 
-      const resolvedImages = await Promise.all(
-        (imageRows ?? []).map(async (row) => {
-          const raw = String(row.image_url ?? "").trim();
-          const path = extractVehicleImagePath(raw);
+      // The "vehicle-images" bucket is public, so its public URL needs no
+      // network call -- unlike a signed URL, which would cost one Storage
+      // API request per image just to render the editor.
+      const resolvedImages = (imageRows ?? []).map((row) => {
+        const raw = String(row.image_url ?? "").trim();
+        const path = extractVehicleImagePath(raw);
 
-          if (!path) {
-            return { ...row, previewUrl: raw || null } as ViewImage;
-          }
+        if (!path) {
+          return { ...row, previewUrl: raw || null } as ViewImage;
+        }
 
-          const { data: signed } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
-          if (signed?.signedUrl) {
-            return { ...row, previewUrl: signed.signedUrl } as ViewImage;
-          }
-
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-          return { ...row, previewUrl: publicData.publicUrl || raw } as ViewImage;
-        })
-      );
+        const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+        return { ...row, previewUrl: publicData.publicUrl || raw } as ViewImage;
+      });
 
       if (!alive) return;
 
@@ -632,6 +630,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     if (nextMissing.length > 0) {
       setMissingFields(nextMissing);
       setError(`Compila i campi obbligatori mancanti:\n- ${nextMissing.map((field) => REQUIRED_FIELD_LABELS[field]).join("\n- ")}`);
+      return;
+    }
+
+    if (images.length + pendingFiles.length > MAX_VEHICLE_IMAGES) {
+      setError(`Puoi caricare al massimo ${MAX_VEHICLE_IMAGES} foto per veicolo. Rimuovine alcune prima di continuare.`);
       return;
     }
 
@@ -1514,6 +1517,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 </span>
               </div>
               <p className="mt-2 text-xs text-slate-500">{pendingFiles.length} file pronti al caricamento.</p>
+              <p className={`mt-1 text-xs ${images.length + pendingFiles.length > MAX_VEHICLE_IMAGES ? "font-semibold text-red-600" : "text-slate-500"}`}>
+                {images.length + pendingFiles.length} / {MAX_VEHICLE_IMAGES} foto totali per il veicolo
+              </p>
             </div>
 
             {images.length > 0 ? (

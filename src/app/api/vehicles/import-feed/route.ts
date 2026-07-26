@@ -6,6 +6,7 @@ import {
   buildVehicleInsertPayload,
   extractVehicleImageUrls,
   mapVehicleImportRow,
+  MAX_VEHICLE_IMAGES,
   type VehicleImportMappedRow,
   type VehicleImportRawRow,
   type VehicleImportStatus,
@@ -690,7 +691,7 @@ export async function findDuplicateVehicleId(supabase: ApiSupabaseClient, dealer
   return match?.id ? String(match.id) : null;
 }
 
-async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId: string, vehicleId: string, imageUrls: string[]) {
+export async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId: string, vehicleId: string, imageUrls: string[]) {
   const urls = Array.from(new Set(imageUrls.map((url) => String(url ?? "").trim()).filter(Boolean)));
   if (urls.length === 0) {
     return;
@@ -702,12 +703,11 @@ async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId: string
     .eq("vehicle_id", vehicleId)
     .order("position", { ascending: true });
 
-  const existingUrls = new Set((Array.isArray(existing) ? existing : []).map((row: Record<string, unknown>) => String(row.image_url ?? "").trim()));
-  const toInsert = urls.filter((url) => !existingUrls.has(url));
+  const existingCount = Array.isArray(existing) ? existing.length : 0;
 
-  if (Array.isArray(existing) && existing.length === 0) {
+  if (existingCount === 0) {
     await supabase.from("vehicle_images").insert(
-      urls.map((url, index) => ({
+      urls.slice(0, MAX_VEHICLE_IMAGES).map((url, index) => ({
         dealer_id: dealerId,
         vehicle_id: vehicleId,
         image_url: url,
@@ -718,13 +718,22 @@ async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId: string
     return;
   }
 
-  if (toInsert.length > 0) {
+  const existingUrls = new Set((existing ?? []).map((row: Record<string, unknown>) => String(row.image_url ?? "").trim()));
+  const toInsert = urls.filter((url) => !existingUrls.has(url));
+
+  // A repeated feed sync must not let the total creep past the cap even
+  // though each run's own list is already capped -- new URLs only fill
+  // whatever slots are left.
+  const availableSlots = Math.max(0, MAX_VEHICLE_IMAGES - existingCount);
+  const cappedToInsert = toInsert.slice(0, availableSlots);
+
+  if (cappedToInsert.length > 0) {
     await supabase.from("vehicle_images").insert(
-      toInsert.map((url, index) => ({
+      cappedToInsert.map((url, index) => ({
         dealer_id: dealerId,
         vehicle_id: vehicleId,
         image_url: url,
-        position: (Array.isArray(existing) ? existing.length : 0) + index,
+        position: existingCount + index,
         is_cover: false,
       }))
     );

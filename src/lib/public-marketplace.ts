@@ -359,17 +359,13 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
    return resolveVehicleImageUrlByStoragePath(storagePath);
 }
 
-const resolveVehicleImageUrlByStoragePath = cache(async (storagePath: string) => {
+// The "vehicle-images" bucket is public (see the bucket-creation migration),
+// so a public URL is just a string built from the bucket + path -- no network
+// round trip. A signed URL would cost one Storage API call per image, per
+// request, for no access-control benefit this bucket doesn't already have.
+const resolveVehicleImageUrlByStoragePath = cache((storagePath: string) => {
   if (!storagePath) {
     return null;
-  }
-
-  const { data: signedData, error: signedError } = await publicSupabase.storage
-    .from("vehicle-images")
-    .createSignedUrl(storagePath, 60 * 60);
-
-  if (!signedError && signedData?.signedUrl) {
-    return signedData.signedUrl;
   }
 
   const { data: publicUrlData } = publicSupabase.storage.from("vehicle-images").getPublicUrl(storagePath);

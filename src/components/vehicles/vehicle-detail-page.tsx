@@ -174,9 +174,9 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         return;
       }
 
-      const signedUrlCache = new Map<string, Promise<string | null>>();
+      const imageUrlCache = new Map<string, Promise<string | null>>();
 
-      const resolveSignedVehicleImageUrl = (rawValue: string) => {
+      const resolveVehiclePhotoUrl = (rawValue: string) => {
         const normalized = rawValue.trim();
         if (!normalized) {
           return Promise.resolve(null);
@@ -193,22 +193,18 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           return Promise.resolve(null);
         }
 
-        const cached = signedUrlCache.get(path);
+        const cached = imageUrlCache.get(path);
         if (cached) {
           return cached;
         }
 
-        const pending = (async () => {
-          const { data: signed, error } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
-          if (!error && signed?.signedUrl) {
-            return signed.signedUrl;
-          }
+        // The "vehicle-images" bucket is public, so its public URL needs no
+        // network call -- unlike a signed URL, which would cost one Storage
+        // API request per image just to open this page.
+        const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
+        const pending = Promise.resolve(publicData.publicUrl || null);
 
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-          return publicData.publicUrl || null;
-        })();
-
-        signedUrlCache.set(path, pending);
+        imageUrlCache.set(path, pending);
         return pending;
       };
 
@@ -222,13 +218,13 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
           if (raw.startsWith("http://") || raw.startsWith("https://")) {
             if (raw.includes(".supabase.co")) {
-              return { ...row, previewUrl: await resolveSignedVehicleImageUrl(raw) } as ViewImage;
+              return { ...row, previewUrl: await resolveVehiclePhotoUrl(raw) } as ViewImage;
             }
 
             return { ...row, previewUrl: mapImageUrlForDisplay(raw) } as ViewImage;
           }
 
-          return { ...row, previewUrl: (await resolveSignedVehicleImageUrl(raw)) || raw } as ViewImage;
+          return { ...row, previewUrl: (await resolveVehiclePhotoUrl(raw)) || raw } as ViewImage;
         })
       );
 

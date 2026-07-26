@@ -2,6 +2,12 @@ import * as XLSX from "xlsx";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
 
+// Same cap enforced in the manual upload UI (vehicle-editor-page.tsx): a feed
+// is untrusted input, so without this a malformed row could list hundreds of
+// image URLs for one vehicle and the detail page would try to resolve every
+// one of them on load.
+export const MAX_VEHICLE_IMAGES = 20;
+
 export type VehicleImportField =
   | "vin"
   | "brand"
@@ -322,7 +328,7 @@ export function extractVehicleImageUrls(values: Record<string, string>) {
     }
   }
 
-  return Array.from(new Set(collected));
+  return Array.from(new Set(collected)).slice(0, MAX_VEHICLE_IMAGES);
 }
 
 function parseOptionalNumber(value: string) {
