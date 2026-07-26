@@ -119,7 +119,7 @@ export function VehiclesTable({
                     <div className="flex items-center gap-3">
                       {vehicle.mainImageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={vehicle.mainImageUrl} alt={vehicle.model} className="h-14 w-20 rounded-lg object-cover" />
+                        <img src={vehicle.mainImageUrl} alt={vehicle.model} loading="lazy" decoding="async" className="h-14 w-20 rounded-lg object-cover" />
                       ) : (
                         <div className="flex h-14 w-20 items-center justify-center rounded-lg bg-slate-200 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                           N/A

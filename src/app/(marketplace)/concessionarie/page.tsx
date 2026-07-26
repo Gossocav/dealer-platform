@@ -87,7 +87,7 @@ async function DealerCard({ group }: { group: DealerGroup }) {
       <div className="relative h-52 overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={dealerName} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={coverUrl} alt={dealerName} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-slate-600">
             <svg viewBox="0 0 24 24" aria-hidden="true" className="h-14 w-14 fill-current opacity-40">

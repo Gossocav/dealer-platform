@@ -49,6 +49,8 @@ function VehicleCoverImage({ vehicle }: VehicleCoverImageProps) {
       <img
         src={vehicle.mainImageUrl}
         alt={`${vehicle.brand} ${vehicle.model}`}
+        loading="lazy"
+        decoding="async"
         className="absolute inset-0 z-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
         onError={() => setHasError(true)}
       />

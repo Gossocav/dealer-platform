@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { DealerSidebar } from "@/components/layout/dealer-sidebar";
 import { DealerTopbar } from "@/components/layout/dealer-topbar";
 import { getActiveDealerId } from "@/lib/active-tenant";
@@ -142,9 +143,9 @@ export function DealerDashboardShell({
         </main>
 
         <footer className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
-          <a href="/privacy" className="transition hover:text-slate-700">Informativa sulla privacy</a>
+          <Link href="/privacy" className="transition hover:text-slate-700">Informativa sulla privacy</Link>
           <span className="mx-2 text-slate-300">·</span>
-          <a href="/termini-concessionari" className="transition hover:text-slate-700">Condizioni Generali concessionari</a>
+          <Link href="/termini-concessionari" className="transition hover:text-slate-700">Condizioni Generali concessionari</Link>
         </footer>
       </div>
     </div>

@@ -428,6 +428,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   <img
                     src={coverUrl}
                     alt={`${safeText(vehicle.brand)} ${safeText(vehicle.model)}`}
+                    decoding="async"
                     className="h-full w-full max-w-full object-cover"
                     onError={() => setFailedCoverUrl(coverUrl)}
                   />
@@ -441,7 +442,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                     <div key={image.id} className="h-20 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                       {image.previewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={image.previewUrl} alt={safeText(image.image_url)} className="h-full w-full object-cover" />
+                        <img src={image.previewUrl} alt={safeText(image.image_url)} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                       ) : null}
                     </div>
                   ))}

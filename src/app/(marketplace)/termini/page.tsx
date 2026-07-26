@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 const LAST_UPDATED = "25 luglio 2026";
@@ -27,7 +28,7 @@ export default function TermsPage() {
           KeyAuto da parte degli utenti che consultano il marketplace e contattano i concessionari. Utilizzando il
           servizio dichiari di averle lette e accettate. Se sei un concessionario e vuoi pubblicare veicoli su KeyAuto,
           fanno fede le{" "}
-          <a className="text-cyan-300 underline" href="/termini-concessionari">Condizioni Generali per i concessionari</a>.
+          <Link className="text-cyan-300 underline" href="/termini-concessionari">Condizioni Generali per i concessionari</Link>.
         </p>
 
         <div className="mt-10 space-y-9">
@@ -87,7 +88,7 @@ export default function TermsPage() {
             <p>
               I concessionari che desiderano registrarsi e pubblicare veicoli su KeyAuto sono soggetti a condizioni
               specifiche, comprensive dei termini dell&apos;abbonamento al servizio, disciplinate dalle{" "}
-              <a className="text-cyan-300 underline" href="/termini-concessionari">Condizioni Generali per i concessionari</a>.
+              <Link className="text-cyan-300 underline" href="/termini-concessionari">Condizioni Generali per i concessionari</Link>.
             </p>
           </Section>
 
@@ -138,7 +139,7 @@ export default function TermsPage() {
                 {OPERATOR.email}
               </a>
               . Per il trattamento dei dati personali si rimanda all&apos;{" "}
-              <a className="text-cyan-300 underline" href="/privacy">Informativa sulla privacy</a>.
+              <Link className="text-cyan-300 underline" href="/privacy">Informativa sulla privacy</Link>.
             </p>
           </Section>
         </div>
