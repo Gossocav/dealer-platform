@@ -462,8 +462,13 @@ function DarkVehicleCard(vehicle: VehicleCardData) {
       </div>
       <div className="p-5">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-semibold text-white">{vehicle.title}</h3>
-          <span className="text-xs text-slate-500">{vehicle.year}</span>
+          {/* min-w-0 + flex-1 let the title actually shrink/wrap inside the
+              flex row instead of overflowing past the card's edge; line-clamp-2
+              keeps a long brand + model + version readable across two lines
+              with an ellipsis, instead of being hard-clipped by the card's
+              overflow-hidden with no indication text was cut off. */}
+          <h3 className="min-w-0 flex-1 line-clamp-2 font-semibold text-white">{vehicle.title}</h3>
+          <span className="shrink-0 text-xs text-slate-500">{vehicle.year}</span>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Tag>{vehicle.mileage}</Tag>

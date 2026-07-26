@@ -49,7 +49,12 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
 
       <div className="space-y-4 p-5">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className="min-w-0 truncate text-lg font-bold text-white">{vehicleLabel}</h3>
+          {/* line-clamp-2 (not a single-line truncate) so a longer brand +
+              model + version combination stays readable across two lines
+              instead of getting cut off after only a few words. min-h keeps
+              every card the same height regardless of whether the title
+              actually needs one line or two. */}
+          <h3 className="min-h-[3.5rem] min-w-0 line-clamp-2 text-lg font-bold text-white">{vehicleLabel}</h3>
         </div>
 
         <div className="flex flex-wrap gap-2">
