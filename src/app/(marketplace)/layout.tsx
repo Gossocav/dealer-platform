@@ -85,7 +85,6 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
             <FooterLink href="/auto">Auto</FooterLink>
             <FooterLink href="/ricerca">Ricerca</FooterLink>
             <FooterLink href="/concessionarie">Concessionarie</FooterLink>
-            <FooterLink href="/come-funziona">Come funziona</FooterLink>
             <FooterLink href="/faq">Domande Frequenti</FooterLink>
           </FooterColumn>
 
@@ -93,6 +92,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
             <FooterLink href="/demo">Richiedi una Demo</FooterLink>
             <FooterLink href="/registrazione">Registrati</FooterLink>
             <FooterLink href="/login">Accedi</FooterLink>
+            <FooterLink href="/come-funziona">Come funziona</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="Condizioni Generali">
