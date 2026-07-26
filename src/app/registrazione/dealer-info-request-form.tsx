@@ -35,11 +35,13 @@ export default function DealerInfoRequestForm() {
   const companyName = values.companyName.trim();
   const contactName = values.contactName.trim();
   const email = values.email.trim();
+  const phone = values.phone.trim();
   const message = values.message.trim();
 
   const missingCompanyName = companyName.length === 0;
   const missingContactName = contactName.length === 0;
   const missingEmail = email.length === 0;
+  const missingPhone = phone.length === 0;
   const missingMessage = message.length === 0;
 
   const handleChange = (field: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -50,7 +52,7 @@ export default function DealerInfoRequestForm() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (missingCompanyName || missingContactName || missingEmail || missingMessage) {
+    if (missingCompanyName || missingContactName || missingEmail || missingPhone || missingMessage) {
       setShowErrors(true);
       setErrorMessage("Compila tutti i campi obbligatori.");
       setSuccessMessage(null);
@@ -69,7 +71,7 @@ export default function DealerInfoRequestForm() {
           companyName,
           contactName,
           email,
-          phone: values.phone.trim(),
+          phone,
           message,
           websiteTrap,
         }),
@@ -147,12 +149,12 @@ export default function DealerInfoRequestForm() {
           </label>
 
           <label className="block space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Telefono</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Telefono *</span>
             <input
               type="tel"
               value={values.phone}
               onChange={handleChange("phone")}
-              className={getFieldClass(false)}
+              className={getFieldClass(showErrors && missingPhone)}
               autoComplete="tel"
             />
           </label>

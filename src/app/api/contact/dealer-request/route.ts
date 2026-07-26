@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     const phone = normalizeText(body.phone);
     const message = normalizeText(body.message);
 
-    if (!companyName || !contactName || !email || !message) {
+    if (!companyName || !contactName || !email || !phone || !message) {
       return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 });
     }
 

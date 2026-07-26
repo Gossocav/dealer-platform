@@ -81,6 +81,7 @@ describe("dealer info request route", () => {
   it.each([
     ["companyName", { ...validBody, companyName: "  " }],
     ["contactName", { ...validBody, contactName: "" }],
+    ["phone", { ...validBody, phone: "" }],
     ["message", { ...validBody, message: "   " }],
   ])("rejects a missing %s with 400", async (_field, body) => {
     const response = await POST(makeRequest(body));
@@ -95,13 +96,6 @@ describe("dealer info request route", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.insertMock).not.toHaveBeenCalled();
-  });
-
-  it("accepts a missing phone (optional field)", async () => {
-    const response = await POST(makeRequest({ ...validBody, phone: "" }));
-
-    expect(response.status).toBe(200);
-    expect(mocks.insertMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an over-long message with 400", async () => {
