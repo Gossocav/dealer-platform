@@ -235,9 +235,9 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
               >
                 Cerca
               </button>
-              <a href="/ricerca" className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white">
+              <Link href="/ricerca" className="inline-flex w-full items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white">
                 Reset
-              </a>
+              </Link>
             </div>
           </div>
         </form>

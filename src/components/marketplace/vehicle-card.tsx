@@ -31,7 +31,7 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
       <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={vehicleLabel} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={coverUrl} alt={vehicleLabel} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
             <svg viewBox="0 0 64 64" aria-hidden="true" className="h-14 w-14 fill-current opacity-40">
@@ -66,7 +66,7 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
               <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-white/10 bg-white/[0.04] text-[7px] font-bold text-slate-400">
                 {dealerLogo ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={dealerLogo} alt={dealerName} className="h-full w-full object-cover" />
+                  <img src={dealerLogo} alt={dealerName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
                   "KA"
                 )}

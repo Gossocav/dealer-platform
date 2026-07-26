@@ -65,7 +65,7 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
               aria-label={`Apri le foto di ${label}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverUrl} alt={label} className="h-full w-full max-w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+              <img src={coverUrl} alt={label} decoding="async" className="h-full w-full max-w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
             </button>
           ) : (
             <div className="flex h-full w-full items-center justify-center text-slate-600">
@@ -96,7 +96,7 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
                   aria-label={`Apri foto ${index + 1} di ${total}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt={`${label} - foto ${index + 1}`} className="h-32 w-full max-w-full object-cover" />
+                  <img src={image} alt={`${label} - foto ${index + 1}`} loading="lazy" decoding="async" className="h-32 w-full max-w-full object-cover" />
                   {isLastVisible ? (
                     <span className="absolute inset-0 flex items-center justify-center bg-slate-950/65 text-sm font-bold text-white">
                       +{hiddenThumbnailCount} foto
@@ -148,6 +148,7 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
             <img
               src={images[openIndex]}
               alt={`${label} - foto ${openIndex + 1} di ${total}`}
+              decoding="async"
               className="relative max-h-full max-w-full object-contain"
             />
 
@@ -191,7 +192,7 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
                   aria-current={index === openIndex}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt="" className="h-full w-full object-cover" />
+                  <img src={image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>

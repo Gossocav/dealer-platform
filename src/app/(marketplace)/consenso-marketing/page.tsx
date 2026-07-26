@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 const LAST_UPDATED = "25 luglio 2026";
@@ -22,7 +23,7 @@ export default function MarketingConsentPage() {
         <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Consenso al Marketing</h1>
         <p className="mt-3 text-sm text-slate-400">
           Ultimo aggiornamento: {LAST_UPDATED}. Questa pagina spiega, in modo separato rispetto all&apos;
-          <a href="/privacy" className="text-cyan-300 underline">Informativa sulla privacy</a>, come funziona il
+          <Link href="/privacy" className="text-cyan-300 underline">Informativa sulla privacy</Link>, come funziona il
           consenso facoltativo all&apos;invio di comunicazioni di marketing da parte di {CONTROLLER.name}.
         </p>
 
@@ -64,7 +65,7 @@ export default function MarketingConsentPage() {
               terze parti. Le eventuali comunicazioni si basano unicamente sui dati che ci fornisci direttamente (es.
               email, veicolo o ricerca di interesse). Per maggiori dettagli sui cookie utilizzati vedi il punto 9
               dell&apos;
-              <a href="/privacy" className="text-cyan-300 underline">Informativa sulla privacy</a>.
+              <Link href="/privacy" className="text-cyan-300 underline">Informativa sulla privacy</Link>.
             </p>
           </Section>
 
@@ -85,9 +86,9 @@ export default function MarketingConsentPage() {
           <Section title="6. Riferimenti">
             <p>
               Per informazioni complete sul trattamento dei tuoi dati personali consulta l&apos;
-              <a href="/privacy" className="text-cyan-300 underline">Informativa sulla privacy</a>. Per le condizioni
+              <Link href="/privacy" className="text-cyan-300 underline">Informativa sulla privacy</Link>. Per le condizioni
               generali di utilizzo della piattaforma consulta i{" "}
-              <a href="/termini" className="text-cyan-300 underline">Termini e Condizioni</a>.
+              <Link href="/termini" className="text-cyan-300 underline">Termini e Condizioni</Link>.
             </p>
           </Section>
         </div>

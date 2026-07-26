@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 const LAST_UPDATED = "25 luglio 2026";
@@ -27,7 +28,7 @@ export default function DealerTermsPage() {
           disciplinano il rapporto tra {OPERATOR.name} e il concessionario, operatore professionale del settore
           automotive, che sottoscrive un abbonamento per pubblicare veicoli sul marketplace KeyAuto. Sono riservate ai
           professionisti; se sei un utente del marketplace fanno fede le{" "}
-          <a className="text-cyan-300 underline" href="/termini">Condizioni Generali per gli utenti</a>.
+          <Link className="text-cyan-300 underline" href="/termini">Condizioni Generali per gli utenti</Link>.
         </p>
 
         <div className="mt-10 space-y-9">
@@ -157,7 +158,7 @@ export default function DealerTermsPage() {
                 {OPERATOR.email}
               </a>
               . Per il trattamento dei dati personali si rimanda all&apos;{" "}
-              <a className="text-cyan-300 underline" href="/privacy">Informativa sulla privacy</a>.
+              <Link className="text-cyan-300 underline" href="/privacy">Informativa sulla privacy</Link>.
             </p>
           </Section>
         </div>

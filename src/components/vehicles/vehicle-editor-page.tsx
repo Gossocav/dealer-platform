@@ -1531,7 +1531,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                       <div className="h-20 overflow-hidden rounded-lg bg-slate-200">
                         {image.previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={image.previewUrl} alt={safeText(image.image_url)} className="h-full w-full object-cover" />
+                          <img src={image.previewUrl} alt={safeText(image.image_url)} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                         ) : null}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1">
