@@ -187,7 +187,7 @@ export async function POST(request: Request) {
   }
 
   const resendApiKey = normalizeText(process.env.RESEND_API_KEY);
-  const fromEmail = normalizeText(process.env.RESEND_FROM_EMAIL) ?? "no-reply@dealerplatform.it";
+  const fromEmail = normalizeText(process.env.RESEND_FROM_EMAIL) ?? "no-reply@keyauto.it";
 
   if (!resendApiKey) {
     return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });

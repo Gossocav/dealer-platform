@@ -85,7 +85,7 @@ describe("email send route", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.RESEND_API_KEY = "resend-key";
-    process.env.RESEND_FROM_EMAIL = "no-reply@dealerplatform.it";
+    process.env.RESEND_FROM_EMAIL = "no-reply@keyauto.it";
   });
 
   it("rejects requests with no bearer token", async () => {

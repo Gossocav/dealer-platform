@@ -96,7 +96,7 @@ export default function AccountInAttesaPage() {
             Tempi stimati di approvazione: <span className="font-semibold text-slate-900">1-2 giorni lavorativi</span>
           </p>
           <p>
-            Assistenza: <a className="font-semibold text-blue-700 underline" href="mailto:support@dealerplatform.it">support@dealerplatform.it</a>
+            Assistenza: <a className="font-semibold text-blue-700 underline" href="mailto:info@keyauto.it">info@keyauto.it</a>
           </p>
         </div>
       </section>
