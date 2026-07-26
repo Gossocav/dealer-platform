@@ -104,7 +104,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
 
         <div className="border-t border-white/10">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:px-6 lg:px-8 sm:flex-row sm:items-center sm:justify-between">
-            <p>&copy; {new Date().getFullYear()} KeyAuto Marketplace. Tutti i diritti riservati.</p>
+            <p>&copy; {new Date().getFullYear()} KeyAuto Marketplace. Tutti i diritti riservati. P.IVA 02543220970</p>
             <Link href="/privacy" className="transition hover:text-slate-300">Privacy</Link>
           </div>
         </div>
