@@ -20,6 +20,7 @@ const PUBLIC_OR_STATUS_ROUTES = [
   "/auto",
   "/ricerca",
   "/concessionarie",
+  "/come-funziona",
   "/privacy",
   "/termini",
   "/termini-concessionari",
