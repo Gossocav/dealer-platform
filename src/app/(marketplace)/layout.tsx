@@ -96,6 +96,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
           <FooterColumn title="Condizioni Generali">
             <FooterLink href="/termini">Termini e Condizioni utenti</FooterLink>
             <FooterLink href="/termini-concessionari">Termini e Condizioni concessionari</FooterLink>
+            <FooterLink href="/consenso-marketing">Consenso al Marketing</FooterLink>
           </FooterColumn>
         </div>
 
