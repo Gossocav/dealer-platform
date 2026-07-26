@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DealerInfoRequestForm from "./dealer-info-request-form";
 
 export default function RegistrazionePage() {
   return (
@@ -57,6 +58,10 @@ export default function RegistrazionePage() {
               Richiedi Demo
             </Link>
           </article>
+        </div>
+
+        <div className="mt-10 border-t border-slate-200 pt-10">
+          <DealerInfoRequestForm />
         </div>
       </section>
     </main>
