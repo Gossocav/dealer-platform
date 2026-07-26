@@ -136,20 +136,35 @@ const EVENTS_BY_STATE: Record<VehicleLifecycleState, string[]> = {
   archived: ["vehicle.state.changed.archived", "vehicle.archived"],
 };
 
-const ALLOWED_TRANSITIONS: Record<VehicleLifecycleState, VehicleLifecycleState[]> = {
-  draft: ["in_acquisition", "in_preparation", "ready_to_publish", "published", "archived"],
-  in_acquisition: ["draft", "in_preparation", "archived"],
-  in_preparation: ["draft", "in_acquisition", "in_photography", "in_review", "archived"],
+// Lifecycle-specific transitions: the "forward" flow of the pipeline.
+const PIPELINE_TRANSITIONS: Record<VehicleLifecycleState, VehicleLifecycleState[]> = {
+  draft: ["in_acquisition", "in_preparation", "ready_to_publish", "archived"],
+  in_acquisition: ["in_preparation", "archived"],
+  in_preparation: ["in_acquisition", "in_photography", "in_review", "archived"],
   in_photography: ["in_preparation", "in_review", "archived"],
   in_review: ["in_preparation", "in_photography", "ready_to_publish", "archived"],
-    ready_to_publish: ["in_review", "published", "archived"],
-  published: ["draft", "reserved", "in_negotiation", "sold", "archived", "in_review"],
-  reserved: ["published", "in_negotiation", "sold", "archived"],
-  in_negotiation: ["published", "reserved", "sold", "archived"],
+  ready_to_publish: ["in_review", "archived"],
+  published: ["reserved", "in_negotiation", "sold", "archived", "in_review"],
+  reserved: ["in_negotiation", "sold", "archived"],
+  in_negotiation: ["reserved", "sold", "archived"],
   sold: ["delivered", "archived"],
   delivered: ["archived"],
   archived: [],
 };
+
+// The dealer-facing vehicle form exposes only Bozza (draft) and Pubblicato
+// (published), so both must be reachable from every state. Without this a
+// vehicle that reached a terminal state -- sold/delivered/archived, or an
+// in_review set by feed import -- could never be brought back and would be
+// permanently unsaveable from the form ("Transizione stato non consentita").
+const ALWAYS_REACHABLE_STATES: readonly VehicleLifecycleState[] = ["draft", "published"];
+
+const ALLOWED_TRANSITIONS = Object.fromEntries(
+  VEHICLE_LIFECYCLE_STATES.map((from) => [
+    from,
+    Array.from(new Set([...PIPELINE_TRANSITIONS[from], ...ALWAYS_REACHABLE_STATES])).filter((to) => to !== from),
+  ])
+) as Record<VehicleLifecycleState, VehicleLifecycleState[]>;
 
 const TRANSITION_RULES: TransitionRule[] = VEHICLE_LIFECYCLE_STATES.flatMap((from) =>
   ALLOWED_TRANSITIONS[from].map((to) => ({
