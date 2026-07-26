@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Save, Trash2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { resizeImageForUpload } from "@/lib/image-resize";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
@@ -999,7 +1000,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const uploadedRows: Array<{ vehicle_id: string; dealer_id: string; image_url: string; position: number; is_cover: boolean }> = [];
 
       for (let index = 0; index < pendingFiles.length; index += 1) {
-        const file = pendingFiles[index];
+        // Downscale before upload: phone photos arrive at 4K (~3.8 MB) but are
+        // only ever rendered into ~400px cards, and decoding one of those
+        // stalls scrolling on the public pages. Falls back to the original
+        // file if the browser can't do the resize, so an upload never fails
+        // because of this.
+        const file = await resizeImageForUpload(pendingFiles[index]);
         const path = `${userId}/${targetVehicleId}/${Date.now()}-${index}-${file.name.replace(/\s+/g, "-")}`;
 
         const { error: uploadError } = await supabase.storage.from("vehicle-images").upload(path, file, {
