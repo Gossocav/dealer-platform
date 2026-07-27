@@ -43,7 +43,7 @@ describe("Spazio Elite badge", () => {
   });
 
   it("passes the flag through the builder rather than recomputing it", () => {
-    expect(homepage).toMatch(/buildShowcaseVehicle\(\s*\n?\s*vehicle: MarketplaceVehicle \| null,\s*\n?\s*isElite: boolean,/s);
+    expect(homepage).toMatch(/buildShowcaseVehicle\(\s*vehicle: MarketplaceVehicle \| null,\s*isElite: boolean,/);
     expect(homepage).toMatch(/^\s*isElite,$/m);
   });
 });
