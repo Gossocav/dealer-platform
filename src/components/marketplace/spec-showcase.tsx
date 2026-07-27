@@ -9,6 +9,13 @@ export type SpecShowcaseVehicle = {
   subtitle: string;
   priceLabel: string;
   imageUrl: string | null;
+  /**
+   * True only when the daily Elite rotation actually chose this vehicle. The
+   * badge is driven by this rather than being always on, because the section
+   * falls back to an ordinary vehicle whenever no Elite dealer has a usable
+   * one -- and labelling that "Spazio Elite" would be a false claim.
+   */
+  isElite: boolean;
   rows: Array<{ key: string; label: string; value: string; icon: "calendar" | "gauge" | "fuel" | "gearbox" | "shield" | "check" }>;
 };
 
@@ -39,8 +46,14 @@ export function SpecShowcase({ vehicle }: { vehicle: SpecShowcaseVehicle }) {
     <section ref={sectionRef} className="spec-showcase relative min-h-[200vh]">
       <div className="sticky top-16 grid min-h-[560px] place-items-center overflow-hidden py-16">
         <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto mb-10 max-w-2xl text-center">
+          <div className="mx-auto mb-10 flex max-w-2xl flex-col items-center gap-3 text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-300">Ogni auto, radiografata</p>
+            {vehicle.isElite ? (
+              <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-amber-300">
+                <EliteMark />
+                Spazio Elite
+              </p>
+            ) : null}
           </div>
 
           <div className="grid items-center gap-6 lg:grid-cols-[1fr_1.1fr_1fr]">
@@ -134,6 +147,14 @@ function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-none stroke-current stroke-[3]" aria-hidden="true">
       <path d="M20 7 9 18l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EliteMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3 w-3 fill-none stroke-current stroke-[2]" aria-hidden="true">
+      <path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.4l6-.8L12 3Z" strokeLinejoin="round" />
     </svg>
   );
 }
