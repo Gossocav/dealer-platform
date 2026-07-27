@@ -2,7 +2,7 @@ import { Check, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 const proFeatures = [
-  "Annunci veicolo attivi illimitati",
+  "Fino a 150 annunci veicolo attivi",
   "Gestione completa delle schede veicolo",
   "Ricezione e gestione dei lead",
   "Dashboard concessionario avanzata",

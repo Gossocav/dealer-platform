@@ -50,7 +50,7 @@ const plans: Plan[] = [
     detailsLabel: "Scopri dettagli Pro",
     recommended: true,
     features: [
-      "Annunci veicolo attivi illimitati",
+      "Fino a 150 annunci veicolo attivi",
       "Gestione completa delle schede veicolo",
       "Ricezione e gestione dei lead",
       "Dashboard concessionario avanzata",
@@ -74,7 +74,7 @@ const demoPlans: Plan[] = [
     detailsHref: "/registrazione/elite",
     detailsLabel: "Scopri dettagli Elite",
     features: [
-      "Annunci veicolo attivi illimitati",
+      "Fino a 300 annunci veicolo attivi",
       "Gestione completa delle schede veicolo",
       "Ricezione e gestione dei lead",
       "Dashboard concessionario avanzata",
