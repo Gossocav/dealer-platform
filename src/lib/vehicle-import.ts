@@ -52,20 +52,54 @@ const FIELDS: VehicleImportField[] = [
   "images",
 ];
 
+// Headers are normalized by normalizeKey (lowercased, accents and every
+// non-alphanumeric stripped) before matching, and a header matches if it
+// contains an alias or an alias contains it. So "Col. Esterno" already reaches
+// "col esterno", and "Anno Immatricolazione" already reaches "immatricolazione"
+// -- only genuinely different words need listing here.
+//
+// Keep aliases specific: a short one can be swallowed by the containment match
+// and hijack an unrelated column.
 const ALIASES: Record<VehicleImportField, string[]> = {
   vin: ["vin", "telaio", "numero telaio", "chassis", "numero di telaio"],
-  brand: ["brand", "marca", "costruttore", "manufacturer", "make"],
+  brand: ["brand", "marca", "costruttore", "manufacturer", "make", "marchio"],
   model: ["model", "modello"],
-  version: ["version", "versione", "allestimento"],
-  year: ["year", "anno", "immatricolazione"],
-  price: ["price", "prezzo", "listino"],
-  mileage: ["mileage", "chilometri", "chilometro", "kilometri", "kilometers", "km", "percorrenza"],
-  fuel: ["fuel", "alimentazione", "carburante"],
+  // "trim" and "variante" are what English portals and some management systems
+  // call the version.
+  version: ["version", "versione", "allestimento", "trim", "variante"],
+  // Portals commonly export the year as a registration date field.
+  year: ["year", "anno", "immatricolazione", "first registration", "immatricolato", "anno modello"],
+  price: ["price", "prezzo", "listino", "importo"],
+  mileage: [
+    "mileage",
+    "chilometri",
+    "chilometro",
+    "chilometraggio",
+    "kilometri",
+    "kilometers",
+    "km",
+    "percorrenza",
+    "odometer",
+    "odometro",
+  ],
+  fuel: ["fuel", "alimentazione", "carburante", "combustibile"],
   traction: ["traction", "trazione", "trazione motrice", "drivetrain", "drive", "awd", "fwd", "rwd", "4x4"],
-  transmission: ["transmission", "cambio"],
-  color: ["color", "colore", "col esterno", "col. esterno", "exterior color", "colore esterno", "colore carrozzeria"],
-  description: ["description", "descrizione", "note"],
-  status: ["status", "stato"],
+  // "gear" alone covers gearbox and gear_type once punctuation is stripped.
+  transmission: ["transmission", "cambio", "gear", "gearbox", "gear type", "trasmissione"],
+  color: [
+    "color",
+    "colour",
+    "colore",
+    "col esterno",
+    "col. esterno",
+    "exterior color",
+    "exterior colour",
+    "colore esterno",
+    "colore carrozzeria",
+    "tinta",
+  ],
+  description: ["description", "descrizione", "note", "commento", "dettagli", "annotazioni"],
+  status: ["status", "stato", "pubblicazione"],
   images: [
     "photo",
     "photos",
@@ -76,6 +110,9 @@ const ALIASES: Record<VehicleImportField, string[]> = {
     "foto",
     "url foto",
     "url immagini",
+    "immagini",
+    "gallery",
+    "galleria",
   ],
 };
 
