@@ -23,6 +23,7 @@ import {
   type MarketplaceDealer,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +125,9 @@ export default async function MarketplaceHomePage() {
   const cities = uniqueValues(vehicles.map((vehicle) => vehicle.city));
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
-  const showcaseVehicle = await buildShowcaseVehicle(featuredVehicles[0] ?? vehicles[0] ?? null);
+  const showcaseVehicle = await buildShowcaseVehicle(
+    (await resolveEliteShowcaseVehicle()) ?? featuredVehicles[0] ?? vehicles[0] ?? null,
+  );
 
   const categories: MarketplaceCategory[] = [
     ...bodyTypes.map((bodyType) => ({
@@ -380,6 +383,62 @@ async function buildVehicleCard(vehicle: MarketplaceVehicle) {
     price: formatPrice(vehicle.price),
     imageUrl,
   };
+}
+
+/**
+ * The showcase slot is an Elite plan benefit, rotating daily among Elite
+ * dealers. Returns null whenever that cannot be honoured -- no Elite dealer,
+ * no photographed vehicle, or a failed lookup -- so the caller falls back to
+ * the ordinary pick and the homepage is never left without a showcase.
+ *
+ * This runs its own query rather than reusing the page's vehicle list, which
+ * is capped at the 24 most recent: an Elite dealer whose stock is older than
+ * that would silently never get a turn.
+ */
+async function resolveEliteShowcaseVehicle(): Promise<MarketplaceVehicle | null> {
+  const { data: eliteRows, error: eliteError } = await publicSupabase.rpc("elite_showcase_dealer_ids");
+
+  if (eliteError) {
+    logMarketplaceQueryError("home:elite-dealers", eliteError);
+    return null;
+  }
+
+  const eliteDealerIds = (eliteRows ?? [])
+    .map((row: unknown) => (typeof row === "string" ? row : (row as { elite_showcase_dealer_ids?: string })?.elite_showcase_dealer_ids))
+    .filter((value: unknown): value is string => typeof value === "string" && value.length > 0);
+
+  if (eliteDealerIds.length === 0) {
+    return null;
+  }
+
+  const { data, error } = await publicSupabase
+    .from("vehicles")
+    .select(
+      "id, brand, model, version, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)"
+    )
+    .eq("published", true)
+    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+    .in("dealer_id", eliteDealerIds);
+
+  if (error) {
+    logMarketplaceQueryError("home:elite-showcase", error);
+    return null;
+  }
+
+  const candidates = (data ?? []) as unknown as MarketplaceVehicle[];
+
+  const pickedId = pickShowcaseVehicleId(
+    candidates.map((vehicle) => ({
+      id: vehicle.id,
+      dealerId: vehicle.dealer_id ?? null,
+      hasCover: resolveVehicleImages(vehicle.vehicle_images).length > 0,
+    })),
+    eliteDealerIds,
+    romeDayIndex(),
+  );
+
+  return candidates.find((vehicle) => vehicle.id === pickedId) ?? null;
 }
 
 async function buildShowcaseVehicle(vehicle: MarketplaceVehicle | null): Promise<SpecShowcaseVehicle | null> {
