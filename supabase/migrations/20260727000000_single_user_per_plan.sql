@@ -6,12 +6,15 @@ begin;
 -- never enforced anywhere in code, so nothing stopped a dealer from adding
 -- extra members. This migration makes the limit both correct and real:
 --   1) the plan matrix returns max_users = 1 (and can_create_users = false),
---   2) already-issued limits snapshots are rewritten,
+--      with the user_management / roles_permissions modules switched off,
+--   2) already-issued snapshots are rewritten,
 --   3) a trigger rejects a second active membership on dealer_users.
 
--- 1) Plan matrix: max_users = 1 and can_create_users = false for every plan.
---    Every other module/limit/marketing/email value is intentionally left
---    exactly as it was.
+-- 1) Plan matrix. max_users = 1 and can_create_users = false for every plan.
+--    The user_management and roles_permissions modules are turned off too:
+--    with a single seat there is no team to administer. Every other
+--    module/limit/marketing/email value is intentionally left exactly as it
+--    was.
 create or replace function public.demo_profile_snapshots(
   p_profile_code text
 )
@@ -33,8 +36,8 @@ as $$
     code,
     case code
       when 'base' then '{"dashboard":true,"vehicles":true,"leads":true,"clients":true,"calendar":true,"notifications":true,"dealership_profile":true,"reports":true,"analytics":false,"documents":true,"bulk_import":false,"marketplace_publish":true,"email_sending":false,"user_management":false,"roles_permissions":false,"billing":false,"advanced_settings":false,"api_integrations":false,"admin":false,"data_export":false,"registration":false,"social_marketing":false,"google_ads":false,"marketing_dashboard":false}'::jsonb
-      when 'pro' then '{"dashboard":true,"vehicles":true,"leads":true,"clients":true,"calendar":true,"notifications":true,"dealership_profile":true,"reports":true,"analytics":true,"documents":true,"bulk_import":true,"marketplace_publish":true,"email_sending":false,"user_management":true,"roles_permissions":true,"billing":false,"advanced_settings":true,"api_integrations":true,"admin":false,"data_export":true,"registration":false,"social_marketing":false,"google_ads":false,"marketing_dashboard":false}'::jsonb
-      when 'elite' then '{"dashboard":true,"vehicles":true,"leads":true,"clients":true,"calendar":true,"notifications":true,"dealership_profile":true,"reports":true,"analytics":true,"documents":true,"bulk_import":true,"marketplace_publish":true,"email_sending":true,"user_management":true,"roles_permissions":true,"billing":false,"advanced_settings":true,"api_integrations":true,"admin":false,"data_export":true,"registration":false,"social_marketing":true,"google_ads":true,"marketing_dashboard":true}'::jsonb
+      when 'pro' then '{"dashboard":true,"vehicles":true,"leads":true,"clients":true,"calendar":true,"notifications":true,"dealership_profile":true,"reports":true,"analytics":true,"documents":true,"bulk_import":true,"marketplace_publish":true,"email_sending":false,"user_management":false,"roles_permissions":false,"billing":false,"advanced_settings":true,"api_integrations":true,"admin":false,"data_export":true,"registration":false,"social_marketing":false,"google_ads":false,"marketing_dashboard":false}'::jsonb
+      when 'elite' then '{"dashboard":true,"vehicles":true,"leads":true,"clients":true,"calendar":true,"notifications":true,"dealership_profile":true,"reports":true,"analytics":true,"documents":true,"bulk_import":true,"marketplace_publish":true,"email_sending":true,"user_management":false,"roles_permissions":false,"billing":false,"advanced_settings":true,"api_integrations":true,"admin":false,"data_export":true,"registration":false,"social_marketing":true,"google_ads":true,"marketing_dashboard":true}'::jsonb
       else null
     end,
     case code
@@ -59,8 +62,8 @@ as $$
   where code in ('base', 'pro', 'elite')
 $$;
 
--- 2) Rewrite limits already frozen onto existing subscriptions. Keys other
---    than max_users / can_create_users are preserved by the jsonb merge.
+-- 2) Rewrite snapshots already frozen onto existing subscriptions. Keys other
+--    than the ones listed here are preserved by the jsonb merge.
 do $$
 begin
   if to_regclass('public.dealer_demo_subscriptions') is not null then
@@ -70,6 +73,14 @@ begin
       and (
         limits_snapshot->>'max_users' is distinct from '1'
         or limits_snapshot->>'can_create_users' is distinct from 'false'
+      );
+
+    update public.dealer_demo_subscriptions
+    set modules_snapshot = modules_snapshot || '{"user_management":false,"roles_permissions":false}'::jsonb
+    where modules_snapshot is not null
+      and (
+        modules_snapshot->>'user_management' is distinct from 'false'
+        or modules_snapshot->>'roles_permissions' is distinct from 'false'
       );
   end if;
 end

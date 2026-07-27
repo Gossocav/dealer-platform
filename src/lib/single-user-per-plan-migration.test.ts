@@ -18,6 +18,14 @@ function limitsFor(code: (typeof planCodes)[number]) {
   return JSON.parse(match![1]) as Record<string, unknown>;
 }
 
+function modulesFor(code: (typeof planCodes)[number]) {
+  const match = migrationSql.match(
+    new RegExp(`when '${code}' then '(\\{"dashboard".*?\\})'::jsonb`),
+  );
+  expect(match, `modules snapshot for ${code} not found`).not.toBeNull();
+  return JSON.parse(match![1]) as Record<string, unknown>;
+}
+
 describe("single user per plan migration", () => {
   it("caps every plan at one user", () => {
     for (const code of planCodes) {
@@ -39,9 +47,28 @@ describe("single user per plan migration", () => {
     expect(limitsFor("base").can_send_email).toBe(false);
   });
 
-  it("rewrites limits already frozen onto existing subscriptions", () => {
+  it("turns off user management and roles on every plan", () => {
+    for (const code of planCodes) {
+      const modules = modulesFor(code);
+      expect(modules.user_management, `${code} must not manage users`).toBe(false);
+      expect(modules.roles_permissions, `${code} must not manage roles`).toBe(false);
+    }
+  });
+
+  it("keeps the other per-plan modules untouched", () => {
+    expect(modulesFor("base").analytics).toBe(false);
+    expect(modulesFor("pro").analytics).toBe(true);
+    expect(modulesFor("pro").bulk_import).toBe(true);
+    expect(modulesFor("elite").google_ads).toBe(true);
+    expect(modulesFor("elite").advanced_settings).toBe(true);
+  });
+
+  it("rewrites snapshots already frozen onto existing subscriptions", () => {
     expect(migrationSql).toMatch(/update public\.dealer_demo_subscriptions/i);
     expect(migrationSql).toContain('\'{"max_users":1,"can_create_users":false}\'::jsonb');
+    expect(migrationSql).toContain(
+      '\'{"user_management":false,"roles_permissions":false}\'::jsonb',
+    );
   });
 
   it("enforces the cap with a trigger on dealer_users", () => {
