@@ -120,6 +120,7 @@ function toPlanLabel(value: string | null | undefined) {
 async function fetchDealers(token: string) {
   const response = await fetch("/api/admin/dealers", {
     method: "GET",
+    cache: "no-store",
     headers: {
       authorization: `Bearer ${token}`,
     },

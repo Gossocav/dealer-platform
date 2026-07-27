@@ -193,6 +193,7 @@ async function fetchAdminDemoRequests(token: string): Promise<DemoRequestsFetchR
     demoRequestsInFlight = (async () => {
       const response = await fetch("/api/admin/demo-requests", {
         method: "GET",
+        cache: "no-store",
         headers: {
           authorization: `Bearer ${token}`,
         },

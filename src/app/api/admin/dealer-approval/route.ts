@@ -4,6 +4,11 @@ import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-
 import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 
+// Il pannello admin mostra conteggi ed elenchi operativi: una risposta
+// riusata dalla cache farebbe vedere dati vecchi (concessionarie gia'
+// approvate, richieste demo non ancora comparse) senza alcun segnale.
+export const dynamic = "force-dynamic";
+
 type DealerApprovalAction = "approve" | "reject";
 
 type DealerApprovalRequestBody = {

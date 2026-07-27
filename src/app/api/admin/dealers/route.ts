@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 
+// Il pannello admin mostra conteggi ed elenchi operativi: una risposta
+// riusata dalla cache farebbe vedere dati vecchi (concessionarie gia'
+// approvate, richieste demo non ancora comparse) senza alcun segnale.
+export const dynamic = "force-dynamic";
+
 type DealerAdminAction = "approve" | "reject" | "suspend" | "reactivate" | "cancel";
 
 type DealerAdminRequestBody = {
