@@ -522,7 +522,7 @@ export function VehiclesImportPage() {
         <>
           <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
             <h3 className="text-base font-semibold text-slate-900">1. Carica file</h3>
-            <p className="mt-1 text-sm text-slate-600">Formato supportato temporaneamente: .csv</p>
+            <p className="mt-1 text-sm text-slate-600">Formati supportati: Excel (.xlsx, .xls) e CSV (.csv)</p>
 
             <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-blue-50/50 p-8 text-center transition hover:border-blue-300 hover:from-white hover:to-blue-50">
               <UploadCloud className="h-8 w-8 text-blue-600" />
@@ -530,7 +530,7 @@ export function VehiclesImportPage() {
               <span className="mt-1 text-xs text-slate-500">Le righe vuote verranno ignorate automaticamente.</span>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 className="sr-only"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
