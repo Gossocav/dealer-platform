@@ -30,7 +30,7 @@ export const DEMO_PLAN_CATALOG: DemoPlan[] = [
     priceMonthly: 699,
     description: "Tutte le funzionalità del piano Pro, con in più i servizi di visibilità social e la gestione della pubblicità online.",
     includedServices: [
-      "Annunci veicolo attivi illimitati",
+      "Fino a 300 annunci veicolo attivi",
       "Gestione completa delle schede veicolo",
       "Ricezione e gestione dei lead",
       "Dashboard concessionario avanzata",

@@ -2,9 +2,9 @@ import Link from "next/link";
 
 const eliteFeatures = [
   {
-    title: "Annunci veicolo attivi illimitati",
+    title: "Fino a 300 annunci veicolo attivi",
     description:
-      "Gestisci volumi elevati di stock senza limiti operativi, mantenendo sempre ampia disponibilita online per intercettare piu richieste.",
+      "Gestisci l'intero parco auto mantenendo sempre ampia disponibilita online, con spazio sufficiente per intercettare piu richieste.",
   },
   {
     title: "Gestione completa delle schede veicolo",
