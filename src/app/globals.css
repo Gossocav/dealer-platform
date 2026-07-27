@@ -156,3 +156,45 @@ select:-webkit-autofill {
     transform: none !important;
   }
 }
+
+/* ============ SCHEDA VEICOLO STAMPABILE ============ */
+
+@media print {
+  /* The sheet is meant to be taped to a windscreen, so the browser's own
+     header and footer (date, page URL, page number) would be noise on it.
+     Setting @page margins to 0 and padding inside the sheet instead is what
+     suppresses them in Chrome and Safari. */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Screen-only controls: the print button, the price toggle, the back link. */
+  .no-print {
+    display: none !important;
+  }
+
+  .vehicle-sheet {
+    /* Padding lives here rather than in @page so the browser chrome stays
+       suppressed while the content keeps a printable safe area. */
+    box-sizing: border-box;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  /* Tailwind's default print behaviour would drop backgrounds; the sheet is
+     black on white by design, so only the QR needs to stay solid. */
+  .vehicle-sheet svg path {
+    fill: #000 !important;
+  }
+}
