@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Loader2, PencilLine, Rocket, Send } from "lucide-react";
+import { Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { getActiveDealerId } from "@/lib/active-tenant";
@@ -421,6 +421,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               >
                 <Send className="h-4 w-4" /> Invia al cliente
               </button>
+              <Link
+                href={`/veicoli/${vehicle.id}/scheda`}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Printer className="h-4 w-4" /> Stampa scheda
+              </Link>
               <Link
                 href="/veicoli"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
