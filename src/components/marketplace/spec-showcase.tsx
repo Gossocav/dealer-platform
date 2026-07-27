@@ -43,7 +43,14 @@ export function SpecShowcase({ vehicle }: { vehicle: SpecShowcaseVehicle }) {
     // min-h gives the sticky child room to actually pin while scrolling;
     // without extra height here the section and its sticky child are the
     // same size and "sticky" never has anywhere to stick to.
-    <section ref={sectionRef} className="spec-showcase relative min-h-[200vh]">
+    //
+    // Keep this close to 130vh. The pinned card cannot move in the viewport,
+    // so the view() timeline driving the rows finishes during entry, before
+    // the pin even starts -- every pixel of pinning after that is a frozen
+    // screen the visitor still has to scroll through. At 200vh that was well
+    // over a full screen height of dead scroll and read as the page jamming.
+    // 130vh leaves the reveal intact and roughly halves the motionless part.
+    <section ref={sectionRef} className="spec-showcase relative min-h-[130vh]">
       <div className="sticky top-16 grid min-h-[560px] place-items-center overflow-hidden py-16">
         <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto mb-10 flex max-w-2xl flex-col items-center gap-3 text-center">
