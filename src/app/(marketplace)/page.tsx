@@ -125,8 +125,10 @@ export default async function MarketplaceHomePage() {
   const cities = uniqueValues(vehicles.map((vehicle) => vehicle.city));
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
+  const eliteShowcase = await resolveEliteShowcaseVehicle();
   const showcaseVehicle = await buildShowcaseVehicle(
-    (await resolveEliteShowcaseVehicle()) ?? featuredVehicles[0] ?? vehicles[0] ?? null,
+    eliteShowcase ?? featuredVehicles[0] ?? vehicles[0] ?? null,
+    eliteShowcase !== null,
   );
 
   const categories: MarketplaceCategory[] = [
@@ -441,7 +443,10 @@ async function resolveEliteShowcaseVehicle(): Promise<MarketplaceVehicle | null>
   return candidates.find((vehicle) => vehicle.id === pickedId) ?? null;
 }
 
-async function buildShowcaseVehicle(vehicle: MarketplaceVehicle | null): Promise<SpecShowcaseVehicle | null> {
+async function buildShowcaseVehicle(
+  vehicle: MarketplaceVehicle | null,
+  isElite: boolean,
+): Promise<SpecShowcaseVehicle | null> {
   if (!vehicle) return null;
 
   const cover = resolveVehicleImages(vehicle.vehicle_images)[0] ?? null;
@@ -453,6 +458,7 @@ async function buildShowcaseVehicle(vehicle: MarketplaceVehicle | null): Promise
     subtitle: [formatText(vehicle.city), normalizeVehicleDealerName(vehicle.dealers)].join(" · "),
     priceLabel: formatPrice(vehicle.price),
     imageUrl,
+    isElite,
     rows: [
       { key: "year", label: "Anno", value: formatText(vehicle.year), icon: "calendar" },
       { key: "fuel", label: "Alimentazione", value: formatText(vehicle.fuel), icon: "fuel" },
