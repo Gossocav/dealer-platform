@@ -7,7 +7,7 @@ begin;
 -- extra members. This migration makes the limit both correct and real:
 --   1) the plan matrix returns max_users = 1 (and can_create_users = false),
 --      with the user_management / roles_permissions modules switched off,
---   2) already-issued snapshots are rewritten,
+--   2) already-issued snapshots are left frozen -- see the note below,
 --   3) a trigger rejects a second active membership on dealer_users.
 
 -- 1) Plan matrix. max_users = 1 and can_create_users = false for every plan.
@@ -62,29 +62,21 @@ as $$
   where code in ('base', 'pro', 'elite')
 $$;
 
--- 2) Rewrite snapshots already frozen onto existing subscriptions. Keys other
---    than the ones listed here are preserved by the jsonb merge.
-do $$
-begin
-  if to_regclass('public.dealer_demo_subscriptions') is not null then
-    update public.dealer_demo_subscriptions
-    set limits_snapshot = limits_snapshot || '{"max_users":1,"can_create_users":false}'::jsonb
-    where limits_snapshot is not null
-      and (
-        limits_snapshot->>'max_users' is distinct from '1'
-        or limits_snapshot->>'can_create_users' is distinct from 'false'
-      );
-
-    update public.dealer_demo_subscriptions
-    set modules_snapshot = modules_snapshot || '{"user_management":false,"roles_permissions":false}'::jsonb
-    where modules_snapshot is not null
-      and (
-        modules_snapshot->>'user_management' is distinct from 'false'
-        or modules_snapshot->>'roles_permissions' is distinct from 'false'
-      );
-  end if;
-end
-$$;
+-- 2) Snapshots already issued are deliberately NOT rewritten.
+--
+--    trg_protect_dealer_demo_subscription_snapshot
+--    (20260717000004_dealer_demo_subscriptions.sql) raises 55000 on any
+--    change to modules_snapshot / limits_snapshot once demo_status is one of
+--    configured, ready_for_activation, active, suspended, expired, revoked,
+--    converted -- which is every value the status check constraint permits,
+--    with 'configured' as the column default. There is therefore no window in
+--    which a snapshot is writable: it is frozen from the moment the row
+--    exists, on purpose, because it records the terms a dealer was configured
+--    under.
+--
+--    Nothing reads max_users out of those snapshots, so leaving them at their
+--    historical values changes no behaviour. The real cap is step 3 below,
+--    which applies to every dealer regardless of the plan frozen on its row.
 
 -- 3) Enforce the cap on writes. Runs after trg_enforce_dealer_user_membership
 --    (alphabetical order: "dealer_user_..." < "single_...") so new.status is

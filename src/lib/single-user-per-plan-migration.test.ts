@@ -63,12 +63,18 @@ describe("single user per plan migration", () => {
     expect(modulesFor("elite").advanced_settings).toBe(true);
   });
 
-  it("rewrites snapshots already frozen onto existing subscriptions", () => {
-    expect(migrationSql).toMatch(/update public\.dealer_demo_subscriptions/i);
-    expect(migrationSql).toContain('\'{"max_users":1,"can_create_users":false}\'::jsonb');
-    expect(migrationSql).toContain(
-      '\'{"user_management":false,"roles_permissions":false}\'::jsonb',
-    );
+  // trg_protect_dealer_demo_subscription_snapshot raises 55000 on any snapshot
+  // change once demo_status is set, and every permitted status is protected
+  // ('configured' being the column default). Touching issued rows can only
+  // ever abort the migration, so it must not be attempted.
+  it("never rewrites snapshots already issued to dealers", () => {
+    expect(migrationSql).not.toMatch(/update\s+public\.dealer_demo_subscriptions/i);
+    expect(migrationSql).not.toMatch(/set\s+limits_snapshot\s*=/i);
+    expect(migrationSql).not.toMatch(/set\s+modules_snapshot\s*=/i);
+  });
+
+  it("explains why issued snapshots are left alone", () => {
+    expect(migrationSql).toMatch(/trg_protect_dealer_demo_subscription_snapshot/);
   });
 
   it("enforces the cap with a trigger on dealer_users", () => {
