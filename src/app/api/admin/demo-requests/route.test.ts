@@ -560,6 +560,37 @@ describe("admin demo-requests route rate limiting", () => {
     );
   });
 
+  // Prima ne partivano due, con lo stesso oggetto: quella con il link di
+  // accesso e una notifica "approved" che ripeteva concessionaria e scadenza.
+  // Su un dominio in warm-up la quota di invio e' bassa, e raddoppiarla
+  // significa lasciare senza link i concessionari attivati dopo.
+  it("sends exactly one activation email, the one carrying the access link", async () => {
+    const user: UserStub = {
+      id: "admin-3",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin } = makeSupabaseAdminForActivation(user);
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({
+      limited: false,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendPlatformEmailMock).toHaveBeenCalledTimes(1);
+    expect(mocks.sendDemoLifecycleEmailMock).not.toHaveBeenCalled();
+
+    const [sent] = mocks.sendPlatformEmailMock.mock.calls[0] as [{ subject: string; html: string }];
+    expect(sent.subject).toBe("Demo KeyAuto attivata");
+    expect(sent.html).toContain("Imposta la password e accedi");
+    // Chi non riesce a usare il pulsante deve comunque sapere dove andare.
+    expect(sent.html).toContain("/login");
+  });
+
   it("reuses the existing auth user when a prior interrupted attempt already created it", async () => {
     const user: UserStub = {
       id: "admin-3",
