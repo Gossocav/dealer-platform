@@ -113,6 +113,18 @@ describe("the sheet carries the whole record", () => {
     expect(sheet).toMatch(/equipment\.length > 0/);
   });
 
+  it("shows the same record on the vehicle page it prints on the sheet", () => {
+    // The two views drifted apart independently: the sheet was missing ten
+    // fields, the vehicle page five. Deriving both from the creation payload
+    // is what stops them drifting again one field at a time.
+    for (const column of creationColumns()) {
+      expect(detail, `la pagina veicolo non legge "${column}"`).toContain(`${column},`);
+      expect(detail, `la pagina veicolo legge "${column}" ma non lo mostra`).toMatch(
+        new RegExp(`vehicle\\??\\.${column}\\b`),
+      );
+    }
+  });
+
   it("keeps single blocks whole when the sheet runs past one page", () => {
     // Carrying the full record means a long vehicle legitimately needs a
     // second sheet; pinning the whole page would cut it instead.
