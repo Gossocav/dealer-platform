@@ -16,6 +16,7 @@ type DemoRequestBody = {
   vehicleCount?: string;
   brands?: string;
   managementSoftware?: string;
+  interestedPlanCode?: string;
   notes?: string;
   privacyAccepted?: boolean;
   websiteTrap?: string;
@@ -226,6 +227,7 @@ function buildDemoRequestInsertPayload(params: {
   vehicleCount: number;
   brands: string;
   managementSoftware: string;
+  interestedPlanCode: string | null;
   notes: string;
   privacyAccepted: boolean;
   message: string | null;
@@ -245,6 +247,7 @@ function buildDemoRequestInsertPayload(params: {
     vehicleCount,
     brands,
     managementSoftware,
+    interestedPlanCode,
     notes,
     privacyAccepted,
     message,
@@ -317,6 +320,12 @@ function buildDemoRequestInsertPayload(params: {
     payload.management_software = managementSoftware;
   }
 
+  // Facoltativo: assente quando la richiesta arriva dalla pagina Demo
+  // generica invece che da una pagina piano.
+  if (hasColumn("interested_plan_code") && interestedPlanCode) {
+    payload.interested_plan_code = interestedPlanCode;
+  }
+
   if (hasColumn("notes")) {
     payload.notes = notes;
   }
@@ -382,6 +391,7 @@ export async function POST(request: Request) {
         vehicleCount: String(formData.get("vehicleCount") ?? ""),
         brands: String(formData.get("brands") ?? ""),
         managementSoftware: String(formData.get("managementSoftware") ?? ""),
+        interestedPlanCode: String(formData.get("interestedPlanCode") ?? ""),
         notes: String(formData.get("notes") ?? ""),
         privacyAccepted: String(formData.get("privacyAccepted") ?? "").toLowerCase() === "true",
         websiteTrap: String(formData.get("websiteTrap") ?? ""),
@@ -419,6 +429,10 @@ export async function POST(request: Request) {
     const vehicleCount = normalizeInteger(body.vehicleCount);
     const brands = normalizeText(body.brands);
     const managementSoftware = normalizeText(body.managementSoftware);
+    // Solo i tre codici noti: un valore arbitrario verrebbe rifiutato dal
+    // vincolo sulla tabella e farebbe fallire tutta la richiesta.
+    const rawPlan = String(body.interestedPlanCode ?? "").trim().toLowerCase();
+    const interestedPlanCode = ["base", "pro", "elite"].includes(rawPlan) ? rawPlan : null;
     const notes = normalizeText(body.notes);
     const privacyAccepted = body.privacyAccepted === true;
     const contactName = [firstName, lastName].filter(Boolean).join(" ").trim();
@@ -519,6 +533,7 @@ export async function POST(request: Request) {
       vehicleCount,
       brands,
       managementSoftware,
+      interestedPlanCode,
       notes,
       privacyAccepted,
       message,

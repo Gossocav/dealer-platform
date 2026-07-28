@@ -29,6 +29,7 @@ type DemoRequestRow = {
   vehicle_count: number | string | null;
   brands?: string | null;
   management_software?: string | null;
+  interested_plan_code?: string | null;
   notes?: string | null;
   privacy_accepted?: boolean | null;
   message: string | null;
@@ -119,6 +120,14 @@ function getActionsForStatus(status: DemoRequestStatus | null): DemoAdminAction[
   if (status === "contacted") return ["activate_demo", "reject"];
   if (status === "activated") return ["convert_demo", "revoke_demo"];
   return [];
+}
+
+function getPlanLabel(code: string | null | undefined) {
+  const normalized = String(code ?? "").trim().toLowerCase();
+  if (normalized === "base") return "Base";
+  if (normalized === "pro") return "Pro";
+  if (normalized === "elite") return "Elite";
+  return normalized || "-";
 }
 
 function getActionLabel(action: DemoAdminAction) {
@@ -730,6 +739,7 @@ export default function AdminDemoRequestsPage() {
                   <th className="px-4 py-3">Telefono</th>
                   <th className="px-4 py-3">Citta</th>
                   <th className="px-4 py-3">Numero veicoli</th>
+                  <th className="px-4 py-3">Piano di interesse</th>
                   <th className="px-4 py-3">Visura</th>
                   <th className="px-4 py-3">Stato richiesta</th>
                   <th className="px-4 py-3">Stato demo</th>
@@ -742,7 +752,7 @@ export default function AdminDemoRequestsPage() {
               <tbody className="divide-y divide-slate-100">
                 {state.requests.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={14}>
+                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={15}>
                       Nessuna richiesta demo disponibile.
                     </td>
                   </tr>
@@ -763,6 +773,15 @@ export default function AdminDemoRequestsPage() {
                         <td className="px-4 py-3 text-slate-700">{request.phone}</td>
                         <td className="px-4 py-3 text-slate-700">{request.city}</td>
                         <td className="px-4 py-3 text-slate-700">{request.vehicle_count ?? "-"}</td>
+                        <td className="px-4 py-3">
+                          {request.interested_plan_code ? (
+                            <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
+                              {getPlanLabel(request.interested_plan_code)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">non indicato</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-slate-700">
                           {request.chamber_document_path ? (
                             <div className="space-y-2">

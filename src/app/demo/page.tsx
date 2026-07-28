@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 
 type DemoFormState = {
@@ -17,6 +18,7 @@ type DemoFormState = {
   vehicleCount: string;
   brands: string;
   managementSoftware: string;
+  interestedPlanCode: "" | "base" | "pro" | "elite";
   notes: string;
   privacyAccepted: boolean;
   websiteTrap: string;
@@ -35,6 +37,7 @@ const initialValues: DemoFormState = {
   vehicleCount: "",
   brands: "",
   managementSoftware: "",
+  interestedPlanCode: "",
   notes: "",
   privacyAccepted: false,
   websiteTrap: "",
@@ -42,7 +45,10 @@ const initialValues: DemoFormState = {
 
 type StepKey = 1 | 2 | 3;
 type ValidationErrors = Partial<Record<keyof DemoFormState | "chamberDocument", string>>;
-type RequiredFieldKey = Exclude<keyof DemoFormState, "websiteTrap"> | "chamberDocument";
+// interestedPlanCode e' volutamente fuori: e' un'indicazione commerciale
+// facoltativa, e chi arriva dalla pagina Demo generica non ha nulla da
+// indicare. Obbligarlo farebbe abbandonare il modulo proprio all'ultimo passo.
+type RequiredFieldKey = Exclude<keyof DemoFormState, "websiteTrap" | "interestedPlanCode"> | "chamberDocument";
 
 const REQUIRED_FIELDS_ORDER: RequiredFieldKey[] = [
   "companyName",
@@ -143,9 +149,20 @@ function validateDocument(file: File | null) {
   return null;
 }
 
-export default function DemoPage() {
+function normalizeInterestedPlan(value: string | null): DemoFormState["interestedPlanCode"] {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "base" || normalized === "pro" || normalized === "elite" ? normalized : "";
+}
+
+function DemoRequestPage() {
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState<StepKey>(1);
-  const [values, setValues] = useState<DemoFormState>(initialValues);
+  // Precompilato dal piano di provenienza: chi clicca "Richiedi Demo" dalla
+  // pagina Elite se lo ritrova gia' selezionato, senza doverlo ripetere.
+  const [values, setValues] = useState<DemoFormState>(() => ({
+    ...initialValues,
+    interestedPlanCode: normalizeInterestedPlan(searchParams.get("piano")),
+  }));
   const [chamberDocument, setChamberDocument] = useState<File | null>(null);
   const [isDropActive, setIsDropActive] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -463,6 +480,7 @@ export default function DemoPage() {
     formData.set("vehicleCount", values.vehicleCount.trim());
     formData.set("brands", values.brands.trim());
     formData.set("managementSoftware", values.managementSoftware.trim());
+    formData.set("interestedPlanCode", values.interestedPlanCode);
     formData.set("notes", values.notes.trim());
     formData.set("privacyAccepted", String(values.privacyAccepted));
     formData.set("websiteTrap", values.websiteTrap);
@@ -722,6 +740,29 @@ export default function DemoPage() {
                   {errors.managementSoftware ? <p className="mt-1 text-xs font-medium text-red-600">{errors.managementSoftware}</p> : null}
                 </div>
 
+                {/* Facoltativo: e' un'indicazione commerciale, non un
+                    impegno, e chi arriva dalla pagina Demo generica non ha
+                    nessun piano da indicare. */}
+                <div>
+                  <label htmlFor="interestedPlanCode" className="mb-2 block text-sm font-medium text-slate-700">
+                    Piano di interesse
+                  </label>
+                  <select
+                    id="interestedPlanCode"
+                    value={values.interestedPlanCode}
+                    onChange={handleChange("interestedPlanCode")}
+                    className={getFieldClassName(false)}
+                  >
+                    <option value="">Non ho ancora deciso</option>
+                    <option value="base">Piano Base</option>
+                    <option value="pro">Piano Pro</option>
+                    <option value="elite">Piano Elite</option>
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Ci aiuta a prepararti la demo giusta. Non e vincolante e potrai cambiarlo.
+                  </p>
+                </div>
+
                 <div>
                   <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-700">Note ed esigenze specifiche *</label>
                   <textarea ref={notesRef} id="notes" rows={4} value={values.notes} onChange={handleChange("notes")} className={getFieldClassName(Boolean(errors.notes))} placeholder="Informazioni utili per il contatto" required />
@@ -769,5 +810,15 @@ export default function DemoPage() {
         )}
       </section>
     </main>
+  );
+}
+
+// useSearchParams richiede un confine di Suspense, come gia' fatto per il
+// login: senza, la pagina non puo' essere renderizzata sul server.
+export default function DemoPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-50" />}>
+      <DemoRequestPage />
+    </Suspense>
   );
 }

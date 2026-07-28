@@ -82,7 +82,7 @@ export default function RegistrazioneBasePage() {
             Per attivare un account concessionaria e necessario richiedere la Demo. Dopo la validazione riceverai l&apos;accesso al piano piu adatto.
           </p>
           <Link
-            href="/demo"
+            href="/demo?piano=base"
             className="mt-5 inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Richiedi Demo
