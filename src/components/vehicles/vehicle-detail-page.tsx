@@ -28,6 +28,8 @@ type VehicleDetailPageProps = {
 };
 
 type VehicleWithEquipment = VehicleRow & {
+  vehicle_category?: string | null;
+  vehicle_condition?: string | null;
   body_type?: string | null;
   engine_size?: string | number | null;
   traction?: string | null;
@@ -158,7 +160,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, created_at, updated_at"
+            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, created_at, updated_at"
           )
           .eq("id", vehicleId)
           .eq("dealer_id", dealerId)
@@ -261,12 +263,10 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   }, [vehicleId]);
 
   const coverUrl = useMemo(() => images.find((image) => image.is_cover)?.previewUrl ?? images[0]?.previewUrl ?? null, [images]);
-  const equipmentList = useMemo(() => {
-    if (!vehicle) return [];
-
-    const source = vehicle as Record<string, unknown>;
-    return normalizeEquipment(source.equipment);
-  }, [vehicle]);
+  // equipment is declared on VehicleWithEquipment, so the untyped cast this
+  // used to go through was only hiding the field from anything reading the
+  // source.
+  const equipmentList = useMemo(() => normalizeEquipment(vehicle?.equipment ?? null), [vehicle]);
   const vehicleHealth = useMemo(() => {
     if (!vehicle) return null;
     return evaluateVehicleHealth({
@@ -468,6 +468,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
             <article className="dashboard-fade-up min-w-0 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2">
+                {/* Same order as the creation form, so checking a vehicle
+                    against what was typed in is a straight read down the list. */}
+                <Detail label="Tipo veicolo" value={safeText(vehicle.vehicle_category)} />
+                <Detail label="Condizioni" value={safeText(vehicle.vehicle_condition)} />
+                <Detail label="Carrozzeria" value={safeText(vehicle.body_type)} />
                 <Detail label="Marca" value={safeText(vehicle.brand)} />
                 <Detail label="Modello" value={safeText(vehicle.model)} />
                 <Detail label="Versione" value={safeText(vehicle.version)} />
@@ -482,11 +487,15 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Potenza kW" value={safeText(vehicle.power_kw)} />
                 <Detail label="Potenza CV" value={safeText(vehicle.power_cv)} />
                 <Detail label="Porte" value={safeText(vehicle.doors)} />
+                <Detail label="Posti" value={safeText(vehicle.seats)} />
                 <Detail label="Classe Euro" value={safeText(vehicle.emission_class)} />
                 <Detail label="Data immatricolazione" value={safeText(vehicle.registration_date)} />
                 <Detail label="Colore" value={safeText(vehicle.color)} />
                 <Detail label="Interni" value={safeText(vehicle.interior_type)} />
+                <Detail label="Garanzia" value={safeText(vehicle.warranty)} />
                 <Detail label="Telaio" value={safeText(vehicle.vin)} />
+                <Detail label="Citta" value={safeText(vehicle.city)} />
+                <Detail label="Provincia" value={safeText(vehicle.province)} />
               </div>
 
               <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 p-4">
