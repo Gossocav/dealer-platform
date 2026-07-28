@@ -51,7 +51,7 @@ export type VehicleListItem = {
   brand: string;
   model: string;
   version: string;
-  year: string;
+  registration: string;
   priceValue: number;
   priceLabel: string;
   status: VehicleStatus;
@@ -211,6 +211,32 @@ export function safeText(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "-";
   const normalized = String(value).trim();
   return normalized.length > 0 ? normalized : "-";
+}
+
+// "Anno" non e' un dato a se': l'editor lo ricava sempre dalla data di
+// immatricolazione, quindi mostrarli affiancati significa dire due volte lo
+// stesso fatto. La piattaforma espone una sola voce, l'immatricolazione.
+//
+// Le importazioni pero' scrivono spesso il solo anno, senza giorno ne' mese
+// (vehicle-import mappa "immatricolazione" su year): in quel caso l'anno e'
+// l'unica immatricolazione conosciuta e viene mostrato da solo, invece di
+// lasciare il campo vuoto su meta' del parco auto importato.
+export function formatRegistrationLabel(input: {
+  registration_date?: string | null;
+  year?: string | number | null;
+}): string | null {
+  const rawDate = String(input.registration_date ?? "").trim();
+
+  if (rawDate) {
+    const parsed = new Date(rawDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString("it-IT");
+    }
+    return rawDate;
+  }
+
+  const rawYear = String(input.year ?? "").trim();
+  return rawYear.length > 0 ? rawYear : null;
 }
 
 export function normalizeVehicleTraction(value: unknown): VehicleTraction | null {

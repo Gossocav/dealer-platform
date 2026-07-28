@@ -16,6 +16,7 @@ import {
   extractVehicleImagePath,
   formatCurrency,
   formatDate,
+  formatRegistrationLabel,
   formatVehicleStatus,
   safeText,
   validateVehicleStatusTransitionForCrud,
@@ -476,7 +477,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Marca" value={safeText(vehicle.brand)} />
                 <Detail label="Modello" value={safeText(vehicle.model)} />
                 <Detail label="Versione" value={safeText(vehicle.version)} />
-                <Detail label="Anno" value={safeText(vehicle.year)} />
                 <Detail label="Prezzo" value={formatCurrency(Number(vehicle.price ?? 0))} />
                 <Detail label="Stato" value={formatVehicleStatus(vehicle.status, vehicle.published)} />
                 <Detail label="Alimentazione" value={safeText(vehicle.fuel)} />
@@ -489,7 +489,15 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Porte" value={safeText(vehicle.doors)} />
                 <Detail label="Posti" value={safeText(vehicle.seats)} />
                 <Detail label="Classe Euro" value={safeText(vehicle.emission_class)} />
-                <Detail label="Data immatricolazione" value={safeText(vehicle.registration_date)} />
+                <Detail
+                  label="Immatricolazione"
+                  value={
+                    formatRegistrationLabel({
+                      registration_date: vehicle.registration_date,
+                      year: vehicle.year,
+                    }) ?? "-"
+                  }
+                />
                 <Detail label="Colore" value={safeText(vehicle.color)} />
                 <Detail label="Interni" value={safeText(vehicle.interior_type)} />
                 <Detail label="Garanzia" value={safeText(vehicle.warranty)} />

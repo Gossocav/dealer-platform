@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { supabase } from "@/lib/supabaseClient";
+import { formatRegistrationLabel } from "@/lib/vehicles";
 
 type Vehicle = {
   id: string;
   brand?: string | null;
   model?: string | null;
   version?: string | null;
+  registration_date?: string | null;
   year?: string | null;
   price?: string | null;
   status?: string | null;
@@ -86,7 +88,7 @@ export default function StatistichePage() {
       const [vehiclesRes, leadsRes, customersRes, appointmentsRes] = await Promise.all([
         supabase
           .from("vehicles")
-          .select("id, brand, model, version, year, price, status, published, created_at"),
+          .select("id, brand, model, version, registration_date, year, price, status, published, created_at"),
         supabase
           .from("leads")
           .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at"),
@@ -283,7 +285,7 @@ export default function StatistichePage() {
                   latestVehicles.map((vehicle) => (
                     <div key={vehicle.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <p className="font-semibold text-slate-900">{vehicle.brand ?? "-"} {vehicle.model ?? ""} {vehicle.version ?? ""}</p>
-                      <p className="text-sm text-slate-600">Anno: {vehicle.year ?? "-"} • Prezzo: €{parsePrice(vehicle.price).toLocaleString("it-IT")}</p>
+                      <p className="text-sm text-slate-600">Immatricolazione: {formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-"} • Prezzo: €{parsePrice(vehicle.price).toLocaleString("it-IT")}</p>
                     </div>
                   ))
                 )}

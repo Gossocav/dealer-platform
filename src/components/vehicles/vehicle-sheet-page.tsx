@@ -6,6 +6,7 @@ import { Loader2, Printer } from "lucide-react";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
+import { formatRegistrationLabel } from "@/lib/vehicles";
 import { buildVehicleSheetQr } from "@/lib/vehicle-sheet-qr";
 
 // Mirrors the creation form field by field: whatever the dealer fills in when
@@ -99,14 +100,6 @@ function formatPrice(value: number | string | null) {
 function formatMileage(value: number | null) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return `${new Intl.NumberFormat("it-IT").format(value)} km`;
-}
-
-function formatDate(value: string | null) {
-  const normalized = text(value);
-  if (!normalized) return null;
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) return normalized;
-  return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parsed);
 }
 
 // The column accepts both a jsonb array and a free-text list, depending on
@@ -229,8 +222,10 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
       { label: "Tipo veicolo", value: text(vehicle.vehicle_category) },
       { label: "Condizioni", value: text(vehicle.vehicle_condition) },
       { label: "Carrozzeria", value: text(vehicle.body_type) },
-      { label: "Immatricolazione", value: formatDate(vehicle.registration_date) },
-      { label: "Anno", value: text(vehicle.year) },
+      {
+        label: "Immatricolazione",
+        value: formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }),
+      },
       { label: "Chilometri", value: formatMileage(vehicle.mileage) },
       { label: "Alimentazione", value: text(vehicle.fuel) },
       { label: "Cambio", value: text(vehicle.transmission) },
