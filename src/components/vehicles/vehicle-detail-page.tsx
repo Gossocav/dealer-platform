@@ -11,16 +11,15 @@ import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
+import { pickCoverPreviewUrl, resolveVehicleImageRows, type ResolvedVehicleImage } from "@/lib/vehicle-photos";
 import { buildVehicleTimelineEvents, listVehicleTimelineAuditEvents, writeVehicleTimelineEvent, type VehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import {
-  extractVehicleImagePath,
   formatCurrency,
   formatDate,
   formatRegistrationLabel,
   formatVehicleStatus,
   safeText,
   validateVehicleStatusTransitionForCrud,
-  type VehicleImageRow,
   type VehicleRow,
 } from "@/lib/vehicles";
 
@@ -48,26 +47,8 @@ type VehicleWithEquipment = VehicleRow & {
   equipment?: string[] | string | null;
 };
 
-type ViewImage = VehicleImageRow & { previewUrl: string | null };
+type ViewImage = ResolvedVehicleImage;
 
-function mapImageUrlForDisplay(imageUrl: string): string {
-  if (!/^https?:\/\//i.test(imageUrl)) {
-    return imageUrl;
-  }
-
-  try {
-    const parsed = new URL(imageUrl);
-    const isSupabaseDomain = parsed.hostname === "supabase.co" || parsed.hostname.endsWith(".supabase.co");
-
-    if (isSupabaseDomain) {
-      return imageUrl;
-    }
-  } catch {
-    return imageUrl;
-  }
-
-  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-}
 
 function normalizeEquipment(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -177,69 +158,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         return;
       }
 
-      const imageUrlCache = new Map<string, Promise<string | null>>();
-
-      const resolveVehiclePhotoUrl = (rawValue: string) => {
-        const normalized = rawValue.trim();
-        if (!normalized) {
-          return Promise.resolve(null);
-        }
-
-        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-          if (!normalized.includes(".supabase.co")) {
-            return Promise.resolve(mapImageUrlForDisplay(normalized));
-          }
-        }
-
-        const path = extractVehicleImagePath(normalized);
-        if (!path) {
-          return Promise.resolve(null);
-        }
-
-        const cached = imageUrlCache.get(path);
-        if (cached) {
-          return cached;
-        }
-
-        // Production's "vehicle-images" bucket is actually private (drifted
-        // from the migration that declares it public -- verified against the
-        // Storage API). getPublicUrl() alone builds a URL the browser can't
-        // load there, which shows the broken <img>'s alt text instead of the
-        // photo. createSignedUrl() works regardless of the bucket's
-        // public/private setting, so try that first.
-        const pending = (async () => {
-          const { data: signed, error } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
-          if (!error && signed?.signedUrl) {
-            return signed.signedUrl;
-          }
-
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-          return publicData.publicUrl || null;
-        })();
-
-        imageUrlCache.set(path, pending);
-        return pending;
-      };
-
-      const resolvedImages = await Promise.all(
-        (imageRows ?? []).map(async (row) => {
-          const raw = String(row.image_url ?? "").trim();
-
-          if (!raw) {
-            return { ...row, previewUrl: null } as ViewImage;
-          }
-
-          if (raw.startsWith("http://") || raw.startsWith("https://")) {
-            if (raw.includes(".supabase.co")) {
-              return { ...row, previewUrl: await resolveVehiclePhotoUrl(raw) } as ViewImage;
-            }
-
-            return { ...row, previewUrl: mapImageUrlForDisplay(raw) } as ViewImage;
-          }
-
-          return { ...row, previewUrl: (await resolveVehiclePhotoUrl(raw)) || raw } as ViewImage;
-        })
-      );
+      const resolvedImages = await resolveVehicleImageRows(supabase, imageRows);
 
       const auditTimelineEvents = vehicleData.dealer_id
         ? await listVehicleTimelineAuditEvents(supabase, vehicleData.dealer_id, vehicleData.id)
@@ -263,7 +182,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
     };
   }, [vehicleId]);
 
-  const coverUrl = useMemo(() => images.find((image) => image.is_cover)?.previewUrl ?? images[0]?.previewUrl ?? null, [images]);
+  const coverUrl = useMemo(() => pickCoverPreviewUrl(images), [images]);
   // equipment is declared on VehicleWithEquipment, so the untyped cast this
   // used to go through was only hiding the field from anything reading the
   // source.
