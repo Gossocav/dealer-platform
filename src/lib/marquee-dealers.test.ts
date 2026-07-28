@@ -26,7 +26,11 @@ describe("striscia delle concessionarie partner", () => {
   it("legge i nomi dalle righe gia' caricate per il conteggio", () => {
     // Una query in piu' in home costa a ogni visitatore: il nome arriva dalla
     // stessa select che conta le concessionarie.
-    expect(homePage).toContain('.select("dealer_id, dealers!inner(status, name, legal_name)")');
+    // Non fissa la stringa intera: quella select serve anche ad altri conteggi
+    // e ci si aggiungono colonne. Conta che il nome arrivi da li'.
+    const select = homePage.match(/\.select\("dealer_id[^"]*"\)/)?.[0] ?? "";
+    expect(select).toContain("dealers!inner(");
+    expect(select).toContain("name, legal_name");
   });
 
   it("non ripete la stessa concessionaria una volta per veicolo", () => {

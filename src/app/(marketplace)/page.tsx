@@ -24,6 +24,7 @@ import {
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
 import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
+import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
 export const dynamic = "force-dynamic";
@@ -61,7 +62,7 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function MarketplaceHomePage() {
-  const [{ data, error }, { count: totalVehicleCount }, { data: dealerIdRows }] = await Promise.all([
+  const [{ data, error }, { count: totalVehicleCount }, { data: publishedRows }] = await Promise.all([
     publicSupabase
       .from("vehicles")
       .select(
@@ -87,13 +88,13 @@ export default async function MarketplaceHomePage() {
     // system — a "partner" with zero live inventory isn't a real partner yet.
     publicSupabase
       .from("vehicles")
-      .select("dealer_id, dealers!inner(status, name, legal_name)")
+      .select("dealer_id, body_type, dealers!inner(status, name, legal_name)")
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
       .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
   ]);
 
-  const totalDealerCount = new Set((dealerIdRows ?? []).map((row) => row.dealer_id)).size;
+  const totalDealerCount = new Set((publishedRows ?? []).map((row) => row.dealer_id)).size;
 
   // Le stesse righe che contano le concessionarie danno anche i nomi da far
   // scorrere: una Map su dealer_id perche' ogni concessionaria compare una
@@ -102,7 +103,7 @@ export default async function MarketplaceHomePage() {
   // della concessionaria non si contraddicono.
   const partnerDealerNames = Array.from(
     new Map(
-      (dealerIdRows ?? []).map(
+      (publishedRows ?? []).map(
         (row) =>
           [row.dealer_id, normalizeVehicleDealerName(row.dealers as unknown as MarketplaceDealer | MarketplaceDealer[])] as const,
       ),
@@ -140,7 +141,6 @@ export default async function MarketplaceHomePage() {
   }
   const fuels = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
-  const bodyTypes = uniqueValues(vehicles.map((vehicle) => vehicle.body_type));
   const cities = uniqueValues(vehicles.map((vehicle) => vehicle.city));
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
@@ -150,20 +150,32 @@ export default async function MarketplaceHomePage() {
     eliteShowcase !== null,
   );
 
-  const categories: MarketplaceCategory[] = [
-    ...bodyTypes.map((bodyType) => ({
+  // "Esplora per categoria" elenca le carrozzerie, tutte quelle selezionabili
+  // in fase di inserimento veicolo -- non solo quelle che risultano fra i
+  // veicoli piu' recenti caricati qui sopra, che erano gli ultimi 24 e
+  // facevano sparire le categorie a rotazione.
+  //
+  // Il conteggio arriva da publishedRows, che copre tutto il pubblicato: era
+  // calcolato sugli stessi 24 e diceva "3 disponibili" dove ce n'erano trenta.
+  const publishedBodyTypeCounts = new Map<string, number>();
+  for (const row of publishedRows ?? []) {
+    const bodyType = String((row as { body_type?: string | null }).body_type ?? "").trim();
+    if (bodyType) {
+      publishedBodyTypeCounts.set(bodyType, (publishedBodyTypeCounts.get(bodyType) ?? 0) + 1);
+    }
+  }
+
+  const categories: MarketplaceCategory[] = VEHICLE_BODY_TYPES.map((bodyType) => {
+    const count = publishedBodyTypeCounts.get(bodyType) ?? 0;
+
+    return {
       label: bodyType,
-      description: `Veicoli con carrozzeria ${bodyType}.`,
+      description:
+        count > 0 ? `Veicoli con carrozzeria ${bodyType}.` : `Nessun veicolo con carrozzeria ${bodyType}, per ora.`,
       href: `/ricerca?bodyType=${encodeURIComponent(bodyType)}`,
-      count: vehicles.filter((vehicle) => formatText(vehicle.body_type) === bodyType).length,
-    })),
-    ...transmissions.map((transmission) => ({
-      label: `Cambio ${transmission.toLowerCase()}`,
-      description: `Guida con cambio ${transmission.toLowerCase()}.`,
-      href: `/ricerca?transmission=${encodeURIComponent(transmission)}`,
-      count: vehicles.filter((vehicle) => formatText(vehicle.transmission) === transmission).length,
-    })),
-  ].filter((category) => category.count > 0);
+      count,
+    };
+  });
 
   const quickChips = [
     ...fuels.slice(0, 3).map((fuel) => ({ label: fuel, href: `/ricerca?fuel=${encodeURIComponent(fuel)}` })),

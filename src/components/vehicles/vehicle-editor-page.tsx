@@ -8,6 +8,7 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { resizeImageForUpload } from "@/lib/image-resize";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
+import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { getVehicleModelsForBrand } from "@/lib/vehicle-models";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
@@ -1201,14 +1202,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   className={getFieldInputClass(missingFieldSet.has("bodyType"))}
                 >
                   <option value="">Seleziona carrozzeria...</option>
-                  <option value="SUV/Pick-up">SUV/Pick-up</option>
-                  <option value="Berlina">Berlina</option>
-                  <option value="Station Wagon">Station Wagon</option>
-                  <option value="City Car">City Car</option>
-                  <option value="Monovolume">Monovolume</option>
-                  <option value="Coupé">Coupé</option>
-                  <option value="Cabrio">Cabrio</option>
-                  <option value="Furgone/Van">Furgone/Van</option>
+                  {VEHICLE_BODY_TYPES.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="block space-y-2">
