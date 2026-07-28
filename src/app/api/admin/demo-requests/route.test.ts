@@ -163,7 +163,7 @@ function makeSupabaseAdmin(user: UserStub, profileRole: string | null = null) {
   const authAdminCreateUser = vi.fn();
   const authAdminGenerateLink = vi.fn().mockResolvedValue({
     data: {
-      properties: { action_link: "https://dealer-platform-six.vercel.app/reset-password?token=test" },
+      properties: { action_link: "https://www.keyauto.it/reset-password?token=test" },
       user: { id: "recovered-profile-1" },
     },
     error: null,
@@ -532,6 +532,9 @@ describe("admin demo-requests route rate limiting", () => {
       demoStatus: "active",
       demoExpiresAt: "2026-07-24T00:00:00.000Z",
       linkedDealerId: "dealer-1",
+      // Restituito al pannello perche' l'admin possa inoltrarlo a mano
+      // quando l'email non arriva.
+      accessLink: "https://www.keyauto.it/reset-password?token=test",
     });
     expect(rpc).toHaveBeenCalledWith(
       "configure_demo_profile",
@@ -619,6 +622,9 @@ describe("admin demo-requests route rate limiting", () => {
       demoStatus: "active",
       demoExpiresAt: "2026-07-24T00:00:00.000Z",
       linkedDealerId: "dealer-1",
+      // Restituito al pannello perche' l'admin possa inoltrarlo a mano
+      // quando l'email non arriva.
+      accessLink: "https://www.keyauto.it/reset-password?token=test",
     });
     expect(rpc).toHaveBeenCalledWith(
       "finalize_demo_activation",
@@ -691,6 +697,8 @@ describe("admin demo-requests route rate limiting", () => {
       demoStatus: null,
       demoExpiresAt: null,
       linkedDealerId: null,
+      // Nessun link: un rifiuto non crea un account a cui dare accesso.
+      accessLink: null,
     });
     expect(demoRequestsUpdateEq).toHaveBeenCalledOnce();
     expect(rpc).not.toHaveBeenCalled();

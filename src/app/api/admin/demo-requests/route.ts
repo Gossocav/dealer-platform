@@ -13,7 +13,7 @@ import { normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
 export const dynamic = "force-dynamic";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
-type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document";
+type DemoAdminAction = "mark_contacted" | "activate_demo" | "reject" | "revoke_demo" | "convert_demo" | "view_document" | "download_document" | "access_link";
 
 const DEMO_DOCUMENT_BUCKET = "demo-documents";
 const ADMIN_DEMO_REQUESTS_RATE_LIMIT = {
@@ -402,7 +402,7 @@ export async function POST(request: Request) {
   const requestId = normalizeText(body.requestId);
   const action = body.action;
 
-  if (!requestId || !action || !["mark_contacted", "activate_demo", "reject", "revoke_demo", "convert_demo", "view_document", "download_document"].includes(action)) {
+  if (!requestId || !action || !["mark_contacted", "activate_demo", "reject", "revoke_demo", "convert_demo", "view_document", "download_document", "access_link"].includes(action)) {
     return NextResponse.json({ error: "Dati richiesta non validi." }, { status: 400 });
   }
 
@@ -477,6 +477,41 @@ export async function POST(request: Request) {
     );
   }
 
+  // Rigenera il link per impostare la password, senza toccare lo stato della
+  // richiesta. Serve quando l'email non arriva o il concessionario la perde:
+  // senza questo l'unica strada e' entrare nel database.
+  if (action === "access_link") {
+    if (targetRequest.status !== "activated") {
+      return NextResponse.json(
+        { error: "Il link si genera solo per una demo gia attivata." },
+        { status: 409 },
+      );
+    }
+
+    const linkResult = await context.supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: targetRequest.email,
+      options: { redirectTo: `${resolveAppBaseUrl()}/reset-password` },
+    });
+
+    const link = linkResult.error ? null : normalizeText(linkResult.data?.properties?.action_link);
+
+    if (!link) {
+      return NextResponse.json({ error: "Impossibile generare il link di accesso." }, { status: 500 });
+    }
+
+    await createDemoAccessAuditEntry(context.supabaseAdmin, {
+      dealerId: normalizeText(targetRequest.linked_dealer_id) ?? null,
+      actorProfileId: context.userId,
+      // Rigenerare il link equivale a rimandare l'invito: riusa la voce
+      // esistente invece di aggiungerne una nuova al registro.
+      action: "demo.invitation_sent",
+      metadata: { requestId, email: targetRequest.email, regenerated: true },
+    });
+
+    return NextResponse.json({ requestId, accessLink: link, email: targetRequest.email }, { status: 200 });
+  }
+
   if (action === "mark_contacted" && targetRequest.status !== "pending") {
     return NextResponse.json({ error: "La richiesta non puo essere segnata come contattata nello stato corrente." }, { status: 409 });
   }
@@ -500,6 +535,11 @@ export async function POST(request: Request) {
   if (action === "reject" && targetRequest.status === "activated") {
     return NextResponse.json({ error: "Richiesta demo gia attivata. Usa Revoca Demo." }, { status: 409 });
   }
+
+  // Il link per impostare la password vive solo dentro il ramo di attivazione:
+  // lo si porta qui per poterlo restituire al pannello, cosi' l'admin puo'
+  // inoltrarlo a mano quando l'email non arriva.
+  let accessLink: string | null = null;
 
   const nextStatus = actionToStatus(action);
 
@@ -598,6 +638,7 @@ export async function POST(request: Request) {
       options: { redirectTo: `${resolveAppBaseUrl()}/reset-password` },
     });
     const passwordSetupLink = recoveryLinkResult.error ? null : (recoveryLinkResult.data?.properties?.action_link ?? null);
+    accessLink = passwordSetupLink;
 
     // A previous, only-partially-completed activation attempt (e.g. interrupted by a
     // timeout) can leave an auth user behind without finishing the rest of this flow.
@@ -1004,6 +1045,7 @@ export async function POST(request: Request) {
       demoStatus: normalizeText(refreshedRequest.data?.demo_status),
       demoExpiresAt: normalizeText(refreshedRequest.data?.demo_expires_at),
       linkedDealerId: normalizeText(refreshedRequest.data?.linked_dealer_id),
+      accessLink,
     },
     { status: 200 }
   );
