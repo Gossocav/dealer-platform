@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
+import { formatRegistrationLabel } from "@/lib/vehicles";
 
 type SendToClientBody = {
   vehicleId?: string;
@@ -17,7 +18,7 @@ type SendToClientBody = {
   brand?: string | null;
   model?: string | null;
   version?: string | null;
-  year?: string | null;
+  registration?: string | null;
   mileage?: string | null;
   fuel?: string | null;
   transmission?: string | null;
@@ -30,6 +31,7 @@ type VehicleOwnershipRow = {
   brand: string | null;
   model: string | null;
   version: string | null;
+  registration_date: string | null;
   year: number | null;
   mileage: number | null;
   fuel: string | null;
@@ -131,7 +133,7 @@ export async function POST(request: Request) {
 
     const { data: ownedVehicle, error: ownedVehicleError } = await supabase
       .from("vehicles")
-      .select("id, dealer_id, brand, model, version, year, mileage, fuel, transmission, price")
+      .select("id, dealer_id, brand, model, version, registration_date, year, mileage, fuel, transmission, price")
       .eq("id", vehicleId)
       .eq("dealer_id", resolvedDealerId)
       .maybeSingle<VehicleOwnershipRow>();
@@ -151,7 +153,8 @@ export async function POST(request: Request) {
     const brand = normalizeText(ownedVehicle.brand) ?? "-";
     const model = normalizeText(ownedVehicle.model) ?? "-";
     const version = normalizeText(ownedVehicle.version) ?? "-";
-    const year = ownedVehicle.year === null ? "-" : String(ownedVehicle.year);
+    const registration =
+      formatRegistrationLabel({ registration_date: ownedVehicle.registration_date, year: ownedVehicle.year }) ?? "-";
     const mileage = ownedVehicle.mileage === null ? "-" : String(ownedVehicle.mileage);
     const fuel = normalizeText(ownedVehicle.fuel) ?? "-";
     const transmission = normalizeText(ownedVehicle.transmission) ?? "-";
@@ -197,7 +200,7 @@ export async function POST(request: Request) {
       brand,
       model,
       version,
-      year,
+      registration,
       mileage,
       fuel,
       transmission,
@@ -377,7 +380,7 @@ function buildCustomerEmailHtml({
   brand,
   model,
   version,
-  year,
+  registration,
   mileage,
   fuel,
   transmission,
@@ -394,7 +397,7 @@ function buildCustomerEmailHtml({
   brand: string;
   model: string;
   version: string;
-  year: string;
+  registration: string;
   mileage: string;
   fuel: string;
   transmission: string;
@@ -421,7 +424,7 @@ function buildCustomerEmailHtml({
             <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;width:35%;">Marca</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(brand)}</td></tr>
             <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Modello</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(model)}</td></tr>
             <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Versione</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(version)}</td></tr>
-            <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Anno</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(year)}</td></tr>
+            <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Immatricolazione</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(registration)}</td></tr>
             <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Km</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(mileage)}</td></tr>
             <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Alimentazione</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(fuel)}</td></tr>
             <tr><td style="padding:12px 16px;color:#64748b;font-size:13px;font-weight:700;">Cambio</td><td style="padding:12px 16px;color:#0f172a;font-size:14px;">${escapeHtml(transmission)}</td></tr>

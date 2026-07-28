@@ -82,7 +82,9 @@ export function VehiclesTable({
                 <SortHeader label="Veicolo" field="brand" sort={sort} onSortChange={onSortChange} />
               </th>
               <th className="px-3 py-2 text-left">
-                <SortHeader label="Anno" field="year" sort={sort} onSortChange={onSortChange} />
+                {/* Ordina ancora sulla colonna year: l'anno e' ricavato dalla
+                    data di immatricolazione, quindi le due ordinano identico. */}
+                <SortHeader label="Immatricolazione" field="year" sort={sort} onSortChange={onSortChange} />
               </th>
               <th className="px-3 py-2 text-left">
                 <SortHeader label="Prezzo" field="price" sort={sort} onSortChange={onSortChange} />
@@ -133,7 +135,7 @@ export function VehiclesTable({
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3">{vehicle.year}</td>
+                  <td className="px-3 py-3">{vehicle.registration}</td>
                   <td className="px-3 py-3 font-semibold text-slate-900">{vehicle.priceLabel}</td>
                   <td className="px-3 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses(vehicle.status)}`}>

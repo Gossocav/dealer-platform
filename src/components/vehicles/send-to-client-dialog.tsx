@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { formatCurrency, safeText } from "@/lib/vehicles";
+import { formatCurrency, formatRegistrationLabel, safeText } from "@/lib/vehicles";
 import { supabase } from "@/lib/supabaseClient";
 
 type SendMode = "email" | "whatsapp" | "copy-link";
@@ -16,6 +16,7 @@ type SendToClientDialogProps = {
     brand?: string | null;
     model?: string | null;
     version?: string | null;
+    registration_date?: string | null;
     year?: string | number | null;
     mileage?: string | number | null;
     fuel?: string | null;
@@ -33,7 +34,8 @@ function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: st
   const brand = safeText(vehicle.brand);
   const model = safeText(vehicle.model);
   const version = safeText(vehicle.version);
-  const year = safeText(vehicle.year);
+  const registration =
+    formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-";
   const mileage = formatMileage(vehicle.mileage);
   const rawPrice = Number(vehicle.price ?? 0);
   const price = Number.isFinite(rawPrice) && rawPrice > 0 ? formatCurrency(rawPrice) : "Su richiesta";
@@ -48,8 +50,8 @@ function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: st
     "Versione:",
     version,
     "",
-    "Anno:",
-    year,
+    "Immatricolazione:",
+    registration,
     "",
     "Km:",
     mileage,
@@ -167,7 +169,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
       `Marca: ${safeText(vehicle.brand)}`,
       `Modello: ${safeText(vehicle.model)}`,
       `Versione: ${safeText(vehicle.version)}`,
-      `Anno: ${safeText(vehicle.year)}`,
+      `Immatricolazione: ${formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-"}`,
       `Km: ${formatMileage(vehicle.mileage)}`,
       `Prezzo: ${price}`,
       `Link annuncio: ${publicUrl}`,
@@ -284,7 +286,8 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
           brand: safeText(vehicle.brand),
           model: safeText(vehicle.model),
           version: safeText(vehicle.version),
-          year: safeText(vehicle.year),
+          registration:
+            formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-",
           mileage: formatMileage(vehicle.mileage),
           fuel: safeText(vehicle.fuel),
           transmission: safeText(vehicle.transmission),

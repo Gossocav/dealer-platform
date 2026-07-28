@@ -109,8 +109,8 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
 
               <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
-                  <span className="block text-xs uppercase tracking-[0.12em] text-slate-400">Anno</span>
-                  {vehicle.year}
+                  <span className="block text-xs uppercase tracking-[0.12em] text-slate-400">Immatricolazione</span>
+                  {vehicle.registration}
                 </p>
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
                   <span className="block text-xs uppercase tracking-[0.12em] text-slate-400">Prezzo</span>
