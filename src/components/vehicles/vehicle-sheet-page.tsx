@@ -385,7 +385,10 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
                 alt=""
                 loading="eager"
                 decoding="sync"
-                className="h-[35mm] w-[52mm] flex-none rounded-lg object-cover"
+                // 62x42mm: la fascia e' larga 182mm, quindi al prezzo ne
+                // restano 114 anche con sei cifre. Oltre questa misura la foto
+                // inizia a spingere i dati tecnici sul secondo foglio.
+                className="h-[42mm] w-[62mm] flex-none rounded-lg object-cover"
               />
             ) : null}
           </div>
