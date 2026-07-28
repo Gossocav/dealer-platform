@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
 import { HeroBrandModelFields } from "@/components/marketplace/hero-brand-model-fields";
-import { MarqueeBrands } from "@/components/marketplace/marquee-brands";
+import { MarqueeDealers } from "@/components/marketplace/marquee-dealers";
 import { RevealOnScroll } from "@/components/marketplace/reveal-on-scroll";
 import { SpecShowcase, type SpecShowcaseVehicle } from "@/components/marketplace/spec-showcase";
 import {
@@ -87,13 +87,31 @@ export default async function MarketplaceHomePage() {
     // system — a "partner" with zero live inventory isn't a real partner yet.
     publicSupabase
       .from("vehicles")
-      .select("dealer_id, dealers!inner(status)")
+      .select("dealer_id, dealers!inner(status, name, legal_name)")
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
       .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
   ]);
 
   const totalDealerCount = new Set((dealerIdRows ?? []).map((row) => row.dealer_id)).size;
+
+  // Le stesse righe che contano le concessionarie danno anche i nomi da far
+  // scorrere: una Map su dealer_id perche' ogni concessionaria compare una
+  // volta per veicolo pubblicato. Il nome viene risolto con lo stesso helper
+  // usato ovunque nel marketplace, cosi' la scritta che scorre e la pagina
+  // della concessionaria non si contraddicono.
+  const partnerDealerNames = Array.from(
+    new Map(
+      (dealerIdRows ?? []).map(
+        (row) =>
+          [row.dealer_id, normalizeVehicleDealerName(row.dealers as unknown as MarketplaceDealer | MarketplaceDealer[])] as const,
+      ),
+    ).values(),
+  )
+    // "Concessionaria" e' il ripiego dell'helper quando manca sia la ragione
+    // sociale sia l'insegna: farlo scorrere darebbe una fila di nomi generici.
+    .filter((name) => name !== "Concessionaria")
+    .sort((a, b) => a.localeCompare(b, "it"));
 
   if (error) {
     logMarketplaceQueryError("home", error);
@@ -217,7 +235,7 @@ export default async function MarketplaceHomePage() {
         </div>
       </section>
 
-      <MarqueeBrands brands={brands} />
+      <MarqueeDealers dealers={partnerDealerNames} />
 
       {/* ============ STATS ============ */}
       <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
