@@ -19,7 +19,13 @@ type OverviewStats = {
   vehiclesPublished: number;
   leadsReceived: number;
   usersRegistered: number;
+  demoRequestsToHandle: number;
+  infoRequestsReceived: number;
 };
+
+// Una richiesta demo resta lavoro aperto finche' non viene attivata o
+// rifiutata: "contacted" significa che l'admin ha scritto, non che ha chiuso.
+const DEMO_REQUEST_OPEN_STATUSES = ["pending", "contacted"] as const;
 
 function extractBearerToken(authHeader: string | null) {
   const raw = String(authHeader ?? "").trim();
@@ -145,6 +151,8 @@ export async function GET(request: Request) {
       dealersApproved,
       vehiclesPublished,
       leadsReceived,
+      demoRequestsToHandle,
+      infoRequestsReceived,
       authUsersCount,
     ] = await Promise.all([
       context.supabaseAdmin.from("dealers").select("id", { count: "exact", head: true }),
@@ -152,6 +160,11 @@ export async function GET(request: Request) {
       context.supabaseAdmin.from("dealers").select("id", { count: "exact", head: true }).eq("status", "approved"),
       context.supabaseAdmin.from("vehicles").select("id", { count: "exact", head: true }).eq("published", true),
       context.supabaseAdmin.from("leads").select("id", { count: "exact", head: true }),
+      context.supabaseAdmin
+        .from("demo_requests")
+        .select("id", { count: "exact", head: true })
+        .in("status", DEMO_REQUEST_OPEN_STATUSES),
+      context.supabaseAdmin.from("dealer_info_requests").select("id", { count: "exact", head: true }),
       countAuthUsers(context.supabaseAdmin),
     ]);
 
@@ -160,6 +173,8 @@ export async function GET(request: Request) {
     if (dealersApproved.error) throw new Error(dealersApproved.error.message || "Errore conteggio dealer approvati.");
     if (vehiclesPublished.error) throw new Error(vehiclesPublished.error.message || "Errore conteggio veicoli pubblicati.");
     if (leadsReceived.error) throw new Error(leadsReceived.error.message || "Errore conteggio lead ricevuti.");
+    if (demoRequestsToHandle.error) throw new Error(demoRequestsToHandle.error.message || "Errore conteggio richieste demo.");
+    if (infoRequestsReceived.error) throw new Error(infoRequestsReceived.error.message || "Errore conteggio richieste informazioni.");
 
     const stats: OverviewStats = {
       dealersRegistered: extractCount(dealersRegistered.count),
@@ -172,6 +187,8 @@ export async function GET(request: Request) {
       // 3 utenti a fronte di 1 solo accesso esistente, e il numero non
       // scendeva mai cancellando qualcuno.
       usersRegistered: authUsersCount,
+      demoRequestsToHandle: extractCount(demoRequestsToHandle.count),
+      infoRequestsReceived: extractCount(infoRequestsReceived.count),
     };
 
     return NextResponse.json({ stats }, { status: 200 });
@@ -184,6 +201,8 @@ export async function GET(request: Request) {
       vehiclesPublished: 0,
       leadsReceived: 0,
       usersRegistered: 0,
+      demoRequestsToHandle: 0,
+      infoRequestsReceived: 0,
     } }, { status: 500 });
   }
 }
