@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
+import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ const VEHICLE_CATEGORY_OPTIONS = ["Auto", "Veicolo commerciale"] as const;
 
 const VEHICLE_CONDITION_OPTIONS = ["Nuovo", "Usato", "Aziendale", "Km/0"] as const;
 
-const BODY_TYPE_OPTIONS = ["SUV/Pick-up", "Berlina", "Station Wagon", "City Car", "Monovolume", "Coupé", "Cabrio", "Furgone/Van"] as const;
+const BODY_TYPE_OPTIONS = VEHICLE_BODY_TYPES;
 
 const SORT_OPTIONS = [
   { value: "created_desc", label: "Data inserimento (piu recenti)" },

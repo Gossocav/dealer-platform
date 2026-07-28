@@ -30,7 +30,14 @@ export function CategoryRail({ categories }: { categories: MarketplaceCategory[]
           />
           <h3 className="relative text-xl font-bold tracking-tight text-white">{category.label}</h3>
           <p className="relative text-sm text-slate-400">{category.description}</p>
-          <p className="relative mt-2 text-sm font-semibold text-cyan-300">{category.count} disponibili</p>
+          {/* Una categoria vuota resta in elenco -- serve a far vedere che
+              tipi di veicolo esistono -- ma "0 disponibili" si legge come un
+              guasto invece che come un dato. */}
+          {category.count > 0 ? (
+            <p className="relative mt-2 text-sm font-semibold text-cyan-300">{category.count} disponibili</p>
+          ) : (
+            <p className="relative mt-2 text-sm font-semibold text-slate-500">Nessun veicolo al momento</p>
+          )}
         </Link>
       ))}
     </div>
