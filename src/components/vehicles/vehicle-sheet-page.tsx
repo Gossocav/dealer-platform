@@ -8,25 +8,70 @@ import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
 import { buildVehicleSheetQr } from "@/lib/vehicle-sheet-qr";
 
+// Mirrors the creation form field by field: whatever the dealer fills in when
+// inserting a vehicle has to be printable, otherwise the sheet on the
+// windscreen contradicts the listing.
 type SheetVehicle = {
   id: string;
   brand: string | null;
   model: string | null;
   version: string | null;
+  vehicle_category: string | null;
+  vehicle_condition: string | null;
+  body_type: string | null;
   year: number | string | null;
+  registration_date: string | null;
   mileage: number | null;
   price: number | string | null;
   fuel: string | null;
   transmission: string | null;
   traction: string | null;
-  color: string | null;
+  engine_size: string | null;
+  power_kw: number | null;
   power_cv: number | null;
+  color: string | null;
+  interior_type: string | null;
   doors: number | null;
   seats: number | null;
   warranty: string | null;
   emission_class: string | null;
-  body_type: string | null;
+  vin: string | null;
+  city: string | null;
+  province: string | null;
+  description: string | null;
+  equipment: string[] | string | null;
 };
+
+const SHEET_VEHICLE_COLUMNS = [
+  "id",
+  "brand",
+  "model",
+  "version",
+  "vehicle_category",
+  "vehicle_condition",
+  "body_type",
+  "year",
+  "registration_date",
+  "mileage",
+  "price",
+  "fuel",
+  "transmission",
+  "traction",
+  "engine_size",
+  "power_kw",
+  "power_cv",
+  "color",
+  "interior_type",
+  "doors",
+  "seats",
+  "warranty",
+  "emission_class",
+  "vin",
+  "city",
+  "province",
+  "description",
+  "equipment",
+].join(", ");
 
 type SheetDealer = {
   name: string | null;
@@ -54,6 +99,32 @@ function formatPrice(value: number | string | null) {
 function formatMileage(value: number | null) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return `${new Intl.NumberFormat("it-IT").format(value)} km`;
+}
+
+function formatDate(value: string | null) {
+  const normalized = text(value);
+  if (!normalized) return null;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return normalized;
+  return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parsed);
+}
+
+// The column accepts both a jsonb array and a free-text list, depending on
+// whether the vehicle came from the editor or from an import, so both shapes
+// have to print.
+function normalizeEquipment(value: string[] | string | null): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/[,\n;|]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
 }
 
 export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
@@ -102,9 +173,7 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
       const [{ data: vehicleRow, error: vehicleError }, { data: dealerRow }] = await Promise.all([
         supabase
           .from("vehicles")
-          .select(
-            "id, brand, model, version, year, mileage, price, fuel, transmission, traction, color, power_cv, doors, seats, warranty, emission_class, body_type"
-          )
+          .select(SHEET_VEHICLE_COLUMNS)
           // Scoped to the dealer as well as the id: a sheet must never be
           // printable for another tenant's vehicle.
           .eq("id", vehicleId)
@@ -147,25 +216,46 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
   const specs = useMemo(() => {
     if (!vehicle) return [];
 
+    // kW and CV are two separate fields in the editor but one number to a
+    // buyer, so they share a box instead of taking two.
+    const power = [
+      vehicle.power_cv ? `${vehicle.power_cv} CV` : null,
+      vehicle.power_kw ? `${vehicle.power_kw} kW` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
     const entries: Array<{ label: string; value: string | null }> = [
+      { label: "Tipo veicolo", value: text(vehicle.vehicle_category) },
+      { label: "Condizioni", value: text(vehicle.vehicle_condition) },
+      { label: "Carrozzeria", value: text(vehicle.body_type) },
+      { label: "Immatricolazione", value: formatDate(vehicle.registration_date) },
       { label: "Anno", value: text(vehicle.year) },
       { label: "Chilometri", value: formatMileage(vehicle.mileage) },
       { label: "Alimentazione", value: text(vehicle.fuel) },
       { label: "Cambio", value: text(vehicle.transmission) },
-      { label: "Potenza", value: vehicle.power_cv ? `${vehicle.power_cv} CV` : null },
       { label: "Trazione", value: text(vehicle.traction) },
-      { label: "Carrozzeria", value: text(vehicle.body_type) },
+      { label: "Cilindrata", value: text(vehicle.engine_size) },
+      { label: "Potenza", value: text(power) },
+      { label: "Classe emissioni", value: text(vehicle.emission_class) },
       { label: "Colore", value: text(vehicle.color) },
+      { label: "Interni", value: text(vehicle.interior_type) },
       { label: "Porte", value: vehicle.doors ? String(vehicle.doors) : null },
       { label: "Posti", value: vehicle.seats ? String(vehicle.seats) : null },
-      { label: "Classe emissioni", value: text(vehicle.emission_class) },
       { label: "Garanzia", value: text(vehicle.warranty) },
+      { label: "Telaio", value: text(vehicle.vin) },
+      {
+        label: "Localita",
+        value: text([text(vehicle.city), text(vehicle.province)].filter(Boolean).join(" · ")),
+      },
     ];
 
     // An empty box on a windscreen reads as a mistake, so unknown values are
     // dropped rather than printed as a dash.
     return entries.filter((entry) => entry.value !== null);
   }, [vehicle]);
+
+  const equipment = useMemo(() => normalizeEquipment(vehicle?.equipment ?? null), [vehicle]);
 
   if (loading) {
     return (
@@ -234,27 +324,66 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
           <p className="text-lg font-black tracking-tight">KEYAUTO</p>
         </header>
 
-        <div className="mt-10">
-          <h1 className="text-[64px] font-black uppercase leading-[0.95] tracking-tight">{title}</h1>
+        {/* The hero stays oversized: it is the part read from a few metres
+            away, through a windscreen. Everything below it is for the buyer
+            who has already stopped at the car. */}
+        <div className="sheet-block mt-8">
+          <h1 className="text-[52px] font-black uppercase leading-[0.95] tracking-tight">{title}</h1>
           {text(vehicle.version) ? (
-            <p className="mt-3 text-[28px] font-semibold leading-tight text-slate-700">{vehicle.version}</p>
+            <p className="mt-2 text-[24px] font-semibold leading-tight text-slate-700">{vehicle.version}</p>
           ) : null}
         </div>
 
         {showPrice && priceLabel ? (
-          <p className="mt-8 text-[80px] font-black leading-none tracking-tight">{priceLabel}</p>
+          <p className="sheet-block mt-6 text-[64px] font-black leading-none tracking-tight">{priceLabel}</p>
         ) : null}
 
-        <dl className="mt-12 grid grid-cols-3 gap-x-6 gap-y-7">
+        <dl className="mt-8 grid grid-cols-4 gap-x-5 gap-y-5">
           {specs.map((spec) => (
-            <div key={spec.label} className="border-t-2 border-slate-300 pt-3">
-              <dt className="text-[13px] font-bold uppercase tracking-[0.14em] text-slate-500">{spec.label}</dt>
-              <dd className="mt-1 text-[26px] font-bold leading-tight">{spec.value}</dd>
+            <div key={spec.label} className="sheet-block border-t-2 border-slate-300 pt-2">
+              <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{spec.label}</dt>
+              <dd className="mt-1 break-words text-[19px] font-bold leading-tight [overflow-wrap:anywhere]">
+                {spec.value}
+              </dd>
             </div>
           ))}
         </dl>
 
-        <footer className="mt-auto flex items-end justify-between gap-8 border-t-4 border-slate-900 pt-5">
+        {text(vehicle.description) ? (
+          <section className="sheet-block mt-8 border-t-2 border-slate-300 pt-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Descrizione</h2>
+            <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-[1.55] text-slate-800 [overflow-wrap:anywhere]">
+              {vehicle.description}
+            </p>
+          </section>
+        ) : null}
+
+        {equipment.length > 0 ? (
+          <section className="mt-8 border-t-2 border-slate-300 pt-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Dotazioni</h2>
+            {/* A plain three-column list rather than chips: it survives a
+                black-and-white print and fits far more items per page. */}
+            <ul className="mt-2 grid grid-cols-3 gap-x-5 gap-y-1">
+              {equipment.map((item, index) => (
+                <li
+                  // An imported list can repeat an item; the index keeps the
+                  // keys unique without silently dropping the duplicate.
+                  key={`${item}-${index}`}
+                  className="sheet-block flex gap-1.5 break-words text-[12px] leading-[1.45] text-slate-800 [overflow-wrap:anywhere]"
+                >
+                  <span aria-hidden="true">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {/* Pushes the footer to the bottom of a short sheet, and guarantees a
+            gap above it on a full one, where mt-auto alone collapses to zero. */}
+        <div className="mt-auto min-h-8" aria-hidden="true" />
+
+        <footer className="sheet-block flex items-end justify-between gap-8 border-t-4 border-slate-900 pt-5">
           <div>
             <p className="text-[22px] font-bold leading-tight">{dealerName}</p>
             {dealerPlace ? <p className="mt-1 text-[17px] text-slate-700">{dealerPlace}</p> : null}

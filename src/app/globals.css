@@ -189,6 +189,15 @@ select:-webkit-autofill {
     min-height: 297mm;
     padding: 14mm;
     box-shadow: none !important;
+  }
+
+  /* The sheet used to be pinned to a single page. Now that it carries the
+     whole record -- description and equipment included -- a long one legitimately
+     runs onto a second sheet, so only the individual blocks are kept whole:
+     a spec box or an equipment line split across the fold is what actually
+     looks broken. */
+  .vehicle-sheet .sheet-block {
+    break-inside: avoid;
     page-break-inside: avoid;
   }
 
