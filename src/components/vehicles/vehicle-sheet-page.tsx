@@ -6,6 +6,7 @@ import { Loader2, Printer } from "lucide-react";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
+import { pickCoverPreviewUrl, resolveVehicleImageRows } from "@/lib/vehicle-photos";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { buildVehicleSheetQr } from "@/lib/vehicle-sheet-qr";
 
@@ -123,7 +124,9 @@ function normalizeEquipment(value: string[] | string | null): string[] {
 export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
   const [vehicle, setVehicle] = useState<SheetVehicle | null>(null);
   const [dealer, setDealer] = useState<SheetDealer | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [showPrice, setShowPrice] = useState(true);
+  const [showPhoto, setShowPhoto] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,7 +166,7 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
         return;
       }
 
-      const [{ data: vehicleRow, error: vehicleError }, { data: dealerRow }] = await Promise.all([
+      const [{ data: vehicleRow, error: vehicleError }, { data: dealerRow }, { data: imageRows }] = await Promise.all([
         supabase
           .from("vehicles")
           .select(SHEET_VEHICLE_COLUMNS)
@@ -177,6 +180,11 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
           .select("name, legal_name, city, province, phone")
           .eq("id", dealerId)
           .maybeSingle<SheetDealer>(),
+        supabase
+          .from("vehicle_images")
+          .select("id, image_url, position, is_cover")
+          .eq("vehicle_id", vehicleId)
+          .order("position", { ascending: true }),
       ]);
 
       if (!alive) return;
@@ -187,8 +195,15 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
         return;
       }
 
+      // Resolved after the vehicle is on screen: a missing or slow photo must
+      // never hold up a sheet the dealer is trying to print.
+      const resolvedImages = await resolveVehicleImageRows(supabase, imageRows);
+
+      if (!alive) return;
+
       setVehicle(vehicleRow);
       setDealer(dealerRow ?? null);
+      setCoverUrl(pickCoverPreviewUrl(resolvedImages));
       setLoading(false);
     };
 
@@ -302,6 +317,23 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
             Mostra prezzo
           </label>
 
+          <label
+            className={`inline-flex items-center gap-2 text-sm font-medium ${coverUrl ? "text-slate-700" : "text-slate-400"}`}
+            // Senza foto caricate la spunta non ha nulla da accendere: resta
+            // visibile ma disattivata, cosi' il concessionario capisce che
+            // manca la foto invece di cercare un'opzione che non c'e'.
+            title={coverUrl ? undefined : "Questo veicolo non ha foto caricate."}
+          >
+            <input
+              type="checkbox"
+              checked={showPhoto && Boolean(coverUrl)}
+              disabled={!coverUrl}
+              onChange={(event) => setShowPhoto(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-400"
+            />
+            Mostra foto
+          </label>
+
           <button
             type="button"
             onClick={() => window.print()}
@@ -329,8 +361,34 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
           ) : null}
         </div>
 
-        {showPrice && priceLabel ? (
-          <p className="sheet-block mt-6 text-[64px] font-black leading-none tracking-tight">{priceLabel}</p>
+        {/* Prezzo e foto condividono la stessa fascia: la foto sta a destra,
+            dentro lo spazio del prezzo, e non spinge in basso i dati tecnici
+            piu' di quanto serva. Le due spunte sono indipendenti, quindi la
+            fascia esiste finche' almeno una delle due ha qualcosa da mostrare. */}
+        {(showPrice && priceLabel) || (showPhoto && coverUrl) ? (
+          <div className="sheet-block mt-6 flex items-start justify-between gap-6">
+            {showPrice && priceLabel ? (
+              <p className="text-[64px] font-black leading-none tracking-tight">{priceLabel}</p>
+            ) : (
+              // Segnaposto a altezza zero: senza prezzo la foto resta a destra
+              // invece di scivolare a sinistra, e non si apre una riga vuota.
+              <span aria-hidden="true" />
+            )}
+
+            {showPhoto && coverUrl ? (
+              // Un <img> vero, non uno sfondo CSS: si stampa senza che il
+              // concessionario debba attivare "Grafica di sfondo". eager
+              // perche' window.print() non aspetta le immagini pigre.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverUrl}
+                alt=""
+                loading="eager"
+                decoding="sync"
+                className="h-[35mm] w-[52mm] flex-none rounded-lg object-cover"
+              />
+            ) : null}
+          </div>
         ) : null}
 
         <dl className="mt-8 grid grid-cols-4 gap-x-5 gap-y-5">

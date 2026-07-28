@@ -206,4 +206,12 @@ select:-webkit-autofill {
   .vehicle-sheet svg path {
     fill: #000 !important;
   }
+
+  /* The vehicle photo is a real <img>, so it prints without the dealer having
+     to switch on "Background graphics" -- this only stops a browser from
+     washing it out on the way to paper. */
+  .vehicle-sheet img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

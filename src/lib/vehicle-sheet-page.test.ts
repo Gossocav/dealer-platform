@@ -78,6 +78,54 @@ describe("printable vehicle sheet", () => {
   });
 });
 
+describe("la foto del veicolo sulla scheda", () => {
+  it("si puo' escludere dalla stampa come il prezzo", () => {
+    // Una foto grande a colori costa toner: chi stampa venti schede deve
+    // poterla togliere senza rinunciare al resto.
+    expect(sheet).toContain("Mostra foto");
+    expect(sheet).toMatch(/showPhoto && coverUrl/);
+  });
+
+  it("spegne la spunta quando il veicolo non ha foto", () => {
+    // Una spunta accesa che non produce nulla si legge come un guasto.
+    expect(sheet).toMatch(/disabled=\{!coverUrl\}/);
+  });
+
+  it("usa un <img>, non uno sfondo CSS", () => {
+    // Gli sfondi CSS spariscono in stampa se il concessionario non attiva
+    // "Grafica di sfondo"; un <img> si stampa e basta.
+    expect(sheet).toMatch(/<img\b/);
+    expect(sheet).not.toMatch(/backgroundImage.*coverUrl/);
+    expect(styles).toMatch(/\.vehicle-sheet img\s*\{[^}]*print-color-adjust:\s*exact/);
+  });
+
+  it("carica la foto subito, non pigramente", () => {
+    // window.print() non aspetta le immagini con loading="lazy": una foto non
+    // ancora scaricata finirebbe come riquadro vuoto sul foglio.
+    const img = sheet.slice(sheet.indexOf("<img"), sheet.indexOf("/>", sheet.indexOf("<img")));
+    expect(img).toContain('loading="eager"');
+  });
+
+  it("tiene la foto dentro uno spazio fisso accanto al prezzo", () => {
+    // Senza dimensioni fisse una foto verticale da telefono occuperebbe mezza
+    // pagina e spingerebbe i dati tecnici sul secondo foglio.
+    const img = sheet.slice(sheet.indexOf("<img"), sheet.indexOf("/>", sheet.indexOf("<img")));
+    expect(img).toMatch(/h-\[\d+mm\]/);
+    expect(img).toMatch(/w-\[\d+mm\]/);
+    expect(img).toContain("object-cover");
+  });
+
+  it("non duplica la risoluzione delle foto gia' scritta per la pagina veicolo", () => {
+    // Il bucket in produzione e' privato per drift, quindi serve createSignedUrl:
+    // due copie di quella soluzione si aggiustano in un posto solo e si rompono
+    // nell'altro.
+    expect(sheet).toContain("resolveVehicleImageRows");
+    expect(detail).toContain("resolveVehicleImageRows");
+    expect(sheet).not.toContain("createSignedUrl");
+    expect(detail).not.toContain("createSignedUrl");
+  });
+});
+
 // The sheet started as a shortlist of twelve specs and silently dropped
 // everything else the dealer had typed in -- description and equipment
 // included. Deriving the expectation from the creation payload means a new
