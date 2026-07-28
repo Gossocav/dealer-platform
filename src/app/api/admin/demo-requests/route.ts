@@ -197,7 +197,10 @@ function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
   };
 }
 
-const FALLBACK_PRODUCTION_APP_URL = "https://dealer-platform-six.vercel.app";
+// Ripiego usato solo se APP_BASE_URL non e' impostata. Deve restare il
+// dominio pubblico reale: qui finiva un vecchio indirizzo Vercel, e ogni link
+// di accesso generato senza quella variabile portava su un sito morto.
+const FALLBACK_PRODUCTION_APP_URL = "https://www.keyauto.it";
 
 function resolveAppBaseUrl() {
   const configured = normalizeText(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || null);
@@ -804,6 +807,12 @@ export async function POST(request: Request) {
       },
     });
 
+    // Una sola email, non due. Prima ne partivano due con lo stesso oggetto
+    // ("Demo KeyAuto attivata"): questa, e la notifica di ciclo di vita
+    // "approved" che ripeteva concessionaria e scadenza senza aggiungere
+    // nulla. Oltre a confondere chi le riceve, raddoppiava il consumo della
+    // quota di invio, che su un dominio in warm-up e' bassa: esaurirla
+    // significa lasciare i concessionari successivi senza il link di accesso.
     await sendPlatformEmail({
       toEmail: targetRequest.email,
       subject: "Demo KeyAuto attivata",
@@ -818,15 +827,9 @@ export async function POST(request: Request) {
             ? `<p style="margin:0 0 12px;"><a href="${passwordSetupLink}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Imposta la password e accedi</a></p>`
             : `<p style="margin:0 0 12px;">Per accedere, vai su <a href="${resolveAppBaseUrl()}/forgot-password">${resolveAppBaseUrl()}/forgot-password</a> e richiedi il recupero password con questo indirizzo email.</p>`
           }
+          <p style="margin:0 0 12px;font-size:13px;color:#475569;">Se il pulsante non funziona, vai su <a href="${resolveAppBaseUrl()}/login">${resolveAppBaseUrl()}/login</a> e usa &ldquo;Password dimenticata&rdquo; con questo indirizzo email.</p>
         </div>
       `.trim(),
-    });
-
-    await sendDemoLifecycleEmail({
-      toEmail: targetRequest.email,
-      kind: "approved",
-      dealerName: targetRequest.dealership_name,
-      expiresAt: expiresAt,
     });
   }
 
