@@ -270,6 +270,12 @@ export default function AdminHomePage() {
               Richieste informazioni
             </Link>
             <Link
+              href="/admin/users"
+              className="inline-flex items-center justify-center rounded-2xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800"
+            >
+              Account
+            </Link>
+            <Link
               href="/"
               className="inline-flex items-center justify-center rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
             >
