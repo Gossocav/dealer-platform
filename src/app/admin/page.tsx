@@ -13,6 +13,8 @@ type AdminStats = {
   vehiclesPublished: number;
   leadsReceived: number;
   usersRegistered: number;
+  demoRequestsToHandle: number;
+  infoRequestsReceived: number;
 };
 
 type AdminOverviewState = {
@@ -29,6 +31,8 @@ const FALLBACK_STATS: AdminStats = {
   vehiclesPublished: 0,
   leadsReceived: 0,
   usersRegistered: 0,
+  demoRequestsToHandle: 0,
+  infoRequestsReceived: 0,
 };
 
 function formatNumber(value: number) {
@@ -51,6 +55,10 @@ export default function AdminHomePage() {
   const cards = useMemo(
     () => [
       {
+        label: "Richieste demo da gestire",
+        value: state.stats.demoRequestsToHandle,
+      },
+      {
         label: "Concessionarie registrate",
         value: state.stats.dealersRegistered,
       },
@@ -69,6 +77,10 @@ export default function AdminHomePage() {
       {
         label: "Lead ricevuti",
         value: state.stats.leadsReceived,
+      },
+      {
+        label: "Richieste informazioni",
+        value: state.stats.infoRequestsReceived,
       },
       {
         label: "Utenti registrati",
@@ -178,6 +190,8 @@ export default function AdminHomePage() {
           vehiclesPublished: toSafeNumber(stats.vehiclesPublished),
           leadsReceived: toSafeNumber(stats.leadsReceived),
           usersRegistered: toSafeNumber(stats.usersRegistered),
+          demoRequestsToHandle: toSafeNumber(stats.demoRequestsToHandle),
+          infoRequestsReceived: toSafeNumber(stats.infoRequestsReceived),
         },
       });
     };
