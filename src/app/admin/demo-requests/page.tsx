@@ -13,7 +13,8 @@ type DemoAdminAction =
   | "revoke_demo"
   | "convert_demo"
   | "view_document"
-  | "download_document";
+  | "download_document"
+  | "access_link";
 
 type DemoRequestRow = {
   id: string;
@@ -235,6 +236,10 @@ export default function AdminDemoRequestsPage() {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null);
   const [selectedPlanByRequest, setSelectedPlanByRequest] = useState<Record<string, DemoPlanCode>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Il link per impostare la password. Tenuto solo in memoria e mai salvato:
+  // chi lo possiede puo' impostare la password di quell'account.
+  const [accessLink, setAccessLink] = useState<{ requestId: string; url: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const requestSequenceRef = useRef(0);
   const callCounterRef = useRef(0);
   const hasLoadedSuccessfullyRef = useRef(false);
@@ -461,6 +466,7 @@ export default function AdminDemoRequestsPage() {
         demoStatus?: string | null;
         demoExpiresAt?: string | null;
         linkedDealerId?: string | null;
+        accessLink?: string | null;
       };
 
       if (!response.ok) {
@@ -487,6 +493,10 @@ export default function AdminDemoRequestsPage() {
         ),
       }));
 
+      if (payload.accessLink) {
+        setAccessLink({ requestId, url: payload.accessLink });
+      }
+
       setSuccessMessage(action === "activate_demo" ? "Richiesta demo accettata con successo." : "Richiesta demo aggiornata con successo.");
     } catch (error) {
       setState((current) => ({
@@ -496,6 +506,83 @@ export default function AdminDemoRequestsPage() {
     } finally {
       setBusyRequestId(null);
     }
+  };
+
+  /**
+   * Rigenera il link per impostare la password. Serve quando l'email non
+   * arriva o il concessionario la perde: senza, l'unica strada e' entrare nel
+   * database.
+   */
+  const regenerateAccessLink = async (requestId: string) => {
+    setBusyRequestId(requestId);
+    setLinkCopied(false);
+    setState((current) => ({ ...current, error: null }));
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setState((current) => ({ ...current, error: "Sessione non valida." }));
+        return;
+      }
+
+      const response = await fetch("/api/admin/demo-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ requestId, action: "access_link" }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; accessLink?: string };
+
+      if (!response.ok || !payload.accessLink) {
+        setState((current) => ({
+          ...current,
+          error: payload.error || "Impossibile generare il link di accesso.",
+        }));
+        return;
+      }
+
+      setAccessLink({ requestId, url: payload.accessLink });
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        error: error instanceof Error ? error.message : "Errore di rete. Riprova.",
+      }));
+    } finally {
+      setBusyRequestId(null);
+    }
+  };
+
+  const copyAccessLink = async () => {
+    if (!accessLink) return;
+
+    try {
+      await navigator.clipboard.writeText(accessLink.url);
+      setLinkCopied(true);
+      return;
+    } catch {
+      // Alcuni browser bloccano la clipboard: si ripiega sulla selezione.
+    }
+
+    const field = document.createElement("textarea");
+    field.value = accessLink.url;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    try {
+      document.execCommand("copy");
+      setLinkCopied(true);
+    } catch {
+      setState((current) => ({ ...current, error: "Copia non riuscita: seleziona il link a mano." }));
+    }
+    document.body.removeChild(field);
   };
 
   const viewDocument = async (event: MouseEvent<HTMLButtonElement>, requestId: string) => {
@@ -774,8 +861,43 @@ export default function AdminDemoRequestsPage() {
                                   </button>
                                 )
                               )}
+
+                              {status === "activated" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void regenerateAccessLink(request.id)}
+                                  disabled={busy}
+                                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Link di accesso
+                                </button>
+                              ) : null}
                             </div>
                           )}
+
+                          {/* Mostrato solo per la richiesta appena lavorata: e'
+                              una credenziale, non un dato da lasciare a video. */}
+                          {accessLink?.requestId === request.id ? (
+                            <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                              <p className="text-xs font-semibold text-blue-900">
+                                Link per impostare la password
+                              </p>
+                              <p className="mt-1 text-[11px] leading-5 text-blue-800">
+                                Mandalo al concessionario se non riceve l&apos;email. Chi lo possiede puo&apos;
+                                impostare la password di quell&apos;account: si usa una volta sola e scade.
+                              </p>
+                              <p className="mt-2 break-all rounded-lg bg-white px-2 py-1 font-mono text-[10px] text-slate-700">
+                                {accessLink.url}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void copyAccessLink()}
+                                className="mt-2 inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                              >
+                                {linkCopied ? "Copiato" : "Copia link"}
+                              </button>
+                            </div>
+                          ) : null}
                         </td>
                       </tr>
                     );
