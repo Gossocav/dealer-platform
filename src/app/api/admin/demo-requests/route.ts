@@ -40,6 +40,7 @@ type DemoRequestRow = {
   province?: string | null;
   brands?: string | null;
   management_software?: string | null;
+  interested_plan_code?: string | null;
   notes?: string | null;
   privacy_accepted?: boolean | null;
   chamber_document_path: string | null;
@@ -177,6 +178,7 @@ function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
     province: normalizeText(raw.province),
     brands: normalizeText(raw.brands),
     management_software: normalizeText(raw.management_software),
+    interested_plan_code: normalizeText(raw.interested_plan_code),
     notes: normalizeText(raw.notes),
     privacy_accepted: typeof raw.privacy_accepted === "boolean" ? raw.privacy_accepted : null,
     chamber_document_path: normalizeText(raw.chamber_document_path),

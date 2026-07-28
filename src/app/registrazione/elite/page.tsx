@@ -120,7 +120,7 @@ export default function RegistrazioneElitePage() {
             L&apos;accesso al piano Elite passa dalla richiesta Demo e dalla successiva attivazione assistita.
           </p>
           <Link
-            href="/demo"
+            href="/demo?piano=elite"
             className="mt-5 inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Richiedi Demo
