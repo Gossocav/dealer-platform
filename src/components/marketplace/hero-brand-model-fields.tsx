@@ -19,13 +19,13 @@ export function HeroBrandModelFields({ brands, brandModelMap, allModels }: HeroB
   return (
     <>
       <label className="block rounded-2xl px-4 py-2.5 transition hover:bg-white/[0.04]">
-        <span className="block text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500">Marca</span>
+        <span className="block text-center text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-left">Marca</span>
         <select
           name="brand"
           value={selectedBrand}
           onChange={(event) => setSelectedBrand(event.target.value)}
           style={{ color: "#f8fafc", colorScheme: "dark" }}
-          className="mt-0.5 w-full appearance-none bg-transparent text-sm font-semibold outline-none"
+          className="mt-0.5 w-full appearance-none bg-transparent text-center text-sm font-semibold outline-none sm:text-left"
         >
           <option value="" style={{ color: "#cbd5e1", backgroundColor: "#0f172a" }}>
             Qualsiasi marca
@@ -39,12 +39,12 @@ export function HeroBrandModelFields({ brands, brandModelMap, allModels }: HeroB
       </label>
 
       <label className="block rounded-2xl px-4 py-2.5 transition hover:bg-white/[0.04]">
-        <span className="block text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500">Modello</span>
+        <span className="block text-center text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-left">Modello</span>
         <select
           name="model"
           defaultValue=""
           style={{ color: "#f8fafc", colorScheme: "dark" }}
-          className="mt-0.5 w-full appearance-none bg-transparent text-sm font-semibold outline-none"
+          className="mt-0.5 w-full appearance-none bg-transparent text-center text-sm font-semibold outline-none sm:text-left"
         >
           <option value="" style={{ color: "#cbd5e1", backgroundColor: "#0f172a" }}>
             Qualsiasi modello
