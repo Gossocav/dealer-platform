@@ -38,9 +38,15 @@ const sidebarItems: SidebarItem[] = [
   { label: "Logout", href: "/login", icon: LogOut },
 ];
 
+// Inserire un veicolo e' il gesto centrale della prova: il resto della
+// piattaforma lo consente gia' alla demo fino a 10 veicoli (DEMO_LIMITS.vehicles
+// lato app, resolve_dealer_listing_cap lato database), e la pagina Veicoli ha
+// sempre avuto il pulsante "Nuovo Veicolo". Tenerlo tra le voci bloccate
+// contraddiceva tutto il resto e faceva sembrare la demo di sola lettura.
 const demoEnabledItems: SidebarItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge },
   { label: "Veicoli", href: "/veicoli", icon: Car },
+  { label: "Inserisci Veicolo", href: "/veicoli/nuovo", icon: PlusSquare },
   { label: "Lead", href: "/lead", icon: Inbox },
   { label: "Marketplace", href: "/auto", icon: Car },
   { label: "Report", href: "/statistiche", icon: BarChart3 },
@@ -49,7 +55,6 @@ const demoEnabledItems: SidebarItem[] = [
 ];
 
 const demoLockedItems: SidebarItem[] = [
-  { label: "Inserisci Veicolo", href: "/veicoli/nuovo", icon: PlusSquare },
   { label: "Clienti", href: "/clienti", icon: Users },
   { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
   { label: "Email", href: "/email", icon: Mail },
