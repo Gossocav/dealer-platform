@@ -197,7 +197,10 @@ function normalizeDemoRequestRow(raw: Record<string, unknown>): DemoRequestRow {
   };
 }
 
-const FALLBACK_PRODUCTION_APP_URL = "https://dealer-platform-six.vercel.app";
+// Ripiego usato solo se APP_BASE_URL non e' impostata. Deve restare il
+// dominio pubblico reale: qui finiva un vecchio indirizzo Vercel, e ogni link
+// di accesso generato senza quella variabile portava su un sito morto.
+const FALLBACK_PRODUCTION_APP_URL = "https://www.keyauto.it";
 
 function resolveAppBaseUrl() {
   const configured = normalizeText(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || null);

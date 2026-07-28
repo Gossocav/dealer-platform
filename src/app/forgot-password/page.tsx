@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-const FALLBACK_PRODUCTION_APP_URL = "https://dealer-platform-six.vercel.app";
+// Ripiego usato solo se la variabile d'ambiente non e' impostata: deve
+// restare il dominio pubblico reale, o il link di recupero porta su un sito
+// che non esiste piu'.
+const FALLBACK_PRODUCTION_APP_URL = "https://www.keyauto.it";
 
 function normalizeBaseUrl(value: string | null | undefined) {
   const trimmed = String(value ?? "").trim().replace(/\/+$/, "");

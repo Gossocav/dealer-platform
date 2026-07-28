@@ -70,3 +70,27 @@ describe("login page stays untouched", () => {
     expect(loginPage).toContain("/forgot-password");
   });
 });
+
+// L'indirizzo pubblico e' cambiato piu' volte (anteprima Vercel, poi
+// keyauto.it). Un vecchio dominio lasciato come ripiego non rompe la build e
+// non fallisce i test: manda semplicemente i concessionari su un sito morto,
+// e lo si scopre solo quando qualcuno non riesce a entrare.
+describe("no stale domain is baked into the code", () => {
+  const FILES = [
+    "src/app/api/admin/demo-requests/route.ts",
+    "src/app/forgot-password/page.tsx",
+  ];
+
+  it.each(FILES)("%s falls back to the real public domain", (path) => {
+    const source = read(path);
+
+    expect(source).toContain('FALLBACK_PRODUCTION_APP_URL = "https://www.keyauto.it"');
+    expect(source).not.toContain("dealer-platform-six.vercel.app");
+  });
+
+  it("prefers the configured environment variable over the fallback", () => {
+    // Il ripiego serve solo se la variabile manca: non deve diventare la
+    // fonte abituale dell'indirizzo.
+    expect(read(FILES[0])).toMatch(/process\.env\.APP_BASE_URL[\s\S]{0,80}FALLBACK_PRODUCTION_APP_URL/);
+  });
+});
