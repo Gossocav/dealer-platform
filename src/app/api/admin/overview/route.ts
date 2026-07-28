@@ -145,7 +145,6 @@ export async function GET(request: Request) {
       dealersApproved,
       vehiclesPublished,
       leadsReceived,
-      profilesCount,
       authUsersCount,
     ] = await Promise.all([
       context.supabaseAdmin.from("dealers").select("id", { count: "exact", head: true }),
@@ -153,7 +152,6 @@ export async function GET(request: Request) {
       context.supabaseAdmin.from("dealers").select("id", { count: "exact", head: true }).eq("status", "approved"),
       context.supabaseAdmin.from("vehicles").select("id", { count: "exact", head: true }).eq("published", true),
       context.supabaseAdmin.from("leads").select("id", { count: "exact", head: true }),
-      context.supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       countAuthUsers(context.supabaseAdmin),
     ]);
 
@@ -162,7 +160,6 @@ export async function GET(request: Request) {
     if (dealersApproved.error) throw new Error(dealersApproved.error.message || "Errore conteggio dealer approvati.");
     if (vehiclesPublished.error) throw new Error(vehiclesPublished.error.message || "Errore conteggio veicoli pubblicati.");
     if (leadsReceived.error) throw new Error(leadsReceived.error.message || "Errore conteggio lead ricevuti.");
-    if (profilesCount.error) throw new Error(profilesCount.error.message || "Errore conteggio profili registrati.");
 
     const stats: OverviewStats = {
       dealersRegistered: extractCount(dealersRegistered.count),
@@ -170,7 +167,11 @@ export async function GET(request: Request) {
       dealersApproved: extractCount(dealersApproved.count),
       vehiclesPublished: extractCount(vehiclesPublished.count),
       leadsReceived: extractCount(leadsReceived.count),
-      usersRegistered: Math.max(extractCount(profilesCount.count), authUsersCount),
+      // Gli account di accesso, non i profili. Prima qui c'era il maggiore
+      // fra i due: con un profilo rimasto senza account il riquadro mostrava
+      // 3 utenti a fronte di 1 solo accesso esistente, e il numero non
+      // scendeva mai cancellando qualcuno.
+      usersRegistered: authUsersCount,
     };
 
     return NextResponse.json({ stats }, { status: 200 });
