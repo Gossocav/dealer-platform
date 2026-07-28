@@ -44,6 +44,7 @@ function formatDate(value: string | null | undefined) {
 async function fetchApprovalList(token: string) {
   const response = await fetch("/api/admin/dealer-approval", {
     method: "GET",
+    cache: "no-store",
     headers: {
       authorization: `Bearer ${token}`,
     },

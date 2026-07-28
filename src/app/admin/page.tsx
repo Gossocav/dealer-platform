@@ -130,6 +130,7 @@ export default function AdminHomePage() {
 
       const response = await fetch("/api/admin/overview", {
         method: "GET",
+        cache: "no-store",
         headers: {
           authorization: `Bearer ${session.access_token}`,
         },
