@@ -2,6 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
+import {
+  DEFAULT_DISTANCE_KM,
+  DISTANCE_OPTIONS,
+  boundingBox,
+  distanceKm,
+  isWithinBox,
+  parseDistanceKm,
+  resolveComunePoint,
+  resolvePlaceQuery,
+} from "@/lib/geo-search";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +34,8 @@ type SearchState = {
   yearTo: string;
   minPrice: string;
   maxPrice: string;
+  near: string;
+  radius: string;
   sort: string;
   page: number;
 };
@@ -51,7 +63,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const params = buildSearchParams(filters);
   const queryString = params.toString();
   const canonicalPath = queryString ? `/ricerca?${queryString}` : "/ricerca";
-  const description = "Ricerca avanzata veicoli: filtra per marca, modello, prezzo, alimentazione, cambio e anno.";
+  const description = "Ricerca avanzata veicoli: filtra per distanza da una città o CAP, marca, modello, prezzo, alimentazione, cambio e anno.";
   const canonical = toAbsoluteUrl(canonicalPath);
 
   return {
@@ -117,6 +129,48 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const maxPrice = parseNullableNumber(filters.maxPrice);
   if (minPrice !== null) query = query.gte("price", minPrice);
   if (maxPrice !== null) query = query.lte("price", maxPrice);
+
+  // Ricerca per distanza. Il punto di partenza e' quello che il visitatore
+  // scrive in "Citta' o CAP"; l'auto sta dove sta la concessionaria, quindi si
+  // misura dalla citta' dell'account, non da quella scritta sul singolo
+  // veicolo.
+  //
+  // Il filtro resta dentro la query (per dealer_id) e non dopo: scremare le
+  // righe a valle falserebbe sia il conteggio totale sia le pagine.
+  const requestedDistance = parseDistanceKm(filters.radius);
+  const nearPlace = filters.near.trim() ? resolvePlaceQuery(filters.near) : null;
+  const nearNotFound = Boolean(filters.near.trim()) && nearPlace === null;
+  const appliedDistance = nearPlace ? (requestedDistance ?? DEFAULT_DISTANCE_KM) : null;
+  let dealersInRange: number | null = null;
+
+  if (nearPlace && appliedDistance) {
+    const { data: dealerRows } = await publicSupabase
+      .from("dealers")
+      .select("id, city, province")
+      .in("status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
+
+    const box = boundingBox(nearPlace, appliedDistance);
+    const ids: string[] = [];
+
+    for (const row of dealerRows ?? []) {
+      const point = resolveComunePoint(row.province, row.city);
+      // Una concessionaria senza citta' riconoscibile non viene collocata a
+      // caso: resta fuori dalle ricerche per distanza finche' non sistema
+      // il dato.
+      if (!point) continue;
+      // Prima il riquadro, che scarta in fretta i lontani; poi la distanza
+      // esatta, perche' gli angoli del riquadro cadono fuori dal cerchio.
+      if (!isWithinBox(point, box)) continue;
+      if (distanceKm(nearPlace, point) > appliedDistance) continue;
+      ids.push(row.id);
+    }
+
+    dealersInRange = ids.length;
+    // Con la lista vuota `in` genererebbe una condizione non valida: l'UUID
+    // nullo e' un valore legittimo che non corrisponde a nulla, e tiene un
+    // solo percorso di codice.
+    query = query.in("dealer_id", ids.length > 0 ? ids : ["00000000-0000-0000-0000-000000000000"]);
+  }
 
   switch (filters.sort) {
     case "price_asc":
@@ -209,7 +263,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             Trova il veicolo giusto in pochi secondi.
           </h1>
           <p className="relative mt-4 max-w-3xl text-base leading-7 text-slate-400 sm:text-lg">
-            Filtra il marketplace per provincia, alimentazione, cambio, anno e fascia prezzo.
+            Filtra il marketplace per distanza da una città, marca, alimentazione, cambio, anno e fascia prezzo.
           </p>
         </section>
 
@@ -228,6 +282,14 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Anno a" name="yearTo" defaultValue={filters.yearTo} options={yearOptions} />
             <SearchField label="Prezzo minimo" name="minPrice" defaultValue={filters.minPrice} placeholder="Es. 10000" inputMode="numeric" />
             <SearchField label="Prezzo massimo" name="maxPrice" defaultValue={filters.maxPrice} placeholder="Es. 30000" inputMode="numeric" />
+            <SearchField label="Città o CAP" name="near" defaultValue={filters.near} placeholder="Es. Milano oppure 20121" />
+            <SearchSelect
+              label="Distanza"
+              name="radius"
+              defaultValue={filters.radius}
+              options={["Qualsiasi distanza", ...DISTANCE_OPTIONS.map((km) => `Entro ${km} km`)]}
+              values={["", ...DISTANCE_OPTIONS.map((km) => String(km))]}
+            />
             <SearchSelect label="Ordinamento" name="sort" defaultValue={filters.sort} options={SORT_OPTIONS.map((option) => option.label)} values={SORT_OPTIONS.map((option) => option.value)} />
             <div className="flex items-end gap-3">
               <button
@@ -248,6 +310,11 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <div>
               <p className="text-sm font-semibold text-slate-500">Risultati</p>
               <h2 className="mt-2 text-2xl font-bold text-white">{formatVehicleResultsText(totalCount)}</h2>
+              {nearPlace && appliedDistance ? (
+                <p className="mt-1 text-sm text-slate-400">
+                  Entro {appliedDistance} km da {nearPlace.name} ({nearPlace.province}).
+                </p>
+              ) : null}
             </div>
             <Link
               href="/auto"
@@ -256,6 +323,22 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
               Vai al catalogo
             </Link>
           </div>
+
+          {/* Un luogo non riconosciuto non viene ignorato in silenzio: senza
+              avviso il visitatore crederebbe di stare guardando i risultati
+              vicino a casa mentre li sta guardando di tutta Italia. */}
+          {nearNotFound ? (
+            <p className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+              Non abbiamo riconosciuto «{filters.near.trim()}» come città o CAP: il filtro per distanza non è stato
+              applicato. Prova con il nome del comune o con il CAP di cinque cifre.
+            </p>
+          ) : null}
+
+          {dealersInRange === 0 ? (
+            <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
+              Nessuna concessionaria entro {appliedDistance} km da {nearPlace?.name}. Prova ad allargare la distanza.
+            </p>
+          ) : null}
 
           {results.length === 0 ? (
             <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] px-6 py-10 text-center text-slate-400">
@@ -376,6 +459,8 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     yearTo: asValue(searchParams.yearTo),
     minPrice: asValue(searchParams.minPrice),
     maxPrice: asValue(searchParams.maxPrice),
+    near: asValue(searchParams.near),
+    radius: asValue(searchParams.radius),
     sort,
     page: parsePage(searchParams.page),
   };
@@ -397,6 +482,8 @@ function buildSearchParams(filters: SearchState) {
     ["yearTo", filters.yearTo],
     ["minPrice", filters.minPrice],
     ["maxPrice", filters.maxPrice],
+    ["near", filters.near],
+    ["radius", filters.radius],
   ];
 
   for (const [key, value] of entries) {
