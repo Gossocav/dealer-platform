@@ -600,6 +600,11 @@ export async function POST(request: Request) {
         phone: targetRequest.phone,
         whatsapp_phone: targetRequest.mobile_phone,
         city: targetRequest.city,
+        // La provincia e' obbligatoria nel modulo di richiesta demo e finora
+        // veniva raccolta e poi buttata via qui. Serve a collocare la
+        // concessionaria sulla mappa per la ricerca per distanza, e a
+        // distinguere i comuni omonimi.
+        province: targetRequest.province,
         status: existingDealer.data?.status ?? "approved",
         account_type: "demo",
         demo_status: "provisioning",
