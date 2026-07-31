@@ -97,6 +97,23 @@ describe("interpretazione di citta' o CAP", () => {
     expect(distanceKm(peglioPu!, peglioCo!)).toBeGreaterThan(200);
   });
 
+  it("accetta i nomi come li scrive la gente, non come sono all'anagrafe", () => {
+    // I comuni si chiamano "Reggio nell'Emilia" e "Reggio di Calabria": nessuno
+    // li scrive cosi', e pretenderlo faceva comparire "non riconosciuto" a chi
+    // cercava casa propria.
+    expect(resolvePlaceQuery("reggio emilia")?.province).toBe("RE");
+    expect(resolvePlaceQuery("Reggio Emilia")?.province).toBe("RE");
+    expect(resolvePlaceQuery("reggio calabria")?.province).toBe("RC");
+    expect(resolvePlaceQuery("bagnolo piano")?.name).toBe("Bagnolo in Piano");
+  });
+
+  it("non sceglie al posto di chi scrive troppo poco", () => {
+    // "Reggio" da solo puo' essere Emilia o Calabria, 900 km di differenza:
+    // meglio dire che non si e' capito.
+    expect(resolvePlaceQuery("reggio")).toBeNull();
+    expect(resolvePlaceQuery("san giovanni")).toBeNull();
+  });
+
   it("restituisce null su un testo che non e' un luogo", () => {
     // Meglio dirlo al visitatore che applicare un filtro a caso.
     expect(resolvePlaceQuery("asdfgh")).toBeNull();

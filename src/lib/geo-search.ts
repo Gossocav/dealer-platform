@@ -24,7 +24,31 @@ function normalizeName(value: string) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
-type IndexEntry = ResolvedPlace & { isProvinceCapital: boolean };
+// Parole di servizio nei nomi ufficiali dei comuni. Nessuno scrive "Reggio
+// nell'Emilia" o "Reggio di Calabria": si scrive "Reggio Emilia" e "Reggio
+// Calabria". Ignorarle nel confronto fa combaciare le due forme.
+const FILLER_TOKENS = new Set([
+  "di", "del", "dello", "della", "dei", "degli", "delle",
+  "in", "nel", "nell", "nella", "nei", "negli", "nelle",
+  "su", "sul", "sullo", "sulla", "sui", "sugli", "sulle",
+  "a", "al", "allo", "alla", "ai", "agli", "alle",
+  "con", "e", "d", "l", "la", "il", "lo", "i", "gli", "le", "presso",
+]);
+
+function tokenize(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 0);
+}
+
+function significantTokens(value: string) {
+  return tokenize(value).filter((token) => !FILLER_TOKENS.has(token));
+}
+
+type IndexEntry = ResolvedPlace & { isProvinceCapital: boolean; tokens: Set<string> };
 
 let nameIndex: Map<string, IndexEntry[]> | null = null;
 let pointIndex: Map<string, GeoPoint> | null = null;
@@ -50,6 +74,7 @@ function buildIndexes() {
         // Serve a sciogliere le omonimie: "Peglio" esiste in due province, ma
         // chi scrive "Firenze" intende il capoluogo, non una frazione omonima.
         isProvinceCapital: provinceNames.get(province) === key,
+        tokens: new Set(tokenize(name)),
       };
 
       const list = byName.get(key);
@@ -120,8 +145,9 @@ export function resolvePlaceQuery(input: string | null | undefined): ResolvedPla
   const provinceHint = raw.match(/[(,]\s*([A-Za-z]{2})\s*\)?\s*$/)?.[1]?.toUpperCase() ?? null;
   const key = normalizeName(raw.replace(/[(,]\s*[A-Za-z]{2}\s*\)?\s*$/, ""));
 
-  const candidates = byName.get(key);
-  if (!candidates || candidates.length === 0) return null;
+  const cityText = raw.replace(/[(,]\s*[A-Za-z]{2}\s*\)?\s*$/, "");
+  const candidates = byName.get(key) ?? matchByTokens(cityText, provinceHint);
+  if (candidates.length === 0) return null;
 
   if (provinceHint) {
     const exact = candidates.find((candidate) => candidate.province === provinceHint);
@@ -130,6 +156,49 @@ export function resolvePlaceQuery(input: string | null | undefined): ResolvedPla
 
   const chosen = candidates.find((candidate) => candidate.isProvinceCapital) ?? candidates[0];
   return { name: chosen.name, province: chosen.province, lat: chosen.lat, lng: chosen.lng };
+}
+
+/**
+ * Ripiego quando il nome scritto non combacia parola per parola con quello
+ * ufficiale. I comuni si chiamano "Reggio nell'Emilia" e "Reggio di Calabria",
+ * ma nessuno li scrive cosi': confrontare le parole significative invece della
+ * stringa intera fa combaciare le due forme.
+ *
+ * Restano richieste tutte le parole scritte, quindi "reggio" da solo non
+ * sceglie fra Emilia e Calabria. Se piu' comuni risultano ugualmente
+ * plausibili si preferisce non rispondere: il messaggio "non riconosciuto" e'
+ * meglio di risultati presi dall'altra parte d'Italia.
+ */
+function matchByTokens(cityText: string, provinceHint: string | null): IndexEntry[] {
+  const wanted = significantTokens(cityText);
+  if (wanted.length === 0) return [];
+
+  const { nameIndex: byName } = buildIndexes();
+  const scored: Array<{ entry: IndexEntry; extra: number }> = [];
+
+  for (const entries of byName.values()) {
+    for (const entry of entries) {
+      if (provinceHint && entry.province !== provinceHint) continue;
+      if (!wanted.every((token) => entry.tokens.has(token))) continue;
+
+      const extra = [...entry.tokens].filter((token) => !FILLER_TOKENS.has(token) && !wanted.includes(token)).length;
+      scored.push({ entry, extra });
+    }
+  }
+
+  if (scored.length === 0) return [];
+
+  scored.sort((a, b) => {
+    if (a.entry.isProvinceCapital !== b.entry.isProvinceCapital) return a.entry.isProvinceCapital ? -1 : 1;
+    if (a.extra !== b.extra) return a.extra - b.extra;
+    return a.entry.name.localeCompare(b.entry.name, "it");
+  });
+
+  const [best, runnerUp] = scored;
+  const tied =
+    runnerUp && runnerUp.entry.isProvinceCapital === best.entry.isProvinceCapital && runnerUp.extra === best.extra;
+
+  return tied ? [] : [best.entry];
 }
 
 /** Distanza in linea d'aria fra due punti, in chilometri. */
