@@ -115,8 +115,29 @@ describe("coordinate della concessionaria", () => {
     // Una concessionaria con la citta' scritta a mano sparisce dalla ricerca
     // per distanza: e' voluto, meglio assente che collocata altrove.
     expect(resolveComunePoint("MI", "Milanoo")).toBeNull();
-    expect(resolveComunePoint("", "Milano")).toBeNull();
     expect(resolveComunePoint("MI", "")).toBeNull();
+    expect(resolveComunePoint(null, "")).toBeNull();
+  });
+
+  it("funziona anche senza provincia, se il nome e' unico", () => {
+    // L'attivazione demo non copiava la provincia: le concessionarie create
+    // prima hanno solo la citta'. Pretenderla le avrebbe fatte sparire in
+    // silenzio da ogni ricerca per distanza -- e' successo davvero, con
+    // l'unica concessionaria in produzione.
+    const senzaProvincia = resolveComunePoint(null, "Bagnolo in Piano");
+    expect(senzaProvincia).not.toBeNull();
+
+    const conProvincia = resolveComunePoint("RE", "Bagnolo in Piano");
+    expect(senzaProvincia).toEqual(conProvincia);
+
+    expect(resolveComunePoint("", "Milano")).not.toBeNull();
+  });
+
+  it("resta senza punto se il nome e' ambiguo e manca la provincia", () => {
+    // "Peglio" esiste in due province a 200 km di distanza: tirare a indovinare
+    // metterebbe la concessionaria dall'altra parte d'Italia.
+    expect(resolveComunePoint(null, "Peglio")).toBeNull();
+    expect(resolveComunePoint("PU", "Peglio")).not.toBeNull();
   });
 });
 

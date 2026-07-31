@@ -65,13 +65,33 @@ function buildIndexes() {
   return { nameIndex: byName, pointIndex: byPoint };
 }
 
-/** Coordinate di un comune noti provincia e nome. `null` se non risulta. */
+/**
+ * Coordinate di un comune a partire da come sono salvate sull'account della
+ * concessionaria. `null` quando il punto non e' determinabile.
+ *
+ * La provincia serve a distinguere i comuni omonimi, non e' obbligatoria: le
+ * concessionarie piu' vecchie hanno solo la citta' (l'attivazione demo non
+ * copiava la provincia), e pretenderla le avrebbe fatte sparire in silenzio da
+ * ogni ricerca per distanza. Senza provincia un nome unico si risolve lo
+ * stesso; se invece e' ambiguo si preferisce restare senza punto piuttosto che
+ * collocare una concessionaria a centinaia di chilometri da dove sta.
+ */
 export function resolveComunePoint(province: string | null | undefined, city: string | null | undefined): GeoPoint | null {
   const normalizedProvince = String(province ?? "").trim().toUpperCase();
   const normalizedCity = normalizeName(String(city ?? ""));
-  if (!normalizedProvince || !normalizedCity) return null;
+  if (!normalizedCity) return null;
 
-  return buildIndexes().pointIndex.get(`${normalizedProvince}|${normalizedCity}`) ?? null;
+  const { pointIndex: byPoint, nameIndex: byName } = buildIndexes();
+
+  if (normalizedProvince) {
+    const exact = byPoint.get(`${normalizedProvince}|${normalizedCity}`);
+    if (exact) return exact;
+  }
+
+  const candidates = byName.get(normalizedCity);
+  if (!candidates || candidates.length !== 1) return null;
+
+  return { lat: candidates[0].lat, lng: candidates[0].lng };
 }
 
 /**

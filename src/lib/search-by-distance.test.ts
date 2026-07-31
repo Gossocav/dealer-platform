@@ -103,3 +103,25 @@ describe("ricerca per distanza nella pagina", () => {
     expect(block).toContain('["radius", filters.radius]');
   });
 });
+
+// L'attivazione demo raccoglieva la provincia nel modulo pubblico e poi la
+// buttava via: in produzione l'unica concessionaria aveva city valorizzata e
+// province null, e restava fuori da ogni ricerca per distanza senza dare
+// segnali. Trovato solo interrogando il sito pubblicato.
+describe("la provincia arriva fino alla concessionaria", () => {
+  const activation = read("src/app/api/admin/demo-requests/route.ts");
+
+  it("viene copiata sull'account insieme alla citta'", () => {
+    const payload = activation.slice(
+      activation.indexOf("city: targetRequest.city"),
+      activation.indexOf("account_type: \"demo\""),
+    );
+    expect(payload).toContain("province: targetRequest.province");
+  });
+
+  it("resta obbligatoria nel modulo di richiesta", () => {
+    // Se smettesse di essere richiesta, i comuni omonimi tornerebbero
+    // indistinguibili.
+    expect(read("src/app/demo/page.tsx")).toContain("Provincia *");
+  });
+});
