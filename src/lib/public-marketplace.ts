@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { formatRegistrationLabel } from "@/lib/vehicles";
 import { cache } from "react";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -339,6 +340,16 @@ export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | 
   );
 }
 
+/**
+ * L'immatricolazione come va letta da un italiano: 02/07/2026, non
+ * 2026-07-02. La data arriva dal database nel formato ISO, e finiva sulle
+ * card e sull'annuncio esattamente cosi' com'era.
+ *
+ * Usa la stessa funzione del pannello, quindi la data che il concessionario
+ * vede nella sua scheda e quella che vede il cliente sull'annuncio sono
+ * scritte allo stesso modo -- compreso il ripiego sull'anno per i veicoli
+ * importati, che spesso portano solo quello.
+ */
 export function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
   const source = vehicle as Record<string, unknown>;
   const candidates = [
@@ -352,11 +363,11 @@ export function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
   for (const value of candidates) {
     const normalized = String(value ?? "").trim();
     if (normalized.length > 0) {
-      return normalized;
+      return formatRegistrationLabel({ registration_date: normalized }) ?? normalized;
     }
   }
 
-  return "—";
+  return formatRegistrationLabel({ year: source.year as string | number | null | undefined }) ?? "—";
 }
 
 export function getAppBaseUrl() {
