@@ -24,6 +24,7 @@ import {
   type MarketplaceDealer,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { DISTANCE_OPTIONS } from "@/lib/search-distance";
 import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { formatRegistrationLabel } from "@/lib/vehicles";
@@ -232,7 +233,10 @@ export default async function MarketplaceHomePage() {
             method="GET"
             className="mt-2 w-full max-w-3xl rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-2.5 shadow-[0_30px_80px_-30px_rgba(76,130,247,0.45)] backdrop-blur"
           >
-            <div className="grid gap-1 sm:grid-cols-[1.1fr_1fr_1fr_auto]">
+            {/* Due righe da tre invece di una fila sola: con cinque campi e il
+                pulsante affiancati ognuno restava largo un centinaio di pixel,
+                e "Citta' o CAP" ha bisogno di spazio per essere scritto. */}
+            <div className="grid gap-1 sm:grid-cols-3">
               <HeroBrandModelFields brands={brands} brandModelMap={brandModelMap} allModels={allModels} />
               <HeroField
                 label="Prezzo max"
@@ -240,6 +244,14 @@ export default async function MarketplaceHomePage() {
                 placeholder="Nessun limite"
                 options={PRICE_BANDS.map((band) => band.label)}
                 values={PRICE_BANDS.map((band) => band.value)}
+              />
+              <HeroTextField label="Città o CAP" name="near" placeholder="Es. Reggio Emilia" />
+              <HeroField
+                label="Distanza"
+                name="radius"
+                placeholder="Qualsiasi distanza"
+                options={DISTANCE_OPTIONS.map((km) => `Entro ${km} km`)}
+                values={DISTANCE_OPTIONS.map((km) => String(km))}
               />
               <button
                 type="submit"
@@ -618,6 +630,27 @@ function PartnerDealerCard({ group }: { group: DealerCluster }) {
         <span className="font-semibold text-cyan-300">{group.vehicles.length}</span> veicoli disponibili
       </p>
     </Link>
+  );
+}
+
+// Gemello di HeroField per un campo scrivibile. Stessi colori inline e stesso
+// allineamento centrato da mobile: le due varianti stanno affiancate nella
+// stessa griglia e devono sembrare la stessa cosa.
+function HeroTextField({ label, name, placeholder }: { label: string; name: string; placeholder: string }) {
+  return (
+    <label className="block rounded-2xl px-4 py-2.5 transition hover:bg-white/[0.04]">
+      <span className="block text-center text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-left">
+        {label}
+      </span>
+      <input
+        type="text"
+        name={name}
+        placeholder={placeholder}
+        suppressHydrationWarning
+        style={{ color: "#f8fafc" }}
+        className="mt-0.5 w-full appearance-none bg-transparent text-center text-sm font-semibold outline-none placeholder:font-normal placeholder:text-slate-500 sm:text-left"
+      />
+    </label>
   );
 }
 
