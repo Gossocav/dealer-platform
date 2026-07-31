@@ -7,7 +7,7 @@ import { ITALIAN_PROVINCES } from "@/lib/italian-locations";
 // Rimangono esportate da qui per chi le usa insieme al resto della ricerca
 // geografica; la definizione sta in un modulo leggero perche' la barra in home
 // possa disegnare la tendina senza caricare il dataset dei comuni.
-export { DEFAULT_DISTANCE_KM, DISTANCE_OPTIONS, parseDistanceKm } from "@/lib/search-distance";
+export { DISTANCE_OPTIONS, parseDistanceKm } from "@/lib/search-distance";
 
 export type GeoPoint = { lat: number; lng: number };
 export type ResolvedPlace = GeoPoint & { name: string; province: string };

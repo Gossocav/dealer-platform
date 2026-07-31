@@ -90,6 +90,19 @@ describe("ricerca per distanza nella pagina", () => {
     expect(searchPage).toContain("distanceKm(nearPlace, point) > appliedDistance");
   });
 
+  it("non applica nessun raggio se il visitatore non lo sceglie", () => {
+    // Restringere la ricerca a un raggio deciso al posto suo fa sparire
+    // risultati che non ha chiesto di escludere, e sembra un difetto.
+    expect(searchPage).not.toContain("DEFAULT_DISTANCE_KM");
+    expect(searchPage).toContain("const appliedDistance = parseDistanceKm(filters.radius);");
+  });
+
+  it("spiega perché una città senza distanza non filtra", () => {
+    // Altrimenti sembra che il campo sia stato ignorato.
+    expect(searchPage).toContain("distanceMissing");
+    expect(searchPage).toMatch(/nessuna distanza/);
+  });
+
   it("avvisa quando il luogo scritto non viene riconosciuto", () => {
     // Ignorarlo in silenzio farebbe credere di guardare i risultati vicino a
     // casa mentre si guardano quelli di tutta Italia.

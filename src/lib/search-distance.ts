@@ -5,10 +5,6 @@
 
 export const DISTANCE_OPTIONS = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500] as const;
 
-// Quando si indica un luogo senza scegliere la distanza. 50 km e' il raggio
-// entro cui in Italia si va davvero a vedere un'auto di persona.
-export const DEFAULT_DISTANCE_KM = 50;
-
 export function parseDistanceKm(value: string | null | undefined): number | null {
   const parsed = Number(String(value ?? "").trim());
   if (!Number.isFinite(parsed)) return null;

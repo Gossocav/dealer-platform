@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DISTANCE_KM,
   DISTANCE_OPTIONS,
   boundingBox,
   distanceKm,
@@ -162,7 +161,6 @@ describe("scelta della distanza", () => {
   it("va da 10 a 500 km", () => {
     expect(DISTANCE_OPTIONS[0]).toBe(10);
     expect(DISTANCE_OPTIONS[DISTANCE_OPTIONS.length - 1]).toBe(500);
-    expect(DISTANCE_OPTIONS.includes(DEFAULT_DISTANCE_KM as never)).toBe(true);
   });
 
   it("accetta solo i valori del menu", () => {
