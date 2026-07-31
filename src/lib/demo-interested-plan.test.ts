@@ -13,9 +13,9 @@ const adminApi = read("src/app/api/admin/demo-requests/route.ts");
 const adminPage = read("src/app/admin/demo-requests/page.tsx");
 
 const PLAN_PAGES = [
-  ["base", "src/app/registrazione/base/page.tsx"],
-  ["pro", "src/app/registrazione/pro/page.tsx"],
-  ["elite", "src/app/registrazione/elite/page.tsx"],
+  ["base", "src/app/(marketplace)/registrazione/base/page.tsx"],
+  ["pro", "src/app/(marketplace)/registrazione/pro/page.tsx"],
+  ["elite", "src/app/(marketplace)/registrazione/elite/page.tsx"],
 ] as const;
 
 describe("interested plan migration", () => {
@@ -73,7 +73,7 @@ describe("plan pages carry the choice into the form", () => {
   it("leaves the generic entry page without a plan", () => {
     // Chi arriva da li' sta ancora scegliendo: precompilare sarebbe una
     // risposta messa in bocca.
-    expect(read("src/app/registrazione/page.tsx")).toContain('href="/demo"');
+    expect(read("src/app/(marketplace)/registrazione/page.tsx")).toContain('href="/demo"');
   });
 });
 

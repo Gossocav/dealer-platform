@@ -30,9 +30,9 @@ const copyFiles = [
   "src/app/abbonamento/page.tsx",
   "src/app/abbonamento/base/page.tsx",
   "src/app/abbonamento/pro/page.tsx",
-  "src/app/registrazione/base/page.tsx",
-  "src/app/registrazione/pro/page.tsx",
-  "src/app/registrazione/elite/page.tsx",
+  "src/app/(marketplace)/registrazione/base/page.tsx",
+  "src/app/(marketplace)/registrazione/pro/page.tsx",
+  "src/app/(marketplace)/registrazione/elite/page.tsx",
 ];
 
 function readCopy(path: string) {
@@ -75,9 +75,9 @@ describe("per-plan vehicle listing limits", () => {
   });
 
   it("states the matching cap on every plan page", () => {
-    expect(readCopy("src/app/registrazione/base/page.tsx")).toContain("Fino a 50 annunci");
-    expect(readCopy("src/app/registrazione/pro/page.tsx")).toContain("Fino a 150 annunci");
-    expect(readCopy("src/app/registrazione/elite/page.tsx")).toContain("Fino a 300 annunci");
+    expect(readCopy("src/app/(marketplace)/registrazione/base/page.tsx")).toContain("Fino a 50 annunci");
+    expect(readCopy("src/app/(marketplace)/registrazione/pro/page.tsx")).toContain("Fino a 150 annunci");
+    expect(readCopy("src/app/(marketplace)/registrazione/elite/page.tsx")).toContain("Fino a 300 annunci");
     expect(readCopy("src/app/abbonamento/base/page.tsx")).toContain("Fino a 50 annunci");
     expect(readCopy("src/app/abbonamento/pro/page.tsx")).toContain("Fino a 150 annunci");
     expect(readCopy("src/lib/demo-plan-catalog.ts")).toContain("Fino a 300 annunci");
