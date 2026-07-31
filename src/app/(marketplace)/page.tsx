@@ -90,7 +90,7 @@ export default async function MarketplaceHomePage() {
     // system — a "partner" with zero live inventory isn't a real partner yet.
     publicSupabase
       .from("vehicles")
-      .select("dealer_id, body_type, dealers!inner(status, name, legal_name, city)")
+      .select("dealer_id, body_type, brand, dealers!inner(status, name, legal_name, city)")
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
       .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
@@ -153,8 +153,6 @@ export default async function MarketplaceHomePage() {
       vehicles.filter((vehicle) => formatText(vehicle.brand) === brand).map((vehicle) => vehicle.model)
     );
   }
-  const fuels = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
-  const transmissions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
   const eliteShowcase = await resolveEliteShowcaseVehicle();
@@ -190,11 +188,23 @@ export default async function MarketplaceHomePage() {
     };
   });
 
-  const quickChips = [
-    ...fuels.slice(0, 3).map((fuel) => ({ label: fuel, href: `/ricerca?fuel=${encodeURIComponent(fuel)}` })),
-    { label: "Sotto 15.000 €", href: "/ricerca?maxPrice=15000" },
-    ...transmissions.slice(0, 1).map((transmission) => ({ label: transmission, href: `/ricerca?transmission=${encodeURIComponent(transmission)}` })),
-  ];
+  // "Ricerche popolari" sono le marche, ordinate per quante auto hanno
+  // davvero in catalogo: e' l'unico elenco qui dentro in cui "popolare"
+  // significa qualcosa di misurato invece che deciso a tavolino.
+  //
+  // Il conteggio arriva da publishedRows, che copre tutto il pubblicato: i 24
+  // veicoli caricati per le "ultime arrivate" avrebbero dato una classifica
+  // delle marche appena inserite, non delle piu' presenti.
+  const brandCounts = new Map<string, number>();
+  for (const row of publishedRows ?? []) {
+    const brand = String((row as { brand?: string | null }).brand ?? "").trim();
+    if (brand) brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
+  }
+
+  const quickChips = [...brandCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "it"))
+    .slice(0, 8)
+    .map(([brand]) => ({ label: brand, href: `/ricerca?brand=${encodeURIComponent(brand)}` }));
 
   return (
     <main className="bg-slate-950">
