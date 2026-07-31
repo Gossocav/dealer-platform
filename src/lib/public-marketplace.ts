@@ -175,6 +175,29 @@ export function resolveDealerLogo(dealer: MarketplaceDealer | MarketplaceDealer[
   return firstDealer?.logo_url?.trim() || null;
 }
 
+/**
+ * Dove si trova l'auto: sempre la sede della concessionaria.
+ *
+ * I veicoli hanno colonne city/province proprie, compilate a mano una per
+ * auto, e non erano tenute in accordo con la sede: in produzione l'unico
+ * veicolo pubblicato dichiarava Bard (AO) mentre la concessionaria sta a
+ * Bagnolo in Piano (RE), 350 km piu' a sud. Chi cercava per distanza trovava
+ * l'auto vicino a Reggio e poi leggeva Valle d'Aosta nell'annuncio.
+ *
+ * La ricerca per distanza misura dalla sede, quindi la sede e' anche l'unica
+ * risposta che non contraddice i risultati.
+ */
+export function resolveDealerLocality(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
+  const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
+  if (!firstDealer) return null;
+
+  const city = String(firstDealer.city ?? "").trim();
+  if (!city) return null;
+
+  const province = String(firstDealer.province ?? "").trim();
+  return province ? `${city} (${province})` : city;
+}
+
 export function resolveDealerAddress(dealer: MarketplaceDealer | MarketplaceDealer[] | null | undefined) {
   const firstDealer = Array.isArray(dealer) ? dealer[0] : dealer;
   if (!firstDealer) {

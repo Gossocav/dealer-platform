@@ -53,7 +53,10 @@ describe('"Esplora per categoria" in home', () => {
     const block = homePage.slice(homePage.indexOf("const publishedBodyTypeCounts"), homePage.indexOf("const quickChips"));
     expect(block).toContain("publishedRows");
     expect(block).not.toContain("vehicles.filter");
-    expect(homePage).toContain('.select("dealer_id, body_type, dealers!inner(status, name, legal_name)")');
+    // Non fissa la stringa intera: quella select serve a piu' conteggi e ci si
+    // aggiungono colonne. Conta che la carrozzeria arrivi da li'.
+    const select = homePage.match(/\.select\("dealer_id[^"]*"\)/)?.[0] ?? "";
+    expect(select).toContain("body_type");
   });
 
   it("non scrive \"0 disponibili\" su una categoria vuota", () => {

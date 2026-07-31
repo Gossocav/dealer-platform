@@ -38,8 +38,10 @@ export type VehicleRow = {
   price: string | number | null;
   status: string | null;
   published: boolean | null;
-  city: string | null;
-  province: string | null;
+  // Colonne ancora in tabella ma non piu' compilate: la posizione di un
+  // veicolo e' quella della concessionaria.
+  city?: string | null;
+  province?: string | null;
   description: string | null;
   created_at: string | null;
   updated_at: string | null;

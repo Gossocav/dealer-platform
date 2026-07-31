@@ -194,9 +194,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   ].join("\n");
   const dealerWhatsAppLink = buildWhatsAppLink(dealerWhatsAppPhone, whatsappMessage);
   const whatsappUnavailableMessage = "Numero WhatsApp non disponibile.";
-  const dealershipLocality = [formatText(dealerCity), formatText(vehicle.city), formatText(vehicle.province)]
-    .filter((value) => value !== "-")
-    .join(" • ");
+  // Solo la sede della concessionaria: la citta' scritta sul veicolo la
+  // contraddiceva e non e' quella su cui la ricerca misura le distanze.
+  const dealershipLocality = formatText(dealerCity) !== "-" ? formatText(dealerCity) : "";
   const shareUrl = origin ? `${origin}/auto/${vehicle.id}` : `/auto/${vehicle.id}`;
   const shareTitle = resolveVehicleLabel(vehicle);
   const shareText = [

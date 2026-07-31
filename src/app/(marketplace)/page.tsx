@@ -14,6 +14,7 @@ import {
   formatText,
   logMarketplaceQueryError,
   normalizeVehicleDealerName,
+  resolveDealerLocality,
   publicSupabase,
   resolveDealerSlug,
   resolveVehicleImageUrl,
@@ -66,7 +67,7 @@ export default async function MarketplaceHomePage() {
     publicSupabase
       .from("vehicles")
       .select(
-        "id, brand, model, version, registration_date, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)"
+        "id, brand, model, version, registration_date, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)"
       )
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -88,13 +89,25 @@ export default async function MarketplaceHomePage() {
     // system — a "partner" with zero live inventory isn't a real partner yet.
     publicSupabase
       .from("vehicles")
-      .select("dealer_id, body_type, dealers!inner(status, name, legal_name)")
+      .select("dealer_id, body_type, dealers!inner(status, name, legal_name, city)")
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
       .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
   ]);
 
   const totalDealerCount = new Set((publishedRows ?? []).map((row) => row.dealer_id)).size;
+
+  // "Citta' coperte" sono quelle dove c'e' una concessionaria, non quelle
+  // scritte sui singoli veicoli: la copertura del marketplace la danno le sedi.
+  const coveredCities = new Set(
+    (publishedRows ?? [])
+      .map((row) => {
+        const dealer = row.dealers as unknown as { city?: string | null } | Array<{ city?: string | null }> | null;
+        const first = Array.isArray(dealer) ? dealer[0] : dealer;
+        return String(first?.city ?? "").trim();
+      })
+      .filter((city) => city.length > 0),
+  ).size;
 
   // Le stesse righe che contano le concessionarie danno anche i nomi da far
   // scorrere: una Map su dealer_id perche' ogni concessionaria compare una
@@ -141,7 +154,6 @@ export default async function MarketplaceHomePage() {
   }
   const fuels = uniqueValues(vehicles.map((vehicle) => vehicle.fuel));
   const transmissions = uniqueValues(vehicles.map((vehicle) => vehicle.transmission));
-  const cities = uniqueValues(vehicles.map((vehicle) => vehicle.city));
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
   const eliteShowcase = await resolveEliteShowcaseVehicle();
@@ -254,7 +266,7 @@ export default async function MarketplaceHomePage() {
         <RevealOnScroll className="mx-auto grid max-w-5xl grid-cols-2 gap-x-6 gap-y-10 text-center sm:grid-cols-4">
           <Stat value={totalVehicleCount ?? vehicles.length} label="Veicoli pubblicati" />
           <Stat value={totalDealerCount} label="Concessionarie partner" />
-          <Stat value={cities.length} suffix="+" label="Città coperte" />
+          <Stat value={coveredCities} suffix="+" label="Città coperte" />
           <Stat value={brands.length} suffix="+" label="Marche disponibili" />
         </RevealOnScroll>
       </section>
@@ -408,7 +420,7 @@ async function buildVehicleCard(vehicle: MarketplaceVehicle) {
     title: resolveVehicleLabel(vehicle),
     dealerName: normalizeVehicleDealerName(vehicle.dealers),
     dealerSlug: resolveDealerSlug(vehicle.dealers),
-    city: formatText(vehicle.city),
+    city: formatText(resolveDealerLocality(vehicle.dealers)),
     year: formatText(vehicle.year),
     mileage: formatMileage(vehicle.mileage),
     fuel: formatText(vehicle.fuel),
@@ -447,7 +459,7 @@ async function resolveEliteShowcaseVehicle(): Promise<MarketplaceVehicle | null>
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, registration_date, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, registration_date, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)"
     )
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -486,7 +498,7 @@ async function buildShowcaseVehicle(
   return {
     id: vehicle.id,
     title: resolveVehicleLabel(vehicle),
-    subtitle: [formatText(vehicle.city), normalizeVehicleDealerName(vehicle.dealers)].join(" · "),
+    subtitle: [formatText(resolveDealerLocality(vehicle.dealers)), normalizeVehicleDealerName(vehicle.dealers)].join(" · "),
     priceLabel: formatPrice(vehicle.price),
     imageUrl,
     isElite,
@@ -501,7 +513,7 @@ async function buildShowcaseVehicle(
       { key: "dealer", label: "Concessionaria", value: normalizeVehicleDealerName(vehicle.dealers), icon: "shield" },
       { key: "mileage", label: "Percorrenza", value: formatMileage(vehicle.mileage), icon: "gauge" },
       { key: "transmission", label: "Cambio", value: formatText(vehicle.transmission), icon: "gearbox" },
-      { key: "city", label: "Città", value: formatText(vehicle.city), icon: "check" },
+      { key: "city", label: "Città", value: formatText(resolveDealerLocality(vehicle.dealers)), icon: "check" },
     ],
   };
 }

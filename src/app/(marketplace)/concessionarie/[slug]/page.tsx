@@ -78,7 +78,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
     .eq("dealer_id", matchedDealer.id)
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
