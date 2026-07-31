@@ -4,11 +4,10 @@ import { ITALIAN_PROVINCES } from "@/lib/italian-locations";
 // Solo lato server: importa il dataset dei comuni, che pesa parecchio.
 // Un "use client" che risalga fino a qui lo spedirebbe a ogni visitatore.
 
-export const DISTANCE_OPTIONS = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500] as const;
-
-// Quando si indica un luogo senza scegliere la distanza. 50 km e' il raggio
-// entro cui in Italia si va davvero a vedere un'auto di persona.
-export const DEFAULT_DISTANCE_KM = 50;
+// Rimangono esportate da qui per chi le usa insieme al resto della ricerca
+// geografica; la definizione sta in un modulo leggero perche' la barra in home
+// possa disegnare la tendina senza caricare il dataset dei comuni.
+export { DEFAULT_DISTANCE_KM, DISTANCE_OPTIONS, parseDistanceKm } from "@/lib/search-distance";
 
 export type GeoPoint = { lat: number; lng: number };
 export type ResolvedPlace = GeoPoint & { name: string; province: string };
@@ -239,8 +238,3 @@ export function isWithinBox(point: GeoPoint, box: BoundingBox) {
   return point.lat >= box.minLat && point.lat <= box.maxLat && point.lng >= box.minLng && point.lng <= box.maxLng;
 }
 
-export function parseDistanceKm(value: string | null | undefined): number | null {
-  const parsed = Number(String(value ?? "").trim());
-  if (!Number.isFinite(parsed)) return null;
-  return DISTANCE_OPTIONS.includes(parsed as (typeof DISTANCE_OPTIONS)[number]) ? parsed : null;
-}
