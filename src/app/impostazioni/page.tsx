@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { supabase } from "@/lib/supabaseClient";
 
 type DealerProfile = {
@@ -378,10 +379,33 @@ export default function ImpostazioniPage() {
 
               <div className="grid gap-4 sm:grid-cols-4">
                 <Field label="Indirizzo" value={form.address} onChange={(value) => setForm((s) => ({ ...s, address: value }))} />
-                <Field label="Città" value={form.city} onChange={(value) => setForm((s) => ({ ...s, city: value }))} />
-                <Field label="Provincia" value={form.province} onChange={(value) => setForm((s) => ({ ...s, province: value }))} />
+                <ProvinceSelect
+                  value={form.province}
+                  onChange={(value) =>
+                    setForm((s) => ({
+                      ...s,
+                      province: value,
+                      // Cambiare provincia lascerebbe una citta' che non le
+                      // appartiene: la coppia sbagliata non e' collocabile
+                      // sulla mappa.
+                      city: ((ITALIAN_CITIES_BY_PROVINCE[value as ItalianProvinceCode] ?? []) as readonly string[]).includes(s.city)
+                        ? s.city
+                        : "",
+                    }))
+                  }
+                />
+                <CitySelect
+                  province={form.province}
+                  value={form.city}
+                  onChange={(value) => setForm((s) => ({ ...s, city: value }))}
+                />
                 <Field label="CAP" value={form.zip_code} onChange={(value) => setForm((s) => ({ ...s, zip_code: value }))} />
               </div>
+              <p className="mt-4 text-sm text-slate-600">
+                Provincia e città si scelgono dagli elenchi: è da qui che il marketplace calcola la distanza fra la tua
+                concessionaria e chi cerca un&apos;auto vicino a sé. Se restano vuote, i tuoi veicoli non compaiono nelle
+                ricerche per distanza.
+              </p>
 
               <TextArea label="Descrizione" rows={4} value={form.description} onChange={(value) => setForm((s) => ({ ...s, description: value }))} />
               <TextArea
@@ -475,6 +499,73 @@ function Field({
         required={required}
         className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
       />
+    </label>
+  );
+}
+
+// Provincia e citta' erano due caselle di testo libero. Bastava scrivere
+// "milano" al posto di "Milano" per uscire da tutte le ricerche per distanza
+// del marketplace, senza errori e senza avvisi: la posizione sulla mappa si
+// ricava dal nome del comune, che deve corrispondere esattamente. Qui si
+// scelgono dalle stesse tendine della registrazione.
+const SELECT_CLASS =
+  "mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100";
+
+function ProvinceSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const isKnown = ITALIAN_PROVINCES.some((province) => province.code === value);
+
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-slate-700">Provincia</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={SELECT_CLASS}
+      >
+        <option value="">Seleziona provincia</option>
+        {/* Un valore salvato in passato che non e' una sigla valida resta
+            selezionabile invece di sparire: cancellarlo di nascosto sarebbe
+            peggio che mostrarlo e lasciarlo correggere. */}
+        {!isKnown && value ? <option value={value}>{value} (da correggere)</option> : null}
+        {ITALIAN_PROVINCES.map((province) => (
+          <option key={province.code} value={province.code}>
+            {province.name} ({province.code})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CitySelect({
+  province,
+  value,
+  onChange,
+}: {
+  province: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const cities = (ITALIAN_CITIES_BY_PROVINCE[province as ItalianProvinceCode] ?? []) as readonly string[];
+  const isKnown = cities.includes(value);
+
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-slate-700">Città</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={!province}
+        className={`${SELECT_CLASS} disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        <option value="">{province ? "Seleziona città" : "Seleziona prima la provincia"}</option>
+        {!isKnown && value ? <option value={value}>{value} (da correggere)</option> : null}
+        {cities.map((city) => (
+          <option key={city} value={city}>
+            {city}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
