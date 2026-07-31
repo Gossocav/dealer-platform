@@ -73,3 +73,44 @@ describe("la registrazione fa ancora le stesse cose", () => {
     expect(form).toContain("Invia richiesta");
   });
 });
+
+// La demo e' la pagina verso cui la registrazione manda: lasciarla chiara
+// avrebbe fatto passare da scuro a chiaro in un clic, sul pulsante piu'
+// importante della pagina precedente.
+describe("richiesta demo dentro il marketplace", () => {
+  const demo = read("src/app/(marketplace)/demo/page.tsx");
+
+  it("sta nel gruppo che porta intestazione e piede di pagina", () => {
+    expect(existsSync(resolve(process.cwd(), "src/app/(marketplace)/demo/page.tsx"))).toBe(true);
+    expect(existsSync(resolve(process.cwd(), "src/app/demo"))).toBe(false);
+  });
+
+  it("non lascia in giro il tema chiaro", () => {
+    for (const stale of ["text-slate-900", "bg-slate-50 ", "border-slate-200", "text-slate-700", "bg-cyan-50"]) {
+      expect(demo, `la demo usa ancora "${stale}"`).not.toContain(stale);
+    }
+  });
+
+  it("da' il colore in linea a ogni campo del modulo", () => {
+    // Sono quattordici fra caselle, tendine e area di testo: se anche una sola
+    // restasse scoperta, li' dentro si scriverebbe nero su nero.
+    // La definizione non conta: si scrive "getFieldClassName = (", senza
+    // parentesi attaccata al nome.
+    const helperUses = (demo.match(/getFieldClassName\(/g) ?? []).length;
+    const styled = (demo.match(/style=\{fieldTextStyle\}/g) ?? []).length;
+    expect(styled).toBe(helperUses);
+    expect(styled).toBeGreaterThanOrEqual(14);
+  });
+
+  it("chiede al sistema di disegnare in scuro tendine e calendario", () => {
+    // Senza questo la lista delle province e il selettore data si aprono
+    // bianchi sopra una pagina scura.
+    expect(demo).toMatch(/colorScheme: "dark"/);
+  });
+
+  it("conserva i tre passaggi, il caricamento visura e il consenso", () => {
+    for (const piece of ["nextStep", "previousStep", "handleFileChange", "handleDrop", "privacyAccepted", "chamberDocument"]) {
+      expect(demo, `manca ${piece}`).toContain(piece);
+    }
+  });
+});

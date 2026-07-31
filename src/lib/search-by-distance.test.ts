@@ -135,6 +135,6 @@ describe("la provincia arriva fino alla concessionaria", () => {
   it("resta obbligatoria nel modulo di richiesta", () => {
     // Se smettesse di essere richiesta, i comuni omonimi tornerebbero
     // indistinguibili.
-    expect(read("src/app/demo/page.tsx")).toContain("Provincia *");
+    expect(read("src/app/(marketplace)/demo/page.tsx")).toContain("Provincia *");
   });
 });

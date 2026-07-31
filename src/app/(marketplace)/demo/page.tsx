@@ -194,11 +194,21 @@ function DemoRequestPage() {
     return ITALIAN_CITIES_BY_PROVINCE[values.province] ?? [];
   }, [values.province]);
 
+  // Il colore del testo digitato va imposto in linea: globals.css ha una
+  // regola NON incapsulata `input, select, textarea { color: rgb(15 23 42) }`
+  // per i moduli chiari del pannello, e una regola non incapsulata batte le
+  // utility di Tailwind a prescindere dalla specificita'. Con la sola classe
+  // il testo resterebbe nero su fondo scuro, cioe' invisibile.
+  //
+  // colorScheme: "dark" fa disegnare al sistema operativo la tendina aperta e
+  // il calendario in scuro, altrimenti si aprirebbero bianchi.
+  const fieldTextStyle = { color: "#f8fafc", colorScheme: "dark" } as const;
+
   const getFieldClassName = (hasError: boolean) =>
-    `w-full rounded-2xl border px-4 py-3 text-sm text-slate-900 outline-none ${
+    `w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${
       hasError
-        ? "border-red-500 bg-red-50 focus:border-red-500 focus:bg-white focus:ring-4 focus:ring-red-100"
-        : "border-slate-200 bg-slate-50 focus:border-cyan-500 focus:bg-white focus:ring-4 focus:ring-cyan-100"
+        ? "border-red-400/60 bg-red-500/10 focus:border-red-400 focus:ring-4 focus:ring-red-500/20"
+        : "border-white/10 bg-white/[0.04] focus:border-blue-400/50 focus:bg-white/[0.07] focus:ring-4 focus:ring-blue-500/20"
     }`;
 
   const focusRequiredField = (field: RequiredFieldKey) => {
@@ -509,17 +519,22 @@ function DemoRequestPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(8,145,178,0.18),_transparent_42%),linear-gradient(180deg,_#f8fafc_0%,_#ffffff_48%,_#fefce8_100%)] px-4 py-10 sm:px-6 lg:px-8">
-      <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-[36px] border border-slate-200 bg-white shadow-[0_45px_120px_-48px_rgba(15,23,42,0.35)]">
-        <div className="border-b border-slate-200 bg-[linear-gradient(120deg,_#f8fafc_0%,_#eef2ff_45%,_#ecfeff_100%)] px-6 py-8 sm:px-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-700">KeyAuto</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Richiedi la tua Demo gratuita di 7 giorni</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+    <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)]">
+        <div className="relative overflow-hidden border-b border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-6 py-8 sm:px-10">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-40 blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(76,130,247,0.5), transparent 70%)" }}
+          />
+          <p className="relative text-xs font-semibold uppercase tracking-[0.32em] text-cyan-300">KeyAuto</p>
+          <h1 className="relative mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Richiedi la tua Demo gratuita di 7 giorni</h1>
+          <p className="relative mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             Compila il modulo in meno di un minuto. Il nostro team verifichera la richiesta e ti contattera per attivare l&apos;accesso Demo.
           </p>
         </div>
 
-        <div className="border-b border-slate-200 bg-slate-50 px-6 py-5 sm:px-10">
+        <div className="border-b border-white/10 bg-white/[0.02] px-6 py-5 sm:px-10">
           <ol className="grid gap-3 sm:grid-cols-3" aria-label="Avanzamento richiesta demo">
             {([1, 2, 3] as StepKey[]).map((step) => {
               const isActive = currentStep === step;
@@ -530,16 +545,16 @@ function DemoRequestPage() {
                   key={step}
                   className={`rounded-2xl border px-4 py-3 transition ${
                     isActive
-                      ? "border-cyan-600 bg-cyan-50"
+                      ? "border-cyan-300/50 bg-cyan-400/10"
                       : isCompleted
-                        ? "border-emerald-300 bg-emerald-50"
-                        : "border-slate-200 bg-white"
+                        ? "border-emerald-300/40 bg-emerald-400/10"
+                        : "border-white/10 bg-white/[0.03]"
                   }`}
                 >
-                  <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${isActive ? "text-cyan-700" : isCompleted ? "text-emerald-700" : "text-slate-500"}`}>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${isActive ? "text-cyan-300" : isCompleted ? "text-emerald-300" : "text-slate-500"}`}>
                     Step {step}
                   </p>
-                  <p className={`mt-1 text-sm font-semibold ${isActive ? "text-cyan-900" : "text-slate-800"}`}>{STEP_LABELS[step]}</p>
+                  <p className={`mt-1 text-sm font-semibold ${isActive ? "text-white" : "text-slate-300"}`}>{STEP_LABELS[step]}</p>
                 </li>
               );
             })}
@@ -548,15 +563,15 @@ function DemoRequestPage() {
 
         {isSubmitted ? (
           <div className="space-y-6 px-6 py-10 sm:px-10">
-            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-900">
+            <div className="rounded-3xl border border-emerald-300/30 bg-emerald-400/10 px-5 py-4 text-emerald-200">
               <p className="text-sm font-semibold">Richiesta Demo inviata</p>
               <p className="mt-1 text-sm">Abbiamo ricevuto la tua richiesta. Il nostro team ti contattera per l&apos;attivazione della Demo.</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/" className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+              <Link href="/" className="inline-flex items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-400/10 px-6 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white">
                 Torna alla home
               </Link>
-              <Link href="/auto" className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+              <Link href="/auto" className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white">
                 Vai al catalogo
               </Link>
             </div>
@@ -577,21 +592,21 @@ function DemoRequestPage() {
               <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="companyName" className="mb-2 block text-sm font-medium text-slate-700">Ragione sociale concessionaria *</label>
-                    <input ref={companyNameRef} id="companyName" value={values.companyName} onChange={handleChange("companyName")} className={getFieldClassName(Boolean(errors.companyName))} required />
+                    <label htmlFor="companyName" className="mb-2 block text-sm font-medium text-slate-300">Ragione sociale concessionaria *</label>
+                    <input ref={companyNameRef} id="companyName" value={values.companyName} onChange={handleChange("companyName")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.companyName))} required />
                     {errors.companyName ? <p className="mt-1 text-xs font-medium text-red-600">{errors.companyName}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="vatNumber" className="mb-2 block text-sm font-medium text-slate-700">Partita IVA *</label>
-                    <input ref={vatNumberRef} id="vatNumber" inputMode="numeric" value={values.vatNumber} onChange={handleChange("vatNumber")} className={getFieldClassName(Boolean(errors.vatNumber))} placeholder="11 cifre" required />
+                    <label htmlFor="vatNumber" className="mb-2 block text-sm font-medium text-slate-300">Partita IVA *</label>
+                    <input ref={vatNumberRef} id="vatNumber" inputMode="numeric" value={values.vatNumber} onChange={handleChange("vatNumber")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.vatNumber))} placeholder="11 cifre" required />
                     {errors.vatNumber ? <p className="mt-1 text-xs font-medium text-red-600">{errors.vatNumber}</p> : null}
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="province" className="mb-2 block text-sm font-medium text-slate-700">Provincia *</label>
-                    <select ref={provinceRef} id="province" value={values.province} onChange={handleChange("province")} className={getFieldClassName(Boolean(errors.province))} required>
+                    <label htmlFor="province" className="mb-2 block text-sm font-medium text-slate-300">Provincia *</label>
+                    <select ref={provinceRef} id="province" value={values.province} onChange={handleChange("province")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.province))} required>
                       <option value="">Seleziona provincia</option>
                       {ITALIAN_PROVINCES.map((province) => (
                         <option key={province.code} value={province.code}>{province.name} ({province.code})</option>
@@ -600,13 +615,14 @@ function DemoRequestPage() {
                     {errors.province ? <p className="mt-1 text-xs font-medium text-red-600">{errors.province}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="city" className="mb-2 block text-sm font-medium text-slate-700">Citta *</label>
+                    <label htmlFor="city" className="mb-2 block text-sm font-medium text-slate-300">Citta *</label>
                     <select
                       ref={cityRef}
                       id="city"
                       value={values.city}
                       onChange={handleChange("city")}
                       disabled={!values.province}
+                      style={fieldTextStyle}
                       className={`${getFieldClassName(Boolean(errors.city))} disabled:cursor-not-allowed disabled:opacity-60`}
                       required
                     >
@@ -620,8 +636,8 @@ function DemoRequestPage() {
                 </div>
 
                 <div>
-                  <p className="mb-2 block text-sm font-medium text-slate-700">Visura camerale *</p>
-                  <p className="mb-3 text-xs text-slate-500">Carica una visura camerale aggiornata in PDF o immagine.</p>
+                  <p className="mb-2 block text-sm font-medium text-slate-300">Visura camerale *</p>
+                  <p className="mb-3 text-xs text-slate-400">Carica una visura camerale aggiornata in PDF o immagine.</p>
 
                   <input
                     ref={fileInputRef}
@@ -640,30 +656,30 @@ function DemoRequestPage() {
                     onDrop={handleDrop}
                     className={`rounded-2xl border-2 border-dashed p-4 transition ${
                       errors.chamberDocument
-                        ? "border-red-500 bg-red-50"
+                        ? "border-red-400/60 bg-red-500/10"
                         : isDropActive
-                          ? "border-cyan-500 bg-cyan-50"
-                          : "border-slate-300 bg-slate-50"
+                          ? "border-cyan-300/60 bg-cyan-400/10"
+                          : "border-white/15 bg-white/[0.03]"
                     }`}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-sm text-slate-700">
+                      <div className="text-sm text-slate-300">
                         Trascina qui il file oppure selezionalo manualmente.
                       </div>
                       <button
                         ref={chamberDocumentTriggerRef}
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.12] hover:text-white"
                       >
                         Seleziona file
                       </button>
                     </div>
 
                     {chamberDocument ? (
-                      <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                        <p className="text-sm font-medium text-slate-800">{chamberDocument.name}</p>
-                        <p className="text-xs text-slate-500">{formatFileSize(chamberDocument.size)}</p>
+                      <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <p className="text-sm font-medium text-slate-200">{chamberDocument.name}</p>
+                        <p className="text-xs text-slate-400">{formatFileSize(chamberDocument.size)}</p>
                         <button
                           type="button"
                           onClick={() => setDocument(null)}
@@ -683,31 +699,31 @@ function DemoRequestPage() {
               <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="firstName" className="mb-2 block text-sm font-medium text-slate-700">Nome referente *</label>
-                    <input ref={firstNameRef} id="firstName" value={values.firstName} onChange={handleChange("firstName")} className={getFieldClassName(Boolean(errors.firstName))} required />
+                    <label htmlFor="firstName" className="mb-2 block text-sm font-medium text-slate-300">Nome referente *</label>
+                    <input ref={firstNameRef} id="firstName" value={values.firstName} onChange={handleChange("firstName")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.firstName))} required />
                     {errors.firstName ? <p className="mt-1 text-xs font-medium text-red-600">{errors.firstName}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="lastName" className="mb-2 block text-sm font-medium text-slate-700">Cognome referente *</label>
-                    <input ref={lastNameRef} id="lastName" value={values.lastName} onChange={handleChange("lastName")} className={getFieldClassName(Boolean(errors.lastName))} required />
+                    <label htmlFor="lastName" className="mb-2 block text-sm font-medium text-slate-300">Cognome referente *</label>
+                    <input ref={lastNameRef} id="lastName" value={values.lastName} onChange={handleChange("lastName")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.lastName))} required />
                     {errors.lastName ? <p className="mt-1 text-xs font-medium text-red-600">{errors.lastName}</p> : null}
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email *</label>
-                    <input ref={emailRef} id="email" type="email" value={values.email} onChange={handleChange("email")} className={getFieldClassName(Boolean(errors.email))} placeholder="nome@concessionaria.it" required />
+                    <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-300">Email *</label>
+                    <input ref={emailRef} id="email" type="email" value={values.email} onChange={handleChange("email")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.email))} placeholder="nome@concessionaria.it" required />
                     {errors.email ? <p className="mt-1 text-xs font-medium text-red-600">{errors.email}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">Telefono fisso *</label>
-                    <input ref={phoneRef} id="phone" type="tel" value={values.phone} onChange={handleChange("phone")} className={getFieldClassName(Boolean(errors.phone))} placeholder="+39 ..." required />
+                    <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-300">Telefono fisso *</label>
+                    <input ref={phoneRef} id="phone" type="tel" value={values.phone} onChange={handleChange("phone")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.phone))} placeholder="+39 ..." required />
                     {errors.phone ? <p className="mt-1 text-xs font-medium text-red-600">{errors.phone}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="mobilePhone" className="mb-2 block text-sm font-medium text-slate-700">Cellulare *</label>
-                    <input ref={mobilePhoneRef} id="mobilePhone" type="tel" value={values.mobilePhone} onChange={handleChange("mobilePhone")} className={getFieldClassName(Boolean(errors.mobilePhone))} placeholder="+39 ..." required />
+                    <label htmlFor="mobilePhone" className="mb-2 block text-sm font-medium text-slate-300">Cellulare *</label>
+                    <input ref={mobilePhoneRef} id="mobilePhone" type="tel" value={values.mobilePhone} onChange={handleChange("mobilePhone")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.mobilePhone))} placeholder="+39 ..." required />
                     {errors.mobilePhone ? <p className="mt-1 text-xs font-medium text-red-600">{errors.mobilePhone}</p> : null}
                   </div>
                 </div>
@@ -718,8 +734,8 @@ function DemoRequestPage() {
               <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="vehicleCount" className="mb-2 block text-sm font-medium text-slate-700">Numero indicativo di veicoli *</label>
-                    <select ref={vehicleCountRef} id="vehicleCount" value={values.vehicleCount} onChange={handleChange("vehicleCount")} className={getFieldClassName(Boolean(errors.vehicleCount))} required>
+                    <label htmlFor="vehicleCount" className="mb-2 block text-sm font-medium text-slate-300">Numero indicativo di veicoli *</label>
+                    <select ref={vehicleCountRef} id="vehicleCount" value={values.vehicleCount} onChange={handleChange("vehicleCount")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.vehicleCount))} required>
                       <option value="">Seleziona una fascia</option>
                       {VEHICLE_COUNT_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -728,15 +744,15 @@ function DemoRequestPage() {
                     {errors.vehicleCount ? <p className="mt-1 text-xs font-medium text-red-600">{errors.vehicleCount}</p> : null}
                   </div>
                   <div>
-                    <label htmlFor="brands" className="mb-2 block text-sm font-medium text-slate-700">Marchi trattati *</label>
-                    <input ref={brandsRef} id="brands" value={values.brands} onChange={handleChange("brands")} className={getFieldClassName(Boolean(errors.brands))} placeholder="Es. Audi, BMW, Mercedes" required />
+                    <label htmlFor="brands" className="mb-2 block text-sm font-medium text-slate-300">Marchi trattati *</label>
+                    <input ref={brandsRef} id="brands" value={values.brands} onChange={handleChange("brands")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.brands))} placeholder="Es. Audi, BMW, Mercedes" required />
                     {errors.brands ? <p className="mt-1 text-xs font-medium text-red-600">{errors.brands}</p> : null}
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="managementSoftware" className="mb-2 block text-sm font-medium text-slate-700">Gestionale utilizzato *</label>
-                  <input ref={managementSoftwareRef} id="managementSoftware" value={values.managementSoftware} onChange={handleChange("managementSoftware")} className={getFieldClassName(Boolean(errors.managementSoftware))} placeholder="Nome software o gestione manuale" required />
+                  <label htmlFor="managementSoftware" className="mb-2 block text-sm font-medium text-slate-300">Gestionale utilizzato *</label>
+                  <input ref={managementSoftwareRef} id="managementSoftware" value={values.managementSoftware} onChange={handleChange("managementSoftware")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.managementSoftware))} placeholder="Nome software o gestione manuale" required />
                   {errors.managementSoftware ? <p className="mt-1 text-xs font-medium text-red-600">{errors.managementSoftware}</p> : null}
                 </div>
 
@@ -744,37 +760,37 @@ function DemoRequestPage() {
                     impegno, e chi arriva dalla pagina Demo generica non ha
                     nessun piano da indicare. */}
                 <div>
-                  <label htmlFor="interestedPlanCode" className="mb-2 block text-sm font-medium text-slate-700">
+                  <label htmlFor="interestedPlanCode" className="mb-2 block text-sm font-medium text-slate-300">
                     Piano di interesse
                   </label>
                   <select
                     id="interestedPlanCode"
                     value={values.interestedPlanCode}
                     onChange={handleChange("interestedPlanCode")}
-                    className={getFieldClassName(false)}
+                    style={fieldTextStyle} className={getFieldClassName(false)}
                   >
                     <option value="">Non ho ancora deciso</option>
                     <option value="base">Piano Base</option>
                     <option value="pro">Piano Pro</option>
                     <option value="elite">Piano Elite</option>
                   </select>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-400">
                     Ci aiuta a prepararti la demo giusta. Non e vincolante e potrai cambiarlo.
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-700">Note ed esigenze specifiche *</label>
-                  <textarea ref={notesRef} id="notes" rows={4} value={values.notes} onChange={handleChange("notes")} className={getFieldClassName(Boolean(errors.notes))} placeholder="Informazioni utili per il contatto" required />
+                  <label htmlFor="notes" className="mb-2 block text-sm font-medium text-slate-300">Note ed esigenze specifiche *</label>
+                  <textarea ref={notesRef} id="notes" rows={4} value={values.notes} onChange={handleChange("notes")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.notes))} placeholder="Informazioni utili per il contatto" required />
                   {errors.notes ? <p className="mt-1 text-xs font-medium text-red-600">{errors.notes}</p> : null}
                 </div>
 
-                <div className={`space-y-3 rounded-2xl border p-4 ${errors.privacyAccepted ? "border-red-500 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
-                  <label className="flex items-start gap-3 text-sm text-slate-700">
-                    <input ref={privacyAcceptedRef} type="checkbox" checked={values.privacyAccepted} onChange={handleCheckboxChange("privacyAccepted")} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" required />
+                <div className={`space-y-3 rounded-2xl border p-4 ${errors.privacyAccepted ? "border-red-400/60 bg-red-500/10" : "border-white/10 bg-white/[0.03]"}`}>
+                  <label className="flex items-start gap-3 text-sm text-slate-300">
+                    <input ref={privacyAcceptedRef} type="checkbox" checked={values.privacyAccepted} onChange={handleCheckboxChange("privacyAccepted")} className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/10 text-cyan-400 focus:ring-cyan-500/40" required />
                     <span>
                       Dichiaro di aver letto l&apos;
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-cyan-700 underline">informativa privacy</a>
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-cyan-300 underline">informativa privacy</a>
                       {" "}e acconsento al trattamento dei dati per essere ricontattato in merito alla Demo. *
                     </span>
                   </label>
@@ -784,23 +800,23 @@ function DemoRequestPage() {
             ) : null}
 
             {serverMessage ? (
-              <div className={`rounded-2xl border px-4 py-3 text-sm font-medium ${isSubmitted ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-800"}`}>
+              <div className={`rounded-2xl border px-4 py-3 text-sm font-medium ${isSubmitted ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : "border-red-400/30 bg-red-500/10 text-red-200"}`}>
                 {serverMessage}
               </div>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
-              <button type="button" onClick={previousStep} disabled={currentStep === 1 || isSubmitting} className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+              <button type="button" onClick={previousStep} disabled={currentStep === 1 || isSubmitting} className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-60">
                 Indietro
               </button>
 
               <div className="flex flex-wrap gap-3">
                 {currentStep < 3 ? (
-                  <button type="button" onClick={nextStep} className="inline-flex items-center justify-center rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-200">
+                  <button type="button" onClick={nextStep} className="inline-flex items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-400/10 px-6 py-3 text-sm font-bold text-cyan-200 shadow-[0_12px_30px_-12px_rgba(55,224,232,0.55)] transition hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white focus:outline-none focus:ring-4 focus:ring-cyan-500/20">
                     Avanti
                   </button>
                 ) : (
-                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
+                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-400/10 px-6 py-3 text-sm font-bold text-cyan-200 shadow-[0_12px_30px_-12px_rgba(55,224,232,0.55)] transition hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white focus:outline-none focus:ring-4 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60">
                     {isSubmitting ? "Invio in corso..." : "Invia richiesta Demo"}
                   </button>
                 )}
@@ -817,7 +833,7 @@ function DemoRequestPage() {
 // login: senza, la pagina non puo' essere renderizzata sul server.
 export default function DemoPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-slate-50" />}>
+    <Suspense fallback={<main className="min-h-screen bg-slate-950" />}>
       <DemoRequestPage />
     </Suspense>
   );

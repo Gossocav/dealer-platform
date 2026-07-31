@@ -7,7 +7,7 @@ function read(path: string) {
 }
 
 const migration = read("supabase/migrations/20260728010000_demo_requests_interested_plan.sql");
-const form = read("src/app/demo/page.tsx");
+const form = read("src/app/(marketplace)/demo/page.tsx");
 const publicApi = read("src/app/api/demo/request/route.ts");
 const adminApi = read("src/app/api/admin/demo-requests/route.ts");
 const adminPage = read("src/app/admin/demo-requests/page.tsx");
