@@ -124,6 +124,7 @@ export default function EmailPage() {
   const [messageSummaries, setMessageSummaries] = useState<EmailMessage[]>([]);
   const [leadOptions, setLeadOptions] = useState<PickerOption[]>([]);
   const [customerOptions, setCustomerOptions] = useState<PickerOption[]>([]);
+  const hasRecipientOptions = leadOptions.length > 0 || customerOptions.length > 0;
   const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -640,31 +641,38 @@ export default function EmailPage() {
                   <p className="mb-4 text-sm font-semibold text-slate-500">Nuovo messaggio</p>
 
                   <label className="mb-1 block text-xs font-medium text-slate-600">Destinatario</label>
-                  <select
-                    value={recipientPickerId}
-                    onChange={(event) => setRecipientPickerId(event.target.value)}
-                    className="mb-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                  >
-                    <option value="">Inserisci email manualmente</option>
-                    {leadOptions.length > 0 ? (
-                      <optgroup label="Lead">
-                        {leadOptions.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {customerOptions.length > 0 ? (
-                      <optgroup label="Clienti">
-                        {customerOptions.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                  </select>
+                  {/* La tendina compare solo se c'e' davvero qualcosa da
+                      scegliere. Senza lead ne' clienti restava una voce sola,
+                      "Inserisci email manualmente", cioe' un menu che chiede di
+                      scegliere fra una possibilita': un passaggio in piu' prima
+                      di poter scrivere l'indirizzo. */}
+                  {hasRecipientOptions ? (
+                    <select
+                      value={recipientPickerId}
+                      onChange={(event) => setRecipientPickerId(event.target.value)}
+                      className="mb-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    >
+                      <option value="">Inserisci email manualmente</option>
+                      {leadOptions.length > 0 ? (
+                        <optgroup label="Lead">
+                          {leadOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {customerOptions.length > 0 ? (
+                        <optgroup label="Clienti">
+                          {customerOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                    </select>
+                  ) : null}
 
                   {!recipientPickerId ? (
                     <input
