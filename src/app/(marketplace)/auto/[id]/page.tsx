@@ -20,6 +20,7 @@ import {
   resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
+  resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
 import RequestInformationForm from "./request-information-form";
@@ -214,7 +215,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   // gallery. Everything else (still all present, nothing dropped) moves to
   // the quieter technical spec list further down.
   const heroSpecs: Array<{ key: string; label: string; value: string; icon: SpecIconName }> = [
-    { key: "registration_date", label: "Immatricolazione", value: formatText(vehicle.registration_date), icon: "calendar" },
+    { key: "registration_date", label: "Immatricolazione", value: resolveVehicleRegistrationDate(vehicle), icon: "calendar" },
     { key: "mileage", label: "Percorrenza", value: formatMileage(vehicle.mileage), icon: "gauge" },
     { key: "fuel", label: "Alimentazione", value: formatText(vehicle.fuel), icon: "fuel" },
     { key: "transmission", label: "Cambio", value: formatText(vehicle.transmission), icon: "gearbox" },
