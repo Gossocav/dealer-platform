@@ -26,7 +26,7 @@ export default function ComeFunzionaPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <StepCard number={1} title="Cerca il veicolo che fa per te">
-              Sfoglia migliaia di veicoli usati, km 0 e a noleggio. Filtra per marca, modello, prezzo, alimentazione,
+              Sfoglia migliaia di veicoli nuovi, usati, km 0 e a noleggio. Filtra per marca, modello, prezzo, alimentazione,
               cambio e altro, oppure usa la ricerca avanzata.
             </StepCard>
             <StepCard number={2} title="Guarda tutti i dettagli">

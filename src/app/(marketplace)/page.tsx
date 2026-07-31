@@ -225,7 +225,7 @@ export default async function MarketplaceHomePage() {
             <span className="bg-gradient-to-r from-white via-blue-100 to-cyan-300 bg-clip-text text-transparent">prossima auto</span>
           </h1>
           <p className="max-w-xl text-lg leading-relaxed text-slate-400">
-            Migliaia di veicoli usati, km 0 e a noleggio dalle migliori concessionarie d&apos;Italia. Un&apos;unica ricerca, zero rumore.
+            Migliaia di veicoli nuovi, usati, km 0 e a noleggio dalle migliori concessionarie d&apos;Italia. Un&apos;unica ricerca, zero rumore.
           </p>
 
           <form
