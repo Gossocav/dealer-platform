@@ -3,7 +3,6 @@ import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import {
-  DEFAULT_DISTANCE_KM,
   DISTANCE_OPTIONS,
   boundingBox,
   distanceKm,
@@ -137,10 +136,18 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   //
   // Il filtro resta dentro la query (per dealer_id) e non dopo: scremare le
   // righe a valle falserebbe sia il conteggio totale sia le pagine.
-  const requestedDistance = parseDistanceKm(filters.radius);
-  const nearPlace = filters.near.trim() ? resolvePlaceQuery(filters.near) : null;
-  const nearNotFound = Boolean(filters.near.trim()) && nearPlace === null;
-  const appliedDistance = nearPlace ? (requestedDistance ?? DEFAULT_DISTANCE_KM) : null;
+  //
+  // Nessun raggio implicito: se il visitatore lascia "Qualsiasi distanza" il
+  // filtro non si applica e i risultati restano quelli di tutta Italia. Un
+  // raggio scelto al posto suo restringerebbe la ricerca senza che l'abbia
+  // chiesto, ed e' il tipo di aiuto che sembra un malfunzionamento.
+  const appliedDistance = parseDistanceKm(filters.radius);
+  const nearText = filters.near.trim();
+  const nearPlace = appliedDistance && nearText ? resolvePlaceQuery(nearText) : null;
+  const nearNotFound = Boolean(appliedDistance) && Boolean(nearText) && nearPlace === null;
+  // Una citta' senza distanza non fa nulla: va detto, altrimenti sembra che il
+  // campo sia stato ignorato per un difetto.
+  const distanceMissing = Boolean(nearText) && !appliedDistance;
   let dealersInRange: number | null = null;
 
   if (nearPlace && appliedDistance) {
@@ -331,6 +338,13 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <p className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
               Non abbiamo riconosciuto «{filters.near.trim()}» come città o CAP: il filtro per distanza non è stato
               applicato. Prova con il nome del comune o con il CAP di cinque cifre.
+            </p>
+          ) : null}
+
+          {distanceMissing ? (
+            <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
+              Hai indicato «{nearText}» ma nessuna distanza: i risultati sono di tutta Italia. Scegli una distanza per
+              vedere solo i veicoli in zona.
             </p>
           ) : null}
 
