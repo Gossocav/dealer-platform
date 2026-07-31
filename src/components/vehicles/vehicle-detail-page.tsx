@@ -421,8 +421,6 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 <Detail label="Interni" value={safeText(vehicle.interior_type)} />
                 <Detail label="Garanzia" value={safeText(vehicle.warranty)} />
                 <Detail label="Telaio" value={safeText(vehicle.vin)} />
-                <Detail label="Citta" value={safeText(vehicle.city)} />
-                <Detail label="Provincia" value={safeText(vehicle.province)} />
               </div>
 
               <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 p-4">

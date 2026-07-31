@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatPrice, formatText, logMarketplaceQueryError, publicSupabase, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatPrice, logMarketplaceQueryError, publicSupabase, resolveDealerLocality, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ type DealerGroup = {
 export default async function DealersListPage() {
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
     .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
@@ -77,7 +77,10 @@ async function DealerCard({ group }: { group: DealerGroup }) {
   const coverUrl = cover ? await resolveVehicleImageUrl(cover) : null;
   const dealerName = group.dealer?.legal_name ?? group.dealer?.name ?? "Concessionaria";
   const dealerSlug = resolveDealerSlug(group.dealer ? [group.dealer] : null);
-  const cities = Array.from(new Set(group.vehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
+  // La sede della concessionaria, non le citta' scritte sui suoi veicoli:
+  // erano compilate una per auto e potevano dire tutt'altro.
+  const dealerLocality = resolveDealerLocality(group.dealer ? [group.dealer] : null);
+  const cities = dealerLocality ? [dealerLocality] : [];
   const prices = group.vehicles.map((vehicle) => Number(vehicle.price ?? 0)).filter((price) => price > 0);
   const avgPrice = prices.length > 0 ? prices.reduce((sum, price) => sum + price, 0) / prices.length : 0;
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;

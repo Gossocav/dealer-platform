@@ -38,8 +38,6 @@ type SheetVehicle = {
   warranty: string | null;
   emission_class: string | null;
   vin: string | null;
-  city: string | null;
-  province: string | null;
   description: string | null;
   equipment: string[] | string | null;
 };
@@ -69,8 +67,6 @@ const SHEET_VEHICLE_COLUMNS = [
   "warranty",
   "emission_class",
   "vin",
-  "city",
-  "province",
   "description",
   "equipment",
 ].join(", ");
@@ -254,10 +250,6 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
       { label: "Posti", value: vehicle.seats ? String(vehicle.seats) : null },
       { label: "Garanzia", value: text(vehicle.warranty) },
       { label: "Telaio", value: text(vehicle.vin) },
-      {
-        label: "Localita",
-        value: text([text(vehicle.city), text(vehicle.province)].filter(Boolean).join(" · ")),
-      },
     ];
 
     // An empty box on a windscreen reads as a mistake, so unknown values are

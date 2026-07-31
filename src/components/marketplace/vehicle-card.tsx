@@ -4,6 +4,7 @@ import {
   formatPrice,
   formatText,
   normalizeVehicleDealerName,
+  resolveDealerLocality,
   resolveDealerLogo,
   resolveDealerSlug,
   resolveVehicleImageUrl,
@@ -61,7 +62,7 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
           <Tag>{registrationDate}</Tag>
           <Tag>{formatMileage(vehicle.mileage)}</Tag>
           <Tag>{formatText(vehicle.transmission)}</Tag>
-          <Tag>{formatText(vehicle.city)}</Tag>
+          <Tag>{formatText(resolveDealerLocality(vehicle.dealers))}</Tag>
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-4">

@@ -217,15 +217,6 @@ export function evaluateVehicleHealth(params: EvaluateVehicleHealthParams): Vehi
       suggestion: "Riporta il veicolo in uno stato che consenta la pubblicazione.",
     },
     {
-      code: "location",
-      valid: hasText(vehicle.city) && hasText(vehicle.province),
-      weight: 8,
-      message: "Citta o provincia mancanti.",
-      severity: "warning",
-      blocksPublication: true,
-      suggestion: "Completa localizzazione con citta e provincia.",
-    },
-    {
       code: "technical_data",
       valid: hasTechnicalData,
       weight: 6,
