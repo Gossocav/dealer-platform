@@ -7,7 +7,7 @@ function read(path: string) {
 }
 
 const settings = read("src/app/impostazioni/page.tsx");
-const signup = read("src/app/demo/page.tsx");
+const signup = read("src/app/(marketplace)/demo/page.tsx");
 
 // Provincia e citta' erano caselle di testo libero. Bastava riscrivere
 // "milano" al posto di "Milano" per uscire da tutte le ricerche per distanza
