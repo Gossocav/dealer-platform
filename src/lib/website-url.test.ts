@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeWebsiteUrl } from "@/lib/website-url";
+import { formatWebsiteForDisplay, normalizeWebsiteUrl, resolveClickableWebsite } from "@/lib/website-url";
 
 describe("il sito si puo' scrivere come viene", () => {
   it("completa l'indirizzo scritto senza prefisso", () => {
@@ -76,6 +76,43 @@ describe("quello che non e' un sito viene rifiutato", () => {
       const { error } = normalizeWebsiteUrl(sbagliato);
       expect(error, sbagliato).toBeTruthy();
       expect(error, sbagliato).not.toMatch(/URL|protocol|hostname|parse/i);
+    }
+  });
+});
+
+// Le righe salvate prima che il campo venisse irrobustito non sono mai passate
+// dal controllo: la decisione se rendere cliccabile un valore va presa sul
+// valore che si sta per disegnare, non su quello che si spera ci sia.
+describe("il link pubblico si decide in lettura", () => {
+  it("non rende cliccabile quello che non e' un indirizzo", () => {
+    for (const vecchio of ["javascript:alert(1)", "la mia concessionaria", "concessionaria", "", null, undefined]) {
+      expect(resolveClickableWebsite(vecchio), String(vecchio)).toBeNull();
+      expect(formatWebsiteForDisplay(vecchio), String(vecchio)).toBeNull();
+    }
+  });
+
+  it("rende cliccabile un indirizzo scritto senza prefisso", () => {
+    expect(resolveClickableWebsite("www.tuaconcessionaria.it")).toBe("https://www.tuaconcessionaria.it/");
+  });
+
+  it("mostra il sito come si legge, non come si scrive", () => {
+    expect(formatWebsiteForDisplay("https://www.tuaconcessionaria.it/")).toBe("www.tuaconcessionaria.it");
+    expect(formatWebsiteForDisplay("www.tuaconcessionaria.it")).toBe("www.tuaconcessionaria.it");
+    expect(formatWebsiteForDisplay("http://tuaconcessionaria.it")).toBe("tuaconcessionaria.it");
+  });
+
+  it("tiene la pagina precisa, se il concessionario ne ha indicata una", () => {
+    expect(formatWebsiteForDisplay("tuaconcessionaria.it/usato")).toBe("tuaconcessionaria.it/usato");
+  });
+
+  // Il testo mostrato deve corrispondere a dove si finisce: un'etichetta che
+  // dice un sito e un link che ne apre un altro e' esattamente la forma di un
+  // inganno.
+  it("l'etichetta e la destinazione parlano dello stesso sito", () => {
+    for (const indirizzo of ["www.tuaconcessionaria.it", "tuaconcessionaria.it/usato", "http://tuaconcessionaria.it"]) {
+      const href = resolveClickableWebsite(indirizzo) as string;
+      const label = formatWebsiteForDisplay(indirizzo) as string;
+      expect(href, indirizzo).toContain(label.split("/")[0]);
     }
   });
 });
