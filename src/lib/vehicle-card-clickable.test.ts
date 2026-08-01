@@ -50,11 +50,19 @@ describe("scheda apribile toccandola", () => {
     expect(card).not.toMatch(/>\s*Vedi\s*</);
   });
 
-  it("tiene l'iconcina della concessionaria raggiungibile", () => {
+  it("porta al venditore dal suo nome, non da un'icona", () => {
+    // L'iconcina a forma di negozio funzionava ma era indovinabile solo da chi
+    // gia' sapeva: la spiegazione compariva nel suggerimento del browser, che
+    // su telefono non esiste. Il nome di un venditore invece si tocca senza
+    // bisogno di spiegazioni.
+    expect(card).not.toContain("StoreIcon");
+    const dealerLink = card.slice(card.indexOf("href={`/concessionarie/"), card.indexOf("{dealerName}</span>"));
     // Un collegamento dentro un altro non e' valido: senza z-10 il tocco
-    // finirebbe sull'annuncio e la scorciatoia al venditore sarebbe morta.
-    const dealerLink = card.slice(card.indexOf("/concessionarie/"), card.indexOf("<StoreIcon"));
+    // finirebbe sull'annuncio e il venditore non si raggiungerebbe.
     expect(dealerLink).toContain("relative z-10");
+    // Il solo testo sarebbe alto 16 px: troppo poco per un dito.
+    expect(dealerLink).toMatch(/py-1\.5/);
+    expect(dealerLink).toContain("{dealerName}");
   });
 
   it("porta ancora all'annuncio giusto", () => {

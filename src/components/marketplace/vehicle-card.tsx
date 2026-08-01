@@ -69,48 +69,42 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
           <Tag>{formatText(resolveDealerLocality(vehicle.dealers))}</Tag>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-4">
-          <div className="min-w-0">
-            <span className="block text-xl font-extrabold tracking-tight text-white">{formatPrice(vehicle.price)}</span>
-            <span className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-white/10 bg-white/[0.04] text-[7px] font-bold text-slate-400">
-                {dealerLogo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={dealerLogo} alt={dealerName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                ) : (
-                  "KA"
-                )}
-              </span>
-              <span className="truncate">{dealerName}</span>
+        <div className="border-t border-white/10 pt-4">
+          <span className="block text-xl font-extrabold tracking-tight text-white">{formatPrice(vehicle.price)}</span>
+
+          {/* Il nome della concessionaria e' il collegamento alla sua vetrina.
+              Prima c'era un'iconcina a forma di negozio: funzionava, ma nessuno
+              poteva indovinarlo. Il suggerimento del browser che la spiegava
+              compare solo tenendoci sopra il puntatore, cosa che su telefono
+              non esiste -- quindi su mobile era una scorciatoia invisibile.
+              Toccare il nome di un venditore e' invece una convenzione che non
+              ha bisogno di spiegazioni.
+
+              z-10 la tiene sopra il collegamento che copre tutta la scheda:
+              senza, il tocco aprirebbe l'auto e questa non si raggiungerebbe.
+              py-1.5 allarga l'area toccabile, che sul solo testo sarebbe alta
+              16 px -- troppo poco per un dito. */}
+          <Link
+            href={`/concessionarie/${dealerSlug}`}
+            className="relative z-10 mt-0.5 inline-flex max-w-full items-center gap-1.5 py-1.5 text-xs text-slate-400 transition hover:text-white"
+            title={`Vai alla concessionaria ${dealerName}`}
+          >
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-white/10 bg-white/[0.04] text-[7px] font-bold text-slate-400">
+              {dealerLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={dealerLogo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+              ) : (
+                "KA"
+              )}
             </span>
-          </div>
-          <div className="flex flex-none gap-2">
-            {/* Sta sopra il collegamento della scheda: senza z-10 il tocco
-                finirebbe sull'annuncio e questa scorciatoia diventerebbe
-                irraggiungibile. */}
-            <Link
-              href={`/concessionarie/${dealerSlug}`}
-              className="relative z-10 inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              aria-label={`Vai alla concessionaria ${dealerName}`}
-              title={`Vai alla concessionaria ${dealerName}`}
-            >
-              <StoreIcon />
-            </Link>
-          </div>
+            <span className="truncate underline decoration-white/25 underline-offset-2">{dealerName}</span>
+          </Link>
         </div>
       </div>
     </article>
   );
 }
 
-function StoreIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[2]" aria-hidden="true">
-      <path d="M3 9.5 4.5 4h15L21 9.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 9.5V20h16V9.5M9 20v-6h6v6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function Tag({ children }: { children: React.ReactNode }) {
   return <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300">{children}</span>;
