@@ -28,8 +28,8 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
   const registrationDate = resolveVehicleRegistrationDate(vehicle);
 
   return (
-    <article className="group overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)]">
-      <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
+    <article className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)]">
+      <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={coverUrl} alt={vehicleLabel} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -55,7 +55,11 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
               instead of getting cut off after only a few words. min-h keeps
               every card the same height regardless of whether the title
               actually needs one line or two. */}
-          <h3 className="min-h-[3.5rem] min-w-0 line-clamp-2 text-lg font-bold text-white">{vehicleLabel}</h3>
+          <h3 className="min-h-[3.5rem] min-w-0 line-clamp-2 text-lg font-bold text-white">
+            <Link href={`/auto/${vehicle.id}`} className="after:absolute after:inset-0 after:content-['']">
+              {vehicleLabel}
+            </Link>
+          </h3>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -81,15 +85,12 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
             </span>
           </div>
           <div className="flex flex-none gap-2">
-            <Link
-              href={`/auto/${vehicle.id}`}
-              className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:brightness-105"
-            >
-              Vedi
-            </Link>
+            {/* Sta sopra il collegamento della scheda: senza z-10 il tocco
+                finirebbe sull'annuncio e questa scorciatoia diventerebbe
+                irraggiungibile. */}
             <Link
               href={`/concessionarie/${dealerSlug}`}
-              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              className="relative z-10 inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
               aria-label={`Vai alla concessionaria ${dealerName}`}
               title={`Vai alla concessionaria ${dealerName}`}
             >
