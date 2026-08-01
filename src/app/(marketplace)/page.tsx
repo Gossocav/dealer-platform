@@ -255,7 +255,6 @@ export default async function MarketplaceHomePage() {
                 options={PRICE_BANDS.map((band) => band.label)}
                 values={PRICE_BANDS.map((band) => band.value)}
               />
-              <HeroTextField label="Città o CAP" name="near" placeholder="Es. Reggio Emilia" />
               <HeroField
                 label="Distanza"
                 name="radius"
@@ -263,6 +262,7 @@ export default async function MarketplaceHomePage() {
                 options={DISTANCE_OPTIONS.map((km) => `Entro ${km} km`)}
                 values={DISTANCE_OPTIONS.map((km) => String(km))}
               />
+              <HeroTextField label="Città o CAP" name="near" placeholder="Es. Reggio Emilia" />
               <button
                 type="submit"
                 className="inline-flex items-center justify-center gap-2 rounded-3xl bg-gradient-to-br from-white via-blue-100 to-blue-500 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105"
