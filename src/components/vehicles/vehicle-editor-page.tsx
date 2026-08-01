@@ -23,7 +23,9 @@ import {
   normalizeVehicleTraction,
   safeText,
   validateVehicleStatusTransitionForCrud,
+  VEHICLE_FUEL_OPTIONS,
   VEHICLE_TRACTION_OPTIONS,
+  VEHICLE_TRANSMISSION_OPTIONS,
   type VehicleImageRow,
   type VehicleRow,
 } from "@/lib/vehicles";
@@ -304,23 +306,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const title = useMemo(() => (mode === "create" ? "Nuovo Veicolo" : "Modifica Veicolo"), [mode]);
   const maxRegistrationDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const fuelOptions = useMemo(
-    () => [
-      "Benzina",
-      "Diesel",
-      "GPL",
-      "Metano",
-      "Elettrica",
-      "Elettrica/Benzina (Ibrida)",
-      "Elettrica/Diesel (Ibrida)",
-      "Idrogeno",
-      "Etanolo",
-      "Altro",
-    ],
-    []
-  );
+  const fuelOptions = useMemo(() => [...VEHICLE_FUEL_OPTIONS], []);
   const selectedFuel = state.fuel.trim();
-  const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel);
+  const hasCustomSelectedFuel = selectedFuel.length > 0 && !fuelOptions.includes(selectedFuel as (typeof VEHICLE_FUEL_OPTIONS)[number]);
   const brandOptions = useMemo(() => [...VEHICLE_BRAND_OPTIONS], []);
   const selectedBrand = state.brand.trim();
   const hasCustomSelectedBrand = selectedBrand.length > 0 && !brandOptions.includes(selectedBrand as (typeof VEHICLE_BRAND_OPTIONS)[number]);
@@ -1352,11 +1340,14 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   className={getFieldInputClass(missingFieldSet.has("transmission"))}
                 >
                   <option value="">Seleziona cambio</option>
-                  {state.transmission && state.transmission !== "Automatico" && state.transmission !== "Manuale" ? (
+                  {state.transmission && !VEHICLE_TRANSMISSION_OPTIONS.includes(state.transmission as (typeof VEHICLE_TRANSMISSION_OPTIONS)[number]) ? (
                     <option value={state.transmission}>{state.transmission}</option>
                   ) : null}
-                  <option value="Automatico">Automatico</option>
-                  <option value="Manuale">Manuale</option>
+                  {VEHICLE_TRANSMISSION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="block space-y-2 sm:col-span-2">
