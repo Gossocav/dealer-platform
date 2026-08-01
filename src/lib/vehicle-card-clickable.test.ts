@@ -50,19 +50,20 @@ describe("scheda apribile toccandola", () => {
     expect(card).not.toMatch(/>\s*Vedi\s*</);
   });
 
-  it("porta al venditore dal suo nome, non da un'icona", () => {
-    // L'iconcina a forma di negozio funzionava ma era indovinabile solo da chi
-    // gia' sapeva: la spiegazione compariva nel suggerimento del browser, che
-    // su telefono non esiste. Il nome di un venditore invece si tocca senza
-    // bisogno di spiegazioni.
-    expect(card).not.toContain("StoreIcon");
-    const dealerLink = card.slice(card.indexOf("href={`/concessionarie/"), card.indexOf("{dealerName}</span>"));
+  it("tiene l'iconcina del venditore raggiungibile nel suo angolo", () => {
     // Un collegamento dentro un altro non e' valido: senza z-10 il tocco
-    // finirebbe sull'annuncio e il venditore non si raggiungerebbe.
+    // finirebbe sull'annuncio e la scorciatoia al venditore sarebbe morta.
+    const dealerLink = card.slice(card.indexOf("href={`/concessionarie/"), card.indexOf("<StoreIcon"));
     expect(dealerLink).toContain("relative z-10");
-    // Il solo testo sarebbe alto 16 px: troppo poco per un dito.
-    expect(dealerLink).toMatch(/py-1\.5/);
-    expect(dealerLink).toContain("{dealerName}");
+  });
+
+  it("non allunga la scheda per ospitare quel collegamento", () => {
+    // Il nome del venditore resta testo semplice accanto al prezzo: reso
+    // toccabile aveva bisogno di spazio sopra e sotto, e la scheda cresceva
+    // di 12 px -- meta' di quanto ne avevamo appena guadagnati accorciando la
+    // foto.
+    const bottom = card.slice(card.indexOf("border-t border-white/10 pt-4"));
+    expect(bottom).toContain("<span className=\"truncate\">{dealerName}</span>");
   });
 
   it("porta ancora all'annuncio giusto", () => {
