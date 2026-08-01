@@ -9,10 +9,19 @@ type VehicleGalleryProps = {
 
 const THUMBNAIL_LIMIT = 8;
 
+// Sotto questa distanza il gesto e' un tocco un po' mosso, non uno scorrimento:
+// cambiare foto a ogni micro-movimento del dito renderebbe impossibile
+// chiudere la galleria toccando lo sfondo.
+const SWIPE_MIN_DISTANCE = 48;
+
 export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
   // null = viewer closed; otherwise the index being shown.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Uno scorrimento finisce anche in un clic sullo sfondo, che chiuderebbe la
+  // galleria subito dopo aver cambiato foto. Questo lo trattiene una volta.
+  const swipeHandledRef = useRef(false);
 
   const total = images.length;
   const isOpen = openIndex !== null;
@@ -24,6 +33,39 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
   const showNext = useCallback(() => {
     setOpenIndex((current) => (current === null ? current : (current + 1) % total));
   }, [total]);
+
+  const handleTouchStart = (event: React.TouchEvent) => {
+    // Piu' dita significa pizzicare per ingrandire, non scorrere.
+    touchStartRef.current =
+      event.touches.length === 1 ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null;
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    const touch = event.changedTouches[0];
+    if (!start || !touch || total < 2) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    // Solo gesti chiaramente orizzontali: uno scorrimento obliquo o verticale
+    // non deve far saltare la foto.
+    if (Math.abs(deltaX) < SWIPE_MIN_DISTANCE || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    swipeHandledRef.current = true;
+    if (deltaX < 0) showNext();
+    else showPrevious();
+  };
+
+  const closeUnlessSwiping = () => {
+    if (swipeHandledRef.current) {
+      swipeHandledRef.current = false;
+      return;
+    }
+    setOpenIndex(null);
+  };
 
   // Keyboard navigation plus a scroll lock, so the page behind the viewer
   // cannot move while it is open.
@@ -121,6 +163,7 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
           <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6">
             <p className="text-sm font-semibold text-white">
               {openIndex + 1} / {total}
+              {total > 1 ? <span className="ml-2 font-normal text-slate-400 sm:hidden">Scorri per cambiare foto</span> : null}
             </p>
             <button
               type="button"
@@ -134,11 +177,15 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
             </button>
           </div>
 
-          <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4 sm:px-6">
+          <div
+            className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4 sm:px-6"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {/* Backdrop click closes; the image itself stops the propagation. */}
             <button
               type="button"
-              onClick={() => setOpenIndex(null)}
+              onClick={closeUnlessSwiping}
               className="absolute inset-0 cursor-zoom-out"
               aria-label="Chiudi le foto"
               tabIndex={-1}
