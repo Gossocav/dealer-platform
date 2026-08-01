@@ -62,7 +62,10 @@ describe("import column auto-detection", () => {
     ["gearbox", "transmission", ["Marca", "Modello", "gearbox"]],
     ["gear_type", "transmission", ["Marca", "Modello", "gear_type"]],
     ["Trasmissione", "transmission", ["Marca", "Modello", "Trasmissione"]],
-    ["firstRegistration", "year", ["Marca", "Modello", "firstRegistration"]],
+    // Una colonna chiamata "firstRegistration" e' la data di immatricolazione,
+    // non solo l'anno: da quando la data si importa, va li'. Se poi contiene
+    // il solo "2019", l'anno viene comunque recuperato.
+    ["firstRegistration", "registrationDate", ["Marca", "Modello", "firstRegistration"]],
     ["Trim", "version", ["Marca", "Modello", "Trim"]],
     ["Variante", "version", ["Marca", "Modello", "Variante"]],
     ["Chilometraggio", "mileage", ["Marca", "Modello", "Chilometraggio"]],
@@ -112,7 +115,8 @@ describe("import column auto-detection does not mis-assign", () => {
   });
 
   it("ignores columns that are not vehicle fields", () => {
-    const extraneous = ["Targa", "Venditore", "Sede", "Garanzia", "Posti"];
+    // "Garanzia" e "Posti" sono usciti da questo elenco: ora si importano.
+    const extraneous = ["Targa", "Venditore", "Sede"];
     const mapping = buildInitialVehicleImportMapping(["Marca", "Modello", ...extraneous]);
 
     for (const header of extraneous) {
