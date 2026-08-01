@@ -10,7 +10,7 @@ export function Bar({ className = "" }: { className?: string }) {
 export function VehicleCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900">
-      <div className="aspect-[16/10] animate-pulse bg-slate-800/60" />
+      <div className="aspect-[16/9] animate-pulse bg-slate-800/60" />
       <div className="space-y-4 p-5">
         <Bar className="h-5 w-3/4" />
         <div className="flex flex-wrap gap-2">

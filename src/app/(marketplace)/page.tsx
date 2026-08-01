@@ -579,7 +579,7 @@ function DarkVehicleCard(vehicle: VehicleCardData) {
       href={`/auto/${vehicle.id}`}
       className="group block overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20"
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
+      <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {vehicle.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
