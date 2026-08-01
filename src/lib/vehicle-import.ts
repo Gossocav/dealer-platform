@@ -1,7 +1,12 @@
 import * as XLSX from "xlsx";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
-import { normalizeVehicleTraction } from "@/lib/vehicles";
+import {
+  normalizeVehicleTraction,
+  VEHICLE_FUEL_OPTIONS,
+  VEHICLE_TRACTION_OPTIONS,
+  VEHICLE_TRANSMISSION_OPTIONS,
+} from "@/lib/vehicles";
 
 // Same cap enforced in the manual upload UI (vehicle-editor-page.tsx): a feed
 // is untrusted input, so without this a malformed row could list hundreds of
@@ -533,12 +538,15 @@ function canonicalizeFromAliases(value: string, table: Record<string, string>, a
   return table[key] ?? null;
 }
 
+export const VEHICLE_CONDITION_VALUES = ["Nuovo", "Usato", "Aziendale", "Km/0"] as const;
+export const VEHICLE_CATEGORY_VALUES = ["Auto", "Veicolo commerciale"] as const;
+
 export function canonicalizeVehicleCondition(value: string) {
-  return canonicalizeFromAliases(value, CONDITION_BY_ALIAS, ["Nuovo", "Usato", "Aziendale", "Km/0"]);
+  return canonicalizeFromAliases(value, CONDITION_BY_ALIAS, VEHICLE_CONDITION_VALUES);
 }
 
 export function canonicalizeVehicleCategory(value: string) {
-  return canonicalizeFromAliases(value, CATEGORY_BY_ALIAS, ["Auto", "Veicolo commerciale"]);
+  return canonicalizeFromAliases(value, CATEGORY_BY_ALIAS, VEHICLE_CATEGORY_VALUES);
 }
 
 export function canonicalizeVehicleBodyType(value: string) {
@@ -620,7 +628,64 @@ export function parseImportEquipment(value: string): string[] {
   return unique.slice(0, 80);
 }
 
-export function buildVehicleInsertPayload(mappedRow: VehicleImportMappedRow, defaultStatus: VehicleImportStatus) {
+/**
+ * I campi per cui si puo' dichiarare un valore valido per tutto il file.
+ *
+ * Sono solo quelli con un elenco chiuso di valori: un listino di soli usati
+ * senza colonna "condizioni" oggi produce annunci invisibili al filtro, e il
+ * concessionario non ha modo di dirlo una volta sola. Campi liberi come la
+ * descrizione restano fuori: ripetere lo stesso testo su ogni annuncio non e'
+ * un dato mancante, e' rumore.
+ */
+export const VEHICLE_IMPORT_DEFAULT_FIELDS = [
+  "vehicleCondition",
+  "vehicleCategory",
+  "bodyType",
+  "fuel",
+  "transmission",
+  "traction",
+] as const;
+
+export type VehicleImportDefaultField = (typeof VEHICLE_IMPORT_DEFAULT_FIELDS)[number];
+
+export type VehicleImportDefaults = Partial<Record<VehicleImportDefaultField, string>>;
+
+const DEFAULT_FIELD_OPTIONS: Record<VehicleImportDefaultField, readonly string[]> = {
+  vehicleCondition: VEHICLE_CONDITION_VALUES,
+  vehicleCategory: VEHICLE_CATEGORY_VALUES,
+  bodyType: VEHICLE_BODY_TYPES,
+  fuel: VEHICLE_FUEL_OPTIONS,
+  transmission: VEHICLE_TRANSMISSION_OPTIONS,
+  traction: VEHICLE_TRACTION_OPTIONS,
+};
+
+export function getVehicleImportDefaultOptions(field: VehicleImportDefaultField): readonly string[] {
+  return DEFAULT_FIELD_OPTIONS[field];
+}
+
+export function createEmptyVehicleImportDefaults(): VehicleImportDefaults {
+  return {};
+}
+
+/**
+ * Il file vince sempre. Il predefinito entra solo dove la riga non dice
+ * niente -- colonna non mappata, oppure cella vuota.
+ *
+ * Deliberatamente non tocca i valori che il file scrive ma la piattaforma non
+ * riconosce: quelli restano vuoti come prima. Sovrascriverli significherebbe
+ * rispondere "Benzina" a una riga che aveva scritto "ibrida plug-in", e un
+ * dato sbagliato e' peggio di un dato mancante.
+ */
+function applyImportDefault(rawValue: string, defaultValue: string | undefined) {
+  const value = String(rawValue ?? "").trim();
+  return value || String(defaultValue ?? "").trim();
+}
+
+export function buildVehicleInsertPayload(
+  mappedRow: VehicleImportMappedRow,
+  defaultStatus: VehicleImportStatus,
+  defaults: VehicleImportDefaults = {},
+) {
   const status = normalizeStatus(mappedRow.status, defaultStatus);
   const registrationDate = parseImportRegistrationDate(mappedRow.registrationDate);
   const equipment = parseImportEquipment(mappedRow.equipment);
@@ -630,9 +695,9 @@ export function buildVehicleInsertPayload(mappedRow: VehicleImportMappedRow, def
     brand: mappedRow.brand.trim(),
     model: mappedRow.model.trim(),
     version: mappedRow.version.trim() || null,
-    vehicle_category: canonicalizeVehicleCategory(mappedRow.vehicleCategory),
-    vehicle_condition: canonicalizeVehicleCondition(mappedRow.vehicleCondition),
-    body_type: canonicalizeVehicleBodyType(mappedRow.bodyType),
+    vehicle_category: canonicalizeVehicleCategory(applyImportDefault(mappedRow.vehicleCategory, defaults.vehicleCategory)),
+    vehicle_condition: canonicalizeVehicleCondition(applyImportDefault(mappedRow.vehicleCondition, defaults.vehicleCondition)),
+    body_type: canonicalizeVehicleBodyType(applyImportDefault(mappedRow.bodyType, defaults.bodyType)),
     registration_date: registrationDate,
     // L'anno segue la data quando c'e', come nel modulo manuale, cosi' i due
     // non possono raccontare cose diverse. Senza data vale la colonna anno; e
@@ -654,9 +719,9 @@ export function buildVehicleInsertPayload(mappedRow: VehicleImportMappedRow, def
     equipment: equipment.length > 0 ? equipment : null,
     price: parseOptionalNumber(mappedRow.price),
     mileage: parseOptionalNumber(mappedRow.mileage),
-    fuel: mappedRow.fuel.trim() || null,
-    traction: normalizeVehicleTraction(mappedRow.traction),
-    transmission: mappedRow.transmission.trim() || null,
+    fuel: applyImportDefault(mappedRow.fuel, defaults.fuel) || null,
+    traction: normalizeVehicleTraction(applyImportDefault(mappedRow.traction, defaults.traction)),
+    transmission: applyImportDefault(mappedRow.transmission, defaults.transmission) || null,
     color: canonicalizeVehicleColorLabel(mappedRow.color) || null,
     description: mappedRow.description.trim() || null,
     status,

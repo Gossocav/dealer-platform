@@ -11,6 +11,25 @@ export type VehicleStatus = VehicleLifecycleState | string;
 export const VEHICLE_TRACTION_OPTIONS = ["Anteriore", "Posteriore", "Integrale 4x4"] as const;
 export type VehicleTraction = (typeof VEHICLE_TRACTION_OPTIONS)[number];
 
+// Questi elenchi vivevano scritti a mano dentro il modulo di inserimento, ma
+// ora anche l'importazione ci scrive sopra (valori predefiniti): tenerli in un
+// posto solo evita la trappola gia' vista con le carrozzerie, dove una voce
+// aggiunta da una parte sola produceva veicoli impossibili da filtrare.
+export const VEHICLE_FUEL_OPTIONS = [
+  "Benzina",
+  "Diesel",
+  "GPL",
+  "Metano",
+  "Elettrica",
+  "Elettrica/Benzina (Ibrida)",
+  "Elettrica/Diesel (Ibrida)",
+  "Idrogeno",
+  "Etanolo",
+  "Altro",
+] as const;
+
+export const VEHICLE_TRANSMISSION_OPTIONS = ["Automatico", "Manuale"] as const;
+
 export type VehicleImageRow = {
   id: string;
   image_url: string | null;

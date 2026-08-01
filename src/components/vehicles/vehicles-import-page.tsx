@@ -12,11 +12,16 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   buildInitialVehicleImportMapping,
   buildVehicleInsertPayload,
+  createEmptyVehicleImportDefaults,
+  getVehicleImportDefaultOptions,
   getVehicleImportFieldLabel,
   getVehicleImportFields,
   mapVehicleImportRow,
   parseVehicleImportFile,
+  VEHICLE_IMPORT_DEFAULT_FIELDS,
   type VehicleImportColumnMapping,
+  type VehicleImportDefaultField,
+  type VehicleImportDefaults,
   type VehicleImportMappedRow,
   type VehicleImportRawRow,
   type VehicleImportStatus,
@@ -101,6 +106,7 @@ export function VehiclesImportPage() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<VehicleImportRawRow[]>([]);
   const [mapping, setMapping] = useState<VehicleImportColumnMapping>(() => buildInitialVehicleImportMapping([]));
+  const [defaults, setDefaults] = useState<VehicleImportDefaults>(() => createEmptyVehicleImportDefaults());
   const [initialStatus, setInitialStatus] = useState<VehicleImportStatus>("draft");
   const [loadingFile, setLoadingFile] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -214,6 +220,7 @@ export function VehiclesImportPage() {
       setHeaders([]);
       setRows([]);
       setMapping(buildInitialVehicleImportMapping([]));
+      setDefaults(createEmptyVehicleImportDefaults());
       setReport(null);
       setError("File troppo grande. La dimensione massima consentita è 10 MB.");
       return;
@@ -229,10 +236,15 @@ export function VehiclesImportPage() {
       setHeaders(parsed.headers);
       setRows(parsed.rows);
       setMapping(buildInitialVehicleImportMapping(parsed.headers));
+      // I predefiniti valgono per il file che li ha resi necessari: portarseli
+      // dietro sul file successivo significherebbe timbrare "Usato" su un
+      // listino di auto nuove senza che nessuno l'abbia chiesto.
+      setDefaults(createEmptyVehicleImportDefaults());
     } catch (parseError) {
       setFileName(null);
       setHeaders([]);
       setRows([]);
+      setDefaults(createEmptyVehicleImportDefaults());
       setError(parseError instanceof Error ? parseError.message : "Errore lettura file.");
     } finally {
       setLoadingFile(false);
@@ -244,6 +256,18 @@ export function VehiclesImportPage() {
       ...prev,
       [field]: header === "" ? null : header,
     }));
+  };
+
+  const updateDefault = (field: VehicleImportDefaultField, value: string) => {
+    setDefaults((prev) => {
+      const next = { ...prev };
+      if (value === "") {
+        delete next[field];
+      } else {
+        next[field] = value;
+      }
+      return next;
+    });
   };
 
   const handleImport = async () => {
@@ -314,7 +338,7 @@ export function VehiclesImportPage() {
         continue;
       }
 
-      const payload = buildVehicleInsertPayload(mappedRow, initialStatus);
+      const payload = buildVehicleInsertPayload(mappedRow, initialStatus, defaults);
 
       const insertError = await insertVehicleWithFallback({
         ...payload,
@@ -571,6 +595,42 @@ export function VehiclesImportPage() {
                     </select>
                   </label>
                 ))}
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <h4 className="text-sm font-semibold text-slate-900">Valori uguali per tutto il file</h4>
+                <p className="mt-1 text-sm text-slate-600">
+                  Se il file non ha una di queste colonne — o la lascia in bianco su alcune righe — puoi dirlo una volta
+                  sola qui: un listino di soli usati diventa <strong>Usato</strong> su ogni veicolo. Dove il file un valore
+                  ce l&apos;ha, vince il file.
+                </p>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {VEHICLE_IMPORT_DEFAULT_FIELDS.map((field) => (
+                    <label key={field} className="block space-y-2">
+                      <span className="flex items-baseline gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          {getVehicleImportFieldLabel(field)}
+                        </span>
+                        {mapping[field] ? null : (
+                          <span className="text-[11px] font-medium text-amber-600">colonna assente</span>
+                        )}
+                      </span>
+                      <select
+                        value={defaults[field] ?? ""}
+                        onChange={(event) => updateDefault(field, event.target.value)}
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
+                      >
+                        <option value="">Nessun valore predefinito</option>
+                        {getVehicleImportDefaultOptions(field).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-4 max-w-xs space-y-2">
