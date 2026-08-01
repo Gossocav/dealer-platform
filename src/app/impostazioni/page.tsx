@@ -7,6 +7,7 @@ import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { supabase } from "@/lib/supabaseClient";
+import { normalizeWebsiteUrl } from "@/lib/website-url";
 
 type DealerProfile = {
   id: string;
@@ -227,6 +228,16 @@ export default function ImpostazioniPage() {
       return;
     }
 
+    // Meglio fermare il salvataggio che accettare in silenzio un indirizzo che
+    // non porta da nessuna parte: il campo verrebbe riletto come valido e
+    // l'errore si scoprirebbe solo il giorno in cui qualcuno lo clicca.
+    const website = normalizeWebsiteUrl(form.website);
+    if (website.error) {
+      setStatusMessage(website.error);
+      setStatusType("error");
+      return;
+    }
+
     setSaving(true);
     setStatusMessage(null);
 
@@ -242,7 +253,7 @@ export default function ImpostazioniPage() {
       whatsapp_phone: nullable(form.whatsapp),
       email: nullable(form.email),
       vat_number: nullable(form.vat_number),
-      website: nullable(form.website),
+      website: website.url,
       description: nullable(form.description),
       opening_hours: nullable(form.opening_hours),
       facebook_url: nullable(form.facebook),
@@ -374,6 +385,10 @@ export default function ImpostazioniPage() {
                 <p className="mt-4 text-sm text-slate-600">
                   Il numero &ldquo;Cellulare / WhatsApp&rdquo; è quello usato dal bottone WhatsApp sulla scheda veicolo: se resta vuoto, il
                   bottone appare disattivato.
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Il &ldquo;Sito web&rdquo; puoi scriverlo come ti viene: <strong>www.tuaconcessionaria.it</strong> diventa un indirizzo
+                  completo da solo.
                 </p>
               </div>
 
