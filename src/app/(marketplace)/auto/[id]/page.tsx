@@ -23,6 +23,7 @@ import {
   resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
 import RequestInformationForm from "./request-information-form";
 import VehicleGallery from "./vehicle-gallery";
 
@@ -383,7 +384,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <InfoRow label="Telefono" value={formatText(dealerPhone)} />
                 <InfoRow label="WhatsApp" value={formatText(dealerWhatsAppPhone)} />
                 <InfoRow label="Email" value={formatText(dealerEmail)} />
-                <InfoRow label="Sito web" value={formatText(dealerWebsite)} />
+                <WebsiteRow website={dealerWebsite} />
               </div>
             </div>
 
@@ -397,6 +398,39 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * Il sito della concessionaria, cliccabile quando c'e' davvero.
+ *
+ * Se l'indirizzo salvato non e' valido resta scritto in chiaro, com'era
+ * prima: peggio di un link che manca c'e' solo un link che porta altrove.
+ *
+ * "nofollow" perche' e' un indirizzo che scrive il concessionario: senza,
+ * il marketplace regalerebbe peso SEO a qualsiasi cosa venga incollata in
+ * quel campo, e il campo diventerebbe un posto interessante da riempire.
+ */
+function WebsiteRow({ website }: { website: string | null }) {
+  const href = resolveClickableWebsite(website);
+  const label = formatWebsiteForDisplay(website);
+
+  if (!href || !label) {
+    return <InfoRow label="Sito web" value={formatText(website)} />;
+  }
+
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-4 border-b border-white/5 pb-2.5">
+      <span className="text-sm text-slate-500">Sito web</span>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-cyan-300 underline decoration-cyan-300/40 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-200"
+      >
+        {label}
+      </a>
+    </div>
   );
 }
 

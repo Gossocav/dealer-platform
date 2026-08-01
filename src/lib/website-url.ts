@@ -68,3 +68,32 @@ export function normalizeWebsiteUrl(value: string | null | undefined): WebsiteUr
 
   return { url: parsed.toString(), error: null };
 }
+
+/**
+ * L'indirizzo pronto da mettere in un link pubblico, oppure null.
+ *
+ * Ripassa dal controllo qui, in lettura, e non e' una ripetizione inutile:
+ * le righe salvate prima che il campo venisse irrobustito non sono mai
+ * passate di li' e possono contenere qualsiasi cosa. Un "javascript:..."
+ * rimasto nel database diventerebbe codice eseguito nel browser di chi lo
+ * clicca, quindi la decisione se rendere cliccabile un valore si prende
+ * sempre sul valore che si sta per disegnare.
+ */
+export function resolveClickableWebsite(value: string | null | undefined) {
+  return normalizeWebsiteUrl(value).url;
+}
+
+/**
+ * Come si legge un sito, non come si scrive: "https://www.esempio.it/"
+ * mostrato per intero e' rumore, e nel riquadro della concessionaria verrebbe
+ * pure troncato. Via il prefisso e la barra finale, il resto resta -- se il
+ * concessionario ha indicato una pagina precisa, chi legge deve vederla.
+ */
+export function formatWebsiteForDisplay(value: string | null | undefined) {
+  const url = resolveClickableWebsite(value);
+  if (!url) {
+    return null;
+  }
+
+  return url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
