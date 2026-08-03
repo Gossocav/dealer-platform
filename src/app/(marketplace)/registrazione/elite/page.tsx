@@ -1,4 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
+
+export const metadata: Metadata = {
+  title: "Piano Elite",
+  description:
+    "Il piano Elite di KeyAuto: fino a 300 annunci attivi, maggiore visibilita' in vetrina, report mensili e supporto prioritario.",
+  alternates: { canonical: toAbsoluteUrl("/registrazione/elite") },
+  openGraph: {
+    title: "Piano Elite | KeyAuto",
+    description: "Il piano Elite di KeyAuto: fino a 300 annunci attivi, maggiore visibilita' in vetrina, report mensili e supporto prioritario.",
+    url: toAbsoluteUrl("/registrazione/elite"),
+    type: "website",
+  },
+};
 
 const eliteFeatures = [
   {

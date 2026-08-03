@@ -1,4 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
+
+export const metadata: Metadata = {
+  title: "Piano Base",
+  description:
+    "Il piano d'ingresso di KeyAuto: fino a 50 annunci attivi, gestione dei lead e pannello concessionario.",
+  alternates: { canonical: toAbsoluteUrl("/registrazione/base") },
+  openGraph: {
+    title: "Piano Base | KeyAuto",
+    description: "Il piano d'ingresso di KeyAuto: fino a 50 annunci attivi, gestione dei lead e pannello concessionario.",
+    url: toAbsoluteUrl("/registrazione/base"),
+    type: "website",
+  },
+};
 
 const baseFeatures = [
   {

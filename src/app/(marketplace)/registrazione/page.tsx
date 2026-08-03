@@ -1,5 +1,20 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import DealerInfoRequestForm from "./dealer-info-request-form";
+
+export const metadata: Metadata = {
+  title: "Registra la tua concessionaria",
+  description:
+    "Porta il tuo parco veicoli su KeyAuto: pubblica gli annunci, ricevi richieste dai clienti e gestisci tutto da un pannello unico.",
+  alternates: { canonical: toAbsoluteUrl("/registrazione") },
+  openGraph: {
+    title: "Registra la tua concessionaria | KeyAuto",
+    description: "Pubblica i tuoi veicoli su KeyAuto e ricevi richieste dai clienti.",
+    url: toAbsoluteUrl("/registrazione"),
+    type: "website",
+  },
+};
 
 export default function RegistrazionePage() {
   return (

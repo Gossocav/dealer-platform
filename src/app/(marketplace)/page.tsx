@@ -52,7 +52,9 @@ export function generateMetadata(): Metadata {
   const canonical = toAbsoluteUrl("/");
 
   return {
-    title: "KeyAuto | Trova la tua prossima auto",
+    // Intero, non completato dal template: la home dice gia' il nome del
+    // sito, e "KeyAuto | Trova la tua prossima auto | KeyAuto" sarebbe goffo.
+    title: { absolute: "KeyAuto | Trova la tua prossima auto" },
     description,
     alternates: { canonical },
     openGraph: {

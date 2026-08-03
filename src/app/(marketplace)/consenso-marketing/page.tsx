@@ -10,7 +10,7 @@ const CONTROLLER = {
 };
 
 export const metadata: Metadata = {
-  title: "Consenso al Marketing | KeyAuto",
+  title: "Consenso al Marketing",
   description:
     "Informativa sul consenso facoltativo all'invio di comunicazioni di marketing da parte di KeyAuto.",
 };

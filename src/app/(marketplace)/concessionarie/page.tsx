@@ -1,7 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatPrice, logMarketplaceQueryError, publicSupabase, resolveDealerLocality, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatPrice, logMarketplaceQueryError, publicSupabase, resolveDealerLocality, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Concessionarie partner",
+  description:
+    "Le concessionarie verificate di KeyAuto: sfoglia i partner in tutta Italia e i veicoli che ognuno ha pubblicato.",
+  alternates: { canonical: toAbsoluteUrl("/concessionarie") },
+  openGraph: {
+    title: "Concessionarie partner | KeyAuto",
+    description: "Le concessionarie verificate di KeyAuto, con i veicoli pubblicati da ognuna.",
+    url: toAbsoluteUrl("/concessionarie"),
+    type: "website",
+  },
+};
 
 const MARKETPLACE_DEALERS_VEHICLES_LIMIT = 240;
 

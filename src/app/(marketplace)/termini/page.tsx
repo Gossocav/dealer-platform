@@ -12,7 +12,7 @@ const OPERATOR = {
 };
 
 export const metadata: Metadata = {
-  title: "Termini e Condizioni per gli utenti | KeyAuto",
+  title: "Termini e Condizioni per gli utenti",
   description:
     "Termini e Condizioni per gli utenti del marketplace KeyAuto: ruolo di intermediario, uso del servizio e responsabilità.",
 };

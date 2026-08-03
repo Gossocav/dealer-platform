@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Come funziona | KeyAuto",
+  title: "Come funziona",
   description:
     "Come funziona KeyAuto: come cercare e richiedere informazioni su un veicolo, e come le concessionarie pubblicano il proprio showroom.",
 };

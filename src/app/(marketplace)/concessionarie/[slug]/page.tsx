@@ -34,18 +34,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const matchedDealer = await resolveDealerBySlug(slug);
 
   if (!matchedDealer) {
+    // Come per la scheda veicolo: nessun indirizzo canonico su una pagina che
+    // non esiste, e richiesta esplicita di tenerla fuori dall'indice.
     return {
       title: "Concessionaria non trovata",
       description: fallbackDescription,
-      alternates: {
-        canonical,
-      },
-      openGraph: {
-        title: "Concessionaria non trovata | KeyAuto",
-        description: fallbackDescription,
-        url: canonical,
-        type: "website",
-      },
+      robots: { index: false, follow: true },
     };
   }
 

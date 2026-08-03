@@ -12,7 +12,7 @@ const OPERATOR = {
 };
 
 export const metadata: Metadata = {
-  title: "Condizioni Generali per i concessionari | KeyAuto",
+  title: "Condizioni Generali per i concessionari",
   description:
     "Condizioni Generali di abbonamento riservate ai concessionari che pubblicano veicoli sul marketplace KeyAuto.",
 };
