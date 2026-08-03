@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatPrice, logMarketplaceQueryError, publicSupabase, resolveDealerLocality, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
-export const dynamic = "force-dynamic";
+// Cinque minuti: l'elenco delle concessionarie cambia molto piu' di rado del
+// catalogo dei veicoli.
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Concessionarie partner",
@@ -104,8 +107,13 @@ async function DealerCard({ group }: { group: DealerGroup }) {
     <article className="group overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)]">
       <div className="relative h-52 overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={dealerName} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <Image
+            src={coverUrl}
+            alt={dealerName}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-slate-600">
             <svg viewBox="0 0 24 24" aria-hidden="true" className="h-14 w-14 fill-current opacity-40">

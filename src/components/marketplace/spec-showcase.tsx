@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 
@@ -89,8 +90,13 @@ function VehicleCardVisual({ vehicle }: { vehicle: SpecShowcaseVehicle }) {
     <div className="relative rounded-[28px] border border-white/10 bg-gradient-to-b from-slate-800/90 to-slate-900 p-4 shadow-[0_40px_100px_-40px_rgba(6,10,25,0.9)]">
       <div className="relative aspect-[16/10] overflow-hidden rounded-3xl bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {vehicle.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={vehicle.imageUrl} alt={vehicle.title} className="h-full w-full object-cover" loading="lazy" />
+          <Image
+            src={vehicle.imageUrl}
+            alt={vehicle.title}
+            fill
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-cover"
+          />
         ) : null}
         <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
           {vehicle.title.split(" ")[0]}

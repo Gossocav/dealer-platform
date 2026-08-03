@@ -33,7 +33,10 @@ import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
-export const dynamic = "force-dynamic";
+// Vedi la nota sulla scheda veicolo: un minuto di validita' invece di
+// ricalcolare tutto a ogni visita. La vetrina Elite ruota per giorno, quindi
+// un minuto non cambia nulla di cio' che si vede.
+export const revalidate = 60;
 
 type DealerCluster = {
   dealerId: string;

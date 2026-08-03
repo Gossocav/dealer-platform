@@ -7,7 +7,9 @@ import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 import { resolveClickableWebsite } from "@/lib/website-url";
 
-export const dynamic = "force-dynamic";
+// Cinque minuti: l'elenco delle concessionarie cambia molto piu' di rado del
+// catalogo dei veicoli.
+export const revalidate = 300;
 
 const DEALER_PAGE_VEHICLES_LIMIT = 120;
 

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   formatMileage,
@@ -31,8 +32,17 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
     <article className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)]">
       <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950">
         {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={vehicleLabel} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          // "sizes" dice al browser quanto sara' larga la foto prima di
+          // sapere quanto e' larga la pagina: senza, scaricherebbe la
+          // versione buona per uno schermo intero anche dentro una griglia a
+          // quattro colonne.
+          <Image
+            src={coverUrl}
+            alt={vehicleLabel}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
             <svg viewBox="0 0 64 64" aria-hidden="true" className="h-14 w-14 fill-current opacity-40">
@@ -75,8 +85,7 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
             <span className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
               <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-white/10 bg-white/[0.04] text-[7px] font-bold text-slate-400">
                 {dealerLogo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={dealerLogo} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                  <Image src={dealerLogo} alt="" width={16} height={16} className="h-full w-full object-cover" />
                 ) : (
                   "KA"
                 )}
