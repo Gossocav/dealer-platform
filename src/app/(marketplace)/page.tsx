@@ -38,6 +38,22 @@ import { formatRegistrationLabel } from "@/lib/vehicles";
 // un minuto non cambia nulla di cio' che si vede.
 export const revalidate = 60;
 
+// TRAPPOLA, verificata in produzione il 2026-08-03.
+//
+// Vercel conserva la copia a scadenza di una pagina *attraverso le
+// pubblicazioni*, se il file della pagina non e' cambiato. La richiesta di
+// consenso ai cookie era stata aggiunta al layout condiviso: tutte le altre
+// pagine l'hanno mostrata subito, la home ha continuato a servire per ore la
+// versione precedente, rigenerandola da quella. Sulla porta d'ingresso del
+// sito, e per un banner di consenso, non e' un dettaglio.
+//
+// Non basta ripubblicare senza cache di costruzione: la copia sopravvive
+// comunque. L'unico modo per liberarla e' toccare questo file, cosi' la
+// pagina cambia impronta e la copia vecchia viene scartata.
+//
+// Quindi: se modifichi solo il layout o un componente condiviso e la home
+// resta indietro, non stai impazzendo -- aggiungi una riga qui.
+
 type DealerCluster = {
   dealerId: string;
   dealer: MarketplaceDealer | null;
