@@ -11,6 +11,20 @@ import { resolveClickableWebsite } from "@/lib/website-url";
 // catalogo dei veicoli.
 export const revalidate = 300;
 
+/**
+ * Perche' un elenco vuoto e non l'assenza di questa funzione: senza,
+ * "revalidate" su una pagina a indirizzo variabile non ha effetto e ogni
+ * visita ricalcola tutto -- e' scritto nella documentazione di Next.
+ *
+ * Vuoto e non pieno perche' il catalogo cambia di continuo: le pagine non si
+ * costruiscono in anticipo, si costruiscono alla prima visita e da li' si
+ * conservano per il minuto dichiarato sopra.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
+
 const DEALER_PAGE_VEHICLES_LIMIT = 120;
 
 async function resolveDealerBySlug(slug: string) {

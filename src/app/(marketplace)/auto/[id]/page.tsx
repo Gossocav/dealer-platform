@@ -41,6 +41,20 @@ import VehicleGallery from "./vehicle-gallery";
 // pagina per controllare.
 export const revalidate = 60;
 
+/**
+ * Perche' un elenco vuoto e non l'assenza di questa funzione: senza,
+ * "revalidate" su una pagina a indirizzo variabile non ha effetto e ogni
+ * visita ricalcola tutto -- e' scritto nella documentazione di Next.
+ *
+ * Vuoto e non pieno perche' il catalogo cambia di continuo: le pagine non si
+ * costruiscono in anticipo, si costruiscono alla prima visita e da li' si
+ * conservano per il minuto dichiarato sopra.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
+
 type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   vehicle_condition?: string | null;
   engine_size?: string | number | null;
