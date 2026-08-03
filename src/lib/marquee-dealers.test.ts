@@ -18,7 +18,7 @@ describe("striscia delle concessionarie partner", () => {
   });
 
   it("riceve i nomi delle concessionarie, non le marche", () => {
-    expect(homePage).toMatch(/<MarqueeDealers dealers=\{partnerDealerNames\}/);
+    expect(homePage).toMatch(/<MarqueeDealers dealers=\{marqueeDealers\}/);
     expect(homePage).not.toMatch(/<Marquee\w*\s+brands=/);
     expect(marquee).not.toMatch(/\bbrands?\b/);
   });
@@ -36,7 +36,7 @@ describe("striscia delle concessionarie partner", () => {
   it("non ripete la stessa concessionaria una volta per veicolo", () => {
     // Quelle righe sono una per veicolo pubblicato: senza deduplica su
     // dealer_id la striscia mostrerebbe lo stesso nome decine di volte.
-    const block = homePage.slice(homePage.indexOf("const partnerDealerNames"), homePage.indexOf("MarqueeDealers dealers"));
+    const block = homePage.slice(homePage.indexOf("const marqueeDealers"), homePage.indexOf("MarqueeDealers dealers"));
     expect(block).toContain("new Map(");
     expect(block).toContain("row.dealer_id");
   });

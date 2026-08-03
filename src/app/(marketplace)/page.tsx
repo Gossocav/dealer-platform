@@ -3,12 +3,13 @@ import Link from "next/link";
 import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
 import { HeroBrandModelFields } from "@/components/marketplace/hero-brand-model-fields";
-import { MarqueeDealers } from "@/components/marketplace/marquee-dealers";
+import { MarqueeDealers, type MarqueeDealer } from "@/components/marketplace/marquee-dealers";
 import { RevealOnScroll } from "@/components/marketplace/reveal-on-scroll";
 import { SpecShowcase, type SpecShowcaseVehicle } from "@/components/marketplace/spec-showcase";
 import {
   MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
   MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
+  createMarketplaceSlug,
   formatMileage,
   formatPrice,
   formatText,
@@ -115,7 +116,11 @@ export default async function MarketplaceHomePage() {
   // volta per veicolo pubblicato. Il nome viene risolto con lo stesso helper
   // usato ovunque nel marketplace, cosi' la scritta che scorre e la pagina
   // della concessionaria non si contraddicono.
-  const partnerDealerNames = Array.from(
+  //
+  // Lo slug nasce dal nome che si vede scorrere, e non dalla ragione sociale
+  // grezza: e' la prima corrispondenza che cerca la pagina della
+  // concessionaria, quindi il link porta per forza dove dice di portare.
+  const marqueeDealers: MarqueeDealer[] = Array.from(
     new Map(
       (publishedRows ?? []).map(
         (row) =>
@@ -126,7 +131,8 @@ export default async function MarketplaceHomePage() {
     // "Concessionaria" e' il ripiego dell'helper quando manca sia la ragione
     // sociale sia l'insegna: farlo scorrere darebbe una fila di nomi generici.
     .filter((name) => name !== "Concessionaria")
-    .sort((a, b) => a.localeCompare(b, "it"));
+    .sort((a, b) => a.localeCompare(b, "it"))
+    .map((name) => ({ name, slug: createMarketplaceSlug(name) }));
 
   if (error) {
     logMarketplaceQueryError("home", error);
@@ -281,7 +287,7 @@ export default async function MarketplaceHomePage() {
         </div>
       </section>
 
-      <MarqueeDealers dealers={partnerDealerNames} />
+      <MarqueeDealers dealers={marqueeDealers} />
 
       {/* ============ STATS ============ */}
       <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">

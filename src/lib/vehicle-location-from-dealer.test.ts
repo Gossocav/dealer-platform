@@ -85,7 +85,7 @@ describe("le pagine pubbliche mostrano la sede", () => {
   });
 
   it('conta le "Città coperte" dalle sedi, non dai veicoli', () => {
-    const block = home.slice(home.indexOf("const coveredCities"), home.indexOf("const partnerDealerNames"));
+    const block = home.slice(home.indexOf("const coveredCities"), home.indexOf("const marqueeDealers"));
     expect(block).toContain("publishedRows");
     expect(block).not.toContain("vehicle.city");
   });
