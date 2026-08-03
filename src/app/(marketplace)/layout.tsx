@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { CookieConsentBanner } from "@/components/marketplace/cookie-consent-banner";
+import { CookiePreferencesLink } from "@/components/marketplace/cookie-preferences-link";
+import { MeasurementScripts } from "@/components/marketplace/measurement-scripts";
 
 export default function MarketplaceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -100,6 +103,7 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
             <FooterLink href="/termini">Termini e Condizioni utenti</FooterLink>
             <FooterLink href="/termini-concessionari">Termini e Condizioni concessionari</FooterLink>
             <FooterLink href="/consenso-marketing">Consenso al Marketing</FooterLink>
+            <CookiePreferencesLink />
           </FooterColumn>
         </div>
 
@@ -110,6 +114,11 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
           </div>
         </div>
       </footer>
+
+      {/* La richiesta di consenso e lo strumento di misura: il secondo non si
+          carica finche' il primo non ha ricevuto un si'. */}
+      <CookieConsentBanner />
+      <MeasurementScripts />
     </div>
   );
 }
