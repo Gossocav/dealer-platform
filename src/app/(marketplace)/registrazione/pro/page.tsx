@@ -1,4 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
+
+export const metadata: Metadata = {
+  title: "Piano Pro",
+  description:
+    "Il piano Pro di KeyAuto: fino a 150 annunci attivi, CRM lead avanzato, statistiche e supporto prioritario.",
+  alternates: { canonical: toAbsoluteUrl("/registrazione/pro") },
+  openGraph: {
+    title: "Piano Pro | KeyAuto",
+    description: "Il piano Pro di KeyAuto: fino a 150 annunci attivi, CRM lead avanzato, statistiche e supporto prioritario.",
+    url: toAbsoluteUrl("/registrazione/pro"),
+    type: "website",
+  },
+};
 
 const proFeatures = [
   {

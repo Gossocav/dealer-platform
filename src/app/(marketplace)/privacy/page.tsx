@@ -11,7 +11,7 @@ const CONTROLLER = {
 };
 
 export const metadata: Metadata = {
-  title: "Informativa sulla privacy | KeyAuto",
+  title: "Informativa sulla privacy",
   description:
     "Informativa sul trattamento dei dati personali di KeyAuto Marketplace ai sensi del Regolamento (UE) 2016/679 (GDPR).",
 };

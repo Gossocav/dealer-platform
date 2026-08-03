@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 const SUPPORT_EMAIL = "info@keyauto.it";
 
 export const metadata: Metadata = {
-  title: "Domande Frequenti | KeyAuto",
+  title: "Domande Frequenti",
   description:
     "Le risposte alle domande più frequenti su KeyAuto: come cercare un'auto e richiedere informazioni, e come funziona la piattaforma per le concessionarie.",
 };

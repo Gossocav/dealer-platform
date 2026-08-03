@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isPrivateAreaPath } from "@/lib/private-areas";
 
 // Local dev and GitHub Codespaces need to reach a local/forwarded Supabase
 // instance; production never does. Next.js sets NODE_ENV to "development"
@@ -19,12 +20,20 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export function proxy(request: NextRequest) {
-  void request;
   const response = NextResponse.next();
   response.headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
 
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(name, value);
+  }
+
+  // Il gestionale risponde 200 a chiunque: senza login mostra solo "Verifica
+  // autenticazione...", quindi non espone dati, ma per Google resterebbero
+  // decine di pagine vuote e identiche. L'intestazione vale piu' del divieto
+  // in robots.txt: quello chiede di non passare, questa dice di non
+  // pubblicare anche a chi ci arriva da un link esterno.
+  if (isPrivateAreaPath(request.nextUrl.pathname)) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
   }
 
   // HSTS only in production: it must never be sent over plain-http local dev,

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthShell } from "@/components/auth-shell";
+import { getAppBaseUrl } from "@/lib/public-marketplace";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,9 +14,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Questo e' il ripiego che prende ogni pagina che non dichiara un titolo suo.
+// Era "KeyAuto | Registrazione": lo mostravano davvero, su Google e nella
+// linguetta del browser, l'elenco concessionarie, la richiesta demo e ogni
+// pagina del gestionale.
+//
+// Il template aggiunge "| KeyAuto" ai titoli che non ce l'hanno gia', cosi'
+// ogni pagina si presenta allo stesso modo senza doverlo ripetere a mano.
+// Chi vuole un titolo intero usa `title: { absolute: "..." }`.
 export const metadata: Metadata = {
-  title: "KeyAuto | Registrazione",
-  description: "Pagina di registrazione professionale per concessionarie",
+  // Senza questo, un'immagine di anteprima indicata come percorso relativo
+  // fa fallire la build invece di diventare un indirizzo completo.
+  metadataBase: new URL(getAppBaseUrl()),
+  title: {
+    default: "KeyAuto | Il marketplace delle concessionarie verificate",
+    template: "%s | KeyAuto",
+  },
+  description:
+    "KeyAuto: il marketplace auto con concessionarie verificate. Esplora veicoli nuovi, usati e km 0 in tutta Italia.",
 };
 
 export default function RootLayout({
