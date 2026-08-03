@@ -87,6 +87,23 @@ describe("le pagine pubbliche si possono conservare", () => {
     }
   });
 
+  // Su una pagina a indirizzo variabile "revalidate" da solo non basta: senza
+  // un elenco (anche vuoto) di indirizzi da costruire, Next continua a
+  // ricalcolare a ogni visita. Verificato in produzione: la scheda veicolo
+  // rispondeva ancora "no-store" con il solo revalidate.
+  it("le pagine a indirizzo variabile dichiarano l'elenco, altrimenti la validita' non vale", () => {
+    for (const percorso of [
+      "src/app/(marketplace)/auto/[id]/page.tsx",
+      "src/app/(marketplace)/concessionarie/[slug]/page.tsx",
+    ]) {
+      const sorgente = read(percorso);
+      expect(sorgente, percorso).toContain("export async function generateStaticParams()");
+      // Vuoto: il catalogo cambia di continuo, le pagine si costruiscono alla
+      // prima visita invece che in anticipo.
+      expect(sorgente, percorso).toMatch(/generateStaticParams\(\)\s*\{\s*return \[\];/);
+    }
+  });
+
   // Leggere le intestazioni della richiesta rende la pagina non conservabile,
   // qualunque validita' si dichiari.
   it("la scheda veicolo non legge piu' le intestazioni della richiesta", () => {
