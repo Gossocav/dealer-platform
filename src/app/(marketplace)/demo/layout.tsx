@@ -14,6 +14,7 @@ export const metadata: Metadata = {
     description: "Richiedi un accesso di prova al pannello concessionario KeyAuto.",
     url: toAbsoluteUrl("/demo"),
     type: "website",
+    images: ["/opengraph-image"],
   },
 };
 

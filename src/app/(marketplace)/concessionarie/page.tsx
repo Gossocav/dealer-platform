@@ -14,6 +14,7 @@ export const metadata: Metadata = {
     description: "Le concessionarie verificate di KeyAuto, con i veicoli pubblicati da ognuna.",
     url: toAbsoluteUrl("/concessionarie"),
     type: "website",
+    images: ["/opengraph-image"],
   },
 };
 

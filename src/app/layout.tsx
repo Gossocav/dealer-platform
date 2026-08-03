@@ -32,6 +32,11 @@ export const metadata: Metadata = {
   },
   description:
     "KeyAuto: il marketplace auto con concessionarie verificate. Esplora veicoli nuovi, usati e km 0 in tutta Italia.",
+  // X non copia da solo l'anteprima Open Graph, ma senza carta dichiarata la
+  // mostrerebbe comunque piccola e di lato invece che a tutta larghezza.
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({

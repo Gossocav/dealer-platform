@@ -57,6 +57,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       description,
       url: canonical,
       type: "website",
+      images: [{ url: `/og/concessionaria/${slug}`, width: 1200, height: 630, alt: dealerName }],
     },
   };
 }
