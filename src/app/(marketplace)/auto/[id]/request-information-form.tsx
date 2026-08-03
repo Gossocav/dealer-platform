@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { trackLead } from "@/lib/measurement-events";
 
 type RequestInformationFormProps = {
   vehicleId: string;
@@ -63,6 +64,12 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
       setErrorMessage(result?.error || "Errore durante l'invio della richiesta.");
       return;
     }
+
+    // Solo dopo che la richiesta e' davvero arrivata: contare un tentativo
+    // fallito come contatto renderebbe i numeri piu' belli e inutili.
+    // Del veicolo, non della persona: chi ha scritto non riguarda le
+    // statistiche.
+    trackLead("veicolo", { veicolo: vehicleLabel, veicolo_id: vehicleId });
 
     setSuccessMessage(result?.message || "Richiesta inviata correttamente.");
     setCustomerType("");

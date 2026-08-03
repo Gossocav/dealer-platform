@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
+import { trackLead } from "@/lib/measurement-events";
 
 type DemoFormState = {
   companyName: string;
@@ -513,6 +514,10 @@ function DemoRequestPage() {
     setValues(initialValues);
     setChamberDocument(null);
     setErrors({});
+    // La richiesta demo e' la conversione che conta di piu' oggi: e' cosi'
+    // che entra una concessionaria nuova, cioe' inventario nuovo.
+    trackLead("demo_concessionaria");
+
     setIsSubmitted(true);
     setServerMessage(payload.message ?? "Richiesta Demo inviata");
     setIsSubmitting(false);
