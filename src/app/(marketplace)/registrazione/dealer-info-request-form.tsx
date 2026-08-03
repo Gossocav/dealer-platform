@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackLead } from "@/lib/measurement-events";
 
 type FormState = {
   companyName: string;
@@ -92,6 +93,10 @@ export default function DealerInfoRequestForm() {
         setErrorMessage(payload?.error || "Invio non riuscito. Riprova tra poco.");
         return;
       }
+
+      // Vedi la nota nel modulo della scheda veicolo: solo a richiesta
+      // arrivata, e senza nessun dato della persona.
+      trackLead("info_concessionaria");
 
       setSuccessMessage(payload?.message || "Richiesta inviata. Ti risponderemo al piu presto.");
       setValues(initialState);

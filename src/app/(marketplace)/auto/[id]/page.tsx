@@ -27,6 +27,7 @@ import {
 } from "@/lib/public-marketplace";
 import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
 import { JsonLd } from "@/components/marketplace/json-ld";
+import { WhatsAppContactButton } from "@/components/marketplace/whatsapp-contact-button";
 import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data";
 import RequestInformationForm from "./request-information-form";
 import VehicleGallery from "./vehicle-gallery";
@@ -392,14 +393,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   <PhoneIcon /> Contatta il venditore
                 </a>
                 {dealerWhatsAppLink ? (
-                  <a
-                    href={dealerWhatsAppLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-br from-emerald-300 to-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(55,224,232,0.5)] transition hover:brightness-105"
-                  >
-                    WhatsApp
-                  </a>
+                  <WhatsAppContactButton href={dealerWhatsAppLink} vehicleLabel={shareTitle} vehicleId={vehicle.id} />
                 ) : (
                   <span title={whatsappUnavailableMessage}>
                     <button
