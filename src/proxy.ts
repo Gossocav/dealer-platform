@@ -8,7 +8,25 @@ import { isPrivateAreaPath } from "@/lib/private-areas";
 const DEV_ONLY_CONNECT_SRC =
   process.env.NODE_ENV === "production" ? "" : " http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.app.github.dev wss://*.app.github.dev";
 
-const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-ancestors 'none';`;
+// Le regole di sicurezza vietano qualsiasi codice che non arrivi da noi: e'
+// il motivo per cui incollare un pixel di misurazione non avrebbe funzionato,
+// e senza accorgersene -- il browser lo blocca in silenzio e i dati non
+// arrivano mai.
+//
+// Il permesso si apre solo se lo strumento e' stato davvero configurato: senza
+// identificativo non si carica niente, e allargare le regole "per quando
+// servira'" sarebbe una porta lasciata aperta per nessuno.
+const MEASUREMENT_CONFIGURED = String(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "").trim().length > 0;
+
+const MEASUREMENT_SCRIPT_SRC = MEASUREMENT_CONFIGURED ? " https://www.googletagmanager.com" : "";
+const MEASUREMENT_CONNECT_SRC = MEASUREMENT_CONFIGURED
+  ? " https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com"
+  : "";
+const MEASUREMENT_IMG_SRC = MEASUREMENT_CONFIGURED
+  ? " https://www.googletagmanager.com https://*.google-analytics.com"
+  : "";
+
+const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline' 'unsafe-eval'${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-ancestors 'none';`;
 
 // Standard hardening headers applied to every dynamic response. X-Frame-Options
 // duplicates the CSP frame-ancestors directive for older browsers.

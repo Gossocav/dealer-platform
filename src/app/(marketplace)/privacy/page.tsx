@@ -157,9 +157,25 @@ export default function PrivacyPage() {
 
           <Section title="9. Cookie">
             <p>
-              La piattaforma utilizza esclusivamente cookie tecnici e di sessione necessari al funzionamento del
-              servizio e alla gestione dell&apos;autenticazione. Questi cookie non richiedono consenso preventivo. Non
-              vengono utilizzati cookie di profilazione o di marketing di terze parti.
+              <strong>Cookie tecnici.</strong> La piattaforma utilizza cookie tecnici e di sessione necessari al
+              funzionamento del servizio e alla gestione dell&apos;autenticazione. Questi cookie non richiedono
+              consenso preventivo e non possono essere disattivati senza compromettere il funzionamento del sito.
+            </p>
+            <p>
+              <strong>Cookie di misurazione.</strong> Previo tuo consenso, la piattaforma utilizza cookie di
+              misurazione statistica forniti da Google (Google Analytics) per capire quali pagine vengono consultate e
+              migliorare il servizio. Questi cookie <strong>non vengono installati finché non presti il consenso</strong>:
+              alla prima visita ti viene chiesto di scegliere, e finché non scegli nessuno strumento di misurazione
+              viene caricato. Se rifiuti, non viene installato alcun cookie di misurazione.
+            </p>
+            <p>
+              <strong>Come cambiare idea.</strong> Puoi modificare la tua scelta in qualsiasi momento dal collegamento
+              &ldquo;Preferenze cookie&rdquo; in fondo a ogni pagina. La revoca è semplice quanto il consenso e ha
+              effetto immediato.
+            </p>
+            <p>
+              Non vengono utilizzati cookie di profilazione pubblicitaria né cookie che ricostruiscano il tuo
+              comportamento su siti di terzi.
             </p>
           </Section>
 
