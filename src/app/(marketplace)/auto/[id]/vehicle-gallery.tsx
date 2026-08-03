@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type VehicleGalleryProps = {
@@ -106,8 +107,18 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
               className="group block h-full w-full cursor-zoom-in"
               aria-label={`Apri le foto di ${label}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={coverUrl} alt={label} decoding="async" className="h-full w-full max-w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+              {/* La foto piu' grande della pagina e la prima che si vede:
+                  "priority" la fa partire subito invece di aspettare che il
+                  browser scopra che serve. E' la misura che sposta di piu' il
+                  tempo percepito su una pagina d'atterraggio. */}
+              <Image
+                src={coverUrl}
+                alt={label}
+                fill
+                priority
+                sizes="(max-width: 1024px) 100vw, 66vw"
+                className="max-w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+              />
             </button>
           ) : (
             <div className="flex h-full w-full items-center justify-center text-slate-600">
@@ -137,8 +148,14 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
                   className="relative max-w-full cursor-zoom-in overflow-hidden rounded-2xl border border-white/10 bg-slate-800 transition hover:border-blue-400/40"
                   aria-label={`Apri foto ${index + 1} di ${total}`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt={`${label} - foto ${index + 1}`} loading="lazy" decoding="async" className="h-32 w-full max-w-full object-cover" />
+                  <Image
+                    src={image}
+                    alt={`${label} - foto ${index + 1}`}
+                    width={320}
+                    height={128}
+                    sizes="(max-width: 640px) 50vw, 200px"
+                    className="h-32 w-full max-w-full object-cover"
+                  />
                   {isLastVisible ? (
                     <span className="absolute inset-0 flex items-center justify-center bg-slate-950/65 text-sm font-bold text-white">
                       +{hiddenThumbnailCount} foto
@@ -191,12 +208,15 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
               tabIndex={-1}
             />
 
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            {/* A schermo intero si guarda la carrozzeria da vicino: qui una
+                versione ridotta si vedrebbe, quindi si chiede la misura piena. */}
+            <Image
               src={images[openIndex]}
               alt={`${label} - foto ${openIndex + 1} di ${total}`}
-              decoding="async"
-              className="relative max-h-full max-w-full object-contain"
+              width={1600}
+              height={1200}
+              sizes="100vw"
+              className="relative max-h-full w-auto max-w-full object-contain"
             />
 
             {total > 1 ? (
@@ -238,8 +258,7 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
                   aria-label={`Vai alla foto ${index + 1}`}
                   aria-current={index === openIndex}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                  <Image src={image} alt="" width={96} height={64} sizes="96px" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import ShareVehicleButton from "@/components/marketplace/share-vehicle-button";
 import {
@@ -32,7 +31,15 @@ import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data
 import RequestInformationForm from "./request-information-form";
 import VehicleGallery from "./vehicle-gallery";
 
-export const dynamic = "force-dynamic";
+// Prima era "force-dynamic": ogni singola visita ricalcolava la pagina e il
+// browser riceveva l'ordine di non conservarne niente. Su una pagina
+// d'atterraggio pubblicitaria significa pagare due volte, in tempo e in
+// risorse, per mostrare a mille persone la stessa identica scheda.
+//
+// Un minuto di validita': un annuncio appena modificato compare entro un
+// minuto, che e' meno di quanto ci mette un concessionario a ricaricare la
+// pagina per controllare.
+export const revalidate = 60;
 
 type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   vehicle_condition?: string | null;
@@ -122,10 +129,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function MarketplaceVehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const requestHeaders = await headers();
-  const forwardedProto = requestHeaders.get("x-forwarded-proto") ?? "https";
-  const forwardedHost = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
-  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : "";
 
   const { data, error } = await fetchMarketplaceVehicleDetail(id);
 
@@ -184,7 +187,12 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   // Solo la sede della concessionaria: la citta' scritta sul veicolo la
   // contraddiceva e non e' quella su cui la ricerca misura le distanze.
   const dealershipLocality = formatText(dealerCity) !== "-" ? formatText(dealerCity) : "";
-  const shareUrl = origin ? `${origin}/auto/${vehicle.id}` : `/auto/${vehicle.id}`;
+  // Prima nasceva dall'intestazione della richiesta, cioe' dal nome host con
+  // cui si era arrivati: chi apriva il sito senza "www" condivideva un
+  // indirizzo diverso dallo stesso annuncio aperto con "www". Ora e' sempre
+  // quello canonico -- e leggere le intestazioni impediva di tenere la pagina
+  // in cache, che e' il motivo per cui ogni visita ripartiva da zero.
+  const shareUrl = toAbsoluteUrl(`/auto/${vehicle.id}`);
   const shareTitle = resolveVehicleLabel(vehicle);
   const shareText = [
     `Marca: ${formatText(vehicle.brand)}`,
