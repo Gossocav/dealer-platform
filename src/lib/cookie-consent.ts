@@ -39,9 +39,31 @@ export function subscribeToConsent(onChange: () => void) {
   };
 }
 
-/** Il server non puo' sapere la scelta: risponde sempre "non ancora fatta". */
-export function readServerConsent(): ConsentChoice | null {
-  return null;
+/**
+ * Lo stato "il server non puo' saperlo", che e' diverso da "non ha ancora
+ * scelto".
+ *
+ * La distinzione sembra sottile e invece e' tutto. Se il server dicesse "non
+ * ha ancora scelto", disegnerebbe la richiesta di consenso dentro l'HTML --
+ * e quell'HTML viene conservato e riservito a chiunque. E' successo davvero:
+ * la home ha continuato per ore a servire una copia costruita prima che il
+ * consenso esistesse, senza il banner, e nessuna ripubblicazione la
+ * sbloccava.
+ *
+ * Dicendo invece "non lo so", il server non disegna niente e la richiesta
+ * compare nel browser, che la memoria della scelta ce l'ha davvero. Cosi' il
+ * banner non dipende piu' da quale copia della pagina viene servita.
+ */
+export const CONSENT_UNKNOWN = "sconosciuto";
+
+export type ConsentSnapshot = ConsentChoice | null | typeof CONSENT_UNKNOWN;
+
+export function readServerConsent(): ConsentSnapshot {
+  return CONSENT_UNKNOWN;
+}
+
+export function readClientConsent(): ConsentSnapshot {
+  return readStoredConsent();
 }
 
 export function readStoredConsent(): ConsentChoice | null {

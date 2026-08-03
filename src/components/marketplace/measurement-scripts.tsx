@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { useSyncExternalStore } from "react";
-import { getMeasurementId, readServerConsent, readStoredConsent, subscribeToConsent } from "@/lib/cookie-consent";
+import { getMeasurementId, readClientConsent, readServerConsent, subscribeToConsent } from "@/lib/cookie-consent";
 
 /**
  * Lo strumento di misura, caricato solo dopo un si' esplicito.
@@ -18,7 +18,7 @@ import { getMeasurementId, readServerConsent, readStoredConsent, subscribeToCons
  */
 export function MeasurementScripts() {
   const measurementId = getMeasurementId();
-  const consenso = useSyncExternalStore(subscribeToConsent, readStoredConsent, readServerConsent);
+  const consenso = useSyncExternalStore(subscribeToConsent, readClientConsent, readServerConsent);
 
   if (!measurementId || consenso !== "accettato") {
     return null;

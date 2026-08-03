@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CONSENT_STORAGE_KEY,
+  CONSENT_UNKNOWN,
   clearStoredConsent,
+  readClientConsent,
   readServerConsent,
   readStoredConsent,
   storeConsent,
@@ -95,8 +97,19 @@ describe("la scelta si ricorda, e prima di sceglierla non vale nulla", () => {
     expect(readStoredConsent()).toBeNull();
   });
 
-  it("il server non conosce la scelta e non la indovina", () => {
-    expect(readServerConsent()).toBeNull();
+  // "Non lo so" e' diverso da "non ha ancora scelto": se il server dicesse la
+  // seconda cosa disegnerebbe il banner dentro l'HTML, che viene conservato e
+  // riservito. E' successo davvero sulla home, che per ore ha servito una
+  // copia costruita prima che il consenso esistesse.
+  it("il server dice di non sapere, non che la scelta non e' stata fatta", () => {
+    expect(readServerConsent()).toBe(CONSENT_UNKNOWN);
+    expect(readServerConsent()).not.toBeNull();
+  });
+
+  it("nel browser invece la risposta e' quella vera", () => {
+    expect(readClientConsent()).toBeNull();
+    storeConsent("accettato");
+    expect(readClientConsent()).toBe("accettato");
   });
 });
 
@@ -114,6 +127,18 @@ describe("niente si carica prima del si'", () => {
   it("senza identificativo configurato non si carica niente e non si chiede niente", () => {
     expect(scripts).toContain("!measurementId");
     expect(banner).toContain("!getMeasurementId()");
+  });
+
+  // Il banner disegnato dal server finirebbe dentro l'HTML conservato, e chi
+  // riceve una copia vecchia non lo vedrebbe mai: e' successo sulla home.
+  it("la richiesta di consenso nasce nel browser, non nell'HTML conservato", () => {
+    for (const [nome, sorgente] of [
+      ["banner", banner],
+      ["collegamento preferenze", read("src/components/marketplace/cookie-preferences-link.tsx")],
+    ] as const) {
+      expect(sorgente, nome).toContain("CONSENT_UNKNOWN");
+      expect(sorgente, nome).toContain("readServerConsent");
+    }
   });
 
   // Rifiutare deve costare quanto accettare: due bottoni, nessuna X che

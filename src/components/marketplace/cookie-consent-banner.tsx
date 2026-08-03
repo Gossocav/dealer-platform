@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import {
+  CONSENT_UNKNOWN,
   getMeasurementId,
+  readClientConsent,
   readServerConsent,
-  readStoredConsent,
   storeConsent,
   subscribeToConsent,
   type ConsentChoice,
@@ -21,14 +22,16 @@ import {
  *   navigare acconsenti".
  */
 export function CookieConsentBanner() {
-  // Sul server la scelta non si puo' conoscere, quindi la risposta iniziale e'
-  // sempre "non ancora fatta": il banner compare dopo, senza far lampeggiare
-  // una richiesta a chi ha gia' risposto.
-  const consenso = useSyncExternalStore(subscribeToConsent, readStoredConsent, readServerConsent);
+  // Il server risponde "non lo so" e quindi non disegna niente: la richiesta
+  // nasce nel browser, che la memoria della scelta ce l'ha davvero. Senza
+  // questo il banner finirebbe dentro l'HTML conservato, e chi riceve una
+  // copia vecchia non lo vedrebbe mai -- e' esattamente quello che e'
+  // successo in home.
+  const consenso = useSyncExternalStore(subscribeToConsent, readClientConsent, readServerConsent);
 
   // Senza strumento configurato non c'e' niente da consentire: chiedere il
   // permesso per qualcosa che non esiste sarebbe solo un ostacolo in piu'.
-  if (!getMeasurementId() || consenso !== null) {
+  if (consenso === CONSENT_UNKNOWN || consenso !== null || !getMeasurementId()) {
     return null;
   }
 
