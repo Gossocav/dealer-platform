@@ -13,6 +13,7 @@ export const metadata: Metadata = {
     description: "Pubblica i tuoi veicoli su KeyAuto e ricevi richieste dai clienti.",
     url: toAbsoluteUrl("/registrazione"),
     type: "website",
+    images: ["/opengraph-image"],
   },
 };
 

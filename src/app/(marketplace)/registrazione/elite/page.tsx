@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     description: "Il piano Elite di KeyAuto: fino a 300 annunci attivi, maggiore visibilita' in vetrina, report mensili e supporto prioritario.",
     url: toAbsoluteUrl("/registrazione/elite"),
     type: "website",
+    images: ["/opengraph-image"],
   },
 };
 

@@ -62,6 +62,7 @@ export function generateMetadata(): Metadata {
       description,
       url: canonical,
       type: "website",
+      images: ["/opengraph-image"],
     },
   };
 }

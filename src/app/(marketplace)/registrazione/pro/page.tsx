@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     description: "Il piano Pro di KeyAuto: fino a 150 annunci attivi, CRM lead avanzato, statistiche e supporto prioritario.",
     url: toAbsoluteUrl("/registrazione/pro"),
     type: "website",
+    images: ["/opengraph-image"],
   },
 };
 

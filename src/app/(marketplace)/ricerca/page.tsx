@@ -76,6 +76,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
       description,
       url: canonical,
       type: "website",
+      images: ["/opengraph-image"],
     },
   };
 }

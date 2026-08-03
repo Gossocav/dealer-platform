@@ -106,6 +106,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       description,
       url: canonical,
       type: "website",
+      // La foto dell'auto, disegnata su misura: e' il motivo per cui uno
+      // condivide una scheda veicolo.
+      images: [{ url: `/og/veicolo/${id}`, width: 1200, height: 630, alt: title }],
     },
   };
 }

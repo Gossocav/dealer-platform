@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     description: "Il piano d'ingresso di KeyAuto: fino a 50 annunci attivi, gestione dei lead e pannello concessionario.",
     url: toAbsoluteUrl("/registrazione/base"),
     type: "website",
+    images: ["/opengraph-image"],
   },
 };
 
