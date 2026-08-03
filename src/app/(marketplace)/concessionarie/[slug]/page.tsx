@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatText, logMarketplaceQueryError, normalizeVehicleDealerName, publicSupabase, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { JsonLd } from "@/components/marketplace/json-ld";
+import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
+import { resolveClickableWebsite } from "@/lib/website-url";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +14,10 @@ const DEALER_PAGE_VEHICLES_LIMIT = 120;
 async function resolveDealerBySlug(slug: string) {
   const { data, error } = await publicSupabase
     .from("dealers")
-    .select("id, name, logo_url, legal_name")
+    // I recapiti servono ai dati strutturati: sono quelli che permettono a
+    // Google di riconoscere la concessionaria come un'azienda con una sede,
+    // invece che come una pagina qualsiasi.
+    .select("id, name, logo_url, legal_name, city, province, address, phone, email, website")
     .eq("status", "approved");
 
   if (error) {
@@ -81,9 +87,12 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     .order("created_at", { ascending: false })
     .limit(DEALER_PAGE_VEHICLES_LIMIT);
 
+  // Un guasto del database non e' una concessionaria che non esiste:
+  // dichiararla sparita la farebbe togliere dall'indice per un'interruzione
+  // momentanea. Stessa distinzione gia' fatta sulla scheda veicolo.
   if (error) {
     logMarketplaceQueryError("dealer-page", error);
-    notFound();
+    throw new Error(`Impossibile caricare la pagina concessionaria: ${error.message}`);
   }
 
   const dealerVehicles = (data ?? []) as unknown as MarketplaceVehicle[];
@@ -99,8 +108,33 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   const cities = Array.from(new Set(dealerVehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
   const totalVehicles = dealerVehicles.length;
 
+  const canonicalUrl = toAbsoluteUrl(`/concessionarie/${slug}`);
+  const dealerJsonLd = buildDealerJsonLd({
+    url: canonicalUrl,
+    name: dealerName,
+    city: matchedDealer.city ?? null,
+    province: matchedDealer.province ?? null,
+    address: matchedDealer.address ?? null,
+    postalCode: null,
+    phone: matchedDealer.phone ?? null,
+    email: matchedDealer.email ?? null,
+    // Passa dal controllo in lettura: nel database puo' esserci ancora un
+    // indirizzo che non e' un indirizzo, e consegnarlo a Google come
+    // "stessa azienda altrove" lo renderebbe un dato sbagliato dichiarato.
+    website: resolveClickableWebsite(matchedDealer.website),
+    vehiclesCount: totalVehicles,
+  });
+
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Home", url: toAbsoluteUrl("/") },
+    { name: "Concessionarie", url: toAbsoluteUrl("/concessionarie") },
+    { name: dealerName, url: canonicalUrl },
+  ]);
+
   return (
     <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
+      <JsonLd data={dealerJsonLd} />
+      <JsonLd data={breadcrumbJsonLd} />
       <div className="mx-auto w-full max-w-7xl space-y-8">
         <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-8 py-10 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)] sm:px-10 sm:py-12 lg:px-12 lg:py-14">
           <div

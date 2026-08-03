@@ -4,6 +4,8 @@ import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
 import { HeroBrandModelFields } from "@/components/marketplace/hero-brand-model-fields";
 import { MarqueeDealers, type MarqueeDealer } from "@/components/marketplace/marquee-dealers";
+import { JsonLd } from "@/components/marketplace/json-ld";
+import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/structured-data";
 import { RevealOnScroll } from "@/components/marketplace/reveal-on-scroll";
 import { SpecShowcase, type SpecShowcaseVehicle } from "@/components/marketplace/spec-showcase";
 import {
@@ -11,6 +13,7 @@ import {
   MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
   createMarketplaceSlug,
   formatMileage,
+  getAppBaseUrl,
   formatPrice,
   formatText,
   logMarketplaceQueryError,
@@ -217,6 +220,12 @@ export default async function MarketplaceHomePage() {
 
   return (
     <main className="bg-slate-950">
+      {/* Chi siamo e come si cerca dentro il sito. Il secondo blocco serve a
+          una cosa visibile: il riquadro di ricerca che Google puo' mostrare
+          sotto il risultato del dominio, che porta la gente nel catalogo
+          invece che in home. */}
+      <JsonLd data={buildOrganizationJsonLd({ baseUrl: getAppBaseUrl() })} />
+      <JsonLd data={buildWebSiteJsonLd({ baseUrl: getAppBaseUrl() })} />
       {/* ============ HERO — search-first ============ */}
       <section className="relative overflow-hidden px-4 pb-20 pt-16 sm:px-6 sm:pt-20 lg:px-8">
         <div

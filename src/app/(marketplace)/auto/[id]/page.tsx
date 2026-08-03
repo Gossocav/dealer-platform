@@ -8,7 +8,9 @@ import {
   formatMileage,
   formatPrice,
   formatText,
+  getAppBaseUrl,
   logMarketplaceQueryError,
+  resolveDealerSlug,
   MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
   MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
   publicSupabase,
@@ -25,12 +27,15 @@ import {
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
 import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
+import { JsonLd } from "@/components/marketplace/json-ld";
+import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data";
 import RequestInformationForm from "./request-information-form";
 import VehicleGallery from "./vehicle-gallery";
 
 export const dynamic = "force-dynamic";
 
 type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
+  vehicle_condition?: string | null;
   engine_size?: string | number | null;
   traction?: string | null;
   interior_type?: string | null;
@@ -63,7 +68,9 @@ async function fetchMarketplaceVehicleDetail(id: string) {
   return publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+      // vehicle_condition serve ai dati strutturati: e' la differenza fra
+      // dichiarare a Google un'auto nuova e una usata.
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("published", true)
@@ -190,6 +197,46 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const source = vehicle as Record<string, unknown>;
   const equipmentList = normalizeEquipment(source.equipment);
 
+  // Quello che Google legge senza dover interpretare la pagina: prezzo,
+  // chilometri, condizioni e venditore. E' cio' che permette di comparire fra
+  // i risultati con la scheda invece che con due righe di testo.
+  const canonicalUrl = toAbsoluteUrl(`/auto/${vehicle.id}`);
+  const dealerSlug = resolveDealerSlug(vehicle.dealers);
+  const vehicleJsonLd = buildVehicleJsonLd({
+    url: canonicalUrl,
+    name: shareTitle,
+    description: vehicle.description,
+    // Le foto passano da indirizzi firmati che scadono: a Google si consegna
+    // l'anteprima stabile, l'unica che rispondera' anche fra sei mesi.
+    images: [`${getAppBaseUrl()}/og/veicolo/${vehicle.id}`],
+    brand: vehicle.brand,
+    model: vehicle.model,
+    version: vehicle.version,
+    vin: vehicle.vin ?? null,
+    year: vehicle.year,
+    registrationDate: vehicle.registration_date ?? null,
+    mileage: vehicle.mileage,
+    price: vehicle.price,
+    condition: vehicle.vehicle_condition ?? null,
+    fuel: vehicle.fuel,
+    transmission: vehicle.transmission,
+    bodyType: vehicle.body_type,
+    color: vehicle.color,
+    doors: vehicle.doors,
+    seats: vehicle.seats,
+    powerKw: vehicle.power_kw ?? null,
+    dealerName: dealerDisplayName,
+    dealerUrl: toAbsoluteUrl(`/concessionarie/${dealerSlug}`),
+    dealerCity: dealerNode?.city ?? null,
+    dealerProvince: dealerNode?.province ?? null,
+  });
+
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Home", url: toAbsoluteUrl("/") },
+    { name: "Catalogo", url: toAbsoluteUrl("/auto") },
+    { name: shareTitle, url: canonicalUrl },
+  ]);
+
   // The 5 specs a buyer scans first — shown as icon chips right under the
   // gallery. Everything else (still all present, nothing dropped) moves to
   // the quieter technical spec list further down.
@@ -217,6 +264,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
 
   return (
     <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
+      <JsonLd data={vehicleJsonLd} />
+      <JsonLd data={breadcrumbJsonLd} />
       <div className="mx-auto w-full max-w-7xl space-y-6">
         {/* ============ HERO ============ */}
         <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-6 py-8 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)] sm:px-10 sm:py-10">
