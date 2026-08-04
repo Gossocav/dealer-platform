@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
   title: "Consenso al Marketing",
   description:
     "Informativa sul consenso facoltativo all'invio di comunicazioni di marketing da parte di KeyAuto.",
+  alternates: { canonical: toAbsoluteUrl("/consenso-marketing") },
 };
 
 export default function MarketingConsentPage() {

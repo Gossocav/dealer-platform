@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   title: "Condizioni Generali per i concessionari",
   description:
     "Condizioni Generali di abbonamento riservate ai concessionari che pubblicano veicoli sul marketplace KeyAuto.",
+  alternates: { canonical: toAbsoluteUrl("/termini-concessionari") },
 };
 
 export default function DealerTermsPage() {

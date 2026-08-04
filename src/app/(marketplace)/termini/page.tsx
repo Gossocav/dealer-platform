@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   title: "Termini e Condizioni per gli utenti",
   description:
     "Termini e Condizioni per gli utenti del marketplace KeyAuto: ruolo di intermediario, uso del servizio e responsabilità.",
+  alternates: { canonical: toAbsoluteUrl("/termini") },
 };
 
 export default function TermsPage() {
