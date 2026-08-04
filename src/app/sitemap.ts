@@ -54,7 +54,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   const staticEntries: MetadataRoute.Sitemap = STATIC_ENTRIES.map((entry) => ({
-    url: `${baseUrl}${entry.path}`,
+    // La home: senza questo la sitemap dichiarava "https://.../" mentre la
+    // pagina si dichiarava "https://..." -- lo stesso indirizzo scritto in due
+    // modi. Google lo risolve da solo, ma consegnargli due forme di una cosa
+    // sola e' il tipo di incoerenza che poi si legge come un errore in
+    // Search Console e fa perdere tempo a capirla.
+    url: entry.path === "/" ? baseUrl : `${baseUrl}${entry.path}`,
     lastModified: now,
     changeFrequency: entry.changeFrequency,
     priority: entry.priority,

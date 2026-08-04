@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import type { ReactNode } from "react";
 
 const LAST_UPDATED = "24 luglio 2026";
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
   title: "Informativa sulla privacy",
   description:
     "Informativa sul trattamento dei dati personali di KeyAuto Marketplace ai sensi del Regolamento (UE) 2016/679 (GDPR).",
+  alternates: { canonical: toAbsoluteUrl("/privacy") },
 };
 
 export default function PrivacyPage() {
