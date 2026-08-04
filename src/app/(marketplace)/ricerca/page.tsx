@@ -61,9 +61,19 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const filters = parseSearchState(resolved);
   const params = buildSearchParams(filters);
   const queryString = params.toString();
-  const canonicalPath = queryString ? `/ricerca?${queryString}` : "/ricerca";
   const description = "Ricerca avanzata veicoli: filtra per distanza da una città o CAP, marca, modello, prezzo, alimentazione, cambio e anno.";
-  const canonical = toAbsoluteUrl(canonicalPath);
+
+  // Ogni combinazione di filtri era un indirizzo a se', che dichiarava se
+  // stesso come versione buona. Con la citta' a testo libero le combinazioni
+  // sono infinite: Google avrebbe passato il suo tempo su migliaia di elenchi
+  // quasi identici invece che sulle schede dei veicoli, che sono le pagine
+  // che devono posizionarsi.
+  //
+  // La ricerca vuota resta indicizzabile -- e' una pagina vera del sito. Le
+  // sue combinazioni no, ma restano da percorrere: "follow" fa sì che Google
+  // arrivi comunque agli annunci passando di qui.
+  const isFiltered = queryString.length > 0;
+  const canonical = toAbsoluteUrl("/ricerca");
 
   return {
     title: filters.page > 1 ? `Ricerca Veicoli - Pagina ${filters.page}` : "Ricerca Veicoli",
@@ -71,6 +81,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     alternates: {
       canonical,
     },
+    robots: isFiltered ? { index: false, follow: true } : undefined,
     openGraph: {
       title: "Ricerca Veicoli | KeyAuto",
       description,
