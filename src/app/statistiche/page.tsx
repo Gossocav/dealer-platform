@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { supabase } from "@/lib/supabaseClient";
@@ -81,81 +82,117 @@ export default function StatistichePage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusMessageType, setStatusMessageType] = useState<"success" | "error" | null>(null);
 
+  // I totali si contano nel database, non contando le righe scaricate.
+  //
+  // Prima la pagina scaricava *tutte* le righe di quattro tabelle e ne
+  // misurava la lunghezza. Ma il database ne restituisce al massimo mille per
+  // richiesta: superata quella soglia i numeri smettevano di crescere, senza
+  // nessun errore e senza nessun avviso. Una concessionaria con 1.400 lead ne
+  // avrebbe letti 1.000 per sempre.
+  //
+  // I veicoli restano scaricati per intero, e va bene: il piano piu' alto ne
+  // consente 300, quindi il tetto non li tocca -- e servono comunque interi
+  // per il prezzo medio.
+  const [totals, setTotals] = useState({ leads: 0, customers: 0, appointments: 0 });
+
   useEffect(() => {
+    let attivo = true;
+
     const fetchAll = async () => {
       setLoading(true);
       setStatusMessage(null);
-      const [vehiclesRes, leadsRes, customersRes, appointmentsRes] = await Promise.all([
-        supabase
-          .from("vehicles")
-          .select("id, brand, model, version, registration_date, year, price, status, published, created_at"),
-        supabase
-          .from("leads")
-          .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at"),
-        supabase
-          .from("customers")
-          .select("id, first_name, last_name, company, email, phone, created_at"),
-        supabase
-          .from("appointments")
-          .select("id, title, description, start_at, end_at, status, created_at"),
-      ]);
+
+      const adesso = new Date().toISOString();
+
+      const [vehiclesRes, leadsCount, customersCount, appointmentsCount, latestLeadsRes, latestCustomersRes, upcomingRes] =
+        await Promise.all([
+          supabase
+            .from("vehicles")
+            .select("id, brand, model, version, registration_date, year, price, status, published, created_at")
+            .order("created_at", { ascending: false }),
+          supabase.from("leads").select("id", { count: "exact", head: true }),
+          supabase.from("customers").select("id", { count: "exact", head: true }),
+          supabase.from("appointments").select("id", { count: "exact", head: true }),
+          // Gli ultimi cinque li sceglie il database: ordinare a mano un
+          // elenco gia' troncato dava "gli ultimi cinque fra i primi mille",
+          // che non sono gli ultimi cinque.
+          supabase
+            .from("leads")
+            .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at")
+            .order("created_at", { ascending: false })
+            .limit(5),
+          supabase
+            .from("customers")
+            .select("id, first_name, last_name, company, email, phone, created_at")
+            .order("created_at", { ascending: false })
+            .limit(5),
+          supabase
+            .from("appointments")
+            .select("id, title, description, start_at, end_at, status, created_at")
+            .gte("start_at", adesso)
+            .order("start_at", { ascending: true })
+            .limit(5),
+        ]);
+
+      if (!attivo) return;
 
       setLoading(false);
 
-      if (vehiclesRes.error || leadsRes.error || customersRes.error || appointmentsRes.error) {
-        const errorMessage = vehiclesRes.error?.message || leadsRes.error?.message || customersRes.error?.message || appointmentsRes.error?.message;
-        setStatusMessage(errorMessage || "Errore nel recupero dei dati.");
+      const primoErrore =
+        vehiclesRes.error ??
+        leadsCount.error ??
+        customersCount.error ??
+        appointmentsCount.error ??
+        latestLeadsRes.error ??
+        latestCustomersRes.error ??
+        upcomingRes.error;
+
+      if (primoErrore) {
+        setStatusMessage(primoErrore.message || "Errore nel recupero dei dati.");
         setStatusMessageType("error");
         return;
       }
 
       setVehicles((vehiclesRes.data ?? []) as Vehicle[]);
-      setLeads((leadsRes.data ?? []) as Lead[]);
-      setCustomers((customersRes.data ?? []) as Customer[]);
-      setAppointments((appointmentsRes.data ?? []) as Appointment[]);
+      setLeads((latestLeadsRes.data ?? []) as Lead[]);
+      setCustomers((latestCustomersRes.data ?? []) as Customer[]);
+      setAppointments((upcomingRes.data ?? []) as Appointment[]);
+      setTotals({
+        leads: leadsCount.count ?? 0,
+        customers: customersCount.count ?? 0,
+        appointments: appointmentsCount.count ?? 0,
+      });
     };
 
-    fetchAll();
+    void fetchAll();
+
+    return () => {
+      attivo = false;
+    };
   }, []);
 
   const totalVehicles = vehicles.length;
   const publishedVehicles = vehicles.filter((vehicle) => vehicle.published).length;
   const draftVehicles = vehicles.filter((vehicle) => !vehicle.published).length;
-  const totalLeads = leads.length;
-  const totalCustomers = customers.length;
-  const totalAppointments = appointments.length;
+  const totalLeads = totals.leads;
+  const totalCustomers = totals.customers;
+  const totalAppointments = totals.appointments;
   const totalValue = vehicles.reduce((sum, vehicle) => sum + parsePrice(vehicle.price), 0);
   const averagePrice = totalVehicles > 0 ? Math.round(totalValue / totalVehicles) : 0;
 
-  const latestVehicles = useMemo(
-    () => vehicles.sort((a, b) => (b.created_at ? new Date(b.created_at).getTime() : 0) - (a.created_at ? new Date(a.created_at).getTime() : 0)).slice(0, 5),
-    [vehicles]
-  );
+  // I veicoli arrivano gia' ordinati dal database. Qui prima c'era .sort(),
+  // che riordina l'elenco *sul posto*: modificava lo stato di React invece di
+  // ricavarne una copia.
+  const latestVehicles = useMemo(() => vehicles.slice(0, 5), [vehicles]);
 
-  const latestLeads = useMemo(
-    () => leads.sort((a, b) => (b.created_at ? new Date(b.created_at).getTime() : 0) - (a.created_at ? new Date(a.created_at).getTime() : 0)).slice(0, 5),
-    [leads]
-  );
+  // Lead e clienti arrivano gia' come "ultimi cinque", scelti dal database.
+  const latestLeads = leads;
 
-  const latestCustomers = useMemo(
-    () => customers.sort((a, b) => (b.created_at ? new Date(b.created_at).getTime() : 0) - (a.created_at ? new Date(a.created_at).getTime() : 0)).slice(0, 5),
-    [customers]
-  );
+  const latestCustomers = customers;
 
-  const upcomingAppointments = useMemo(() => {
-    return appointments
-      .filter((item) => {
-        if (!item.start_at) return false;
-        const date = new Date(item.start_at);
-        return !Number.isNaN(date.getTime()) && date >= new Date();
-      })
-      .sort((a, b) => {
-        const dateA = a.start_at ? new Date(a.start_at).getTime() : 0;
-        const dateB = b.start_at ? new Date(b.start_at).getTime() : 0;
-        return dateA - dateB;
-      })
-      .slice(0, 5);
-  }, [appointments]);
+  // Gia' filtrati e ordinati dal database: solo quelli non ancora passati, dal
+  // piu' vicino. Prima si scaricava tutta l'agenda per tenerne cinque.
+  const upcomingAppointments = appointments;
 
   const maxGraphValue = Math.max(publishedVehicles, draftVehicles, totalLeads, totalCustomers, totalAppointments, 1);
 
@@ -172,9 +209,15 @@ export default function StatistichePage() {
                 Monitora i KPI principali del tuo gestionale con i dati aggiornati in tempo reale.
               </p>
             </div>
-            <button className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200">
+            {/* Era un bottone senza niente collegato: si poteva premere e non
+                succedeva nulla. Ora porta dove gli appuntamenti si creano
+                davvero. */}
+            <Link
+              href="/agenda"
+              className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
+            >
               Nuovo appuntamento
-            </button>
+            </Link>
           </div>
 
           {statusMessage ? (
