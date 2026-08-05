@@ -21,6 +21,22 @@ import { ImageResponse } from "next/og";
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
 
+/**
+ * Quanto a lungo si puo' riusare un'anteprima gia' disegnata.
+ *
+ * Disegnarne una costa: un'interrogazione al database, lo scaricamento di una
+ * foto da qualche megabyte e la composizione di un PNG -- misurato in
+ * produzione, quasi cinque secondi. E veniva rifatto *a ogni richiesta*:
+ * ogni piattaforma che controlla un'anteprima, ogni ricondivisione, ogni
+ * passaggio di un crawler.
+ *
+ * Un giorno di validita', una settimana di tolleranza: se un concessionario
+ * cambia il prezzo, l'anteprima puo' restare indietro di un giorno -- e le
+ * piattaforme social la tengono comunque nella loro cache molto piu' a lungo,
+ * quindi non e' una precisione che avevamo davvero.
+ */
+export const OG_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+
 type OgCardInput = {
   /** La riga piccola in alto: "Scheda veicolo", "Concessionaria"... */
   eyebrow: string;
@@ -44,13 +60,27 @@ const COLORS = {
  * rotta. Un errore qui diventerebbe un rettangolo grigio, cioe' esattamente
  * il problema che stiamo risolvendo.
  */
+// Le foto sono scatti da telefono caricati dai concessionari, e l'indirizzo
+// da cui arrivano puo' essere quello di un listino esterno: nessuno dei due
+// e' un fornitore su cui contare. Senza un limite di tempo una risposta lenta
+// terrebbe occupata la funzione fino a farla scadere, e senza un tetto una
+// foto enorme la farebbe esaurire di memoria.
+const PHOTO_TIMEOUT_MS = 5000;
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+
+/**
+ * La foto viene scaricata qui invece che lasciata a un tag immagine: se
+ * l'archivio non risponde vogliamo una scheda senza foto, non un'anteprima
+ * rotta. Un errore qui diventerebbe un rettangolo grigio, cioe' esattamente
+ * il problema che stiamo risolvendo.
+ */
 async function loadPhoto(photoUrl: string | null | undefined) {
   if (!photoUrl) {
     return null;
   }
 
   try {
-    const response = await fetch(photoUrl);
+    const response = await fetch(photoUrl, { signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS) });
     if (!response.ok) {
       return null;
     }
@@ -60,7 +90,17 @@ async function loadPhoto(photoUrl: string | null | undefined) {
       return null;
     }
 
-    return await response.arrayBuffer();
+    // Il peso dichiarato quando c'e': evita di scaricare per intero qualcosa
+    // che poi scarteremmo comunque.
+    const declaredLength = Number(response.headers.get("content-length") ?? "");
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_PHOTO_BYTES) {
+      return null;
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    // E il peso vero, perche' "content-length" puo' mancare o mentire.
+    return buffer.byteLength > MAX_PHOTO_BYTES ? null : buffer;
   } catch {
     return null;
   }
@@ -145,6 +185,9 @@ export async function renderOgCard({ eyebrow, title, subtitle, photoUrl }: OgCar
         ) : null}
       </div>
     ),
-    OG_IMAGE_SIZE,
+    {
+      ...OG_IMAGE_SIZE,
+      headers: { "Cache-Control": OG_CACHE_CONTROL },
+    },
   );
 }

@@ -65,3 +65,41 @@ describe("nessun link condiviso resta senza anteprima", () => {
     expect(route).toContain("renderOgCard");
   });
 });
+
+// Disegnare un'anteprima costa: interrogazione al database, scaricamento di
+// una foto da qualche megabyte, composizione del PNG. Misurato in produzione:
+// quasi cinque secondi, e veniva rifatto a ogni richiesta.
+describe("le anteprime non si ridisegnano a ogni richiesta", () => {
+  const card = read("src/lib/og-card.tsx");
+
+  it("dichiara per quanto si puo' riusare quella gia' disegnata", () => {
+    expect(card).toContain("OG_CACHE_CONTROL");
+    expect(card).toContain("s-maxage=86400");
+    expect(card).toContain("stale-while-revalidate");
+  });
+
+  it("l'intestazione viene davvero applicata all'immagine", () => {
+    expect(card).toContain('headers: { "Cache-Control": OG_CACHE_CONTROL }');
+  });
+});
+
+// Le foto arrivano da concessionari e da listini esterni: nessuno dei due e'
+// un fornitore su cui contare.
+describe("una foto lenta o enorme non blocca la generazione", () => {
+  const card = read("src/lib/og-card.tsx");
+
+  it("lo scaricamento ha un limite di tempo", () => {
+    expect(card).toContain("AbortSignal.timeout(PHOTO_TIMEOUT_MS)");
+  });
+
+  it("e un tetto di peso, controllato due volte", () => {
+    // "content-length" puo' mancare o mentire: serve anche la misura vera.
+    expect(card).toContain("content-length");
+    expect(card).toContain("buffer.byteLength > MAX_PHOTO_BYTES");
+  });
+
+  it("quando scarta la foto, l'anteprima resta di solo testo", () => {
+    // Non deve mai propagare l'errore: sarebbe di nuovo il riquadro vuoto.
+    expect(card).toMatch(/catch \{\s*return null;/);
+  });
+});
