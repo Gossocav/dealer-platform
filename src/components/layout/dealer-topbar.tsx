@@ -1,16 +1,16 @@
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react";
+import { Menu } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 
 type DealerTopbarProps = {
   title: string;
   dealerName: string;
   avatarInitials: string;
-  unreadNotifications: number;
   onOpenSidebar: () => void;
 };
 
-export function DealerTopbar({ title, dealerName, avatarInitials, unreadNotifications, onOpenSidebar }: DealerTopbarProps) {
+export function DealerTopbar({ title, dealerName, avatarInitials, onOpenSidebar }: DealerTopbarProps) {
   return (
     <header className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white px-4 py-4 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -23,32 +23,23 @@ export function DealerTopbar({ title, dealerName, avatarInitials, unreadNotifica
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard title</p>
-            <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
-          </div>
+          {/* Sopra il titolo compariva un segnaposto in inglese rimasto dal
+              disegno iniziale, mostrato su ogni pagina del pannello. */}
+          <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
         </div>
 
-        <div className="flex w-full items-center gap-3 sm:w-auto">
-          <label className="relative min-w-0 flex-1 sm:w-80">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              placeholder="Cerca veicolo, lead o cliente"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white"
-            />
-          </label>
+        <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
+          {/* Qui c'era un campo di ricerca che non cercava niente: nessun
+              comportamento collegato, si poteva solo scriverci dentro e
+              premere invio senza che succedesse nulla. Tolto -- un comando
+              che non fa quello che promette e' peggio di un comando che non
+              c'e'. Se serve davvero, va costruito. */}
 
-          <button
-            type="button"
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:bg-slate-100"
-            aria-label="Notifiche"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1 text-[11px] font-semibold text-white">
-              {unreadNotifications}
-            </span>
-          </button>
+          {/* E qui c'era un campanello finto, con accanto un numero scritto a
+              mano nel codice e nessuna azione al clic. Questo legge le
+              notifiche vere e si apre: esisteva gia', scritto e funzionante,
+              e non era mai stato collegato a niente. */}
+          <NotificationBell />
 
           <div className="hidden items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-1.5 sm:flex">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">{avatarInitials}</span>

@@ -286,7 +286,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const router = useRouter();
   const imageInputId = useId();
 
-  const [dealerName, setDealerName] = useState("Dealer Console");
+  const [dealerName, setDealerName] = useState("");
   const [currentDealerId, setCurrentDealerId] = useState<string | null>(null);
   const [state, setState] = useState<EditorState>(INITIAL_STATE);
   const [images, setImages] = useState<ViewImage[]>([]);
@@ -1065,7 +1065,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   };
 
   return (
-    <DealerDashboardShell title={title} dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
+    <DealerDashboardShell title={title} dealerName={dealerName}>
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Editor veicolo</p>
         <h2 className="mt-1 text-2xl font-semibold text-slate-900">{title}</h2>

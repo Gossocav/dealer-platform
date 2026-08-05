@@ -431,7 +431,7 @@ export default function ClientiPage() {
   };
 
   return (
-    <DealerDashboardShell title="Clienti" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={3}>
+    <DealerDashboardShell title="Clienti">
       <div className="min-h-screen bg-slate-100 text-slate-900">
         <div className="px-4 py-6 lg:px-8">
         <div className="mb-6 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">

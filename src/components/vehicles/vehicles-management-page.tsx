@@ -64,7 +64,7 @@ export function VehiclesManagementPage() {
   const [options, setOptions] = useState<SelectOptions>({ brands: [], models: [], fuelTypes: [], transmissionTypes: [] });
   const [vehicleOptionKeys, setVehicleOptionKeys] = useState<VehicleOptionKey[]>([]);
 
-  const [dealerName, setDealerName] = useState("Dealer Console");
+  const [dealerName, setDealerName] = useState("");
   const [currentDealerId, setCurrentDealerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -784,7 +784,7 @@ export function VehiclesManagementPage() {
   }, [selectedVehicleIds, visibleIds]);
 
   return (
-    <DealerDashboardShell title="Gestione Veicoli" dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
+    <DealerDashboardShell title="Gestione Veicoli" dealerName={dealerName}>
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

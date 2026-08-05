@@ -99,7 +99,7 @@ async function insertVehicleWithFallback(vehiclePayload: Record<string, unknown>
 export function VehiclesImportPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("file");
-  const [dealerName, setDealerName] = useState("Dealer Console");
+  const [dealerName, setDealerName] = useState("");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const [fileName, setFileName] = useState<string | null>(null);
@@ -522,7 +522,7 @@ export function VehiclesImportPage() {
   );
 
   return (
-    <DealerDashboardShell title="Sincronizzazione Stock" dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
+    <DealerDashboardShell title="Sincronizzazione Stock" dealerName={dealerName}>
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

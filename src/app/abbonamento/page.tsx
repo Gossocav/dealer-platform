@@ -213,7 +213,7 @@ export default function AbbonamentoPage() {
 
   if (loadingContext) {
     return (
-      <DealerDashboardShell title="Il mio piano" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={0}>
+      <DealerDashboardShell title="Il mio piano">
         <div className="flex min-h-[60vh] items-center justify-center px-4">
           <p className="text-sm text-slate-500">Caricamento...</p>
         </div>
@@ -226,7 +226,7 @@ export default function AbbonamentoPage() {
 
     if (activePlan) {
       return (
-        <DealerDashboardShell title="Il mio piano" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={0}>
+        <DealerDashboardShell title="Il mio piano">
           <section className="mx-auto w-full max-w-3xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -280,7 +280,7 @@ export default function AbbonamentoPage() {
   const visiblePlans = isDemo ? demoPlans : plans;
 
   return (
-    <DealerDashboardShell title="Il mio piano" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={0}>
+    <DealerDashboardShell title="Il mio piano">
       <section className="mx-auto w-full max-w-6xl rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.45)] sm:p-8 lg:p-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

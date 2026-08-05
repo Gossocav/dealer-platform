@@ -121,7 +121,10 @@ function humanizeRole(role: string | null) {
 }
 
 export default function ImpostazioniPage() {
-  const [dealerName, setDealerName] = useState("Dealer Console");
+  // Vuoto e non "Dealer Console": finche' non abbiamo il nome vero decide il
+  // guscio, che intanto se l'e' gia' andato a prendere. Un ripiego scritto
+  // qui vincerebbe sul nome giusto.
+  const [dealerName, setDealerName] = useState("");
   const [account, setAccount] = useState<AccountState>({ loading: true, email: null, role: null, errorMessage: null });
 
   const [dealerId, setDealerId] = useState<string | null>(null);
@@ -320,7 +323,7 @@ export default function ImpostazioniPage() {
   };
 
   return (
-    <DealerDashboardShell title="Impostazioni" dealerName={dealerName} avatarInitials="DC" unreadNotifications={0}>
+    <DealerDashboardShell title="Impostazioni" dealerName={dealerName}>
       <div className="mx-auto w-full max-w-5xl space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <h1 className="text-3xl font-semibold text-slate-900">Impostazioni</h1>
