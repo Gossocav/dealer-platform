@@ -90,7 +90,7 @@ function getHealthLevelPill(level: "eccellente" | "buono" | "incompleto" | "crit
 }
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
-  const [dealerName, setDealerName] = useState("Dealer Console");
+  const [dealerName, setDealerName] = useState("");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -302,7 +302,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   };
 
   return (
-    <DealerDashboardShell title="Dettaglio Veicolo" dealerName={dealerName} avatarInitials="DC" unreadNotifications={3}>
+    <DealerDashboardShell title="Dettaglio Veicolo" dealerName={dealerName}>
       {loading ? (
         <section className="rounded-3xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">Caricamento dettaglio veicolo...</section>
       ) : null}

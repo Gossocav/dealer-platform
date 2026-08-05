@@ -160,7 +160,7 @@ export default function StatistichePage() {
   const maxGraphValue = Math.max(publishedVehicles, draftVehicles, totalLeads, totalCustomers, totalAppointments, 1);
 
   return (
-    <DealerDashboardShell title="Statistiche" dealerName="Dealer Console" avatarInitials="DC" unreadNotifications={3}>
+    <DealerDashboardShell title="Statistiche">
       <div className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto w-full max-w-7xl">
         <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/40 sm:p-8">

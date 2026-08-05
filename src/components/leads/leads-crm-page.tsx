@@ -209,9 +209,6 @@ export function LeadsCrmPage() {
   return (
     <DealerDashboardShell
       title="CRM Lead"
-      dealerName="Gossocar Premium Motors"
-      avatarInitials="GP"
-      unreadNotifications={3}
     >
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">

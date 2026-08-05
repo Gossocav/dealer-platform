@@ -11,11 +11,38 @@ import { supabase } from "@/lib/supabaseClient";
 
 type DealerDashboardShellProps = {
   title: string;
-  dealerName: string;
-  avatarInitials: string;
-  unreadNotifications: number;
+  /**
+   * Il nome da mostrare in alto a destra.
+   *
+   * Facoltativo, e quasi sempre da omettere: il guscio se lo va a prendere da
+   * solo. Prima ogni pagina lo passava a mano, e tutte tranne Impostazioni
+   * passavano la stringa "Dealer Console" -- cioe' il concessionario entrava
+   * nel proprio pannello e leggeva un nome che non era il suo.
+   *
+   * Serve ancora a Impostazioni, che dopo il salvataggio ha il nome nuovo
+   * prima che il guscio possa rileggerlo.
+   */
+  dealerName?: string;
+  avatarInitials?: string;
   children: ReactNode;
 };
+
+/** Le iniziali dal nome: "Autogepy Spa" -> "AS". */
+function toInitials(name: string) {
+  const parole = name
+    .split(/\s+/)
+    .map((parola) => parola.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter((parola) => parola.length > 0);
+
+  if (parole.length === 0) {
+    return "KA";
+  }
+
+  return parole
+    .slice(0, 2)
+    .map((parola) => parola[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
 type ShellDemoBanner = {
   isDemo: boolean;
@@ -43,11 +70,11 @@ export function DealerDashboardShell({
   title,
   dealerName,
   avatarInitials,
-  unreadNotifications,
   children,
 }: DealerDashboardShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [demoBanner, setDemoBanner] = useState<ShellDemoBanner | null>(null);
+  const [resolvedDealerName, setResolvedDealerName] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -71,6 +98,20 @@ export function DealerDashboardShell({
         if (!dealerId) {
           if (active) setDemoBanner(null);
           return;
+        }
+
+        // Il nome vero della concessionaria, letto qui una volta per tutte le
+        // pagine. Se la lettura fallisce si resta sul ripiego: un pannello
+        // senza nome e' meglio di un pannello con il nome di nessuno.
+        const { data: dealerRecord } = await supabase
+          .from("dealers")
+          .select("name, legal_name")
+          .eq("id", dealerId)
+          .maybeSingle<{ name: string | null; legal_name: string | null }>();
+
+        if (active) {
+          const nome = String(dealerRecord?.name ?? dealerRecord?.legal_name ?? "").trim();
+          setResolvedDealerName(nome || null);
         }
 
         const demoContext = await resolveDemoAccessContext(supabase, dealerId);
@@ -98,6 +139,10 @@ export function DealerDashboardShell({
     };
   }, []);
 
+  // Quello che passa la pagina vince: Impostazioni, dopo il salvataggio, ha
+  // il nome nuovo prima che il guscio possa rileggerlo dal database.
+  const nomeMostrato = dealerName?.trim() || resolvedDealerName || "Concessionaria";
+
   return (
     <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] pb-8">
       <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} />
@@ -105,9 +150,8 @@ export function DealerDashboardShell({
       <div className="px-4 pt-4 sm:px-6 lg:ml-[17rem] lg:px-8 lg:pt-6">
         <DealerTopbar
           title={title}
-          dealerName={dealerName}
-          avatarInitials={avatarInitials}
-          unreadNotifications={unreadNotifications}
+          dealerName={nomeMostrato}
+          avatarInitials={avatarInitials ?? toInitials(nomeMostrato)}
           onOpenSidebar={() => setIsSidebarOpen(true)}
         />
 
