@@ -14,6 +14,7 @@ type Lead = {
   phone: string | null;
   message: string | null;
   status: string | null;
+  notes: string | null;
   created_at: string | null;
   vehicle: {
     brand: string | null;
@@ -29,43 +30,126 @@ export default function LeadDetailPage() {
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteMessage, setNoteMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
+    let attivo = true;
+
     const loadLead = async () => {
       setLoading(true);
+      setLoadError(null);
 
       const { data, error } = await supabase
         .from("leads")
         .select(
-          "id, customer_type, first_name, last_name, email, phone, message, status, created_at, vehicle:vehicles(brand, model, version, year)"
+          "id, customer_type, first_name, last_name, email, phone, message, status, notes, created_at, vehicle:vehicles(brand, model, version, year)"
         )
         .eq("id", leadId)
         .maybeSingle();
 
-      if (!error && data) {
-        const normalizedVehicle = Array.isArray(data.vehicle)
-          ? data.vehicle[0] ?? null
-          : data.vehicle;
-
-        const normalizedLead: Lead = {
-          ...data,
-          vehicle: normalizedVehicle,
-        };
-
-        setLead(normalizedLead);
-      }
+      if (!attivo) return;
 
       setLoading(false);
+
+      // Un guasto non e' un lead inesistente. Prima erano lo stesso caso: se
+      // la richiesta falliva -- rete assente, database giu' -- la pagina
+      // annunciava "Lead non trovato", cioe' diceva al concessionario che un
+      // suo contatto non esisteva.
+      if (error) {
+        setLoadError(error.message || "Non siamo riusciti a caricare il lead.");
+        return;
+      }
+
+      if (!data) {
+        setLead(null);
+        return;
+      }
+
+      const normalizedVehicle = Array.isArray(data.vehicle)
+        ? data.vehicle[0] ?? null
+        : data.vehicle;
+
+      const normalizedLead: Lead = {
+        ...data,
+        vehicle: normalizedVehicle,
+      };
+
+      setLead(normalizedLead);
+      setNote(normalizedLead.notes ?? "");
     };
 
     void loadLead();
+
+    return () => {
+      attivo = false;
+    };
   }, [leadId]);
+
+  const handleSaveNote = async () => {
+    if (!lead) return;
+
+    setSavingNote(true);
+    setNoteMessage(null);
+
+    const { error } = await supabase
+      .from("leads")
+      .update({ notes: note.trim() || null })
+      .eq("id", lead.id);
+
+    setSavingNote(false);
+
+    if (error) {
+      // La colonna arriva con una modifica al database che potrebbe non
+      // essere ancora stata applicata: meglio dirlo che mostrare un errore
+      // incomprensibile.
+      const colonnaMancante = /column .*notes.* does not exist/i.test(error.message);
+      setNoteMessage({
+        text: colonnaMancante
+          ? "Le note non sono ancora attive: manca un aggiornamento del database."
+          : error.message || "Errore durante il salvataggio della nota.",
+        ok: false,
+      });
+      return;
+    }
+
+    setLead((current) => (current ? { ...current, notes: note.trim() || null } : current));
+    setNoteMessage({ text: "Nota salvata.", ok: true });
+  };
 
   if (loading) {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] p-8">
         <p>Caricamento lead...</p>
+      </main>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] p-8">
+        <div className="rounded-3xl bg-white p-8 shadow-sm">
+          <h1 className="text-2xl font-bold">Non siamo riusciti a caricare il lead</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
+            Il contatto è al suo posto: è la lettura ad essere fallita. Riprova fra qualche istante.
+          </p>
+          <p className="mt-2 text-xs text-slate-400">{loadError}</p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-block rounded-3xl bg-blue-600 px-5 py-3 text-white"
+            >
+              Riprova
+            </button>
+            <Link href="/lead" className="inline-block rounded-3xl border border-slate-200 px-5 py-3 text-slate-700">
+              Torna ai Lead
+            </Link>
+          </div>
+        </div>
       </main>
     );
   }
@@ -196,16 +280,30 @@ export default function LeadDetailPage() {
 
               <textarea
                 value={note}
-                onChange={(e) =>
-                  setNote(e.target.value)
-                }
+                onChange={(e) => {
+                  setNote(e.target.value);
+                  setNoteMessage(null);
+                }}
                 placeholder="Scrivi una nota..."
                 className="min-h-32 w-full rounded-3xl border border-slate-200 bg-slate-50 p-4"
               />
 
-              <p className="mt-3 text-xs text-slate-500">
-                Le note saranno salvate nel database nel prossimo aggiornamento.
-              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveNote()}
+                  disabled={savingNote || note === (lead.notes ?? "")}
+                  className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingNote ? "Salvataggio..." : "Salva nota"}
+                </button>
+
+                {noteMessage ? (
+                  <span className={`text-sm ${noteMessage.ok ? "text-emerald-700" : "text-red-700"}`}>
+                    {noteMessage.text}
+                  </span>
+                ) : null}
+              </div>
 
             </Card>
 
