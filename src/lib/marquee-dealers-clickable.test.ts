@@ -78,3 +78,28 @@ describe("chi ascolta la pagina sente i nomi una volta sola", () => {
     expect(marquee).not.toContain("sr-only");
   });
 });
+
+// Con una sola concessionaria si leggeva il suo nome due volte di fila: la
+// seconda copia serve all'animazione, ma con pochi nomi non e' un punto di
+// ricucitura, e' un doppione -- sembrano due partner dove ce n'e' uno.
+describe("con poche concessionarie i nomi non si raddoppiano", () => {
+  it("sotto la soglia i nomi stanno fermi e compaiono una volta sola", () => {
+    expect(marquee).toContain("MIN_DEALERS_FOR_MARQUEE");
+    expect(marquee).toContain("const scorre = dealers.length >= MIN_DEALERS_FOR_MARQUEE");
+    // Il ramo fermo disegna una riga sola: nessun "duplicate".
+    const ramoFermo = marquee.slice(marquee.indexOf("{!scorre ? ("), marquee.indexOf(") : ("));
+    expect(ramoFermo).toContain("<MarqueeRow dealers={dealers} />");
+    expect(ramoFermo).not.toContain("duplicate");
+  });
+
+  it("sopra la soglia la seconda copia resta, altrimenti lo scorrimento avrebbe uno stacco", () => {
+    const ramoScorrevole = marquee.slice(marquee.indexOf(") : ("));
+    expect(ramoScorrevole).toContain("marketplace-marquee-track");
+    expect(ramoScorrevole).toContain("<MarqueeRow dealers={dealers} duplicate />");
+  });
+
+  it("la soglia e' piu' di due: due nomi ripetuti si notano quanto uno", () => {
+    const soglia = Number(marquee.match(/MIN_DEALERS_FOR_MARQUEE = (\d+)/)?.[1] ?? 0);
+    expect(soglia).toBeGreaterThan(2);
+  });
+});
