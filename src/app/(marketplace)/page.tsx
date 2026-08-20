@@ -33,26 +33,23 @@ import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
-// Vedi la nota sulla scheda veicolo: un minuto di validita' invece di
-// ricalcolare tutto a ogni visita. La vetrina Elite ruota per giorno, quindi
-// un minuto non cambia nulla di cio' che si vede.
-export const revalidate = 60;
-
-// TRAPPOLA, verificata in produzione il 2026-08-03.
+// La home si ricalcola a ogni richiesta, e non e' una scelta di comodo.
 //
-// Vercel conserva la copia a scadenza di una pagina *attraverso le
-// pubblicazioni*, se il file della pagina non e' cambiato. La richiesta di
-// consenso ai cookie era stata aggiunta al layout condiviso: tutte le altre
-// pagine l'hanno mostrata subito, la home ha continuato a servire per ore la
-// versione precedente, rigenerandola da quella. Sulla porta d'ingresso del
-// sito, e per un banner di consenso, non e' un dettaglio.
+// Con una copia a scadenza (ISR) questa pagina si e' rivelata inaffidabile,
+// misurato in produzione due volte a due giorni di distanza. La copia appena
+// costruita e' corretta; quella conservata resta indietro e continua a
+// rigenerarsi sbagliata, anche dopo una ripubblicazione senza cache e anche
+// dopo aver cambiato l'impronta di questo file. L'ultima volta ha servito per
+// ore, a Google e a chi non esegue JavaScript, la scritta "Verifica
+// autenticazione..." al posto della pagina.
 //
-// Non basta ripubblicare senza cache di costruzione: la copia sopravvive
-// comunque. L'unico modo per liberarla e' toccare questo file, cosi' la
-// pagina cambia impronta e la copia vecchia viene scartata.
+// Una pagina calcolata a ogni richiesta non ha nessuna copia da lasciare
+// indietro. Si perde la cache di frontiera -- la home torna a costare quanto
+// costava prima -- e per la porta d'ingresso del sito e' un prezzo che vale
+// la pena pagare: meglio lenta e giusta che veloce e sbagliata.
 //
-// Quindi: se modifichi solo il layout o un componente condiviso e la home
-// resta indietro, non stai impazzendo -- aggiungi una riga qui.
+// Le altre pagine tengono la loro cache: il difetto ha colpito solo questa.
+export const dynamic = "force-dynamic";
 
 type DealerCluster = {
   dealerId: string;
