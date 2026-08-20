@@ -1,0 +1,106 @@
+name: Migration del database
+
+# Dice se la produzione ha migration ancora da applicare. Non ne applica
+# nessuna: legge e basta.
+#
+# Perche' non le applica da solo, che sarebbe piu' comodo: dodici migration di
+# questo progetto non si limitano a creare tabelle, toccano i dati -- e una
+# cancella righe da profiles. Se lo storico delle migration sul database di
+# produzione fosse incompleto (e ci sono indizi che lo sia: lo schema e' gia'
+# andato alla deriva una volta), applicarle alla cieca le rieseguirebbe tutte
+# dall'inizio, quella cancellazione compresa.
+#
+# Prima si guarda, poi si decide. Questo lavoro serve a guardare.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controllo-migration:
+    name: controllo-migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verifica che le credenziali ci siano
+        id: credenziali
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$PROJECT_ID" ] || [ -z "$DB_PASSWORD" ]; then
+            echo "presenti=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::Credenziali Supabase non configurate: controllo saltato."
+            echo "Per attivarlo servono tre segreti su GitHub:"
+            echo "  SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD"
+          else
+            echo "presenti=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Installa la CLI Supabase
+        if: steps.credenziali.outputs.presenti == 'si'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Collega il progetto
+        if: steps.credenziali.outputs.presenti == 'si'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+
+      - name: Confronta le migration locali con quelle applicate
+        if: steps.credenziali.outputs.presenti == 'si'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          echo "## Stato delle migration" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          supabase migration list | tee /tmp/migration-list.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # Una migration presente in locale e assente in remoto compare con la
+      # colonna "Remote" vuota. Se ce n'e' almeno una, il lavoro fallisce: e'
+      # il promemoria che la produzione e' rimasta indietro, ed e' l'unica cosa
+      # che prima nessuno ci diceva.
+      - name: Segnala le migration mancanti in produzione
+        if: steps.credenziali.outputs.presenti == 'si'
+        run: |
+          # La CLI disegna la tabella con "│" o con "|" a seconda della
+          # versione, e a volte mette un separatore anche a inizio riga: si
+          # normalizza tutto prima di leggere le colonne, altrimenti il
+          # controllo direbbe "tutto a posto" per il motivo sbagliato.
+          MANCANTI=$(sed 's/│/|/g' /tmp/migration-list.txt \
+            | sed 's/^[[:space:]]*|//; s/|[[:space:]]*$//' \
+            | awk -F'|' 'NF>=2 {
+                locale=$1; remoto=$2;
+                gsub(/[[:space:]]/,"",locale); gsub(/[[:space:]]/,"",remoto);
+                if (locale ~ /^[0-9]+$/ && remoto == "") print locale;
+              }' || true)
+
+          if [ -n "$MANCANTI" ]; then
+            echo "::error::La produzione non ha ancora queste migration:"
+            echo "$MANCANTI"
+            {
+              echo ""
+              echo "### Da applicare in produzione"
+              echo "$MANCANTI" | sed 's/^/- /'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "::notice::Produzione allineata: nessuna migration in attesa."
