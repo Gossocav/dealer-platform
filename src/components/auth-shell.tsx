@@ -31,7 +31,18 @@ const PUBLIC_OR_STATUS_ROUTES = [
 ];
 
 export function AuthShell({ children }: AuthShellProps) {
-  const pathname = usePathname();
+  // Il ripiego su "/" non e' cautela generica, e' la correzione di un difetto
+  // osservato: in produzione la home serviva a Google -- e a chiunque non
+  // esegua JavaScript -- la scritta "Verifica autenticazione..." al posto
+  // della pagina.
+  //
+  // Il motivo: quando il percorso arriva vuoto, il confronto qui sotto
+  // fallisce su *ogni* voce dell'elenco delle route pubbliche ("" non e' "/",
+  // e "" non comincia per "//"), quindi la radice viene scambiata per una
+  // pagina protetta. Le altre route non se ne accorgono, perche' il loro
+  // percorso coincide con la propria voce: e' per questo che falliva solo la
+  // home.
+  const pathname = usePathname() || "/";
   const router = useRouter();
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
