@@ -34,7 +34,7 @@ type ImportReport = {
   errors: string[];
 };
 
-type TabId = "file" | "feed" | "dms";
+type TabId = "file" | "feed" | "sito" | "dms";
 
 type FeedFormatOption = "auto" | "csv" | "xml" | "json";
 type FeedFrequencyOption = "manual" | "nightly" | "weekly";
@@ -60,6 +60,17 @@ type FeedHistoryItem = {
   error_count: number;
   duration_ms: number;
 };
+
+type SiteAnalysis = { site: string; totale: number; usate: number; km0: number };
+
+type SiteBatchResult = {
+  totale: number;
+  prossimoOffset: number;
+  finito: boolean;
+  esiti: { sourceId: string; esito: string; motivo?: string; titolo?: string }[];
+};
+
+type SiteProgress = { importati: number; aggiornati: number; saltati: number; lettureFallite: number; letti: number };
 
 type PreviewRow = {
   rowNumber: number;
@@ -125,6 +136,18 @@ export function VehiclesImportPage() {
   const [feedImportResult, setFeedImportResult] = useState<FeedImportResult | null>(null);
   const [history, setHistory] = useState<FeedHistoryItem[]>([]);
 
+  const [siteUrl, setSiteUrl] = useState("");
+  const [siteAnalysis, setSiteAnalysis] = useState<SiteAnalysis | null>(null);
+  const [siteAnalyzing, setSiteAnalyzing] = useState(false);
+  const [siteImporting, setSiteImporting] = useState(false);
+  const [siteError, setSiteError] = useState<string | null>(null);
+  // Venti alla prima prova: abbastanza per giudicare il risultato, poche
+  // abbastanza da poterle controllare una per una.
+  const [siteQuante, setSiteQuante] = useState(20);
+  const [siteStatus, setSiteStatus] = useState<VehicleImportStatus>("draft");
+  const [siteProgress, setSiteProgress] = useState<SiteProgress | null>(null);
+  const [siteLog, setSiteLog] = useState<string[]>([]);
+
   const loadSyncHistory = useCallback(
     async (tokenOverride?: string | null) => {
       const token = tokenOverride ?? sessionToken;
@@ -189,6 +212,106 @@ export function VehiclesImportPage() {
       alive = false;
     };
   }, [loadSyncHistory]);
+
+  const handleAnalyzeSite = async () => {
+    setSiteAnalyzing(true);
+    setSiteError(null);
+    setSiteAnalysis(null);
+    setSiteProgress(null);
+    setSiteLog([]);
+
+    try {
+      const token = await resolveAccessToken(sessionToken);
+      if (!token) {
+        setSiteError("Sessione non valida.");
+        return;
+      }
+      setSessionToken(token);
+
+      const response = await fetch("/api/vehicles/import-site", {
+        method: "POST",
+        headers: buildActiveDealerHeaders({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
+        body: JSON.stringify({ action: "analyze", site: siteUrl }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as (SiteAnalysis & { error?: string }) | null;
+
+      if (!response.ok || !payload) {
+        setSiteError(payload?.error || "Non siamo riusciti a leggere il sito.");
+        return;
+      }
+
+      setSiteAnalysis(payload);
+    } catch {
+      setSiteError("Non siamo riusciti a contattare il sito. Controlla la connessione.");
+    } finally {
+      setSiteAnalyzing(false);
+    }
+  };
+
+  const handleImportSite = async () => {
+    setSiteImporting(true);
+    setSiteError(null);
+    setSiteLog([]);
+
+    const avanzamento: SiteProgress = { importati: 0, aggiornati: 0, saltati: 0, lettureFallite: 0, letti: 0 };
+    setSiteProgress({ ...avanzamento });
+
+    try {
+      const token = await resolveAccessToken(sessionToken);
+      if (!token) {
+        setSiteError("Sessione non valida.");
+        return;
+      }
+      setSessionToken(token);
+
+      let offset = 0;
+      const registro: string[] = [];
+
+      // A lotti piccoli: leggere il sito di qualcun altro richiede qualche
+      // secondo a scheda, e un lotto per richiesta sta dentro i limiti di
+      // tempo del server. In piu' l'avanzamento si vede mentre accade.
+      while (avanzamento.letti < siteQuante) {
+        const limit = Math.min(5, siteQuante - avanzamento.letti);
+
+        const response = await fetch("/api/vehicles/import-site", {
+          method: "POST",
+          headers: buildActiveDealerHeaders({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
+          body: JSON.stringify({ action: "import", site: siteUrl, offset, limit, status: siteStatus }),
+        });
+
+        const payload = (await response.json().catch(() => null)) as (SiteBatchResult & { error?: string }) | null;
+
+        if (!response.ok || !payload) {
+          setSiteError(payload?.error || "Importazione interrotta.");
+          break;
+        }
+
+        for (const esito of payload.esiti) {
+          avanzamento.letti += 1;
+          if (esito.esito === "importato") avanzamento.importati += 1;
+          else if (esito.esito === "aggiornato") avanzamento.aggiornati += 1;
+          else if (esito.esito === "lettura-fallita") avanzamento.lettureFallite += 1;
+          else avanzamento.saltati += 1;
+
+          const etichetta = esito.titolo ?? esito.sourceId;
+          if (esito.esito === "saltato") registro.push(`saltato (${esito.motivo}): ${etichetta}`);
+          else if (esito.esito === "lettura-fallita") registro.push(`lettura fallita, riprovabile: ${etichetta}`);
+          else registro.push(`${esito.esito}: ${etichetta}`);
+        }
+
+        setSiteProgress({ ...avanzamento });
+        setSiteLog([...registro]);
+
+        offset = payload.prossimoOffset;
+        if (payload.finito) break;
+      }
+    } catch {
+      setSiteError("Importazione interrotta: problema di connessione.");
+    } finally {
+      setSiteImporting(false);
+    }
+  };
 
   const previewRows = useMemo<PreviewRow[]>(() => {
     return rows.slice(0, 12).map((row) => {
@@ -490,7 +613,7 @@ export function VehiclesImportPage() {
   };
 
   const renderTabButtons = () => (
-    <div className="mt-5 grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:grid-cols-3">
+    <div className="mt-5 grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:grid-cols-2 lg:grid-cols-4">
       <button
         type="button"
         onClick={() => setActiveTab("file")}
@@ -508,6 +631,15 @@ export function VehiclesImportPage() {
         }`}
       >
         SINCRONIZZA FEED
+      </button>
+      <button
+        type="button"
+        onClick={() => setActiveTab("sito")}
+        className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+          activeTab === "sito" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+        }`}
+      >
+        DAL TUO SITO
       </button>
       <button
         type="button"
@@ -884,6 +1016,134 @@ export function VehiclesImportPage() {
             </section>
           ) : null}
         </>
+      ) : null}
+
+      {activeTab === "sito" ? (
+        <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+          <h3 className="text-base font-semibold text-slate-900">Importa dal tuo sito</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Se il tuo stock e&apos; gia&apos; pubblicato sul tuo sito, non serve nessun file: scrivi qui l&apos;indirizzo e
+            lo leggiamo da li&apos;. Vengono importate <strong>solo usate e km 0</strong> — le auto nuove sono voci di
+            catalogo, non vetture in piazzale.
+          </p>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Indirizzo del sito</span>
+              <input
+                type="text"
+                value={siteUrl}
+                onChange={(event) => {
+                  setSiteUrl(event.target.value);
+                  setSiteAnalysis(null);
+                }}
+                placeholder="autogepy.it"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => void handleAnalyzeSite()}
+              disabled={siteAnalyzing || siteImporting || siteUrl.trim().length === 0}
+              className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {siteAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Controlla
+            </button>
+          </div>
+
+          {siteError ? (
+            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{siteError}</p>
+          ) : null}
+
+          {siteAnalysis ? (
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-700">
+                Su <strong>{siteAnalysis.site}</strong> abbiamo trovato <strong>{siteAnalysis.totale}</strong> veicoli
+                importabili: {siteAnalysis.usate} usate e {siteAnalysis.km0} km 0.
+              </p>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Quanti importarne ora</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={siteAnalysis.totale}
+                    value={siteQuante}
+                    onChange={(event) => setSiteQuante(Math.max(1, Number(event.target.value) || 1))}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Stato iniziale</span>
+                  <select
+                    value={siteStatus}
+                    onChange={(event) => setSiteStatus(event.target.value as VehicleImportStatus)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300"
+                  >
+                    <option value="draft">Bozza — non compare sul marketplace</option>
+                    <option value="published">Pubblicato</option>
+                  </select>
+                </label>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-500">
+                In bozza non consumano il limite di annunci del tuo piano, e puoi controllarle prima di pubblicarle.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => void handleImportSite()}
+                disabled={siteImporting}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {siteImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                Importa {siteQuante} veicoli
+              </button>
+            </div>
+          ) : null}
+
+          {siteProgress ? (
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">
+                {siteImporting ? "Importazione in corso..." : "Importazione conclusa"} — {siteProgress.letti}/{siteQuante} letti
+              </p>
+
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-4">
+                <span className="text-emerald-700">Importati: <strong>{siteProgress.importati}</strong></span>
+                <span className="text-blue-700">Aggiornati: <strong>{siteProgress.aggiornati}</strong></span>
+                <span className="text-slate-600">Saltati: <strong>{siteProgress.saltati}</strong></span>
+                <span className="text-amber-700">Da riprovare: <strong>{siteProgress.lettureFallite}</strong></span>
+              </div>
+
+              {siteProgress.lettureFallite > 0 ? (
+                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Alcune schede non si sono lasciate leggere: capita quando il sito rallenta. Non sono veicoli mancanti —
+                  rilancia l&apos;importazione fra qualche minuto e verranno prese.
+                </p>
+              ) : null}
+
+              {siteLog.length > 0 ? (
+                <div className="mt-4 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  {siteLog.map((riga, indice) => (
+                    <p key={`${riga}-${indice}`} className="text-xs text-slate-600">{riga}</p>
+                  ))}
+                </div>
+              ) : null}
+
+              {!siteImporting && siteProgress.importati > 0 ? (
+                <Link
+                  href="/veicoli"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                >
+                  Vai a vedere i veicoli importati
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       {activeTab === "dms" ? (
