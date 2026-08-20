@@ -5,27 +5,52 @@ export type MarqueeDealer = {
   slug: string;
 };
 
+/**
+ * Sotto questa soglia i nomi non scorrono e non vengono raddoppiati.
+ *
+ * La seconda copia esiste solo per l'animazione: la pista torna indietro di
+ * meta' larghezza, e senza il doppione lo scorrimento avrebbe uno stacco. Con
+ * tanti nomi quel doppione e' il punto di ricucitura e non si nota.
+ *
+ * Con pochi si nota eccome. Con una sola concessionaria si leggeva il suo nome
+ * due volte di fila -- segnalato come un difetto, ed era ragionevole leggerlo
+ * cosi': sembrano due partner dove ce n'e' uno. E una striscia che scorre
+ * senza riempire lo schermo sembra rotta comunque.
+ */
+const MIN_DEALERS_FOR_MARQUEE = 4;
+
 export function MarqueeDealers({ dealers }: { dealers: MarqueeDealer[] }) {
   if (dealers.length === 0) return null;
+
+  const scorre = dealers.length >= MIN_DEALERS_FOR_MARQUEE;
 
   return (
     <div className="overflow-hidden border-y border-white/10 bg-slate-950 py-9">
       <p className="mb-5 text-center text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
         Le concessionarie partner, in un unico posto
       </p>
-      {/* Lo scorrimento si ferma quando ci passi sopra col mouse o quando ci
-          arrivi col tasto Tab: un nome che scivola via sotto il dito non si
-          clicca. Da telefono il passaggio del mouse non esiste, ma il tocco
-          parte lo stesso, e chi vuole leggere con calma ha le schede delle
-          concessionarie poco piu' in basso nella stessa pagina. */}
-      <div className="flex w-max gap-14 marketplace-marquee-track hover:[animation-play-state:paused] focus-within:[animation-play-state:paused]">
-        <MarqueeRow dealers={dealers} />
-        {/* La seconda copia serve solo all'animazione, che torna indietro di
-            meta' larghezza per ripartire senza stacchi. Per chi ascolta la
-            pagina e per chi naviga col Tab non esiste: sono gli stessi nomi,
-            e ripeterli sarebbe solo confusione. */}
-        <MarqueeRow dealers={dealers} duplicate />
-      </div>
+
+      {!scorre ? (
+        // Ferme e centrate: ognuna compare una volta sola.
+        <div className="flex flex-wrap items-center justify-center gap-14 px-4">
+          <MarqueeRow dealers={dealers} />
+        </div>
+      ) : (
+        // Lo scorrimento si ferma quando ci passi sopra col mouse o quando ci
+        // arrivi col tasto Tab: un nome che scivola via sotto il dito non si
+        // clicca. Da telefono il passaggio del mouse non esiste, ma il tocco
+        // parte lo stesso, e chi vuole leggere con calma ha le schede delle
+        // concessionarie poco piu' in basso nella stessa pagina.
+        //
+        // La seconda copia serve solo all'animazione, che torna indietro di
+        // meta' larghezza per ripartire senza stacchi. Per chi ascolta la
+        // pagina e per chi naviga col Tab non esiste: sono gli stessi nomi, e
+        // ripeterli sarebbe solo confusione.
+        <div className="flex w-max gap-14 marketplace-marquee-track hover:[animation-play-state:paused] focus-within:[animation-play-state:paused]">
+          <MarqueeRow dealers={dealers} />
+          <MarqueeRow dealers={dealers} duplicate />
+        </div>
+      )}
     </div>
   );
 }
