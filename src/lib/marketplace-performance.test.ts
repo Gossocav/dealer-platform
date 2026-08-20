@@ -72,8 +72,11 @@ describe("le foto non arrivano piu' a piena risoluzione", () => {
 // Ogni visita ricalcolava tutto e il browser riceveva l'ordine di non
 // conservare niente: mille persone sullo stesso annuncio erano mille calcoli.
 describe("le pagine pubbliche si possono conservare", () => {
+  // La home non c'e' piu': con una copia a scadenza si e' rivelata
+  // inaffidabile, e serviva a Google il segnaposto di autenticazione al posto
+  // della pagina. Ora si ricalcola a ogni richiesta. Vedi il test qui sotto,
+  // che pretende che resti cosi'.
   const PAGINE = [
-    ["src/app/(marketplace)/page.tsx", 60],
     ["src/app/(marketplace)/auto/[id]/page.tsx", 60],
     ["src/app/(marketplace)/concessionarie/page.tsx", 300],
     ["src/app/(marketplace)/concessionarie/[slug]/page.tsx", 300],
@@ -126,5 +129,16 @@ describe("le pagine pubbliche si possono conservare", () => {
     for (const percorso of ["src/app/(marketplace)/auto/page.tsx", "src/app/(marketplace)/ricerca/page.tsx"]) {
       expect(read(percorso), percorso).toContain('dynamic = "force-dynamic"');
     }
+  });
+
+  // Con una copia a scadenza la home ha servito per ore, a Google e a chi non
+  // esegue JavaScript, la scritta "Verifica autenticazione..." al posto della
+  // pagina: la copia appena costruita era corretta, quella conservata restava
+  // indietro e si rigenerava sbagliata. Rimetterle una validita' farebbe
+  // tornare il difetto.
+  it("la home si ricalcola a ogni richiesta e non torna a conservarsi", () => {
+    const home = read("src/app/(marketplace)/page.tsx");
+    expect(home).toContain('export const dynamic = "force-dynamic"');
+    expect(home).not.toMatch(/export const revalidate/);
   });
 });
