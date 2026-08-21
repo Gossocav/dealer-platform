@@ -170,6 +170,35 @@ describe("quello che non si puo' pubblicare viene scartato, con il motivo", () =
     if (!esito.ok) expect(esito.reason).toBe("nessun-dato-strutturato");
   });
 
+  // Su un marketplace di automobili la foto e' la prima cosa che si guarda:
+  // una scheda senza immagini occupa un posto in griglia, abbassa la fiducia
+  // in tutte le altre e non porta contatti.
+  it("una scheda senza fotografie", () => {
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "Vehicle",
+      name: "Fiat Panda 1.2",
+      offers: { price: 8500 },
+      mileageFromOdometer: { value: 60000 },
+    })}</script>`;
+    const esito = parseDealerStockVehicle(html, VOCE);
+    expect(esito.ok).toBe(false);
+    if (!esito.ok) expect(esito.reason).toBe("senza-foto");
+  });
+
+  it("i loghi di marca non bastano a far passare una scheda per fotografata", () => {
+    const html = `
+      <img src="https://cdn.dealerk.it/cars/make/brand/60/jeep.png">
+      <img src="https://cdn.dealerk.it/cars/placeholder/nessuna-foto.png">
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        name: "Fiat Panda 1.2",
+        offers: { price: 8500 },
+      })}</script>`;
+    const esito = parseDealerStockVehicle(html, VOCE);
+    expect(esito.ok).toBe(false);
+    if (!esito.ok) expect(esito.reason).toBe("senza-foto");
+  });
+
   it("una scheda senza prezzo", () => {
     const html = `<script type="application/ld+json">${JSON.stringify({
       "@type": "Vehicle",
@@ -184,12 +213,14 @@ describe("quello che non si puo' pubblicare viene scartato, con il motivo", () =
   // "false" significa "non lo so", non "zero": un'usata a zero chilometri
   // dichiarati sarebbe un dato inventato.
   it("una km 0 senza chilometri dichiarati vale zero: e' il significato della categoria", () => {
-    const html = `<script type="application/ld+json">${JSON.stringify({
-      "@type": "Vehicle",
-      name: "Jeep Avenger 1.2 Turbo",
-      offers: { price: 25000 },
-      mileageFromOdometer: { value: false },
-    })}</script>`;
+    const html = `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/una.jpeg">
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        name: "Jeep Avenger 1.2 Turbo",
+        offers: { price: 25000 },
+        mileageFromOdometer: { value: false },
+      })}</script>`;
     const esito = parseDealerStockVehicle(html, { ...VOCE, condition: "Km/0" });
 
     expect(esito.ok).toBe(true);
@@ -199,12 +230,14 @@ describe("quello che non si puo' pubblicare viene scartato, con il motivo", () =
   });
 
   it("i chilometri riportati come 'false' su un'usata restano sconosciuti, non diventano zero", () => {
-    const html = `<script type="application/ld+json">${JSON.stringify({
-      "@type": "Vehicle",
-      name: "Jeep Grand Cherokee",
-      offers: { price: 81900 },
-      mileageFromOdometer: { value: false },
-    })}</script>`;
+    const html = `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/una.jpeg">
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        name: "Jeep Grand Cherokee",
+        offers: { price: 81900 },
+        mileageFromOdometer: { value: false },
+      })}</script>`;
     const esito = parseDealerStockVehicle(html, VOCE);
 
     expect(esito.ok).toBe(true);
