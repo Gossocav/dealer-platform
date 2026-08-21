@@ -210,6 +210,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Chi chiede l'immagine puo' avere bisogno di un formato preciso: il
+    // generatore delle anteprime social legge solo JPEG e PNG.
+    const acceptRichiesto = request.headers.get("accept")?.trim() ?? "";
+
     let currentUrl = target;
     let response: Response | null = null;
 
@@ -224,7 +228,12 @@ export async function GET(request: NextRequest) {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; DealerPlatform/1.0)",
-          Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          // Si inoltra la preferenza di chi ha chiesto l'immagine, quando
+          // c'e'. Prima era fissa e comprendeva webp: chi aveva bisogno di un
+          // JPEG -- il generatore delle anteprime social, che altri formati
+          // non li legge -- si vedeva servire webp comunque, senza poterlo
+          // chiedere diversamente.
+          Accept: acceptRichiesto || "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         },
       });
 

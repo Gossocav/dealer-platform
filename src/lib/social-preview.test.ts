@@ -103,3 +103,30 @@ describe("una foto lenta o enorme non blocca la generazione", () => {
     expect(card).toMatch(/catch \{\s*return null;/);
   });
 });
+
+// Le foto importate dai siti delle concessionarie passano dal nostro proxy,
+// che le serviva in webp: il compositore delle anteprime non sa leggere quel
+// formato e sollevava "Unsupported image type", cioe' un errore 500 al posto
+// dell'immagine.
+describe("un formato che il compositore non sa leggere non fa fallire l'anteprima", () => {
+  const card = read("src/lib/og-card.tsx");
+  const proxy = read("src/app/api/image-proxy/route.ts");
+
+  it("accetta solo i formati leggibili e scarta gli altri", () => {
+    expect(card).toContain("FORMATI_LEGGIBILI");
+    expect(card).toContain('"image/jpeg"');
+    expect(card).toContain('"image/png"');
+    expect(card).not.toMatch(/FORMATI_LEGGIBILI = \[[^\]]*webp/);
+  });
+
+  it("la foto viene chiesta in un formato leggibile", () => {
+    expect(card).toContain('Accept: "image/jpeg,image/png;q=0.9,*/*;q=0.1"');
+  });
+
+  // Senza questo la richiesta resta inascoltata: il proxy imponeva webp
+  // all'origine qualunque cosa chiedesse chi lo interrogava.
+  it("il proxy inoltra la preferenza di chi chiede l'immagine", () => {
+    expect(proxy).toContain("const acceptRichiesto = request.headers.get(\"accept\")");
+    expect(proxy).toContain("Accept: acceptRichiesto ||");
+  });
+});

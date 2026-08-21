@@ -54,12 +54,6 @@ const COLORS = {
   muted: "#94a3b8",
 };
 
-/**
- * La foto viene scaricata qui invece che lasciata a un tag immagine: se
- * l'archivio non risponde vogliamo una scheda senza foto, non un'anteprima
- * rotta. Un errore qui diventerebbe un rettangolo grigio, cioe' esattamente
- * il problema che stiamo risolvendo.
- */
 // Le foto sono scatti da telefono caricati dai concessionari, e l'indirizzo
 // da cui arrivano puo' essere quello di un listino esterno: nessuno dei due
 // e' un fornitore su cui contare. Senza un limite di tempo una risposta lenta
@@ -67,6 +61,9 @@ const COLORS = {
 // foto enorme la farebbe esaurire di memoria.
 const PHOTO_TIMEOUT_MS = 5000;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+
+/** Gli unici formati che il compositore delle anteprime sa leggere. */
+const FORMATI_LEGGIBILI = ["image/jpeg", "image/jpg", "image/png"];
 
 /**
  * La foto viene scaricata qui invece che lasciata a un tag immagine: se
@@ -80,13 +77,26 @@ async function loadPhoto(photoUrl: string | null | undefined) {
   }
 
   try {
-    const response = await fetch(photoUrl, { signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS) });
+    const response = await fetch(photoUrl, {
+      signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS),
+      // Chiediamo un formato che il compositore sappia leggere: vedi la nota
+      // su FORMATI_LEGGIBILI qui sotto.
+      headers: { Accept: "image/jpeg,image/png;q=0.9,*/*;q=0.1" },
+    });
     if (!response.ok) {
       return null;
     }
 
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.startsWith("image/")) {
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+
+    // Il compositore delle anteprime legge JPEG e PNG e basta: con qualsiasi
+    // altro formato solleva "Unsupported image type" e la richiesta finisce
+    // in errore 500. E' successo davvero: le foto importate dai siti delle
+    // concessionarie passano dal nostro proxy, che le serviva in webp, e
+    // l'anteprima di quei veicoli restituiva errore invece dell'immagine.
+    //
+    // Meglio una scheda di solo testo che un'anteprima che non risponde.
+    if (!FORMATI_LEGGIBILI.some((formato) => contentType.startsWith(formato))) {
       return null;
     }
 
