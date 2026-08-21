@@ -197,23 +197,56 @@ const PERCORSO_FOTO_VEICOLO = "/dealer/datafiles/vehicle/images/";
 /**
  * La misura in cui chiediamo ogni foto.
  *
- * La pagina cita lo stesso scatto in misure diverse a seconda di dove lo usa:
- * 800x0 nella galleria, 0x250 nelle miniature. Sei delle sedici foto di una
- * scheda vera comparivano *solo* come miniature alte 250 pixel -- che in una
- * galleria si vedono male.
- *
- * Verificato che l'archivio serve qualsiasi misura si chieda: basta comporre
- * l'indirizzo. Quindi tutte le foto vengono chieste larghe 800, che per un
- * annuncio bastano e pesano la meta' della misura piena.
+ * Verificato che l'archivio serve qualsiasi misura si chieda: 800 di
+ * larghezza per un annuncio bastano e pesano la meta' della misura piena.
  */
 const MISURA_FOTO = "800x0";
+
+/**
+ * Sotto questa larghezza una immagine non e' una foto della galleria.
+ *
+ * E' la regola che tiene fuori le vetture altrui, e nasce da una
+ * segnalazione: sulla scheda di una Jeep CJ-7 comparivano foto di altre
+ * automobili. In fondo a ogni scheda c'e' un carosello di vetture simili, e
+ * le sue miniature stanno nello stesso archivio delle foto vere.
+ *
+ * Misurato su tre schede diverse, il confine e' netto:
+ *
+ * - le foto **della vettura** compaiono in piu' misure -- 800x0, 600x0,
+ *   480x0, spesso anche la misura piena;
+ * - le miniature **delle altre vetture** compaiono solo come 0x250.
+ *
+ * E si vede anche da dove stanno nella pagina: le prime entro i primi
+ * ottantamila caratteri, le seconde oltre i duecentomila. Ma la posizione
+ * dipende da come e' impaginato il sito, la misura no: e' l'uso che se ne fa.
+ *
+ * Sulla CJ-7 questo separa 13 foto sue da 8 di altre tre automobili --
+ * verificate una per una risalendo al veicolo a cui erano collegate.
+ */
+const LARGHEZZA_MINIMA_GALLERIA = 400;
+
+function larghezzaMisura(misura: string): number {
+  if (misura.includes("original")) return Number.MAX_SAFE_INTEGER;
+
+  // "800x0" e' larghezza per altezza, "0x250" vincola l'altezza, "400" e' la
+  // sola larghezza: in tutti i casi la dimensione e' il numero piu' grande.
+  const numeri = misura
+    .split("x")
+    .map((parte) => Number(parte))
+    .filter((n) => Number.isFinite(n));
+
+  return numeri.length > 0 ? Math.max(...numeri) : 0;
+}
+
+function misuraDi(url: string) {
+  return url.split(PERCORSO_FOTO_VEICOLO)[1]?.split("/")[0] ?? "";
+}
 
 function normalizzaMisura(url: string) {
   const [prima, dopo] = url.split(PERCORSO_FOTO_VEICOLO);
   if (dopo === undefined) return url;
 
   const pezzi = dopo.split("/");
-  // Il primo pezzo e' la misura: si sostituisce, il resto resta com'e'.
   pezzi[0] = MISURA_FOTO;
   return `${prima}${PERCORSO_FOTO_VEICOLO}${pezzi.join("/")}`;
 }
@@ -222,23 +255,31 @@ function leggiFoto(html: string): string[] {
   const trovate = Array.from(html.matchAll(/https:\/\/cdn\.dealerk\.it\/[^"'\s)]+?\.(?:jpe?g|png|webp)/gi)).map((m) => m[0]);
 
   // Una voce per fotografia, riconosciuta dal nome del file: e' l'unica parte
-  // dell'indirizzo che resta uguale fra una misura e l'altra. L'ordine e'
-  // quello in cui compaiono in pagina, cioe' l'ordine della galleria: la
-  // prima diventa la copertina.
-  const viste = new Set<string>();
-  const foto: string[] = [];
+  // dell'indirizzo che resta uguale fra una misura e l'altra.
+  const perNomeFile = new Map<string, { url: string; larghezzaMassima: number; ordine: number }>();
 
   for (const url of trovate) {
     if (!url.includes(PERCORSO_FOTO_VEICOLO)) continue;
 
     const nomeFile = url.split("/").pop() ?? "";
-    if (!nomeFile || viste.has(nomeFile)) continue;
+    if (!nomeFile) continue;
 
-    viste.add(nomeFile);
-    foto.push(normalizzaMisura(url));
+    const larghezza = larghezzaMisura(misuraDi(url));
+    const gia = perNomeFile.get(nomeFile);
+
+    if (!gia) {
+      perNomeFile.set(nomeFile, { url, larghezzaMassima: larghezza, ordine: perNomeFile.size });
+    } else if (larghezza > gia.larghezzaMassima) {
+      // La posizione resta la prima in cui la fotografia e' comparsa: e'
+      // l'ordine della galleria, quindi la prima diventa la copertina.
+      perNomeFile.set(nomeFile, { url, larghezzaMassima: larghezza, ordine: gia.ordine });
+    }
   }
 
-  return foto;
+  return Array.from(perNomeFile.values())
+    .filter((voce) => voce.larghezzaMassima >= LARGHEZZA_MINIMA_GALLERIA)
+    .sort((a, b) => a.ordine - b.ordine)
+    .map((voce) => normalizzaMisura(voce.url));
 }
 
 export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): ParsedVehicle {
