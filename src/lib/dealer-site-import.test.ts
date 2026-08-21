@@ -95,7 +95,7 @@ describe("nella galleria finiscono solo le foto dell'auto", () => {
     <img src="https://cdn.dealerk.it/cars/make/brand/64/white/subaru.png">
     <img src="https://cdn.dealerk.it/cars/placeholder/nessuna-foto.png">
     <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/primo.jpeg">
-    <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/secondo.jpeg">
+    <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/480x0/33890/secondo.jpeg">
     <script type="application/ld+json">${JSON.stringify({
       "@type": "Vehicle",
       name: "Hyundai Bayon",
@@ -125,14 +125,46 @@ describe("nella galleria finiscono solo le foto dell'auto", () => {
     expect(solo.vehicle.images).toHaveLength(1);
   });
 
-  // Sei delle sedici foto di una scheda vera comparivano solo come miniature
-  // alte 250 pixel. L'archivio serve qualsiasi misura si chieda: verificato.
-  it("ogni foto viene chiesta nella misura buona, anche se in pagina era una miniatura", () => {
+  it("ogni foto viene chiesta nella misura buona, qualunque fosse in pagina", () => {
     if (!esito.ok) throw new Error("scheda non letta");
     for (const url of esito.vehicle.images) {
       expect(url).toContain("/vehicle/images/800x0/");
     }
-    expect(esito.vehicle.images.some((u) => u.includes("secondo.jpeg"))).toBe(true);
+  });
+
+  // Segnalato su una Jeep CJ-7: fra le sue foto ne comparivano di altre
+  // automobili. In fondo a ogni scheda c'e' un carosello di vetture simili, e
+  // le sue miniature stanno nello stesso archivio delle foto vere.
+  //
+  // Il confine e' la misura, misurato su tre schede: le foto della vettura
+  // compaiono in piu' misure, le miniature altrui solo come 0x250.
+  it("le miniature delle vetture simili restano fuori", () => {
+    const conCarosello = `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/mia.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/600x0/33890/mia.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/altra-vettura.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/altra-ancora.jpeg">
+      <script type="application/ld+json">${JSON.stringify({ "@type": "Vehicle", name: "Jeep CJ-7", offers: { price: 37400 } })}</script>`;
+
+    const solo = parseDealerStockVehicle(conCarosello, VOCE);
+    if (!solo.ok) throw new Error("scheda non letta");
+
+    expect(solo.vehicle.images).toHaveLength(1);
+    expect(solo.vehicle.images[0]).toContain("mia.jpeg");
+    expect(solo.vehicle.images.some((u) => u.includes("altra"))).toBe(false);
+  });
+
+  // Una vettura le cui uniche immagini sono miniature di altre auto non ha
+  // foto proprie: non deve entrare spacciandosi per fotografata.
+  it("una scheda con solo miniature altrui conta come senza foto", () => {
+    const soloAltrui = `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/altra-uno.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/altra-due.jpeg">
+      <script type="application/ld+json">${JSON.stringify({ "@type": "Vehicle", name: "Fiat Panda", offers: { price: 8500 } })}</script>`;
+
+    const esitoAltrui = parseDealerStockVehicle(soloAltrui, VOCE);
+    expect(esitoAltrui.ok).toBe(false);
+    if (!esitoAltrui.ok) expect(esitoAltrui.reason).toBe("senza-foto");
   });
 
   it("l'ordine della pagina e' l'ordine della galleria: la prima e' la copertina", () => {
