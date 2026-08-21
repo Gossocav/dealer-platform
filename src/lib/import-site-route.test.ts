@@ -75,3 +75,30 @@ describe("il caricamento e' prudente per costruzione", () => {
     expect(route).toContain("Math.min(MAX_LOTTO");
   });
 });
+
+// Le prime venti vetture importate si sono portate dentro i loghi delle
+// marche: nessuna reimportazione avrebbe potuto ripulirle, perche' il
+// salvataggio delle foto aggiungeva soltanto.
+describe("la galleria si rifa', non si accumula", () => {
+  it("le foto vengono sostituite con quelle attuali della sorgente", () => {
+    expect(route).toContain("async function sostituisciFoto");
+    expect(route).toContain('.from("vehicle_images").delete()');
+    expect(route).toContain("sostituisciFoto(supabase, dealerId, vehicleId, veicolo.images)");
+  });
+
+  // La cancellazione e' limitata alla concessionaria oltre che al veicolo:
+  // due condizioni invece di una, su un'operazione che toglie righe.
+  it("cancella solo le foto di quel veicolo di quella concessionaria", () => {
+    const blocco = route.slice(route.indexOf('.from("vehicle_images").delete()'));
+    expect(blocco.slice(0, 160)).toContain('.eq("vehicle_id", vehicleId)');
+    expect(blocco.slice(0, 160)).toContain('.eq("dealer_id", dealerId)');
+  });
+
+  it("se la galleria e' gia' quella giusta non si tocca niente", () => {
+    expect(route).toContain("if (gia) return;");
+  });
+
+  it("resta il tetto di venti foto a veicolo", () => {
+    expect(route).toContain("urls.slice(0, MAX_FOTO_VEICOLO)");
+  });
+});

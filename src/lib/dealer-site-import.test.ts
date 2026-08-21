@@ -85,6 +85,62 @@ describe("una scheda vera si legge per intero", () => {
   });
 });
 
+// Segnalato dopo le prime venti vetture importate: ogni annuncio si portava
+// dentro due loghi Jeep, due Hyundai, due Subaru e due Alfa Romeo. Erano i
+// marchi trattati dalla concessionaria, presi dall'intestazione del sito.
+describe("nella galleria finiscono solo le foto dell'auto", () => {
+  const PAGINA = `
+    <img src="https://cdn.dealerk.it/cars/make/brand/60/jeep.png">
+    <img src="https://cdn.dealerk.it/cars/make/brand/48/hyundai.png">
+    <img src="https://cdn.dealerk.it/cars/make/brand/64/white/subaru.png">
+    <img src="https://cdn.dealerk.it/cars/placeholder/nessuna-foto.png">
+    <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/primo.jpeg">
+    <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/secondo.jpeg">
+    <script type="application/ld+json">${JSON.stringify({
+      "@type": "Vehicle",
+      name: "Hyundai Bayon",
+      offers: { price: 19500 },
+    })}</script>`;
+
+  const esito = parseDealerStockVehicle(PAGINA, VOCE);
+
+  it("i loghi delle marche restano fuori", () => {
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.images.some((u) => u.includes("/cars/make/brand/"))).toBe(false);
+    expect(esito.vehicle.images.some((u) => u.includes("/cars/placeholder/"))).toBe(false);
+    expect(esito.vehicle.images).toHaveLength(2);
+  });
+
+  // La pagina cita lo stesso scatto in misure diverse a seconda di dove lo
+  // usa: 47 indirizzi per 16 fotografie, su una scheda vera.
+  it("lo stesso scatto in misure diverse conta una volta sola", () => {
+    const conDoppioni = `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/uno.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/600x0/33890/uno.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/480x0/33890/uno.jpeg">
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/400/33890/uno.jpeg">
+      <script type="application/ld+json">${JSON.stringify({ "@type": "Vehicle", name: "x", offers: { price: 19500 } })}</script>`;
+    const solo = parseDealerStockVehicle(conDoppioni, VOCE);
+    if (!solo.ok) throw new Error("scheda non letta");
+    expect(solo.vehicle.images).toHaveLength(1);
+  });
+
+  // Sei delle sedici foto di una scheda vera comparivano solo come miniature
+  // alte 250 pixel. L'archivio serve qualsiasi misura si chieda: verificato.
+  it("ogni foto viene chiesta nella misura buona, anche se in pagina era una miniatura", () => {
+    if (!esito.ok) throw new Error("scheda non letta");
+    for (const url of esito.vehicle.images) {
+      expect(url).toContain("/vehicle/images/800x0/");
+    }
+    expect(esito.vehicle.images.some((u) => u.includes("secondo.jpeg"))).toBe(true);
+  });
+
+  it("l'ordine della pagina e' l'ordine della galleria: la prima e' la copertina", () => {
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.images[0]).toContain("primo.jpeg");
+  });
+});
+
 // Trovata provando su dati veri: una Jeep Avenger a 239 euro, elencata fra le
 // usate perche' e' un'offerta di noleggio. Importata cosi', sul marketplace
 // comparirebbe una Jeep a 239 euro.
