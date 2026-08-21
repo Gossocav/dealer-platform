@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import type { AccountRoute } from "@/lib/account-routes";
 
 type ProfileRow = {
   id: string;
@@ -19,7 +20,8 @@ type DealerRow = {
   demo_expires_at: string | null;
 };
 
-type ResolvedRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/account/demo-scaduta" | "/dashboard";
+// L'elenco sta in un posto solo: vedi la nota in account-routes.
+type ResolvedRoute = AccountRoute;
 
 type ResolvePayload = {
   status: string;

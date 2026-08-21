@@ -4,14 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
-
-type AccountRoute = "/admin" | "/account/sospeso" | "/account/in-attesa" | "/dashboard";
+import { isAccountRoute } from "@/lib/account-routes";
 
 const RESOLUTION_TIMEOUT_MS = 15000;
-
-function isAccountRoute(value: unknown): value is AccountRoute {
-  return value === "/admin" || value === "/account/sospeso" || value === "/account/in-attesa" || value === "/dashboard";
-}
 
 async function resolveAccountRouteWithTimeout(accessToken: string) {
   const controller = new AbortController();
