@@ -172,10 +172,73 @@ export function looksLikeRental(vehicle: { name?: string | null; description?: s
   return vehicle.price !== null && vehicle.price < MIN_PREZZO_VENDITA;
 }
 
-/** Le foto stanno nella pagina, non nei dati strutturati: li' ce n'e' una sola. */
+/**
+ * Le foto del veicolo, e soltanto quelle.
+ *
+ * Stanno nella pagina e non nei dati strutturati, dove ce n'e' una sola. Ma
+ * la pagina contiene molto piu' delle foto dell'auto, e prendere tutto ha
+ * prodotto due difetti veri, visti sulle prime venti vetture importate:
+ *
+ * - **i loghi delle marche trattate dalla concessionaria** finivano nella
+ *   galleria: due Jeep, due Hyundai, due Subaru, due Alfa Romeo. Stanno sotto
+ *   /cars/make/brand/, insieme a un segnaposto sotto /cars/placeholder/;
+ * - **lo stesso scatto ripetuto in quattro misure**: 800x0, 600x0, 480x0,
+ *   400. Su una scheda vera: 47 indirizzi raccolti per 16 fotografie.
+ *
+ * Con il tetto di venti immagini a veicolo, il risultato era una galleria
+ * fatta di doppioni e loghi.
+ *
+ * Quindi: solo i percorsi delle foto veicolo, una riga per fotografia, nella
+ * misura piu' grande disponibile e nell'ordine in cui compaiono in pagina --
+ * che e' l'ordine della galleria, quindi la prima e' la copertina.
+ */
+const PERCORSO_FOTO_VEICOLO = "/dealer/datafiles/vehicle/images/";
+
+/**
+ * La misura in cui chiediamo ogni foto.
+ *
+ * La pagina cita lo stesso scatto in misure diverse a seconda di dove lo usa:
+ * 800x0 nella galleria, 0x250 nelle miniature. Sei delle sedici foto di una
+ * scheda vera comparivano *solo* come miniature alte 250 pixel -- che in una
+ * galleria si vedono male.
+ *
+ * Verificato che l'archivio serve qualsiasi misura si chieda: basta comporre
+ * l'indirizzo. Quindi tutte le foto vengono chieste larghe 800, che per un
+ * annuncio bastano e pesano la meta' della misura piena.
+ */
+const MISURA_FOTO = "800x0";
+
+function normalizzaMisura(url: string) {
+  const [prima, dopo] = url.split(PERCORSO_FOTO_VEICOLO);
+  if (dopo === undefined) return url;
+
+  const pezzi = dopo.split("/");
+  // Il primo pezzo e' la misura: si sostituisce, il resto resta com'e'.
+  pezzi[0] = MISURA_FOTO;
+  return `${prima}${PERCORSO_FOTO_VEICOLO}${pezzi.join("/")}`;
+}
+
 function leggiFoto(html: string): string[] {
   const trovate = Array.from(html.matchAll(/https:\/\/cdn\.dealerk\.it\/[^"'\s)]+?\.(?:jpe?g|png|webp)/gi)).map((m) => m[0]);
-  return Array.from(new Set(trovate));
+
+  // Una voce per fotografia, riconosciuta dal nome del file: e' l'unica parte
+  // dell'indirizzo che resta uguale fra una misura e l'altra. L'ordine e'
+  // quello in cui compaiono in pagina, cioe' l'ordine della galleria: la
+  // prima diventa la copertina.
+  const viste = new Set<string>();
+  const foto: string[] = [];
+
+  for (const url of trovate) {
+    if (!url.includes(PERCORSO_FOTO_VEICOLO)) continue;
+
+    const nomeFile = url.split("/").pop() ?? "";
+    if (!nomeFile || viste.has(nomeFile)) continue;
+
+    viste.add(nomeFile);
+    foto.push(normalizzaMisura(url));
+  }
+
+  return foto;
 }
 
 export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): ParsedVehicle {
