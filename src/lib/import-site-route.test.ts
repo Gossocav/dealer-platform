@@ -102,3 +102,18 @@ describe("la galleria si rifa', non si accumula", () => {
     expect(route).toContain("urls.slice(0, MAX_FOTO_VEICOLO)");
   });
 });
+
+describe("i motivi dello scarto sono leggibili nel pannello", () => {
+  it("ogni motivo ha la sua spiegazione in italiano", () => {
+    for (const spiegazione of [
+      "nessuna fotografia",
+      "nessun prezzo",
+      "offerta di noleggio, non una vendita",
+      "scheda non leggibile",
+    ]) {
+      expect(pagina, spiegazione).toContain(spiegazione);
+    }
+    // E non l'etichetta tecnica al posto della spiegazione.
+    expect(pagina).toContain("MOTIVI_SALTO[esito.motivo");
+  });
+});

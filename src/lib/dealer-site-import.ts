@@ -42,7 +42,7 @@ export type DealerSiteVehicle = DealerSiteEntry & {
 };
 
 /** Perche' una scheda e' stata scartata: serve a spiegarlo, non solo a contarlo. */
-export type SkipReason = "nessun-dato-strutturato" | "senza-prezzo" | "noleggio";
+export type SkipReason = "nessun-dato-strutturato" | "senza-prezzo" | "noleggio" | "senza-foto";
 
 export type ParsedVehicle =
   | { ok: true; vehicle: DealerSiteVehicle }
@@ -269,6 +269,21 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
   const mileageGrezzo = leggiChilometri(grezzo.mileageFromOdometer);
   const mileage = mileageGrezzo === null && entry.condition === "Km/0" ? 0 : mileageGrezzo;
 
+  const images = leggiFoto(html);
+
+  // Un annuncio senza fotografie non e' un annuncio.
+  //
+  // Su un marketplace di automobili la foto e' la prima cosa che si guarda e
+  // spesso l'unica prima del clic: una scheda senza immagini occupa un posto
+  // in griglia, abbassa la fiducia in tutte le altre e non porta contatti.
+  // Meglio non averla che averla vuota.
+  //
+  // E' anche un buon segnale d'allarme: se una scheda non ha foto, quasi
+  // sempre non e' pronta nemmeno sul sito della concessionaria.
+  if (images.length === 0) {
+    return { ok: false, reason: "senza-foto", url: entry.url };
+  }
+
   return {
     ok: true,
     vehicle: {
@@ -285,7 +300,7 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
       color: testo(grezzo.color),
       year: numero(grezzo.vehicleModelDate),
       description,
-      images: leggiFoto(html),
+      images,
     },
   };
 }

@@ -70,6 +70,14 @@ type SiteBatchResult = {
   esiti: { sourceId: string; esito: string; motivo?: string; titolo?: string }[];
 };
 
+/** Perche' una scheda non e' entrata, detto a chi legge e non al codice. */
+const MOTIVI_SALTO: Record<string, string> = {
+  "senza-foto": "nessuna fotografia",
+  "senza-prezzo": "nessun prezzo",
+  noleggio: "offerta di noleggio, non una vendita",
+  "nessun-dato-strutturato": "scheda non leggibile",
+};
+
 type SiteProgress = { importati: number; aggiornati: number; saltati: number; lettureFallite: number; letti: number };
 
 type PreviewRow = {
@@ -295,7 +303,10 @@ export function VehiclesImportPage() {
           else avanzamento.saltati += 1;
 
           const etichetta = esito.titolo ?? esito.sourceId;
-          if (esito.esito === "saltato") registro.push(`saltato (${esito.motivo}): ${etichetta}`);
+          if (esito.esito === "saltato") {
+            const motivo = MOTIVI_SALTO[esito.motivo ?? ""] ?? esito.motivo ?? "motivo sconosciuto";
+            registro.push(`saltato — ${motivo}: ${etichetta}`);
+          }
           else if (esito.esito === "lettura-fallita") registro.push(`lettura fallita, riprovabile: ${etichetta}`);
           else registro.push(`${esito.esito}: ${etichetta}`);
         }
