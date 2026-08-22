@@ -151,6 +151,13 @@ export function VehiclesManagementPage() {
     setPage(1);
   }, []);
 
+  // Dalle intestazioni della tabella si sceglie il campo e il verso si
+  // alterna; dalla tendina si sceglie la coppia gia' fatta.
+  const handleSortSelection = useCallback((next: VehicleSortState) => {
+    setSort(next);
+    setPage(1);
+  }, []);
+
   const resetFilters = useCallback(() => {
     setFilters(defaultVehicleFilters);
     setPage(1);
@@ -280,7 +287,11 @@ export function VehiclesManagementPage() {
         )
         .eq("dealer_id", currentDealerId)
         .range(from, to)
-        .order(sort.field, { ascending: sort.direction === "asc" });
+        // I veicoli senza prezzo o senza chilometri finiscono in fondo in
+        // entrambi i versi. Senza questo, Postgres considera il valore
+        // mancante come il piu' grande: in ordine decrescente le auto senza
+        // prezzo aprirebbero l'elenco.
+        .order(sort.field, { ascending: sort.direction === "asc", nullsFirst: false });
 
       if (filters.query.trim().length > 0) {
         const q = filters.query.trim();
@@ -822,6 +833,8 @@ export function VehiclesManagementPage() {
         priceBandOptions={priceBandOptions}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        sort={sort}
+        onSortChange={handleSortSelection}
       />
 
       <section className="dashboard-fade-up rounded-3xl border border-dashed border-slate-300 bg-white/70 px-4 py-3 text-sm text-slate-600">

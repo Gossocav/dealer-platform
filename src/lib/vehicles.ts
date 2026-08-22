@@ -97,12 +97,54 @@ export type VehicleFilters = {
   priceBand: string;
 };
 
-export type VehicleSortField = "created_at" | "brand" | "model" | "year" | "price" | "status";
+export type VehicleSortField = "created_at" | "brand" | "model" | "year" | "price" | "status" | "mileage";
 
 export type VehicleSortState = {
   field: VehicleSortField;
   direction: "asc" | "desc";
 };
+
+/**
+ * Gli ordinamenti offerti nella tendina "Ordina per".
+ *
+ * Prima l'ordine si cambiava solo cliccando le intestazioni della tabella, e
+ * la vista a schede -- che e' quella predefinita -- non permetteva di
+ * ordinare affatto. I chilometri non erano ordinabili da nessuna parte.
+ *
+ * Sono coppie campo+verso perche' "prezzo" da solo non dice niente: chi
+ * cerca l'auto piu' economica e chi cerca la piu' cara chiedono due cose
+ * diverse, e devono poterle chiedere con un gesto solo.
+ */
+export const VEHICLE_SORT_OPTIONS = [
+  { value: "created_at:desc", label: "Inserimento (piu recenti)" },
+  { value: "created_at:asc", label: "Inserimento (piu vecchi)" },
+  { value: "price:asc", label: "Prezzo crescente" },
+  { value: "price:desc", label: "Prezzo decrescente" },
+  { value: "mileage:asc", label: "Chilometri crescenti" },
+  { value: "mileage:desc", label: "Chilometri decrescenti" },
+  { value: "year:desc", label: "Immatricolazione piu recente" },
+  { value: "year:asc", label: "Immatricolazione piu vecchia" },
+] as const satisfies ReadonlyArray<{ value: string; label: string }>;
+
+export function vehicleSortToValue(sort: VehicleSortState) {
+  return `${sort.field}:${sort.direction}`;
+}
+
+/**
+ * Un ordinamento scelto cliccando un'intestazione della tabella puo' non
+ * corrispondere a nessuna voce della tendina (marca, stato): in quel caso la
+ * tendina non mostra una voce a caso, resta sul valore che le viene passato e
+ * il chiamante decide cosa farne.
+ */
+export function vehicleSortFromValue(value: string): VehicleSortState | null {
+  const [campo, verso] = String(value ?? "").split(":");
+  const campiAmmessi: VehicleSortField[] = ["created_at", "brand", "model", "year", "price", "status", "mileage"];
+
+  if (!campiAmmessi.includes(campo as VehicleSortField)) return null;
+  if (verso !== "asc" && verso !== "desc") return null;
+
+  return { field: campo as VehicleSortField, direction: verso };
+}
 
 export type VehicleKpi = {
   id: string;
