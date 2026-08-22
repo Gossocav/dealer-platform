@@ -69,6 +69,21 @@ describe("resolveVehicleLabel", () => {
     expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tuc", version: "Tucson" })).toBe("Hyundai Tuc Tucson");
   });
 
+  // L'altro modo in cui nasce "Hyundai Tucson Hyundai Tucson": non e' la
+  // versione a ripetersi, sono marca e modello a portare lo stesso titolo.
+  it("drops the brand when the model already carries it", () => {
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Hyundai Tucson", version: null })).toBe("Hyundai Tucson");
+    expect(resolveVehicleLabel({ brand: "Hyundai Tucson", model: "Hyundai Tucson", version: null })).toBe(
+      "Hyundai Tucson"
+    );
+  });
+
+  it("keeps a model whose name merely starts like the brand", () => {
+    expect(resolveVehicleLabel({ brand: "Mercedes", model: "Mercedes-Benz Classe A", version: null })).toBe(
+      "Mercedes Mercedes-Benz Classe A"
+    );
+  });
+
   it("leaves a trim that names the model later on untouched", () => {
     expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "1.6 CRDi Tucson Edition" })).toBe(
       "Hyundai Tucson 1.6 CRDi Tucson Edition"

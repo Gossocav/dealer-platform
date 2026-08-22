@@ -334,7 +334,11 @@ function normalizeVehicleLabelField(value: string): string {
 
 export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">) {
   const brand = vehicle.brand ? normalizeVehicleLabelField(String(vehicle.brand)) : "";
-  const model = vehicle.model ? normalizeVehicleLabelField(String(vehicle.model)) : "";
+  const rawModel = vehicle.model ? normalizeVehicleLabelField(String(vehicle.model)) : "";
+  // Un import che riversa lo stesso titolo in piu' campi lascia la marca anche
+  // dentro il modello ("Hyundai" + "Hyundai Tucson"): senza questo, il titolo
+  // la direbbe due volte prima ancora di arrivare alla versione.
+  const model = stripLeadingRepeat(rawModel, brand);
   const brandModel = [brand, model].filter(Boolean).join(" ");
 
   const rawVersion = vehicle.version ? normalizeVehicleLabelField(String(vehicle.version)) : "";
@@ -346,27 +350,30 @@ export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | 
 }
 
 /**
- * Alcune importazioni scrivono nella versione il titolo intero trovato altrove
- * ("Hyundai Tucson") o il modello ripetuto ("Tucson 1.6 CRDi"): sono gia'
- * scritti subito prima, e l'intestazione li mostrava due volte di fila.
+ * Toglie da un campo la ripetizione di quello che viene scritto subito prima.
+ *
+ * Alcune importazioni riversano lo stesso testo in piu' campi: la marca finisce
+ * anche dentro il modello, o il titolo intero dentro la versione ("Hyundai
+ * Tucson", "Tucson 1.6 CRDi"). Sono gia' scritti un attimo prima, e
+ * l'intestazione li mostrava due volte di fila.
  *
  * Si toglie solo la ripetizione in testa, e solo se e' una parola intera: la
  * versione "Tucson" di un modello "Tuc" non e' una ripetizione, e un
  * allestimento che nomina il modello piu' avanti resta come l'ha scritto il
  * concessionario.
  */
-function stripLeadingRepeat(version: string, repeated: string): string {
-  if (!version || !repeated) return version;
+function stripLeadingRepeat(value: string, repeated: string): string {
+  if (!value || !repeated) return value;
 
-  const versionLower = version.toLowerCase();
+  const valueLower = value.toLowerCase();
   const repeatedLower = repeated.toLowerCase();
 
-  if (versionLower === repeatedLower) return "";
-  if (versionLower.startsWith(`${repeatedLower} `)) {
-    return version.slice(repeated.length).trim();
+  if (valueLower === repeatedLower) return "";
+  if (valueLower.startsWith(`${repeatedLower} `)) {
+    return value.slice(repeated.length).trim();
   }
 
-  return version;
+  return value;
 }
 
 /**
