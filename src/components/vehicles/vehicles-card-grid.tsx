@@ -116,14 +116,19 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
                   <span className="block text-xs uppercase tracking-[0.12em] text-slate-400">Prezzo</span>
                   {vehicle.priceLabel}
                 </p>
+                {/* "flex" e non "inline-flex": l'etichetta deve occupare la
+                    sua riga, come fanno Immatricolazione e Prezzo qui sopra.
+                    Con "inline-flex" il numero finiva appiccicato in coda
+                    all'etichetta, disallineato rispetto alle altre due
+                    caselle. */}
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
-                  <span className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-400">
+                  <span className="flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-400">
                     <Users className="h-3.5 w-3.5" /> Lead
                   </span>
                   {vehicle.leadCount}
                 </p>
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
-                  <span className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-400">
+                  <span className="flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-400">
                     <Gauge className="h-3.5 w-3.5" /> Visualizzazioni
                   </span>
                   {vehicle.viewsCount}
