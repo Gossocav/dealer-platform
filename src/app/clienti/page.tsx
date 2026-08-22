@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { supabase } from "@/lib/supabaseClient";
 
 type Customer = {
@@ -155,27 +156,43 @@ export default function ClientiPage() {
       return;
     }
 
+    // Letti per intero, non i primi mille: questa pagina cerca e raggruppa
+    // nel browser sull'elenco completo, e un elenco troncato in silenzio si
+    // manifesterebbe come clienti spariti.
     const [customersRes, leadsRes, vehiclesRes, appointmentsRes] = await Promise.all([
-      supabase
-        .from("customers")
-        .select("id, dealer_id, first_name, last_name, company, vat_number, tax_code, email, phone, mobile, address, city, province, zip_code, notes, created_at, updated_at")
-        .eq("dealer_id", currentDealerId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("leads")
-        .select("id, customer_id, vehicle_id, first_name, last_name, email, phone, status, created_at, updated_at, vehicle:vehicles(id, brand, model, version)")
-        .eq("dealer_id", currentDealerId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("vehicles")
-        .select("id, customer_id, brand, model, version, year, price, status, published, created_at")
-        .eq("dealer_id", currentDealerId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("appointments")
-        .select("id, customer_id, vehicle_id, title, description, start_at, end_at, status, created_at")
-        .eq("dealer_id", currentDealerId)
-        .order("start_at", { ascending: false }),
+      caricaTutto<Customer>((da, a) =>
+        supabase
+          .from("customers")
+          .select("id, dealer_id, first_name, last_name, company, vat_number, tax_code, email, phone, mobile, address, city, province, zip_code, notes, created_at, updated_at")
+          .eq("dealer_id", currentDealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+      ),
+      caricaTutto<Lead>((da, a) =>
+        supabase
+          .from("leads")
+          .select("id, customer_id, vehicle_id, first_name, last_name, email, phone, status, created_at, updated_at, vehicle:vehicles(id, brand, model, version)")
+          .eq("dealer_id", currentDealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+          .returns<Lead[]>()
+      ),
+      caricaTutto<Vehicle>((da, a) =>
+        supabase
+          .from("vehicles")
+          .select("id, customer_id, brand, model, version, year, price, status, published, created_at")
+          .eq("dealer_id", currentDealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+      ),
+      caricaTutto<Appointment>((da, a) =>
+        supabase
+          .from("appointments")
+          .select("id, customer_id, vehicle_id, title, description, start_at, end_at, status, created_at")
+          .eq("dealer_id", currentDealerId)
+          .order("start_at", { ascending: false })
+          .range(da, a)
+      ),
     ]);
 
     setLoading(false);
@@ -192,10 +209,17 @@ export default function ClientiPage() {
       return;
     }
 
-    setCustomers((customersRes.data ?? []) as Customer[]);
-    setLeads((leadsRes.data ?? []) as unknown as Lead[]);
-    setVehicles((vehiclesRes.data ?? []) as Vehicle[]);
-    setAppointments((appointmentsRes.data ?? []) as Appointment[]);
+    setCustomers(customersRes.righe);
+    setLeads(leadsRes.righe);
+    setVehicles(vehiclesRes.righe);
+    setAppointments(appointmentsRes.righe);
+
+    // Se si e' toccato il tetto, chi guarda deve saperlo: un elenco
+    // incompleto mostrato come completo e' peggio di un avviso.
+    if (customersRes.troncato) {
+      setStatusMessage("Elenco molto lungo: mostrati i primi 5.000 clienti. Usa la ricerca per trovare gli altri.");
+      setStatusMessageType("error");
+    }
   };
 
   useEffect(() => {
