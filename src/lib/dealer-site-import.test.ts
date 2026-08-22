@@ -399,3 +399,78 @@ describe("il prezzo quando la scheda leggibile non lo dichiara", () => {
     expect(esito.vehicle.price).toBe(19500);
   });
 });
+
+/**
+ * Su delorenziauto.it le miniature delle altre automobili sono larghe 400
+ * come le foto vere: la sola regola della larghezza le lasciava passare, e
+ * ogni vettura importata si portava dentro fino a sei fotografie altrui.
+ * Misurato sulla scheda vera dell'Opel Corsa 6751886: ventuno fotografie
+ * sulla pagina, quindici sue.
+ */
+describe("nella galleria non finiscono le foto delle vetture simili", () => {
+  const VOCE_ALTRO_SITO: DealerSiteEntry = {
+    url: "https://www.delorenziauto.it/auto/usate/cremona/opel/corsa/benzina/blitz-edition/6751886/",
+    sourceId: "6751886",
+    condition: "Usato",
+  };
+
+  const CDN = "https://cdn.dealerk.it/dealer/datafiles/vehicle/images";
+
+  function scheda(corpo: string) {
+    return `
+      <script type="application/ld+json">${JSON.stringify({ "@type": "Car", name: "Opel Corsa", brand: "Opel" })}</script>
+      <div data-config='{"vehicleId":"6751886","price":20000}'></div>
+      ${corpo}`;
+  }
+
+  it("tiene le fotografie che il sito offre in piu' misure", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`
+        <img src="${CDN}/400/2396/sua-uno.jpg"><img src="${CDN}/800/2396/sua-uno.jpg"><img src="${CDN}/200/2396/sua-uno.jpg">
+        <img src="${CDN}/400/2396/sua-due.jpg"><img src="${CDN}/800/2396/sua-due.jpg">`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.images).toHaveLength(2);
+  });
+
+  it("scarta quella che compare in una misura sola, anche se e' larga uguale", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`
+        <img src="${CDN}/400/2396/sua.jpg"><img src="${CDN}/800/2396/sua.jpg">
+        <div class="vetture-simili"><img src="${CDN}/400/2396/di-un-altra.jpg"></div>`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.images).toHaveLength(1);
+    expect(esito.vehicle.images[0]).toContain("sua.jpg");
+  });
+
+  // Se nessuna fotografia comparisse in piu' misure il criterio non saprebbe
+  // distinguere niente: meglio una galleria con qualche intrusa che una scheda
+  // senza foto, che verrebbe scartata del tutto.
+  it("se nessuna compare in piu' misure, non lascia la scheda senza foto", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`<img src="${CDN}/800/2396/unica.jpg"><img src="${CDN}/800/2396/altra.jpg">`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.images).toHaveLength(2);
+  });
+
+  // Su autogepy le miniature altrui sono 0x250: la regola della larghezza le
+  // teneva gia' fuori, e questa non deve toglierne altre.
+  it("non cambia nulla dove la larghezza bastava gia'", () => {
+    const esito = parseDealerStockVehicle(fixture("dealer-site-usato.html"), VOCE);
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.images.length).toBeGreaterThan(1);
+  });
+});
