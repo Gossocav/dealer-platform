@@ -330,27 +330,39 @@ export default async function MarketplaceHomePage() {
       {/* ============ CATEGORIES ============ */}
       {categories.length > 0 || quickChips.length > 0 ? (
         <section className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
-          <RevealOnScroll className="mx-auto mb-8 max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Parti da qui</p>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Esplora per categoria</h2>
-          </RevealOnScroll>
+          {/* Un contenitore solo per titolo, corsia delle carrozzerie e
+              scorciatoie. Prima titolo e scorciatoie stavano ognuno in una
+              scatola larga meta' pagina e centrata: comparivano in mezzo allo
+              schermo mentre le carrozzerie sotto partivano dal bordo, e nessuno
+              dei tre condivideva il margine delle altre sezioni della home.
+              Questa larghezza e' la stessa di "Gli ultimi arrivi" e
+              "Concessionarie partner", cosi' scendendo la pagina i titoli
+              stanno tutti sulla stessa linea verticale. La corsia tiene i suoi
+              margini negativi, quindi le carrozzerie possono ancora scorrere
+              oltre il bordo del contenitore. */}
+          <div className="mx-auto max-w-6xl">
+            <RevealOnScroll className="mb-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Parti da qui</p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Esplora per categoria</h2>
+            </RevealOnScroll>
 
-          {categories.length > 0 ? <CategoryRail categories={categories} /> : null}
+            {categories.length > 0 ? <CategoryRail categories={categories} /> : null}
 
-          {quickChips.length > 0 ? (
-            <div className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">Ricerche popolari</span>
-              {quickChips.map((chip) => (
-                <Link
-                  key={chip.label}
-                  href={chip.href}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-500/10 hover:text-white"
-                >
-                  {chip.label}
-                </Link>
-              ))}
-            </div>
-          ) : null}
+            {quickChips.length > 0 ? (
+              <div className="mt-8 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-500">Ricerche popolari</span>
+                {quickChips.map((chip) => (
+                  <Link
+                    key={chip.label}
+                    href={chip.href}
+                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-400/50 hover:bg-blue-500/10 hover:text-white"
+                  >
+                    {chip.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : null}
 
