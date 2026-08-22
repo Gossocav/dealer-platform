@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { cache } from "react";
 import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
+import { stripLeadingRepeat } from "@/lib/vehicle-label";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -333,12 +334,20 @@ function normalizeVehicleLabelField(value: string): string {
 }
 
 export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">) {
-  return (
-    [vehicle.brand, vehicle.model, vehicle.version]
-      .filter(Boolean)
-      .map((field) => normalizeVehicleLabelField(String(field)))
-      .join(" ") || "Veicolo"
-  );
+  const brand = vehicle.brand ? normalizeVehicleLabelField(String(vehicle.brand)) : "";
+  const rawModel = vehicle.model ? normalizeVehicleLabelField(String(vehicle.model)) : "";
+  // Un import che riversa lo stesso titolo in piu' campi lascia la marca anche
+  // dentro il modello ("Hyundai" + "Hyundai Tucson"): senza questo, il titolo
+  // la direbbe due volte prima ancora di arrivare alla versione.
+  const model = stripLeadingRepeat(rawModel, brand);
+  const brandModel = [brand, model].filter(Boolean).join(" ");
+
+  const rawVersion = vehicle.version ? normalizeVehicleLabelField(String(vehicle.version)) : "";
+  // Prima l'intero "Marca Modello", poi il solo modello: cosi' una versione
+  // come "Hyundai Tucson 1.6" perde entrambe le ripetizioni, non solo la prima.
+  const version = stripLeadingRepeat(stripLeadingRepeat(rawVersion, brandModel), model);
+
+  return [brandModel, version].filter(Boolean).join(" ") || "Veicolo";
 }
 
 /**
