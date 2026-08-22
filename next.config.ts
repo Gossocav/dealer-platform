@@ -6,6 +6,27 @@ import type { NextConfig } from "next";
 // which previously left two copies of the same policy string to keep in sync.
 const nextConfig: NextConfig = {
   images: {
+    // Next.js 16 ha smesso di ottimizzare le immagini locali il cui indirizzo
+    // porta una parte interrogativa, a meno che non sia dichiarata qui: non
+    // le salta, solleva un errore mentre disegna la pagina.
+    //
+    // Le foto importate dai siti delle concessionarie passano tutte da
+    // /api/image-proxy?url=..., che una parte interrogativa ce l'ha per
+    // costruzione. Senza questa dichiarazione la scheda di un veicolo
+    // importato rispondeva 500, e la compilazione del sito falliva sulla
+    // pagina delle concessionarie appena una di quelle auto veniva
+    // pubblicata.
+    localPatterns: [
+      // Il valore di "search" si omette per necessita': l'indirizzo della
+      // foto cambia a ogni veicolo, un valore fisso non esiste. Il controllo
+      // vero non sta qui ma dentro il proxy, che rifiuta gli indirizzi
+      // interni, limita dimensione e reindirizzamenti.
+      { pathname: "/api/image-proxy" },
+      // Dichiarare "localPatterns" ribalta la regola: da "tutto permesso" a
+      // "solo cio' che e' elencato". Questa riga tiene ammesso tutto il resto
+      // delle immagini locali com'era prima, senza parte interrogativa.
+      { pathname: "/**", search: "" },
+    ],
     // Le foto dei veicoli arrivano dall'archivio Supabase con indirizzi
     // firmati, e quelle importate da listini esterni passano dal nostro
     // proxy. Senza dichiarare l'origine qui, next/image le rifiuta e la
