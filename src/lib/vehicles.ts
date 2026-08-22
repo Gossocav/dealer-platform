@@ -80,9 +80,10 @@ export type VehicleListItem = {
   badge: string;
   fuel: string;
   transmission: string;
+  /** Gia' formattati per essere letti: "29.870 km", oppure "-". */
+  mileageLabel: string;
   mainImageUrl: string | null;
   leadCount: number;
-  viewsCount: number;
   insertedAt: string;
   raw: VehicleRow;
 };
@@ -204,6 +205,21 @@ export function formatCurrency(value: number): string {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+/**
+ * I chilometri, scritti come si leggono.
+ *
+ * Zero e' un valore vero -- una km 0 ha zero chilometri -- e va distinto da
+ * "non lo so", che si scrive con un trattino.
+ */
+export function formatMileage(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "-";
+
+  const numero = Number(value);
+  if (!Number.isFinite(numero) || numero < 0) return "-";
+
+  return `${new Intl.NumberFormat("it-IT").format(Math.round(numero))} km`;
 }
 
 export function parsePrice(value: string | number | null | undefined): number {
