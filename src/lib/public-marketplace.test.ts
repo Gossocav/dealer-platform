@@ -56,9 +56,22 @@ describe("resolveVehicleLabel", () => {
     );
   });
 
-  it("does not touch a version that legitimately reuses the model name", () => {
+  it("drops a version that only repeats the model, keeping the real trim", () => {
     expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "Tucson N Line" })).toBe(
-      "Hyundai Tucson Tucson N Line"
+      "Hyundai Tucson N Line"
+    );
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "Tucson" })).toBe("Hyundai Tucson");
+  });
+
+  // Solo la ripetizione in testa, e solo a parola intera: qui "Tucson" non e'
+  // una ripetizione di "Tuc", e va lasciata dov'e'.
+  it("does not cut a version that merely starts with the same letters", () => {
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tuc", version: "Tucson" })).toBe("Hyundai Tuc Tucson");
+  });
+
+  it("leaves a trim that names the model later on untouched", () => {
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "1.6 CRDi Tucson Edition" })).toBe(
+      "Hyundai Tucson 1.6 CRDi Tucson Edition"
     );
   });
 });

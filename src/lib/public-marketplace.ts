@@ -338,23 +338,32 @@ export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | 
   const brandModel = [brand, model].filter(Boolean).join(" ");
 
   const rawVersion = vehicle.version ? normalizeVehicleLabelField(String(vehicle.version)) : "";
-  const version = stripDuplicatedBrandModel(rawVersion, brandModel);
+  // Prima l'intero "Marca Modello", poi il solo modello: cosi' una versione
+  // come "Hyundai Tucson 1.6" perde entrambe le ripetizioni, non solo la prima.
+  const version = stripLeadingRepeat(stripLeadingRepeat(rawVersion, brandModel), model);
 
   return [brandModel, version].filter(Boolean).join(" ") || "Veicolo";
 }
 
-// Alcune importazioni scrivono nella versione l'intero titolo trovato altrove
-// (es. "Hyundai Tucson"), che duplica marca e modello gia' mostrati subito
-// prima: qui si toglie quella parte ripetuta invece di stamparla due volte.
-function stripDuplicatedBrandModel(version: string, brandModel: string): string {
-  if (!version || !brandModel) return version;
+/**
+ * Alcune importazioni scrivono nella versione il titolo intero trovato altrove
+ * ("Hyundai Tucson") o il modello ripetuto ("Tucson 1.6 CRDi"): sono gia'
+ * scritti subito prima, e l'intestazione li mostrava due volte di fila.
+ *
+ * Si toglie solo la ripetizione in testa, e solo se e' una parola intera: la
+ * versione "Tucson" di un modello "Tuc" non e' una ripetizione, e un
+ * allestimento che nomina il modello piu' avanti resta come l'ha scritto il
+ * concessionario.
+ */
+function stripLeadingRepeat(version: string, repeated: string): string {
+  if (!version || !repeated) return version;
 
   const versionLower = version.toLowerCase();
-  const brandModelLower = brandModel.toLowerCase();
+  const repeatedLower = repeated.toLowerCase();
 
-  if (versionLower === brandModelLower) return "";
-  if (versionLower.startsWith(`${brandModelLower} `)) {
-    return version.slice(brandModel.length).trim();
+  if (versionLower === repeatedLower) return "";
+  if (versionLower.startsWith(`${repeatedLower} `)) {
+    return version.slice(repeated.length).trim();
   }
 
   return version;
