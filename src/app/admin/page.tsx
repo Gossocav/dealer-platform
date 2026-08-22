@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
+import { AdminShell } from "@/components/layout/admin-shell";
 
 type AdminStats = {
   dealersRegistered: number;
@@ -211,34 +212,31 @@ export default function AdminHomePage() {
 
   if (state.loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
+      <AdminShell title="Dashboard">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
           Caricamento dashboard amministrativa...
         </div>
-      </main>
+      </AdminShell>
     );
   }
 
   if (!state.authorized) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-red-200 bg-red-50 p-8 text-sm text-red-800 shadow-sm">
-          Accesso negato.
+      <AdminShell title="Accesso negato">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
+          Questa sezione e riservata agli account amministrativi.
         </div>
-      </main>
+      </AdminShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-600">Platform Owner</p>
-          <h1 className="mt-3 text-3xl font-semibold text-slate-900">Dashboard Piattaforma</h1>
+    <AdminShell title="Dashboard" description="Il quadro della piattaforma: concessionarie, richieste e account.">
+      <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
             Area amministrativa professionale separata dalla console concessionario.
           </p>
-        </section>
+      </section>
 
         {state.error ? (
           <section className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-sm">
@@ -304,7 +302,6 @@ export default function AdminHomePage() {
             </button>
           </div>
         </section>
-      </div>
-    </main>
+    </AdminShell>
   );
 }

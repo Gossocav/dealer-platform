@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
+import { formatPlanLabel } from "@/lib/dealer-plan";
+import { AdminShell } from "@/components/layout/admin-shell";
+import { StatoBadge, etichettaStato } from "@/components/admin/stato-badge";
 
 type DealerStatus = "pending_review" | "approved" | "rejected" | "suspended" | "cancelled";
 type DealerAction = "approve" | "reject" | "suspend" | "reactivate" | "cancel";
@@ -17,6 +20,7 @@ type DealerAdminRow = {
   phone: string | null;
   status: string | null;
   subscription_plan: string | null;
+  active_plan_code?: string | null;
   subscription_status: string | null;
   created_at: string | null;
 };
@@ -90,32 +94,7 @@ function getActionClass(action: DealerAction) {
   return "bg-red-600 hover:bg-red-700";
 }
 
-function getStatusBadgeClass(status: DealerStatus | null) {
-  if (status === "approved") return "bg-emerald-100 text-emerald-800";
-  if (status === "pending_review") return "bg-amber-100 text-amber-800";
-  if (status === "rejected") return "bg-rose-100 text-rose-800";
-  if (status === "suspended") return "bg-orange-100 text-orange-800";
-  if (status === "cancelled") return "bg-slate-200 text-slate-700";
-  return "bg-slate-100 text-slate-700";
-}
 
-function toStatusLabel(status: DealerStatus | null) {
-  if (status === "pending_review") return "pending_review";
-  if (status === "approved") return "approved";
-  if (status === "rejected") return "rejected";
-  if (status === "suspended") return "suspended";
-  if (status === "cancelled") return "cancelled";
-  return "-";
-}
-
-function toPlanLabel(value: string | null | undefined) {
-  const normalized = String(value ?? "").trim().toLowerCase();
-
-  if (normalized === "base") return "Base";
-  if (normalized === "pro") return "Pro";
-
-  return "-";
-}
 
 async function fetchDealers(token: string) {
   const response = await fetch("/api/admin/dealers", {
@@ -302,42 +281,37 @@ export default function AdminDealersPage() {
 
   if (state.loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Caricamento elenco dealer...
+      <AdminShell title="Concessionarie">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
+          Caricamento in corso...
         </div>
-      </main>
+      </AdminShell>
     );
   }
 
   if (!state.authorized) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-3xl rounded-3xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h1 className="text-2xl font-semibold text-red-900">Accesso negato</h1>
-          <p className="mt-3 text-sm text-red-800">
-            Questa sezione e disponibile solo per account admin o platform owner.
-          </p>
+      <AdminShell title="Accesso negato">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
+          Questa sezione e riservata agli account amministrativi.
         </div>
-      </main>
+      </AdminShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-600">Admin</p>
-          <h1 className="mt-3 text-3xl font-semibold text-slate-900">Gestione Dealer</h1>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {ALL_STATUSES.map((status) => (
-              <div key={status} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{status}</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{countsByStatus[status]}</p>
-              </div>
-            ))}
+    <AdminShell
+      title="Concessionarie"
+      description="Le concessionarie registrate sulla piattaforma, con il piano in vigore e lo stato del loro accesso."
+    >
+      <section className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {ALL_STATUSES.map((status) => (
+          <div key={status} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">{etichettaStato("concessionaria", status)}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{countsByStatus[status]}</p>
           </div>
-        </section>
+        ))}
+      </section>
 
         {state.error ? (
           <section className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 shadow-sm">
@@ -378,11 +352,9 @@ export default function AdminDealersPage() {
                         <td className="px-4 py-3 font-medium text-slate-900">{displayText(label)}</td>
                         <td className="px-4 py-3 text-slate-700">{displayText(dealer.email)}</td>
                         <td className="px-4 py-3 text-slate-700">{displayText(dealer.phone)}</td>
-                        <td className="px-4 py-3 text-slate-700">{toPlanLabel(dealer.subscription_plan)}</td>
+                        <td className="px-4 py-3 text-slate-700">{formatPlanLabel(dealer.active_plan_code ?? dealer.subscription_plan)}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(status)}`}>
-                            {toStatusLabel(status)}
-                          </span>
+                          <StatoBadge tipo="concessionaria" valore={status} />
                         </td>
                         <td className="px-4 py-3 text-slate-700">{formatDate(dealer.created_at)}</td>
                         <td className="px-4 py-3">
@@ -412,7 +384,6 @@ export default function AdminDealersPage() {
             </table>
           </div>
         </section>
-      </div>
-    </main>
+    </AdminShell>
   );
 }

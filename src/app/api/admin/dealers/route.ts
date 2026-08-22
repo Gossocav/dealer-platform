@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { resolveActivePlanCode } from "@/lib/dealer-plan";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 
@@ -27,6 +28,8 @@ type DealerListRow = {
   subscription_plan: string | null;
   subscription_status: string | null;
   created_at: string | null;
+  /** Il piano che vale davvero, ricavato dalla riga di abbonamento. */
+  active_plan_code?: string | null;
 };
 
 type DealerStatusRow = {
@@ -194,7 +197,47 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: dealers.error.message || "Errore caricamento elenco dealer." }, { status: 500 });
   }
 
-  return NextResponse.json({ dealers: dealers.data ?? [] }, { status: 200 });
+  const elenco = dealers.data ?? [];
+
+  // Il piano non si legge da dealers.subscription_plan: quella colonna resta
+  // al valore della registrazione e la conversione non la tocca, quindi
+  // diceva "Base" anche a chi aveva attivato Elite. Il piano in vigore sta
+  // sulla riga di abbonamento, ed e' la stessa fonte che il database usa per
+  // decidere quanti annunci si possono pubblicare.
+  const pianoPerDealer = new Map<string, { converted: string | null; demo: string | null }>();
+
+  if (elenco.length > 0) {
+    const abbonamenti = await context.supabaseAdmin
+      .from("dealer_demo_subscriptions")
+      .select("dealer_id, converted_plan_code, demo_profile_code")
+      .in("dealer_id", elenco.map((dealer) => dealer.id))
+      .returns<Array<{ dealer_id: string | null; converted_plan_code: string | null; demo_profile_code: string | null }>>();
+
+    // Se questa lettura fallisce non si fa fallire l'elenco: si resta senza
+    // piano, che e' un dato mancante e non un dato falso.
+    if (!abbonamenti.error) {
+      for (const riga of abbonamenti.data ?? []) {
+        const chiave = String(riga.dealer_id ?? "").trim();
+        if (!chiave) continue;
+        pianoPerDealer.set(chiave, { converted: riga.converted_plan_code, demo: riga.demo_profile_code });
+      }
+    }
+  }
+
+  const conPiano = elenco.map((dealer) => {
+    const fonti = pianoPerDealer.get(dealer.id);
+
+    return {
+      ...dealer,
+      active_plan_code: resolveActivePlanCode({
+        convertedPlanCode: fonti?.converted ?? null,
+        demoProfileCode: fonti?.demo ?? null,
+        legacyPlanCode: dealer.subscription_plan,
+      }),
+    };
+  });
+
+  return NextResponse.json({ dealers: conPiano }, { status: 200 });
 }
 
 export async function POST(request: Request) {

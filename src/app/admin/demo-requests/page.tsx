@@ -4,6 +4,8 @@ import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 import { DEMO_PLAN_CATALOG, normalizeDemoPlanCode, type DemoPlanCode } from "@/lib/demo-plan-catalog";
+import { AdminShell } from "@/components/layout/admin-shell";
+import { StatoBadge } from "@/components/admin/stato-badge";
 
 type DemoRequestStatus = "pending" | "contacted" | "activated" | "rejected" | "converted" | "revoked";
 type DemoAdminAction =
@@ -46,6 +48,8 @@ type DemoRequestRow = {
   demo_expires_at?: string | null;
   linked_dealer_id?: string | null;
   requested_plan_code?: string | null;
+  /** Il piano davvero in vigore dopo la conversione. */
+  active_plan_code?: string | null;
   requested_plan_at?: string | null;
 };
 
@@ -95,24 +99,18 @@ function normalizeStatus(value: string | null | undefined): DemoRequestStatus | 
   return null;
 }
 
-function toStatusLabel(status: DemoRequestStatus | null) {
-  if (status === "pending") return "pending";
-  if (status === "contacted") return "contacted";
-  if (status === "activated") return "activated";
-  if (status === "rejected") return "rejected";
-  if (status === "converted") return "converted";
-  if (status === "revoked") return "revoked";
-  return "-";
-}
+/** Una voce dei dati completi: etichetta sopra, valore sotto. */
+function Dato({ etichetta, valore, monospazio = false }: { etichetta: string; valore: string | null | undefined; monospazio?: boolean }) {
+  const testo = String(valore ?? "").trim();
 
-function getStatusBadgeClass(status: DemoRequestStatus | null) {
-  if (status === "pending") return "bg-amber-100 text-amber-800";
-  if (status === "contacted") return "bg-sky-100 text-sky-800";
-  if (status === "activated") return "bg-emerald-100 text-emerald-800";
-  if (status === "rejected") return "bg-rose-100 text-rose-800";
-  if (status === "converted") return "bg-indigo-100 text-indigo-800";
-  if (status === "revoked") return "bg-orange-100 text-orange-800";
-  return "bg-slate-100 text-slate-700";
+  return (
+    <div>
+      <dt className="text-xs font-medium text-slate-500">{etichetta}</dt>
+      <dd className={`mt-0.5 text-sm text-slate-800 ${monospazio ? "break-all font-mono text-xs text-slate-600" : ""}`.trim()}>
+        {testo || "-"}
+      </dd>
+    </div>
+  );
 }
 
 function getActionsForStatus(status: DemoRequestStatus | null): DemoAdminAction[] {
@@ -691,33 +689,27 @@ export default function AdminDemoRequestsPage() {
 
   if (state.loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Caricamento richieste demo...
-        </div>
-      </main>
+      <AdminShell title="Richieste demo">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">Caricamento in corso...</div>
+      </AdminShell>
     );
   }
 
   if (!state.authorized) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-3xl rounded-3xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <h1 className="text-2xl font-semibold text-red-900">Accesso negato</h1>
-          <p className="mt-3 text-sm text-red-800">Questa sezione e disponibile solo per account admin o platform owner.</p>
+      <AdminShell title="Accesso negato">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
+          Questa sezione e riservata agli account amministrativi.
         </div>
-      </main>
+      </AdminShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-600">Admin</p>
-          <h1 className="mt-3 text-3xl font-semibold text-slate-900">Richieste demo</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Gestisci lo stato delle richieste demo inviate da concessionarie interessate alla piattaforma.</p>
-        </section>
+    <AdminShell
+      title="Richieste demo"
+      description="Le richieste arrivate dal sito: si contattano, si attiva la demo e si converte in abbonamento scegliendo il piano."
+    >
 
         {state.error ? (
           <section className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 shadow-sm">{state.error}</section>
@@ -727,206 +719,194 @@ export default function AdminDemoRequestsPage() {
           <section className="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800 shadow-sm">{successMessage}</section>
         ) : null}
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr className="text-left text-xs uppercase tracking-[0.18em] text-slate-500">
-                  <th className="px-4 py-3">Azienda</th>
-                  <th className="px-4 py-3">Referente</th>
-                  <th className="px-4 py-3">Partita IVA</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Telefono</th>
-                  <th className="px-4 py-3">Citta</th>
-                  <th className="px-4 py-3">Numero veicoli</th>
-                  <th className="px-4 py-3">Piano di interesse</th>
-                  <th className="px-4 py-3">Visura</th>
-                  <th className="px-4 py-3">Stato richiesta</th>
-                  <th className="px-4 py-3">Stato demo</th>
-                  <th className="px-4 py-3">Scadenza demo</th>
-                  <th className="px-4 py-3">Dealer collegato</th>
-                  <th className="px-4 py-3">Data richiesta</th>
-                  <th className="px-4 py-3 text-right">Azioni</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {state.requests.length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={15}>
-                      Nessuna richiesta demo disponibile.
-                    </td>
-                  </tr>
-                ) : (
-                  state.requests.map((request) => {
-                    const status = normalizeStatus(request.status);
-                    const actions = getActionsForStatus(status);
-                    const busy = busyRequestId === request.id;
-                    const viewing = viewingDocumentId === request.id;
-                    const downloading = downloadingDocumentId === request.id;
+        {state.requests.length === 0 ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+            Nessuna richiesta demo al momento.
+          </section>
+        ) : null}
 
-                    return (
-                      <tr key={request.id}>
-                        <td className="px-4 py-3 font-medium text-slate-900">{request.dealership_name}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.contact_name}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.vat_number ?? "-"}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.email}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.phone}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.city}</td>
-                        <td className="px-4 py-3 text-slate-700">{request.vehicle_count ?? "-"}</td>
-                        <td className="px-4 py-3">
-                          {request.interested_plan_code ? (
-                            <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
-                              {getPlanLabel(request.interested_plan_code)}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">non indicato</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">
-                          {request.chamber_document_path ? (
-                            <div className="space-y-2">
-                              <p className="text-xs font-medium text-slate-800">{request.chamber_document_name ?? "Documento"}</p>
-                              <p className="text-xs text-slate-500">{formatFileSize(request.chamber_document_size)}</p>
-                              <p className="text-xs text-slate-500">{request.chamber_document_mime_type ?? "-"}</p>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  disabled={viewing}
-                                  onClick={(event) => void viewDocument(event, request.id)}
-                                  className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
-                                >
-                                  {viewing ? "Apertura..." : "Visualizza visura"}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={downloading}
-                                  onClick={(event) => void downloadDocument(event, request.id)}
-                                  className="rounded-lg bg-slate-900 px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
-                                >
-                                  {downloading ? "Download..." : "Scarica visura"}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(status)}`}>
-                            {toStatusLabel(status)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">{request.demo_status ?? "-"}</td>
-                        <td className="px-4 py-3 text-slate-700">
-                          {formatDate(request.demo_expires_at)} ({formatDaysRemaining(request.demo_expires_at)})
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">{request.linked_dealer_id ?? "-"}</td>
-                        <td className="px-4 py-3 text-slate-700">{formatDate(request.created_at)}</td>
-                        <td className="px-4 py-3">
-                          {request.requested_plan_code ? (
-                            <div className="mb-2 text-right text-xs font-medium text-indigo-700">
-                              Piano richiesto dal dealer: {DEMO_PLAN_CATALOG.find((plan) => plan.code === request.requested_plan_code)?.name ?? request.requested_plan_code}
-                            </div>
-                          ) : null}
-                          {actions.length === 0 ? (
-                            <div className="flex items-center justify-end text-xs text-slate-500">Nessuna azione</div>
-                          ) : (
-                            <div className="flex flex-wrap items-center justify-end gap-2">
-                              {actions.map((action) =>
-                                action === "convert_demo" ? (
-                                  <div key={`${request.id}-${action}`} className="flex items-center gap-2">
-                                    <select
-                                      value={selectedPlanByRequest[request.id] ?? normalizeDemoPlanCode(request.requested_plan_code) ?? "base"}
-                                      onChange={(event) =>
-                                        setSelectedPlanByRequest((current) => ({
-                                          ...current,
-                                          [request.id]: event.target.value as DemoPlanCode,
-                                        }))
-                                      }
-                                      disabled={busy}
-                                      className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      {DEMO_PLAN_CATALOG.map((plan) => (
-                                        <option key={plan.code} value={plan.code}>
-                                          {plan.name}
-                                          {plan.priceMonthly ? ` (€${plan.priceMonthly}/mese)` : ""}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        void submitAction(
-                                          request.id,
-                                          action,
-                                          selectedPlanByRequest[request.id] ?? normalizeDemoPlanCode(request.requested_plan_code) ?? "base"
-                                        )
-                                      }
-                                      disabled={busy}
-                                      className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
-                                    >
-                                      {getActionLabel(action)}
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    key={`${request.id}-${action}`}
-                                    type="button"
-                                    onClick={() => void submitAction(request.id, action)}
-                                    disabled={busy}
-                                    className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
-                                  >
-                                    {getActionLabel(action)}
-                                  </button>
-                                )
-                              )}
+        {state.requests.map((request) => {
+          const status = normalizeStatus(request.status);
+          const actions = getActionsForStatus(status);
+          const busy = busyRequestId === request.id;
+          const viewing = viewingDocumentId === request.id;
+          const downloading = downloadingDocumentId === request.id;
+          const pianoAttivo = request.active_plan_code ? getPlanLabel(request.active_plan_code) : null;
 
-                              {status === "activated" ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void regenerateAccessLink(request.id)}
-                                  disabled={busy}
-                                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Link di accesso
-                                </button>
-                              ) : null}
-                            </div>
-                          )}
+          return (
+            <article key={request.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-semibold text-slate-900">{request.dealership_name}</h2>
+                    <StatoBadge tipo="richiesta" valore={status} />
+                    {request.demo_status ? <StatoBadge tipo="demo" valore={request.demo_status} /> : null}
+                  </div>
 
-                          {/* Mostrato solo per la richiesta appena lavorata: e'
-                              una credenziale, non un dato da lasciare a video. */}
-                          {accessLink?.requestId === request.id ? (
-                            <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
-                              <p className="text-xs font-semibold text-blue-900">
-                                Link per impostare la password
-                              </p>
-                              <p className="mt-1 text-[11px] leading-5 text-blue-800">
-                                Mandalo al concessionario se non riceve l&apos;email. Chi lo possiede puo&apos;
-                                impostare la password di quell&apos;account: si usa una volta sola e scade.
-                              </p>
-                              <p className="mt-2 break-all rounded-lg bg-white px-2 py-1 font-mono text-[10px] text-slate-700">
-                                {accessLink.url}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => void copyAccessLink()}
-                                className="mt-2 inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
-                              >
-                                {linkCopied ? "Copiato" : "Copia link"}
-                              </button>
-                            </div>
-                          ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </main>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {[request.contact_name, request.city].filter(Boolean).join(" · ")} · richiesta del {formatDate(request.created_at)}
+                  </p>
+
+                  <p className="mt-2 text-sm text-slate-700">
+                    {/* Il piano attivo e' quello scelto alla conversione. Prima
+                        qui compariva solo quello chiesto nel modulo, quindi
+                        dopo aver convertito non si vedeva da nessuna parte
+                        cosa fosse stato attivato davvero. */}
+                    {pianoAttivo ? (
+                      <>
+                        Piano attivo: <strong className="font-semibold text-slate-900">{pianoAttivo}</strong>
+                      </>
+                    ) : request.interested_plan_code ? (
+                      <>Piano di interesse: {getPlanLabel(request.interested_plan_code)}</>
+                    ) : (
+                      <span className="text-slate-500">Nessun piano indicato</span>
+                    )}
+                    {request.demo_expires_at ? (
+                      <span className="text-slate-600">
+                        {" "}· demo fino al {formatDate(request.demo_expires_at)} ({formatDaysRemaining(request.demo_expires_at)})
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {actions.length === 0 ? (
+                    <span className="text-xs text-slate-500">Nessuna azione disponibile</span>
+                  ) : (
+                    actions.map((action) =>
+                      action === "convert_demo" ? (
+                        <div key={`${request.id}-${action}`} className="flex items-center gap-2">
+                          <select
+                            value={selectedPlanByRequest[request.id] ?? normalizeDemoPlanCode(request.requested_plan_code) ?? "base"}
+                            onChange={(event) =>
+                              setSelectedPlanByRequest((current) => ({
+                                ...current,
+                                [request.id]: event.target.value as DemoPlanCode,
+                              }))
+                            }
+                            disabled={busy}
+                            aria-label="Piano da attivare"
+                            className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {DEMO_PLAN_CATALOG.map((plan) => (
+                              <option key={plan.code} value={plan.code}>
+                                {plan.name}
+                                {plan.priceMonthly ? ` (€${plan.priceMonthly}/mese)` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void submitAction(
+                                request.id,
+                                action,
+                                selectedPlanByRequest[request.id] ?? normalizeDemoPlanCode(request.requested_plan_code) ?? "base"
+                              )
+                            }
+                            disabled={busy}
+                            className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
+                          >
+                            {getActionLabel(action)}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          key={`${request.id}-${action}`}
+                          type="button"
+                          onClick={() => void submitAction(request.id, action)}
+                          disabled={busy}
+                          className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${getActionClass(action)}`}
+                        >
+                          {getActionLabel(action)}
+                        </button>
+                      )
+                    )
+                  )}
+
+                  {status === "activated" ? (
+                    <button
+                      type="button"
+                      onClick={() => void regenerateAccessLink(request.id)}
+                      disabled={busy}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Link di accesso
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Quindici colonne affiancate costringevano a scorrere in
+                  orizzontale per leggere una riga. Qui restano in vista i dati
+                  su cui si decide; il resto si apre quando serve. */}
+              <details className="mt-4 border-t border-slate-100 pt-3">
+                <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900">
+                  Dati completi e visura
+                </summary>
+
+                <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Dato etichetta="Email" valore={request.email} />
+                  <Dato etichetta="Telefono" valore={request.phone} />
+                  <Dato etichetta="Partita IVA" valore={request.vat_number} />
+                  <Dato etichetta="Veicoli dichiarati" valore={request.vehicle_count === null || request.vehicle_count === undefined ? null : String(request.vehicle_count)} />
+                  <Dato etichetta="Concessionaria creata" valore={request.linked_dealer_id ? "Si" : "No"} />
+                  <Dato etichetta="Identificativo tecnico" valore={request.linked_dealer_id} monospazio />
+                </dl>
+
+                <div className="mt-4">
+                  <p className="text-xs font-medium text-slate-500">Visura camerale</p>
+                  {request.chamber_document_path ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-3">
+                      <span className="text-sm text-slate-700">
+                        {request.chamber_document_name ?? "Documento"}{" "}
+                        <span className="text-slate-500">({formatFileSize(request.chamber_document_size)})</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled={viewing}
+                        onClick={(event) => void viewDocument(event, request.id)}
+                        className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {viewing ? "Apertura..." : "Visualizza"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={downloading}
+                        onClick={(event) => void downloadDocument(event, request.id)}
+                        className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {downloading ? "Download..." : "Scarica"}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm text-slate-500">Non allegata.</p>
+                  )}
+                </div>
+              </details>
+
+              {/* Mostrato solo per la richiesta appena lavorata: e' una
+                  credenziale, non un dato da lasciare a video. */}
+              {accessLink?.requestId === request.id ? (
+                <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-xs font-semibold text-blue-900">Link per impostare la password</p>
+                  <p className="mt-1 text-[11px] leading-5 text-blue-800">
+                    Mandalo al concessionario se non riceve l&apos;email. Chi lo possiede puo&apos; impostare la password di
+                    quell&apos;account: si usa una volta sola e scade.
+                  </p>
+                  <p className="mt-2 break-all rounded-lg bg-white px-2 py-1 font-mono text-[10px] text-slate-700">{accessLink.url}</p>
+                  <button
+                    type="button"
+                    onClick={() => void copyAccessLink()}
+                    className="mt-2 inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    {linkCopied ? "Copiato" : "Copia link"}
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+    </AdminShell>
   );
 }
