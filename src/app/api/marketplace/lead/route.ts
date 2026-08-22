@@ -205,7 +205,16 @@ export async function POST(request: Request) {
     }
 
     // 2) Salvataggio lead: include dealer_id del veicolo per garantire visibilita dealer-scoped.
-    const { data: leadInsertData, error: insertError } = await supabase.from("leads").insert([
+    //
+    // Scrive la chiave di servizio, non quella pubblica. Dal 22/08/2026 la
+    // tabella dei lead e' protetta per riga: i dati di un cliente -- nome,
+    // email, telefono -- non sono leggibili da nessuno che non sia la
+    // concessionaria proprietaria. Far dipendere l'invio di una richiesta da
+    // un permesso concesso alla chiave pubblica significherebbe tenere aperta
+    // una scrittura a chiunque, e legare il modulo contatti a una regola
+    // scritta nel database invece che alla validazione che questo endpoint
+    // fa gia' sui dati in arrivo.
+    const { data: leadInsertData, error: insertError } = await supabaseAdmin.from("leads").insert([
       {
         vehicle_id: vehicleId,
         dealer_id: vehicleData.dealer_id,
