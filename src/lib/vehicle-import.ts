@@ -522,6 +522,10 @@ const BODY_TYPE_BY_ALIAS: Record<string, VehicleBodyType> = {
   suv: "SUV/Pick-up/Fuoristrada", pickup: "SUV/Pick-up/Fuoristrada", fuoristrada: "SUV/Pick-up/Fuoristrada",
   offroad: "SUV/Pick-up/Fuoristrada", crossover: "SUV/Pick-up/Fuoristrada",
   berlina: "Berlina", sedan: "Berlina", limousine: "Berlina", saloon: "Berlina",
+  // Come le scrivono i siti delle concessionarie, misurato su autogepy.it e
+  // delorenziauto.it: "Berlina due volumi", "Furgone - Van", "Furgoni/Van".
+  berlinaduevolumi: "Berlina", berlinatrevolumi: "Berlina",
+  berlina2volumi: "Berlina", berlina3volumi: "Berlina",
   stationwagon: "Station Wagon", sw: "Station Wagon", familiare: "Station Wagon", wagon: "Station Wagon",
   break: "Station Wagon", estate: "Station Wagon", touring: "Station Wagon",
   citycar: "City Car", utilitaria: "City Car", cittadina: "City Car", compatta: "City Car",
@@ -529,6 +533,7 @@ const BODY_TYPE_BY_ALIAS: Record<string, VehicleBodyType> = {
   coupe: "Coupé", coupa: "Coupé",
   cabrio: "Cabrio", cabriolet: "Cabrio", convertible: "Cabrio", spider: "Cabrio", spyder: "Cabrio", roadster: "Cabrio",
   furgone: "Furgone/Van", van: "Furgone/Van", furgonato: "Furgone/Van", panelvan: "Furgone/Van",
+  furgonevan: "Furgone/Van", furgonivan: "Furgone/Van", furgoncino: "Furgone/Van",
 };
 
 function canonicalizeFromAliases(value: string, table: Record<string, string>, allowed: readonly string[]) {

@@ -36,6 +36,8 @@ export type DealerSiteVehicle = DealerSiteEntry & {
   doors: number | null;
   seats: number | null;
   color: string | null;
+  /** Come la chiama il sito di origine: "SUV", "Berlina due volumi". */
+  bodyType: string | null;
   year: number | null;
   description: string | null;
   images: string[];
@@ -213,6 +215,36 @@ function leggiPrezzoDallaPagina(html: string, sourceId: string): number | null {
     if (comeTesto) {
       const valore = prezzoDaTesto(comeTesto[1]);
       if (valore !== null) return valore;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * La carrozzeria, che la scheda leggibile dalle macchine non dichiara.
+ *
+ * Senza, un veicolo importato non compare ne' in "Esplora per categoria" ne'
+ * nel filtro della ricerca avanzata: era il caso di dodici dei quattordici
+ * veicoli pubblicati.
+ *
+ * Si legge "body_style", che sulle pagine provate compare una volta sola ed e'
+ * quella della vettura. "bodyType" e' il ripiego, ma va setacciato: fra le sue
+ * occorrenze c'e' anche l'etichetta del filtro di ricerca, che vale "Qualsiasi
+ * carrozzeria" -- la stessa trappola del prezzo.
+ */
+function leggiCarrozzeria(html: string): string | null {
+  const ripulisci = (valore: string) => testo(valore.replace(/\\\//g, "/"));
+
+  const daBodyStyle = html.match(/"body_style"\s*:\s*"([^"]{2,40})"/)?.[1];
+  if (daBodyStyle) {
+    return ripulisci(daBodyStyle);
+  }
+
+  for (const trovato of html.matchAll(/"bodyType"\s*:\s*"([^"]{2,40})"/g)) {
+    const valore = ripulisci(trovato[1]);
+    if (valore && !/^qualsiasi/i.test(valore)) {
+      return valore;
     }
   }
 
@@ -470,6 +502,7 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
       doors: numero(grezzo.numberOfDoors),
       seats: numero(grezzo.vehicleSeatingCapacity),
       color: testo(grezzo.color),
+      bodyType: leggiCarrozzeria(html),
       year: numero(grezzo.vehicleModelDate),
       description,
       images,
