@@ -94,15 +94,23 @@ describe("the admin panel shows the plan", () => {
     expect(adminApi).toMatch(/interested_plan_code: normalizeText\(raw\.interested_plan_code\)/);
   });
 
-  it("has its own column, and says so when absent", () => {
-    expect(adminPage).toContain('<th className="px-4 py-3">Piano di interesse</th>');
-    expect(adminPage).toContain("non indicato");
+  // L'elenco non e' piu' una tabella da quindici colonne ma una scheda per
+  // richiesta: il piano si legge in chiaro sotto il nome dell'azienda.
+  it("lo mostra in chiaro, e dice quando manca", () => {
+    expect(adminPage).toContain("Piano di interesse: {getPlanLabel(request.interested_plan_code)}");
+    expect(adminPage).toContain("Nessun piano indicato");
   });
 
-  it("keeps the empty-state row spanning every column", () => {
-    const headers = (adminPage.match(/<th /g) ?? []).length;
-    const colSpan = Number(adminPage.match(/colSpan=\{(\d+)\}/)?.[1] ?? 0);
+  // Il piano chiesto nel modulo e quello davvero attivato sono due cose
+  // diverse: prima si vedeva solo il primo, quindi dopo la conversione non
+  // si sapeva piu' cosa fosse in vigore.
+  it("dopo la conversione mostra il piano attivo, non quello chiesto", () => {
+    expect(adminPage).toContain("Piano attivo:");
+    expect(adminPage).toContain("request.active_plan_code");
+    expect(adminApi).toContain("active_plan_code: resolveActivePlanCode({");
+  });
 
-    expect(colSpan).toBe(headers);
+  it("dice anche quando non c'e' nessuna richiesta", () => {
+    expect(adminPage).toContain("Nessuna richiesta demo al momento.");
   });
 });

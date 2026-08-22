@@ -6,6 +6,7 @@ import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notificat
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
 import { normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
+import { resolveActivePlanCode } from "@/lib/dealer-plan";
 
 // Il pannello admin mostra conteggi ed elenchi operativi: una risposta
 // riusata dalla cache farebbe vedere dati vecchi (concessionarie gia'
@@ -56,6 +57,7 @@ type DemoRequestRow = {
   demo_expires_at?: string | null;
   linked_dealer_id?: string | null;
   requested_plan_code?: string | null;
+  active_plan_code?: string | null;
   requested_plan_at?: string | null;
 };
 
@@ -340,12 +342,15 @@ export async function GET(request: Request) {
     }
   }
 
-  const requestedPlanByRequestId = new Map<string, { requested_plan_code: string | null; requested_plan_at: string | null }>();
+  const requestedPlanByRequestId = new Map<
+    string,
+    { requested_plan_code: string | null; requested_plan_at: string | null; active_plan_code: string | null }
+  >();
 
   if (requestIds.length > 0) {
     const subscriptions = await context.supabaseAdmin
       .from("dealer_demo_subscriptions")
-      .select("demo_request_id, requested_plan_code, requested_plan_at")
+      .select("demo_request_id, requested_plan_code, requested_plan_at, converted_plan_code, demo_profile_code")
       .in("demo_request_id", requestIds)
       .returns<Array<Record<string, unknown>>>();
 
@@ -359,6 +364,14 @@ export async function GET(request: Request) {
         requestedPlanByRequestId.set(key, {
           requested_plan_code: normalizeText(subscription.requested_plan_code),
           requested_plan_at: normalizeText(subscription.requested_plan_at),
+          // Il piano che vale davvero dopo la conversione. Finora il pannello
+          // mostrava solo quello chiesto nel modulo, quindi dopo aver
+          // convertito non si vedeva da nessuna parte cosa fosse stato
+          // attivato.
+          active_plan_code: resolveActivePlanCode({
+            convertedPlanCode: normalizeText(subscription.converted_plan_code),
+            demoProfileCode: normalizeText(subscription.demo_profile_code),
+          }),
         });
       }
     }
@@ -376,6 +389,7 @@ export async function GET(request: Request) {
       demo_started_at: linked?.demo_started_at ?? request.demo_started_at ?? null,
       demo_expires_at: linked?.demo_expires_at ?? request.demo_expires_at ?? null,
       requested_plan_code: requestedPlan?.requested_plan_code ?? null,
+      active_plan_code: requestedPlan?.active_plan_code ?? null,
       requested_plan_at: requestedPlan?.requested_plan_at ?? null,
     };
   });
