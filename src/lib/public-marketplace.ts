@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { cache } from "react";
 import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
+import { stripLeadingRepeat } from "@/lib/vehicle-label";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -347,33 +348,6 @@ export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | 
   const version = stripLeadingRepeat(stripLeadingRepeat(rawVersion, brandModel), model);
 
   return [brandModel, version].filter(Boolean).join(" ") || "Veicolo";
-}
-
-/**
- * Toglie da un campo la ripetizione di quello che viene scritto subito prima.
- *
- * Alcune importazioni riversano lo stesso testo in piu' campi: la marca finisce
- * anche dentro il modello, o il titolo intero dentro la versione ("Hyundai
- * Tucson", "Tucson 1.6 CRDi"). Sono gia' scritti un attimo prima, e
- * l'intestazione li mostrava due volte di fila.
- *
- * Si toglie solo la ripetizione in testa, e solo se e' una parola intera: la
- * versione "Tucson" di un modello "Tuc" non e' una ripetizione, e un
- * allestimento che nomina il modello piu' avanti resta come l'ha scritto il
- * concessionario.
- */
-function stripLeadingRepeat(value: string, repeated: string): string {
-  if (!value || !repeated) return value;
-
-  const valueLower = value.toLowerCase();
-  const repeatedLower = repeated.toLowerCase();
-
-  if (valueLower === repeatedLower) return "";
-  if (valueLower.startsWith(`${repeatedLower} `)) {
-    return value.slice(repeated.length).trim();
-  }
-
-  return value;
 }
 
 /**
