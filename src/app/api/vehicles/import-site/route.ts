@@ -9,6 +9,7 @@ import {
   type DealerSiteVehicle,
 } from "@/lib/dealer-site-import";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
+import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
 
 /**
  * Importa lo stock usato dal sito che la concessionaria ha gia'.
@@ -138,6 +139,11 @@ function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, st
     doors: v.doors,
     seats: v.seats,
     color: canonicalizeVehicleColorLabel(v.color ?? "") || null,
+    // Senza carrozzeria un veicolo non compare in "Esplora per categoria" ne'
+    // nel filtro della ricerca avanzata: e' invisibile a chi cerca per tipo.
+    // Il sito la scrive a modo suo ("Berlina due volumi", "Furgoni/Van") e la
+    // tabella dei sinonimi la riporta alle nostre.
+    body_type: canonicalizeVehicleBodyType(v.bodyType ?? "") || null,
     year: v.year,
     vehicle_condition: v.condition,
     vehicle_category: "Auto",

@@ -474,3 +474,56 @@ describe("nella galleria non finiscono le foto delle vetture simili", () => {
     expect(esito.vehicle.images.length).toBeGreaterThan(1);
   });
 });
+
+/**
+ * Senza carrozzeria un veicolo importato non compare ne' in "Esplora per
+ * categoria" ne' nel filtro della ricerca avanzata: era il caso di dodici dei
+ * quattordici veicoli pubblicati.
+ */
+describe("la carrozzeria si legge dalla pagina", () => {
+  const VOCE_ALTRO_SITO: DealerSiteEntry = {
+    url: "https://www.delorenziauto.it/auto/usate/cremona/opel/corsa/benzina/blitz/6751886/",
+    sourceId: "6751886",
+    condition: "Usato",
+  };
+
+  const CDN = "https://cdn.dealerk.it/dealer/datafiles/vehicle/images";
+
+  function scheda(corpo: string) {
+    return `
+      <script type="application/ld+json">${JSON.stringify({ "@type": "Car", name: "Opel Corsa", brand: "Opel" })}</script>
+      <div data-config='{"vehicleId":"6751886","price":20000}'></div>
+      <img src="${CDN}/400/2396/una.jpg"><img src="${CDN}/800/2396/una.jpg">
+      ${corpo}`;
+  }
+
+  function carrozzeriaDi(corpo: string) {
+    const esito = parseDealerStockVehicle(scheda(corpo), VOCE_ALTRO_SITO);
+    if (!esito.ok) throw new Error(`scheda scartata: ${esito.reason}`);
+    return esito.vehicle.bodyType;
+  }
+
+  it("la prende dal campo che compare una volta sola", () => {
+    expect(carrozzeriaDi(`<script>var d = {"body_style":"Berlina due volumi"};</script>`)).toBe("Berlina due volumi");
+  });
+
+  // Fra le occorrenze di "bodyType" c'e' anche l'etichetta del filtro di
+  // ricerca: la stessa trappola del prezzo.
+  it("non scambia l'etichetta del filtro per una carrozzeria", () => {
+    expect(carrozzeriaDi(`<script>var etichette = {"bodyType":"Qualsiasi carrozzeria"};</script>`)).toBeNull();
+  });
+
+  it("usa bodyType quando body_style non c'e', saltando l'etichetta", () => {
+    expect(
+      carrozzeriaDi(`<script>var e = {"bodyType":"Qualsiasi carrozzeria"}; var v = {"bodyType":"SUV"};</script>`)
+    ).toBe("SUV");
+  });
+
+  it("ripulisce la barra protetta dei siti che scrivono JSON dentro l'HTML", () => {
+    expect(carrozzeriaDi(`<script>var d = {"body_style":"Furgoni\\/Van"};</script>`)).toBe("Furgoni/Van");
+  });
+
+  it("una scheda che non la dichiara resta senza, non inventa", () => {
+    expect(carrozzeriaDi("")).toBeNull();
+  });
+});

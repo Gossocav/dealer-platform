@@ -442,12 +442,40 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
 // show up as visible text inside the photo box. createSignedUrl() works
 // regardless of the bucket's public/private setting, so try that first and
 // only fall back to the public URL if it fails.
+/**
+ * Chi firma gli indirizzi delle fotografie del marketplace.
+ *
+ * Firmava la chiave pubblica, e per farlo le serviva il permesso di leggere
+ * l'archivio: lo stesso permesso che consentiva a chiunque, da internet, di
+ * percorrere le cartelle dell'archivio e vedere come e' fatto dentro --
+ * concessionaria, veicolo, nomi dei file. I file non si scaricavano, ma la
+ * struttura era in chiaro.
+ *
+ * Adesso firma la chiave di servizio, che vive solo qui sul server (questo
+ * modulo lo usano soltanto pagine server: nessun componente del browser lo
+ * importa). Cosi' alla chiave pubblica si puo' togliere ogni accesso
+ * all'archivio senza spegnere le foto del sito.
+ */
+const storageSigner = (() => {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    // Senza chiave di servizio si resta com'era: meglio una firma fatta con
+    // la chiave pubblica che un catalogo senza fotografie.
+    return publicSupabase;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+})();
+
 const resolveVehicleImageUrlByStoragePath = cache(async (storagePath: string) => {
   if (!storagePath) {
     return null;
   }
 
-  const { data: signedData, error: signedError } = await publicSupabase.storage
+  const { data: signedData, error: signedError } = await storageSigner.storage
     .from("vehicle-images")
     .createSignedUrl(storagePath, 60 * 60);
 
@@ -455,7 +483,7 @@ const resolveVehicleImageUrlByStoragePath = cache(async (storagePath: string) =>
     return signedData.signedUrl;
   }
 
-  const { data: publicUrlData } = publicSupabase.storage.from("vehicle-images").getPublicUrl(storagePath);
+  const { data: publicUrlData } = storageSigner.storage.from("vehicle-images").getPublicUrl(storagePath);
   return publicUrlData.publicUrl || null;
 });
 
