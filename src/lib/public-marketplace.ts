@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { cache } from "react";
+import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -419,7 +420,9 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
   }
 
   if (/^https?:\/\//i.test(value) && !isSupabaseStorageUrl(value)) {
-    return `/api/image-proxy?url=${encodeURIComponent(value)}`;
+    // Come sopra: le foto importate quando la misura era piu' piccola
+    // vengono chieste grandi lo stesso, senza toccare cio' che e' salvato.
+    return `/api/image-proxy?url=${encodeURIComponent(normalizzaMisuraFoto(value))}`;
   }
 
   const storagePath = extractVehicleImagePath(value);

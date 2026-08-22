@@ -197,10 +197,16 @@ const PERCORSO_FOTO_VEICOLO = "/dealer/datafiles/vehicle/images/";
 /**
  * La misura in cui chiediamo ogni foto.
  *
- * Verificato che l'archivio serve qualsiasi misura si chieda: 800 di
- * larghezza per un annuncio bastano e pesano la meta' della misura piena.
+ * L'archivio serve qualsiasi misura si chieda, e la genera al momento: 2000 e
+ * "original" restituiscono lo stesso file di 1600, cioe' la foto piena.
+ *
+ * Era 800, scelto perche' pesava la meta'. Troppo poco: aperta a schermo
+ * intero, una foto da 801x451 in un'area da 1440x716 o resta piccola o si
+ * sgrana. A 1600 arrivano 1281x721 -- due volte e mezzo i pixel, 113 KB
+ * invece di 53 -- e a schermo intero la foto si vede alla sua misura vera.
+ * Misurato su tre fotografie di due vetture diverse.
  */
-const MISURA_FOTO = "800x0";
+const MISURA_FOTO = "1600x0";
 
 /**
  * Sotto questa larghezza una immagine non e' una foto della galleria.
@@ -242,7 +248,15 @@ function misuraDi(url: string) {
   return url.split(PERCORSO_FOTO_VEICOLO)[1]?.split("/")[0] ?? "";
 }
 
-function normalizzaMisura(url: string) {
+/**
+ * Riporta l'indirizzo di una foto DealerK alla misura che vogliamo.
+ *
+ * Serve anche fuori dall'importazione: le fotografie gia' nel database hanno
+ * l'indirizzo con la misura di quando sono state importate, e riscriverlo al
+ * momento di mostrarle le migliora tutte senza toccare i dati. Un indirizzo
+ * che non sia una foto DealerK esce di qui immutato.
+ */
+export function normalizzaMisuraFoto(url: string) {
   const [prima, dopo] = url.split(PERCORSO_FOTO_VEICOLO);
   if (dopo === undefined) return url;
 
@@ -279,7 +293,7 @@ function leggiFoto(html: string): string[] {
   return Array.from(perNomeFile.values())
     .filter((voce) => voce.larghezzaMassima >= LARGHEZZA_MINIMA_GALLERIA)
     .sort((a, b) => a.ordine - b.ordine)
-    .map((voce) => normalizzaMisura(voce.url));
+    .map((voce) => normalizzaMisuraFoto(voce.url));
 }
 
 export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): ParsedVehicle {
