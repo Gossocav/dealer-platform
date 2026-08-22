@@ -28,6 +28,7 @@ import {
   type VehicleOptionRow,
 } from "@/lib/leads";
 import { supabase } from "@/lib/supabaseClient";
+import { caricaTutto } from "@/lib/carica-tutto";
 
 type ViewMode = "kanban" | "table";
 
@@ -65,33 +66,48 @@ export function LeadsCrmPage() {
       }
       setCurrentDealerId(dealerId);
 
-      const { data: dealerVehicles, error: vehiclesError } = await supabase
-        .from("vehicles")
-        .select("id, brand, model, version, year")
-        .eq("dealer_id", dealerId)
-        .returns<VehicleOptionRow[]>();
+      // I veicoli servono solo a scrivere "Jeep Renegade" accanto al
+      // contatto: si leggono per intero, non i primi mille, altrimenti i
+      // contatti sui veicoli piu' vecchi resterebbero senza etichetta.
+      const veicoli = await caricaTutto<VehicleOptionRow>((da, a) =>
+        supabase
+          .from("vehicles")
+          .select("id, brand, model, version, year")
+          .eq("dealer_id", dealerId)
+          .range(da, a)
+          .returns<VehicleOptionRow[]>()
+      );
 
-      if (vehiclesError) {
-        throw new Error(vehiclesError.message || "Errore caricamento veicoli concessionaria.");
+      if (veicoli.error) {
+        throw new Error(veicoli.error.message || "Errore caricamento veicoli concessionaria.");
       }
 
-      const vehicleRows = dealerVehicles ?? [];
-      const vehicleIds = vehicleRows.map((vehicle) => vehicle.id);
+      const vehicleRows = veicoli.righe;
       const vehiclesMap = vehicleLabelMap(vehicleRows);
 
       const support = await detectLeadOptionalColumns(supabase);
       const selectClause = buildLeadSelectClause(support);
 
-      let query = supabase.from("leads").select(selectClause).order("created_at", { ascending: false });
+      // Prima l'elenco dei contatti si chiedeva cosi': "quelli della
+      // concessionaria, **oppure** quelli agganciati a uno dei suoi veicoli",
+      // con tutti gli identificativi dei veicoli scritti dentro l'indirizzo
+      // della richiesta. Con qualche migliaio di veicoli quell'indirizzo
+      // diventa troppo lungo e la richiesta fallisce.
+      //
+      // Non serve piu': un contatto non puo' avere una concessionaria diversa
+      // da quella del veicolo -- lo impedisce un controllo del database -- e
+      // dal 22/08/2026 la protezione per riga mostra comunque solo i propri.
+      const contatti = await caricaTutto<LeadRecord>((da, a) =>
+        supabase
+          .from("leads")
+          .select(selectClause)
+          .eq("dealer_id", dealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+          .returns<LeadRecord[]>()
+      );
 
-      if (vehicleIds.length > 0) {
-        const ids = vehicleIds.map((id) => `"${id}"`).join(",");
-        query = query.or(`dealer_id.eq.${dealerId},vehicle_id.in.(${ids})`);
-      } else {
-        query = query.eq("dealer_id", dealerId);
-      }
-
-      const { data: rawLeads, error: leadsError } = await query.returns<LeadRecord[]>();
+      const { righe: rawLeads, error: leadsError } = contatti;
 
       if (leadsError) {
         throw new Error(leadsError.message || "Errore caricamento lead.");

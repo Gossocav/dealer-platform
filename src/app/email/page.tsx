@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { getActiveDealerId } from "@/lib/active-tenant";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
@@ -192,20 +193,34 @@ export default function EmailPage() {
     // cose diverse, e mostrarli allo stesso modo confonde.
     if (!dealerId) return;
 
-    const result = await supabase
-      .from("email_threads")
-      .select(
-        "id, lead_id, customer_id, vehicle_id, last_message_at, created_at, lead:leads(id, first_name, last_name, email), customer:customers(id, first_name, last_name, email), vehicle:vehicles(id, brand, model)"
-      )
-      .eq("dealer_id", dealerId)
-      .order("last_message_at", { ascending: false });
+    // Per intero, non le prime mille: la ricerca fra le conversazioni avviene
+    // nel browser, e una conversazione fuori dalle prime mille sarebbe
+    // introvabile senza che nulla lo segnali.
+    const result = await caricaTutto<EmailThreadRow>((da, a) =>
+      supabase
+        .from("email_threads")
+        .select(
+          "id, lead_id, customer_id, vehicle_id, last_message_at, created_at, lead:leads(id, first_name, last_name, email), customer:customers(id, first_name, last_name, email), vehicle:vehicles(id, brand, model)"
+        )
+        .eq("dealer_id", dealerId)
+        .order("last_message_at", { ascending: false })
+        .range(da, a)
+        .returns<EmailThreadRow[]>()
+    );
 
     if (result.error) {
       setStatusMessage({ type: "error", text: result.error.message || "Errore caricamento conversazioni." });
       return;
     }
 
-    const rows = (result.data ?? []) as unknown as EmailThreadRow[];
+    if (result.troncato) {
+      setStatusMessage({
+        type: "error",
+        text: "Molte conversazioni: mostrate le prime 5.000. Usa la ricerca per trovare le altre.",
+      });
+    }
+
+    const rows = result.righe;
     setThreads(
       rows.map((row) => ({
         id: row.id,
@@ -223,17 +238,20 @@ export default function EmailPage() {
   const fetchMessageSummaries = useCallback(async () => {
     if (!dealerId) return;
 
-    const result = await supabase
-      .from("email_messages")
-      .select("id, thread_id, direction, status, subject, to_recipients, body_text, body_html, created_at, sent_at, failed_at, error_message")
-      .eq("dealer_id", dealerId)
-      .order("created_at", { ascending: false });
+    const result = await caricaTutto<EmailMessage>((da, a) =>
+      supabase
+        .from("email_messages")
+        .select("id, thread_id, direction, status, subject, to_recipients, body_text, body_html, created_at, sent_at, failed_at, error_message")
+        .eq("dealer_id", dealerId)
+        .order("created_at", { ascending: false })
+        .range(da, a)
+    );
 
     if (result.error) {
       return;
     }
 
-    setMessageSummaries((result.data ?? []) as EmailMessage[]);
+    setMessageSummaries(result.righe);
   }, [dealerId]);
 
   const fetchMessages = useCallback(async (threadId: string) => {
@@ -258,13 +276,17 @@ export default function EmailPage() {
     if (!dealerId) return;
 
     const [leadsResult, customersResult] = await Promise.all([
-      supabase.from("leads").select("id, first_name, last_name, email").eq("dealer_id", dealerId).order("created_at", { ascending: false }),
-      supabase.from("customers").select("id, first_name, last_name, email").eq("dealer_id", dealerId).order("created_at", { ascending: false }),
+      caricaTutto<Person>((da, a) =>
+        supabase.from("leads").select("id, first_name, last_name, email").eq("dealer_id", dealerId).order("created_at", { ascending: false }).range(da, a)
+      ),
+      caricaTutto<Person>((da, a) =>
+        supabase.from("customers").select("id, first_name, last_name, email").eq("dealer_id", dealerId).order("created_at", { ascending: false }).range(da, a)
+      ),
     ]);
 
     if (!leadsResult.error) {
       setLeadOptions(
-        (leadsResult.data ?? [])
+        leadsResult.righe
           .filter((row): row is Person => Boolean(row.email))
           .map((row) => ({ id: row.id, label: formatPersonName(row) ?? row.email ?? "-", email: row.email ?? "" }))
       );
@@ -272,7 +294,7 @@ export default function EmailPage() {
 
     if (!customersResult.error) {
       setCustomerOptions(
-        (customersResult.data ?? [])
+        customersResult.righe
           .filter((row): row is Person => Boolean(row.email))
           .map((row) => ({ id: row.id, label: formatPersonName(row) ?? row.email ?? "-", email: row.email ?? "" }))
       );

@@ -9,6 +9,7 @@ import {
   type AppointmentStatus as DbAppointmentStatus,
 } from "@/lib/appointments";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { supabase } from "@/lib/supabaseClient";
 
 type AppointmentStatus = DbAppointmentStatus;
@@ -144,27 +145,43 @@ export default function AgendaPage() {
       return;
     }
 
+    // Per intero, non i primi mille: l'agenda cerca e filtra nel browser, e
+    // le tendine di clienti, contatti e veicoli devono contenere tutto --
+    // altrimenti un appuntamento non si puo' collegare a chi lo riguarda.
     const [appointmentsRes, customersRes, leadsRes, vehiclesRes] = await Promise.all([
-      supabase
-        .from("appointments")
-        .select("id, dealer_id, customer_id, lead_id, vehicle_id, title, description, start_at, end_at, status, created_at, updated_at, customer:customers(id, first_name, last_name, company), lead:leads(id, first_name, last_name, email), vehicle:vehicles(id, brand, model, version)")
-        .eq("dealer_id", currentDealerId)
-        .order("start_at", { ascending: true }),
-      supabase
-        .from("customers")
-        .select("id, first_name, last_name, company")
-        .eq("dealer_id", currentDealerId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("leads")
-        .select("id, first_name, last_name, email")
-        .eq("dealer_id", currentDealerId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("vehicles")
-        .select("id, brand, model, version")
-        .eq("dealer_id", currentDealerId)
-        .order("created_at", { ascending: false }),
+      caricaTutto<Appointment>((da, a) =>
+        supabase
+          .from("appointments")
+          .select("id, dealer_id, customer_id, lead_id, vehicle_id, title, description, start_at, end_at, status, created_at, updated_at, customer:customers(id, first_name, last_name, company), lead:leads(id, first_name, last_name, email), vehicle:vehicles(id, brand, model, version)")
+          .eq("dealer_id", currentDealerId)
+          .order("start_at", { ascending: true })
+          .range(da, a)
+          .returns<Appointment[]>()
+      ),
+      caricaTutto<CustomerOption>((da, a) =>
+        supabase
+          .from("customers")
+          .select("id, first_name, last_name, company")
+          .eq("dealer_id", currentDealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+      ),
+      caricaTutto<LeadOption>((da, a) =>
+        supabase
+          .from("leads")
+          .select("id, first_name, last_name, email")
+          .eq("dealer_id", currentDealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+      ),
+      caricaTutto<VehicleOption>((da, a) =>
+        supabase
+          .from("vehicles")
+          .select("id, brand, model, version")
+          .eq("dealer_id", currentDealerId)
+          .order("created_at", { ascending: false })
+          .range(da, a)
+      ),
     ]);
 
     setLoading(false);
@@ -181,10 +198,15 @@ export default function AgendaPage() {
       return;
     }
 
-    setAppointments((appointmentsRes.data ?? []) as unknown as Appointment[]);
-    setCustomers((customersRes.data ?? []) as CustomerOption[]);
-    setLeads((leadsRes.data ?? []) as LeadOption[]);
-    setVehicles((vehiclesRes.data ?? []) as VehicleOption[]);
+    setAppointments(appointmentsRes.righe);
+    setCustomers(customersRes.righe);
+    setLeads(leadsRes.righe);
+    setVehicles(vehiclesRes.righe);
+
+    if (appointmentsRes.troncato) {
+      setStatusMessage("Agenda molto lunga: mostrati i primi 5.000 appuntamenti. Usa la ricerca per trovare gli altri.");
+      setStatusMessageType("error");
+    }
   };
 
   useEffect(() => {
