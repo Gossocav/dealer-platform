@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
 import { extractVehicleImagePath, type VehicleImageRow } from "@/lib/vehicles";
 
 export type ResolvedVehicleImage = VehicleImageRow & { previewUrl: string | null };
@@ -21,7 +22,10 @@ export function mapVehicleImageUrlForDisplay(imageUrl: string): string {
     return imageUrl;
   }
 
-  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+  // Le fotografie importate prima di alzare la misura hanno nel database
+  // l'indirizzo della versione piccola: si chiede quella grande qui, cosi'
+  // valgono anche loro senza reimportare niente.
+  return `/api/image-proxy?url=${encodeURIComponent(normalizzaMisuraFoto(imageUrl))}`;
 }
 
 // Production's "vehicle-images" bucket is actually private (drifted from the

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   looksLikeRental,
+  normalizzaMisuraFoto,
   parseDealerStockSitemap,
   parseDealerStockVehicle,
   type DealerSiteEntry,
@@ -125,11 +126,27 @@ describe("nella galleria finiscono solo le foto dell'auto", () => {
     expect(solo.vehicle.images).toHaveLength(1);
   });
 
+  // Era 800, e a schermo intero si vedeva: una foto da 801x451 dentro un'area
+  // da 1440x716 o resta piccola o si sgrana. A 1600 l'archivio ne serve 1281x721.
   it("ogni foto viene chiesta nella misura buona, qualunque fosse in pagina", () => {
     if (!esito.ok) throw new Error("scheda non letta");
     for (const url of esito.vehicle.images) {
-      expect(url).toContain("/vehicle/images/800x0/");
+      expect(url).toContain("/vehicle/images/1600x0/");
     }
+  });
+
+  // Le fotografie importate quando la misura era 800 hanno quell'indirizzo
+  // salvato nel database: la stessa regola si applica al momento di mostrarle,
+  // cosi' migliorano tutte senza reimportare niente.
+  it("riscrive la misura anche a una foto gia' importata", () => {
+    const gia = "https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/uno.jpeg";
+    expect(normalizzaMisuraFoto(gia)).toBe("https://cdn.dealerk.it/dealer/datafiles/vehicle/images/1600x0/33890/uno.jpeg");
+  });
+
+  it("lascia intatto un indirizzo che non e' una foto della concessionaria", () => {
+    const nostra = "https://progetto.supabase.co/storage/v1/object/sign/vehicle-images/foto.jpg";
+    expect(normalizzaMisuraFoto(nostra)).toBe(nostra);
+    expect(normalizzaMisuraFoto("299d3fd8/26c72aed/1785238272963-0.jpg")).toBe("299d3fd8/26c72aed/1785238272963-0.jpg");
   });
 
   // Segnalato su una Jeep CJ-7: fra le sue foto ne comparivano di altre

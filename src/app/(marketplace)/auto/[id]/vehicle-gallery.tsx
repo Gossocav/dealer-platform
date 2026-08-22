@@ -208,15 +208,26 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
               tabIndex={-1}
             />
 
-            {/* A schermo intero si guarda la carrozzeria da vicino: qui una
-                versione ridotta si vedrebbe, quindi si chiede la misura piena. */}
+            {/* A schermo intero si guarda la carrozzeria da vicino, quindi si
+                chiede la misura piena.
+
+                "h-full w-full object-contain" e non "w-auto max-w-full": con
+                la misura automatica la fotografia si disegnava esattamente
+                grande quanto il file arrivato -- 600 pixel dentro un'area da
+                1440 -- perche' un limite massimo puo' rimpicciolire, mai
+                ingrandire. Adesso occupa lo spazio disponibile e "contain" le
+                conserva le proporzioni, senza tagliarla.
+
+                "pointer-events-none" perche' ora la fotografia copre tutta
+                l'area, sfondo compreso: senza, il clic per chiudere non
+                arriverebbe piu' allo sfondo che sta sotto. */}
             <Image
               src={images[openIndex]}
               alt={`${label} - foto ${openIndex + 1} di ${total}`}
               width={1600}
               height={1200}
               sizes="100vw"
-              className="relative max-h-full w-auto max-w-full object-contain"
+              className="pointer-events-none relative h-full w-full object-contain"
             />
 
             {total > 1 ? (
