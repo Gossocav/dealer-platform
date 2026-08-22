@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { supabase } from "@/lib/supabaseClient";
 
 type Customer = {
@@ -120,6 +121,9 @@ const EMPTY_DRAFT: CustomerDraft = {
 };
 
 export default function ClientiPage() {
+  // Chi siamo: ogni interrogazione di questa pagina lo dichiara, invece di
+  // chiedere "i clienti" e fidarsi che il database restituisca solo i propri.
+  const [dealerId, setDealerId] = useState<string | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -141,22 +145,36 @@ export default function ClientiPage() {
     setLoading(true);
     setStatusMessage(null);
 
+    const currentDealerId = await resolveDealerIdForCurrentUser(supabase);
+    setDealerId(currentDealerId);
+
+    if (!currentDealerId) {
+      setLoading(false);
+      setStatusMessage("Concessionaria non associata all'utente.");
+      setStatusMessageType("error");
+      return;
+    }
+
     const [customersRes, leadsRes, vehiclesRes, appointmentsRes] = await Promise.all([
       supabase
         .from("customers")
         .select("id, dealer_id, first_name, last_name, company, vat_number, tax_code, email, phone, mobile, address, city, province, zip_code, notes, created_at, updated_at")
+        .eq("dealer_id", currentDealerId)
         .order("created_at", { ascending: false }),
       supabase
         .from("leads")
         .select("id, customer_id, vehicle_id, first_name, last_name, email, phone, status, created_at, updated_at, vehicle:vehicles(id, brand, model, version)")
+        .eq("dealer_id", currentDealerId)
         .order("created_at", { ascending: false }),
       supabase
         .from("vehicles")
         .select("id, customer_id, brand, model, version, year, price, status, published, created_at")
+        .eq("dealer_id", currentDealerId)
         .order("created_at", { ascending: false }),
       supabase
         .from("appointments")
         .select("id, customer_id, vehicle_id, title, description, start_at, end_at, status, created_at")
+        .eq("dealer_id", currentDealerId)
         .order("start_at", { ascending: false }),
     ]);
 
@@ -405,7 +423,15 @@ export default function ClientiPage() {
     setLoading(true);
     setStatusMessage(null);
 
-    const { data, error } = await supabase.from("customers").delete().eq("id", customerId).select("id");
+    // Il vincolo sulla concessionaria non e' pignoleria: senza, la
+    // cancellazione dipende solo da un identificativo che potrebbe arrivare
+    // da qualsiasi parte.
+    const { data, error } = await supabase
+      .from("customers")
+      .delete()
+      .eq("id", customerId)
+      .eq("dealer_id", dealerId ?? "")
+      .select("id");
 
     setLoading(false);
 

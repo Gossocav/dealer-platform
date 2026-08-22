@@ -96,6 +96,39 @@ describe("resolveDealerIdFromTenantSources", () => {
     expect(rejected).toBeNull();
   });
 
+
+  // Entrando con un secondo account sullo stesso browser, la concessionaria
+  // scelta in precedenza resta scritta nella memoria del browser. Prima il
+  // gestionale rispondeva "Concessionaria non associata all'utente" finche'
+  // non la si svuotava a mano.
+  it("ignora una concessionaria rimasta da un altro accesso, se ce n'e' una sola", async () => {
+    const mock = createSupabaseMock({
+      data: [{ dealer_id: "dealer-b" }],
+      error: null,
+    });
+
+    const risolto = await resolveDealerIdFromTenantSources(mock.supabase as never, "user-2", {
+      activeDealerId: "dealer-a",
+    });
+
+    expect(risolto).toBe("dealer-b");
+  });
+
+  // Con piu' appartenenze sceglierne una a caso sarebbe una supposizione: si
+  // resta a null, come prima.
+  it("non indovina quando le appartenenze sono piu' di una", async () => {
+    const mock = createSupabaseMock({
+      data: [{ dealer_id: "dealer-b" }, { dealer_id: "dealer-c" }],
+      error: null,
+    });
+
+    const risolto = await resolveDealerIdFromTenantSources(mock.supabase as never, "user-3", {
+      activeDealerId: "dealer-a",
+    });
+
+    expect(risolto).toBeNull();
+  });
+
   it("returns null when memberships are ambiguous and no active dealer is selected", async () => {
     const mock = createSupabaseMock({
       data: [{ dealer_id: "dealer-a" }, { dealer_id: "dealer-b" }],

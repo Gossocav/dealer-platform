@@ -147,7 +147,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
           .eq("id", vehicleId)
           .eq("dealer_id", dealerId)
           .maybeSingle<VehicleWithEquipment>(),
-        supabase.from("vehicle_images").select("id, image_url, position, is_cover").eq("vehicle_id", vehicleId).order("position", { ascending: true }),
+        supabase
+          .from("vehicle_images")
+          .select("id, image_url, position, is_cover")
+          .eq("vehicle_id", vehicleId)
+          .eq("dealer_id", dealerId)
+          .order("position", { ascending: true }),
       ]);
 
       if (!alive) return;

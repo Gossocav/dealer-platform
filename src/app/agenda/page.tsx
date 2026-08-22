@@ -8,6 +8,7 @@ import {
   normalizeAppointmentStatus,
   type AppointmentStatus as DbAppointmentStatus,
 } from "@/lib/appointments";
+import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { supabase } from "@/lib/supabaseClient";
 
 type AppointmentStatus = DbAppointmentStatus;
@@ -117,6 +118,8 @@ export default function AgendaPage() {
   const [filterStatus, setFilterStatus] = useState<(typeof STATUS_OPTIONS)[number]["key"]>("all");
   const [search, setSearch] = useState("");
 
+  // Ogni interrogazione dichiara di quale concessionaria sono i dati.
+  const [dealerId, setDealerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -131,22 +134,36 @@ export default function AgendaPage() {
     setLoading(true);
     setStatusMessage(null);
 
+    const currentDealerId = await resolveDealerIdForCurrentUser(supabase);
+    setDealerId(currentDealerId);
+
+    if (!currentDealerId) {
+      setLoading(false);
+      setStatusMessage("Concessionaria non associata all'utente.");
+      setStatusMessageType("error");
+      return;
+    }
+
     const [appointmentsRes, customersRes, leadsRes, vehiclesRes] = await Promise.all([
       supabase
         .from("appointments")
         .select("id, dealer_id, customer_id, lead_id, vehicle_id, title, description, start_at, end_at, status, created_at, updated_at, customer:customers(id, first_name, last_name, company), lead:leads(id, first_name, last_name, email), vehicle:vehicles(id, brand, model, version)")
+        .eq("dealer_id", currentDealerId)
         .order("start_at", { ascending: true }),
       supabase
         .from("customers")
         .select("id, first_name, last_name, company")
+        .eq("dealer_id", currentDealerId)
         .order("created_at", { ascending: false }),
       supabase
         .from("leads")
         .select("id, first_name, last_name, email")
+        .eq("dealer_id", currentDealerId)
         .order("created_at", { ascending: false }),
       supabase
         .from("vehicles")
         .select("id, brand, model, version")
+        .eq("dealer_id", currentDealerId)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -303,7 +320,12 @@ export default function AgendaPage() {
     setLoading(true);
     setStatusMessage(null);
 
-    const { data, error } = await supabase.from("appointments").delete().eq("id", id).select("id");
+    const { data, error } = await supabase
+      .from("appointments")
+      .delete()
+      .eq("id", id)
+      .eq("dealer_id", dealerId ?? "")
+      .select("id");
 
     setLoading(false);
 
@@ -356,6 +378,10 @@ export default function AgendaPage() {
     setStatusMessage(null);
 
     const payload = {
+      // Il database lo compilerebbe da solo con un trigger, ma scriverlo qui
+      // rende esplicito a chi appartiene l'appuntamento -- e il trigger
+      // diventa una verifica invece che l'unica fonte del dato.
+      dealer_id: dealerId,
       customer_id: nullableId(draft.customer_id),
       lead_id: nullableId(draft.lead_id),
       vehicle_id: nullableId(draft.vehicle_id),
@@ -368,7 +394,7 @@ export default function AgendaPage() {
     };
 
     const query = draft.id
-      ? supabase.from("appointments").update(payload).eq("id", draft.id).select("id").maybeSingle()
+      ? supabase.from("appointments").update(payload).eq("id", draft.id).eq("dealer_id", dealerId ?? "").select("id").maybeSingle()
       : supabase.from("appointments").insert(payload).select("id").maybeSingle();
 
     const { error } = await query;

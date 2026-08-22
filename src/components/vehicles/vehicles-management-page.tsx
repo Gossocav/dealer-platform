@@ -333,7 +333,7 @@ export function VehiclesManagementPage() {
 
       let leadsMap = new Map<string, number>();
       if (ids.length > 0) {
-        const { data: leadsRows } = await supabase.from("leads").select("vehicle_id").in("vehicle_id", ids);
+        const { data: leadsRows } = await supabase.from("leads").select("vehicle_id").eq("dealer_id", currentDealerId).in("vehicle_id", ids);
         leadsMap = new Map<string, number>();
         for (const row of leadsRows ?? []) {
           const vehicleId = String((row as { vehicle_id?: string | null }).vehicle_id ?? "").trim();
@@ -575,7 +575,7 @@ export function VehiclesManagementPage() {
     setBulkDeleting(true);
     setError(null);
 
-    const { error: imagesError } = await supabase.from("vehicle_images").delete().in("vehicle_id", ids);
+    const { error: imagesError } = await supabase.from("vehicle_images").delete().eq("dealer_id", currentDealerId).in("vehicle_id", ids);
 
     if (imagesError) {
       setError(imagesError.message || "Errore durante eliminazione immagini dei veicoli selezionati.");
@@ -651,12 +651,18 @@ export function VehiclesManagementPage() {
       .from("vehicle_images")
       .select("image_url, position, is_cover")
       .eq("vehicle_id", vehicleId)
+      .eq("dealer_id", currentDealerId)
       .order("position", { ascending: true });
 
     if (Array.isArray(sourceImages) && sourceImages.length > 0) {
       await supabase.from("vehicle_images").insert(
         sourceImages.map((image, index) => ({
           vehicle_id: inserted.id,
+          // Le copie nascono con la concessionaria scritta sopra: una
+          // fotografia senza proprietario non e' di nessuno, e da quando le
+          // regole del database legano la lettura al proprietario non
+          // sarebbe piu' visibile nemmeno a chi l'ha duplicata.
+          dealer_id: currentDealerId,
           image_url: image.image_url,
           position: typeof image.position === "number" ? image.position : index,
           is_cover: Boolean(image.is_cover) && index === 0,

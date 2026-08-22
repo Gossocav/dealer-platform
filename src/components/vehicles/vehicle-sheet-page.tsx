@@ -180,6 +180,7 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
           .from("vehicle_images")
           .select("id, image_url, position, is_cover")
           .eq("vehicle_id", vehicleId)
+          .eq("dealer_id", dealerId)
           .order("position", { ascending: true }),
       ]);
 
