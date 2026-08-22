@@ -35,7 +35,9 @@ describe("condizioni, tipo veicolo e carrozzeria si importano", () => {
   });
 
   it("riconosce le carrozzerie con i nomi dei portali", () => {
-    expect(canonicalizeVehicleBodyType("SUV")).toBe("SUV/Pick-up");
+    expect(canonicalizeVehicleBodyType("SUV")).toBe("SUV/Pick-up/Fuoristrada");
+    expect(canonicalizeVehicleBodyType("fuoristrada")).toBe("SUV/Pick-up/Fuoristrada");
+    expect(canonicalizeVehicleBodyType("offroad")).toBe("SUV/Pick-up/Fuoristrada");
     expect(canonicalizeVehicleBodyType("station wagon")).toBe("Station Wagon");
     expect(canonicalizeVehicleBodyType("familiare")).toBe("Station Wagon");
     expect(canonicalizeVehicleBodyType("sedan")).toBe("Berlina");
@@ -44,8 +46,9 @@ describe("condizioni, tipo veicolo e carrozzeria si importano", () => {
   });
 
   it("accetta il valore gia' scritto come lo scrive la piattaforma", () => {
-    // "SUV/Pick-up" normalizzato diventa "suvpickup", che nella tabella dei
-    // sinonimi non c'e': senza il confronto diretto andrebbe perso.
+    // "SUV/Pick-up/Fuoristrada" normalizzato diventa "suvpickupfuoristrada",
+    // che nella tabella dei sinonimi non c'e': senza il confronto diretto
+    // andrebbe perso.
     for (const bodyType of VEHICLE_BODY_TYPES) {
       expect(canonicalizeVehicleBodyType(bodyType), bodyType).toBe(bodyType);
     }

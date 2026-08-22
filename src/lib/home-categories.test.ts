@@ -23,13 +23,16 @@ describe("elenco carrozzerie condiviso", () => {
 
     // Nessuno dei tre riscrive l'elenco a mano.
     for (const source of [homePage, searchPage, editor]) {
-      expect(source).not.toMatch(/"SUV\/Pick-up",\s*"Berlina"/);
+      expect(source).not.toMatch(/"SUV\/Pick-up\/Fuoristrada",\s*"Berlina"/);
       expect(source).not.toContain('<option value="Berlina">');
     }
   });
 
   it("contiene le voci attese", () => {
-    expect(VEHICLE_BODY_TYPES).toContain("SUV/Pick-up");
+    // "Fuoristrada" nel nome e' una richiesta esplicita: chi cerca un
+    // fuoristrada non lo trovava nell'elenco e non immaginava che stesse
+    // sotto "SUV".
+    expect(VEHICLE_BODY_TYPES).toContain("SUV/Pick-up/Fuoristrada");
     expect(VEHICLE_BODY_TYPES).toContain("Furgone/Van");
     expect(VEHICLE_BODY_TYPES).toHaveLength(8);
   });
