@@ -333,12 +333,31 @@ function normalizeVehicleLabelField(value: string): string {
 }
 
 export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">) {
-  return (
-    [vehicle.brand, vehicle.model, vehicle.version]
-      .filter(Boolean)
-      .map((field) => normalizeVehicleLabelField(String(field)))
-      .join(" ") || "Veicolo"
-  );
+  const brand = vehicle.brand ? normalizeVehicleLabelField(String(vehicle.brand)) : "";
+  const model = vehicle.model ? normalizeVehicleLabelField(String(vehicle.model)) : "";
+  const brandModel = [brand, model].filter(Boolean).join(" ");
+
+  const rawVersion = vehicle.version ? normalizeVehicleLabelField(String(vehicle.version)) : "";
+  const version = stripDuplicatedBrandModel(rawVersion, brandModel);
+
+  return [brandModel, version].filter(Boolean).join(" ") || "Veicolo";
+}
+
+// Alcune importazioni scrivono nella versione l'intero titolo trovato altrove
+// (es. "Hyundai Tucson"), che duplica marca e modello gia' mostrati subito
+// prima: qui si toglie quella parte ripetuta invece di stamparla due volte.
+function stripDuplicatedBrandModel(version: string, brandModel: string): string {
+  if (!version || !brandModel) return version;
+
+  const versionLower = version.toLowerCase();
+  const brandModelLower = brandModel.toLowerCase();
+
+  if (versionLower === brandModelLower) return "";
+  if (versionLower.startsWith(`${brandModelLower} `)) {
+    return version.slice(brandModel.length).trim();
+  }
+
+  return version;
 }
 
 /**

@@ -38,4 +38,27 @@ describe("resolveVehicleLabel", () => {
   it("falls back to 'Veicolo' when every field is empty", () => {
     expect(resolveVehicleLabel({ brand: null, model: null, version: null })).toBe("Veicolo");
   });
+
+  // Un'importazione aveva scritto "Hyundai Tucson" anche nella versione:
+  // l'intestazione mostrava "Hyundai Tucson Hyundai Tucson".
+  it("drops the version when it duplicates brand + model entirely", () => {
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "Hyundai Tucson" })).toBe(
+      "Hyundai Tucson"
+    );
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "hyundai tucson" })).toBe(
+      "Hyundai Tucson"
+    );
+  });
+
+  it("keeps only the real trim when the version repeats brand + model as a prefix", () => {
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "Hyundai Tucson N Line" })).toBe(
+      "Hyundai Tucson N Line"
+    );
+  });
+
+  it("does not touch a version that legitimately reuses the model name", () => {
+    expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "Tucson N Line" })).toBe(
+      "Hyundai Tucson Tucson N Line"
+    );
+  });
 });
