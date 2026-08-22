@@ -304,6 +304,30 @@ const MISURA_FOTO = "1600x0";
  */
 const LARGHEZZA_MINIMA_GALLERIA = 400;
 
+/**
+ * In quante misure diverse il sito deve offrire una fotografia perche' sia
+ * della vettura.
+ *
+ * La regola della larghezza minima non basta, e si e' visto importando
+ * delorenziauto.it: li' le miniature delle altre automobili sono larghe 400
+ * come le foto vere, quindi passavano tutte. Su una scheda vera -- l'Opel
+ * Corsa 6751886 -- delle ventuno fotografie presenti sei erano di altre
+ * vetture, quelle proposte in fondo alla pagina.
+ *
+ * Il segnale che le separa e' netto, ed e' lo stesso sui due siti provati:
+ *
+ * - la fotografia **della vettura** il sito la pubblica in piu' misure,
+ *   perche' gli serve grande nella galleria e piccola nella striscia delle
+ *   anteprime: 400+800+200 su delorenziauto, 800x0+600x0+480x0 su autogepy;
+ * - la miniatura **di un'altra vettura** compare una volta sola, nella misura
+ *   che serve a quella scheda: 400 su delorenziauto, 0x250 su autogepy.
+ *
+ * E' un criterio piu' solido della posizione nella pagina, che dipende da
+ * come e' impaginato il sito, e piu' solido della larghezza, che dipende da
+ * come sono ritagliate le anteprime.
+ */
+const MISURE_MINIME_GALLERIA = 2;
+
 function larghezzaMisura(misura: string): number {
   if (misura.includes("original")) return Number.MAX_SAFE_INTEGER;
 
@@ -343,7 +367,10 @@ function leggiFoto(html: string): string[] {
 
   // Una voce per fotografia, riconosciuta dal nome del file: e' l'unica parte
   // dell'indirizzo che resta uguale fra una misura e l'altra.
-  const perNomeFile = new Map<string, { url: string; larghezzaMassima: number; ordine: number }>();
+  const perNomeFile = new Map<
+    string,
+    { url: string; larghezzaMassima: number; ordine: number; misure: Set<string> }
+  >();
 
   for (const url of trovate) {
     if (!url.includes(PERCORSO_FOTO_VEICOLO)) continue;
@@ -351,20 +378,37 @@ function leggiFoto(html: string): string[] {
     const nomeFile = url.split("/").pop() ?? "";
     if (!nomeFile) continue;
 
-    const larghezza = larghezzaMisura(misuraDi(url));
+    const misura = misuraDi(url);
+    const larghezza = larghezzaMisura(misura);
     const gia = perNomeFile.get(nomeFile);
 
     if (!gia) {
-      perNomeFile.set(nomeFile, { url, larghezzaMassima: larghezza, ordine: perNomeFile.size });
-    } else if (larghezza > gia.larghezzaMassima) {
+      perNomeFile.set(nomeFile, { url, larghezzaMassima: larghezza, ordine: perNomeFile.size, misure: new Set([misura]) });
+      continue;
+    }
+
+    gia.misure.add(misura);
+
+    if (larghezza > gia.larghezzaMassima) {
       // La posizione resta la prima in cui la fotografia e' comparsa: e'
       // l'ordine della galleria, quindi la prima diventa la copertina.
-      perNomeFile.set(nomeFile, { url, larghezzaMassima: larghezza, ordine: gia.ordine });
+      gia.url = url;
+      gia.larghezzaMassima = larghezza;
     }
   }
 
-  return Array.from(perNomeFile.values())
-    .filter((voce) => voce.larghezzaMassima >= LARGHEZZA_MINIMA_GALLERIA)
+  const abbastanzaGrandi = Array.from(perNomeFile.values()).filter(
+    (voce) => voce.larghezzaMassima >= LARGHEZZA_MINIMA_GALLERIA
+  );
+
+  const inPiuMisure = abbastanzaGrandi.filter((voce) => voce.misure.size >= MISURE_MINIME_GALLERIA);
+
+  // Se nessuna fotografia comparisse in piu' misure il criterio non
+  // saprebbe distinguere niente: meglio una galleria con qualche intrusa che
+  // una scheda senza foto, che verrebbe scartata del tutto.
+  const scelte = inPiuMisure.length > 0 ? inPiuMisure : abbastanzaGrandi;
+
+  return scelte
     .sort((a, b) => a.ordine - b.ordine)
     .map((voce) => normalizzaMisuraFoto(voce.url));
 }
