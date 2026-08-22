@@ -1,5 +1,11 @@
 import { Funnel, LayoutGrid, Search, SlidersHorizontal, Table2 } from "lucide-react";
-import type { VehicleFilters } from "@/lib/vehicles";
+import {
+  VEHICLE_SORT_OPTIONS,
+  vehicleSortFromValue,
+  vehicleSortToValue,
+  type VehicleFilters,
+  type VehicleSortState,
+} from "@/lib/vehicles";
 
 type ViewMode = "card" | "table";
 
@@ -16,6 +22,8 @@ type VehiclesToolbarProps = {
   priceBandOptions: ReadonlyArray<{ value: string; label: string }>;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  sort: VehicleSortState;
+  onSortChange: (next: VehicleSortState) => void;
 };
 
 function SelectField({
@@ -55,7 +63,17 @@ export function VehiclesToolbar({
   priceBandOptions,
   viewMode,
   onViewModeChange,
+  sort,
+  onSortChange,
 }: VehiclesToolbarProps) {
+  const valoreOrdinamento = vehicleSortToValue(sort);
+
+  // Ordinando dalla tabella si puo' finire su un criterio che la tendina non
+  // elenca (marca, stato): in quel caso si aggiunge come voce, invece di
+  // mostrare selezionata una voce che non e' quella in uso.
+  const opzioniOrdinamento = VEHICLE_SORT_OPTIONS.some((opzione) => opzione.value === valoreOrdinamento)
+    ? [...VEHICLE_SORT_OPTIONS]
+    : [...VEHICLE_SORT_OPTIONS, { value: valoreOrdinamento, label: "Ordine scelto dalla tabella" }];
   return (
     <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -102,6 +120,19 @@ export function VehiclesToolbar({
             />
           </span>
         </label>
+
+        {/* L'ordinamento sta qui, e non solo sulle intestazioni della
+            tabella: la vista predefinita e' quella a schede, dove
+            un'intestazione da cliccare non c'e'. */}
+        <SelectField
+          label="Ordina per"
+          value={valoreOrdinamento}
+          options={opzioniOrdinamento}
+          onChange={(next) => {
+            const scelto = vehicleSortFromValue(next);
+            if (scelto) onSortChange(scelto);
+          }}
+        />
 
         <SelectField
           label="Marca"
