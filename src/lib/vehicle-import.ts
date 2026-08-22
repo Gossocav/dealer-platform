@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
-import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
+import { VEHICLE_BODY_TYPES, type VehicleBodyType } from "@/lib/vehicle-body-types";
 import {
   normalizeVehicleTraction,
   VEHICLE_FUEL_OPTIONS,
@@ -514,8 +514,13 @@ const CATEGORY_BY_ALIAS: Record<string, string> = {
   lcv: "Veicolo commerciale", commercialvehicle: "Veicolo commerciale",
 };
 
-const BODY_TYPE_BY_ALIAS: Record<string, string> = {
-  suv: "SUV/Pick-up", pickup: "SUV/Pick-up", fuoristrada: "SUV/Pick-up", offroad: "SUV/Pick-up", crossover: "SUV/Pick-up",
+// Tipizzata sulle carrozzerie vere e non su "string": se un domani una voce
+// dell'elenco cambia nome, i sinonimi che puntano a quella vecchia diventano
+// un errore di compilazione invece di scrivere in silenzio una carrozzeria
+// che non esiste piu'.
+const BODY_TYPE_BY_ALIAS: Record<string, VehicleBodyType> = {
+  suv: "SUV/Pick-up/Fuoristrada", pickup: "SUV/Pick-up/Fuoristrada", fuoristrada: "SUV/Pick-up/Fuoristrada",
+  offroad: "SUV/Pick-up/Fuoristrada", crossover: "SUV/Pick-up/Fuoristrada",
   berlina: "Berlina", sedan: "Berlina", limousine: "Berlina", saloon: "Berlina",
   stationwagon: "Station Wagon", sw: "Station Wagon", familiare: "Station Wagon", wagon: "Station Wagon",
   break: "Station Wagon", estate: "Station Wagon", touring: "Station Wagon",
@@ -530,8 +535,8 @@ function canonicalizeFromAliases(value: string, table: Record<string, string>, a
   const key = normalizeKey(value);
   if (!key) return null;
 
-  // Prima il valore gia' corretto: "SUV/Pick-up" normalizzato e' "suvpickup",
-  // che nella tabella dei sinonimi non c'e'.
+  // Prima il valore gia' corretto: "SUV/Pick-up/Fuoristrada" normalizzato e'
+  // "suvpickupfuoristrada", che nella tabella dei sinonimi non c'e'.
   const exact = allowed.find((option) => normalizeKey(option) === key);
   if (exact) return exact;
 
