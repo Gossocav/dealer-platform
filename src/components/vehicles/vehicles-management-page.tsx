@@ -20,6 +20,7 @@ import {
   defaultVehicleFilters,
   extractVehicleImagePath,
   formatCurrency,
+  formatMileage,
   formatRegistrationLabel,
   formatVehicleStatus,
   normalizeVehicleStatus,
@@ -429,9 +430,9 @@ export function VehiclesManagementPage() {
           badge: status === "published" ? "Pubblicato" : status === "sold" ? "Venduto" : "Bozza",
           fuel: safeText(row.fuel),
           transmission: safeText(row.transmission),
+          mileageLabel: formatMileage(row.mileage),
           mainImageUrl: imageMap.get(row.id) ?? null,
           leadCount: leadsMap.get(row.id) ?? 0,
-          viewsCount: 0,
           insertedAt: String(row.created_at ?? ""),
           raw: row,
         } as VehicleListItem;

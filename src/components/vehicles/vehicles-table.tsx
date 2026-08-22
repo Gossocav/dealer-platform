@@ -94,7 +94,9 @@ export function VehiclesTable({
               </th>
               <th className="px-3 py-2 text-left font-semibold text-slate-500">Badge</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-500">Lead</th>
-              <th className="px-3 py-2 text-left font-semibold text-slate-500">Visualizzazioni</th>
+              <th className="px-3 py-2 text-left">
+                <SortHeader label="Chilometri" field="mileage" sort={sort} onSortChange={onSortChange} />
+              </th>
               <th className="px-3 py-2 text-left">
                 <SortHeader label="Inserimento" field="created_at" sort={sort} onSortChange={onSortChange} />
               </th>
@@ -144,7 +146,7 @@ export function VehiclesTable({
                   </td>
                   <td className="px-3 py-3">{vehicle.badge}</td>
                   <td className="px-3 py-3">{vehicle.leadCount}</td>
-                  <td className="px-3 py-3">{vehicle.viewsCount}</td>
+                  <td className="px-3 py-3">{vehicle.mileageLabel}</td>
                   <td className="px-3 py-3">{formatDate(vehicle.insertedAt)}</td>
                   <td className="rounded-r-2xl px-3 py-3">
                     <div className="flex flex-wrap gap-1.5">

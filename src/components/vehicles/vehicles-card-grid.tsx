@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Copy, Eye, Gauge, Pencil, Rocket, Trash2, Users } from "lucide-react";
+import { CalendarDays, Copy, Eye, Fuel, Gauge, Pencil, Rocket, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatDate, type VehicleListItem } from "@/lib/vehicles";
@@ -116,22 +116,26 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
                   <span className="block text-xs uppercase tracking-[0.12em] text-slate-400">Prezzo</span>
                   {vehicle.priceLabel}
                 </p>
-                {/* "flex" e non "inline-flex": l'etichetta deve occupare la
-                    sua riga, come fanno Immatricolazione e Prezzo qui sopra.
-                    Con "inline-flex" il numero finiva appiccicato in coda
-                    all'etichetta, disallineato rispetto alle altre due
-                    caselle. */}
+                {/* Qui c'erano "Lead" e "Visualizzazioni". Le visualizzazioni
+                    non venivano registrate da nessuna parte: quello zero era
+                    scritto nel codice e non sarebbe mai cambiato. Al loro
+                    posto due dati che il veicolo ha davvero e che si
+                    guardano sempre.
+
+                    "flex" e non "inline-flex": l'etichetta deve occupare la
+                    sua riga, altrimenti il valore le resta appiccicato in
+                    coda, fuori squadra rispetto alle altre caselle. */}
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
                   <span className="flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-400">
-                    <Users className="h-3.5 w-3.5" /> Lead
+                    <Gauge className="h-3.5 w-3.5" /> Chilometri
                   </span>
-                  {vehicle.leadCount}
+                  {vehicle.mileageLabel}
                 </p>
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
                   <span className="flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-400">
-                    <Gauge className="h-3.5 w-3.5" /> Visualizzazioni
+                    <Fuel className="h-3.5 w-3.5" /> Alimentazione
                   </span>
-                  {vehicle.viewsCount}
+                  {vehicle.fuel}
                 </p>
               </div>
 
