@@ -66,7 +66,25 @@ export async function resolveDealerIdFromTenantSources(
   const requestedActiveDealerId = normalizeDealerId(options?.activeDealerId);
 
   if (requestedActiveDealerId) {
-    return activeMembershipDealerIds.includes(requestedActiveDealerId) ? requestedActiveDealerId : null;
+    if (activeMembershipDealerIds.includes(requestedActiveDealerId)) {
+      return requestedActiveDealerId;
+    }
+
+    // Viene chiesta una concessionaria di cui l'utente non fa parte. Se ne ha
+    // una sola non c'e' niente da indovinare: quel valore e' rimasto dal
+    // browser, da un accesso precedente con un altro account. Entrando col
+    // secondo account, senza questa riga, il gestionale rispondeva
+    // "Concessionaria non associata all'utente" finche' non si svuotava la
+    // memoria del browser.
+    //
+    // Non e' un allentamento: si finisce comunque su una concessionaria di
+    // cui si fa parte. Con piu' appartenenze invece si resta a null, perche'
+    // li' sceglierne una a caso sarebbe una supposizione.
+    if (activeMembershipDealerIds.length === 1) {
+      return activeMembershipDealerIds[0];
+    }
+
+    return null;
   }
 
   if (activeMembershipDealerIds.length === 1) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -186,12 +186,18 @@ export default function EmailPage() {
     };
   }, []);
 
-  const fetchThreads = async () => {
+  const fetchThreads = useCallback(async () => {
+    // Finche' non si sa a quale concessionaria appartiene chi guarda, non si
+    // chiede niente: un elenco vuoto e un elenco non ancora caricato sono due
+    // cose diverse, e mostrarli allo stesso modo confonde.
+    if (!dealerId) return;
+
     const result = await supabase
       .from("email_threads")
       .select(
         "id, lead_id, customer_id, vehicle_id, last_message_at, created_at, lead:leads(id, first_name, last_name, email), customer:customers(id, first_name, last_name, email), vehicle:vehicles(id, brand, model)"
       )
+      .eq("dealer_id", dealerId)
       .order("last_message_at", { ascending: false });
 
     if (result.error) {
@@ -212,12 +218,15 @@ export default function EmailPage() {
         vehicle: normalizeEmbed(row.vehicle),
       }))
     );
-  };
+  }, [dealerId]);
 
-  const fetchMessageSummaries = async () => {
+  const fetchMessageSummaries = useCallback(async () => {
+    if (!dealerId) return;
+
     const result = await supabase
       .from("email_messages")
       .select("id, thread_id, direction, status, subject, to_recipients, body_text, body_html, created_at, sent_at, failed_at, error_message")
+      .eq("dealer_id", dealerId)
       .order("created_at", { ascending: false });
 
     if (result.error) {
@@ -225,13 +234,16 @@ export default function EmailPage() {
     }
 
     setMessageSummaries((result.data ?? []) as EmailMessage[]);
-  };
+  }, [dealerId]);
 
-  const fetchMessages = async (threadId: string) => {
+  const fetchMessages = useCallback(async (threadId: string) => {
+    if (!dealerId) return;
+
     const result = await supabase
       .from("email_messages")
       .select("id, thread_id, direction, status, subject, to_recipients, body_text, body_html, created_at, sent_at, failed_at, error_message")
       .eq("thread_id", threadId)
+      .eq("dealer_id", dealerId)
       .order("created_at", { ascending: true });
 
     if (result.error) {
@@ -240,12 +252,14 @@ export default function EmailPage() {
     }
 
     setMessages((result.data ?? []) as EmailMessage[]);
-  };
+  }, [dealerId]);
 
-  const fetchPickerOptions = async () => {
+  const fetchPickerOptions = useCallback(async () => {
+    if (!dealerId) return;
+
     const [leadsResult, customersResult] = await Promise.all([
-      supabase.from("leads").select("id, first_name, last_name, email").order("created_at", { ascending: false }),
-      supabase.from("customers").select("id, first_name, last_name, email").order("created_at", { ascending: false }),
+      supabase.from("leads").select("id, first_name, last_name, email").eq("dealer_id", dealerId).order("created_at", { ascending: false }),
+      supabase.from("customers").select("id, first_name, last_name, email").eq("dealer_id", dealerId).order("created_at", { ascending: false }),
     ]);
 
     if (!leadsResult.error) {
@@ -263,7 +277,7 @@ export default function EmailPage() {
           .map((row) => ({ id: row.id, label: formatPersonName(row) ?? row.email ?? "-", email: row.email ?? "" }))
       );
     }
-  };
+  }, [dealerId]);
 
   useEffect(() => {
     let active = true;
@@ -279,7 +293,9 @@ export default function EmailPage() {
     return () => {
       active = false;
     };
-  }, []);
+    // Parte quando la concessionaria e' nota: prima non c'e' niente da
+    // chiedere.
+  }, [dealerId, fetchThreads, fetchPickerOptions, fetchMessageSummaries]);
 
   useEffect(() => {
     const channel = supabase
@@ -295,7 +311,7 @@ export default function EmailPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [selectedThreadId]);
+  }, [selectedThreadId, dealerId, fetchThreads, fetchMessageSummaries, fetchMessages]);
 
   const selectThread = (threadId: string) => {
     setComposingNew(false);

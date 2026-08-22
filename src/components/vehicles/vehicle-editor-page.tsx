@@ -390,6 +390,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .from("vehicle_images")
         .select("id, image_url, position, is_cover, created_at")
         .eq("vehicle_id", vehicleId)
+        .eq("dealer_id", currentDealerId)
         .order("position", { ascending: true });
 
       // Production's "vehicle-images" bucket is actually private (drifted
@@ -998,7 +999,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     const confirmDelete = globalThis.confirm("Confermi la rimozione dell'immagine?");
     if (!confirmDelete) return;
 
-    const { error: deleteError } = await supabase.from("vehicle_images").delete().eq("id", image.id);
+    // L'identificativo della fotografia non basta a dire che sia nostra.
+    const { error: deleteError } = await supabase
+      .from("vehicle_images")
+      .delete()
+      .eq("id", image.id)
+      .eq("dealer_id", currentDealerId ?? "");
     if (deleteError) {
       setError(deleteError.message || "Errore eliminazione immagine.");
       return;
@@ -1036,13 +1042,18 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       .from("vehicle_images")
       .select("id")
       .eq("vehicle_id", vehicleId)
+      .eq("dealer_id", currentDealerId ?? "")
       .order("position", { ascending: true });
 
     const allIds = (imageRows ?? []).map((row) => row.id);
     if (allIds.length === 0) return;
 
-    await supabase.from("vehicle_images").update({ is_cover: false }).in("id", allIds);
-    await supabase.from("vehicle_images").update({ is_cover: true }).eq("id", imageId);
+    await supabase.from("vehicle_images").update({ is_cover: false }).in("id", allIds).eq("dealer_id", currentDealerId ?? "");
+    await supabase
+      .from("vehicle_images")
+      .update({ is_cover: true })
+      .eq("id", imageId)
+      .eq("dealer_id", currentDealerId ?? "");
 
     const { data: authData } = await supabase.auth.getUser();
     const actorProfileId = authData.user?.id ?? null;

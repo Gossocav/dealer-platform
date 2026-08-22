@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { supabase } from "@/lib/supabaseClient";
 
 type Lead = {
@@ -28,6 +29,7 @@ export default function LeadDetailPage() {
   const params = useParams();
   const leadId = String(params.id);
 
+  const [dealerId, setDealerId] = useState<string | null>(null);
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -42,12 +44,27 @@ export default function LeadDetailPage() {
       setLoading(true);
       setLoadError(null);
 
+      // Un identificativo da solo non dice che il contatto sia nostro: la
+      // richiesta dichiara anche la concessionaria, e una scheda di un'altra
+      // risulta inesistente invece che leggibile.
+      const currentDealerId = await resolveDealerIdForCurrentUser(supabase);
+
+      if (!attivo) return;
+      setDealerId(currentDealerId);
+
+      if (!currentDealerId) {
+        setLoading(false);
+        setLoadError("Concessionaria non associata all'utente.");
+        return;
+      }
+
       const { data, error } = await supabase
         .from("leads")
         .select(
           "id, customer_type, first_name, last_name, email, phone, message, status, notes, created_at, vehicle:vehicles(brand, model, version, year)"
         )
         .eq("id", leadId)
+        .eq("dealer_id", currentDealerId)
         .maybeSingle();
 
       if (!attivo) return;
@@ -97,7 +114,8 @@ export default function LeadDetailPage() {
     const { error } = await supabase
       .from("leads")
       .update({ notes: note.trim() || null })
-      .eq("id", lead.id);
+      .eq("id", lead.id)
+      .eq("dealer_id", dealerId ?? "");
 
     setSavingNote(false);
 

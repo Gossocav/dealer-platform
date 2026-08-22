@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { supabase } from "@/lib/supabaseClient";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
@@ -104,31 +105,50 @@ export default function StatistichePage() {
 
       const adesso = new Date().toISOString();
 
+      // Ogni interrogazione dice di quale concessionaria sono i dati che
+      // chiede. La protezione del database lo garantisce comunque, ma una
+      // pagina che chiede "i lead" invece dei "miei lead" e' scritta male: se
+      // un domani quella protezione venisse allentata, sarebbe questa riga a
+      // fare la differenza.
+      const dealerId = await resolveDealerIdForCurrentUser(supabase);
+
+      if (!attivo) return;
+
+      if (!dealerId) {
+        setLoading(false);
+        setStatusMessage("Concessionaria non associata all'utente.");
+        return;
+      }
+
       const [vehiclesRes, leadsCount, customersCount, appointmentsCount, latestLeadsRes, latestCustomersRes, upcomingRes] =
         await Promise.all([
           supabase
             .from("vehicles")
             .select("id, brand, model, version, registration_date, year, price, status, published, created_at")
+            .eq("dealer_id", dealerId)
             .order("created_at", { ascending: false }),
-          supabase.from("leads").select("id", { count: "exact", head: true }),
-          supabase.from("customers").select("id", { count: "exact", head: true }),
-          supabase.from("appointments").select("id", { count: "exact", head: true }),
+          supabase.from("leads").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
+          supabase.from("customers").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
+          supabase.from("appointments").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
           // Gli ultimi cinque li sceglie il database: ordinare a mano un
           // elenco gia' troncato dava "gli ultimi cinque fra i primi mille",
           // che non sono gli ultimi cinque.
           supabase
             .from("leads")
             .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at")
+            .eq("dealer_id", dealerId)
             .order("created_at", { ascending: false })
             .limit(5),
           supabase
             .from("customers")
             .select("id, first_name, last_name, company, email, phone, created_at")
+            .eq("dealer_id", dealerId)
             .order("created_at", { ascending: false })
             .limit(5),
           supabase
             .from("appointments")
             .select("id, title, description, start_at, end_at, status, created_at")
+            .eq("dealer_id", dealerId)
             .gte("start_at", adesso)
             .order("start_at", { ascending: true })
             .limit(5),
