@@ -31,14 +31,16 @@ function SelectField({
   value,
   options,
   onChange,
+  className = "",
 }: {
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
   onChange: (next: string) => void;
+  className?: string;
 }) {
   return (
-    <label className="block space-y-2">
+    <label className={`block space-y-2 ${className}`.trim()}>
       <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
       <select
         value={value}
@@ -121,19 +123,6 @@ export function VehiclesToolbar({
           </span>
         </label>
 
-        {/* L'ordinamento sta qui, e non solo sulle intestazioni della
-            tabella: la vista predefinita e' quella a schede, dove
-            un'intestazione da cliccare non c'e'. */}
-        <SelectField
-          label="Ordina per"
-          value={valoreOrdinamento}
-          options={opzioniOrdinamento}
-          onChange={(next) => {
-            const scelto = vehicleSortFromValue(next);
-            if (scelto) onSortChange(scelto);
-          }}
-        />
-
         <SelectField
           label="Marca"
           value={filters.brand}
@@ -179,7 +168,23 @@ export function VehiclesToolbar({
           onChange={(next) => onFiltersChange({ ...filters, priceBand: next })}
         />
 
-        <div className="flex items-end gap-2 md:col-span-2 xl:col-span-2">
+        {/* L'ordinamento sta qui, in fondo accanto ai comandi, e non fra i
+            filtri: non restringe il risultato, cambia l'ordine in cui lo si
+            legge. E non e' sulle sole intestazioni della tabella perche' la
+            vista predefinita e' quella a schede, dove intestazioni da
+            cliccare non ce ne sono. */}
+        <div className="flex flex-wrap items-end gap-3 md:col-span-2 xl:col-span-4">
+          <SelectField
+            label="Ordina per"
+            value={valoreOrdinamento}
+            options={opzioniOrdinamento}
+            onChange={(next) => {
+              const scelto = vehicleSortFromValue(next);
+              if (scelto) onSortChange(scelto);
+            }}
+            className="w-full sm:w-64"
+          />
+
           <button
             type="button"
             onClick={() =>
@@ -193,11 +198,12 @@ export function VehiclesToolbar({
                 priceBand: "all",
               })
             }
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            className="ml-auto inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
             <SlidersHorizontal className="h-4 w-4" />
             Reset filtri
           </button>
+
           <div className="inline-flex h-11 items-center gap-2 rounded-xl bg-blue-50 px-4 text-sm font-medium text-blue-700">
             <Funnel className="h-4 w-4" />
             Filtri attivi
