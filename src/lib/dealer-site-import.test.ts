@@ -295,3 +295,107 @@ describe("quello che non si puo' pubblicare viene scartato, con il motivo", () =
     expect(esito.vehicle.mileage).not.toBe(0);
   });
 });
+
+/**
+ * Non tutti i siti DealerK mettono il prezzo nella scheda leggibile dalle
+ * macchine. Su delorenziauto.it il campo "offers" non c'e' proprio: senza
+ * questa lettura le sue 105 vetture verrebbero scartate tutte per "prezzo
+ * mancante", che e' falso -- il prezzo sulla pagina c'e', scritto accanto
+ * all'identificativo della vettura.
+ */
+describe("il prezzo quando la scheda leggibile non lo dichiara", () => {
+  const VOCE_ALTRO_SITO: DealerSiteEntry = {
+    url: "https://www.delorenziauto.it/auto/usate/cremona/opel/corsa/benzina/blitz-edition/6751886/",
+    sourceId: "6751886",
+    condition: "Usato",
+  };
+
+  function scheda(corpo: string) {
+    return `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/2396/una.jpeg">
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Car",
+        name: "Opel Corsa Blitz Edition",
+        brand: "Opel",
+        model: "Corsa",
+      })}</script>
+      ${corpo}`;
+  }
+
+  it("lo prende dal numero scritto accanto all'identificativo della vettura", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`<div data-config='{"vehicleId":"6751886","companyId":"2396","price":20000,"make":"opel"}'></div>`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.price).toBe(20000);
+  });
+
+  it("legge anche la forma scritta per le persone, con il punto delle migliaia", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`<script>var d = {"price":"\\u20ac 20.000","km":"10 Km","year":"2023","vehicleId":"6751886"};</script>`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.price).toBe(20000);
+  });
+
+  it("i centesimi non diventano migliaia", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`<script>var d = {"vehicleId":"6751886","price":"20000.00"};</script>`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.price).toBe(20000);
+  });
+
+  // In fondo a ogni scheda il sito propone altre vetture, coi loro prezzi. E'
+  // la stessa trappola che aveva messo in galleria le foto di altre auto.
+  it("non prende il prezzo di un'altra vettura proposta in fondo alla pagina", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`
+        <div data-config='{"vehicleId":"6751886","price":20000}'></div>
+        <div class="simili" data-config='{"vehicleId":"9999999","price":7500}'></div>`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.price).toBe(20000);
+  });
+
+  // "price" e' anche il nome dell'etichetta del filtro di ricerca, che vale
+  // "Qualsiasi prezzo": non e' agganciata a nessuna vettura, e va ignorata.
+  it("l'etichetta del filtro non e' un prezzo", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(`<script>var etichette = {"bodyType":"Qualsiasi carrozzeria","price":"Qualsiasi prezzo"};</script>`),
+      VOCE_ALTRO_SITO
+    );
+
+    expect(esito.ok).toBe(false);
+    if (esito.ok) return;
+    expect(esito.reason).toBe("senza-prezzo");
+  });
+
+  it("quando la scheda dichiara il prezzo, quello vince", () => {
+    const html = `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/una.jpeg">
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        name: "Hyundai Bayon",
+        offers: { price: 19500 },
+      })}</script>
+      <div data-config='{"vehicleId":"7474578","price":99999}'></div>`;
+    const esito = parseDealerStockVehicle(html, VOCE);
+
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.price).toBe(19500);
+  });
+});
