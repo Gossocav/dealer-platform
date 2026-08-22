@@ -146,6 +146,79 @@ function leggiPrezzo(vehicle: SchemaVehicle): number | null {
   return numero((primo as { price?: unknown })?.price);
 }
 
+/**
+ * Il prezzo quando la scheda leggibile dalle macchine non lo dichiara.
+ *
+ * Non tutti i siti DealerK lo mettono nello stesso posto. Su autogepy la
+ * scheda ha il campo "offers" col prezzo dentro; su delorenziauto quel campo
+ * non c'e' proprio -- verificato su dodici vetture su dodici, e la scheda
+ * porta comunque marca, modello, anno, chilometri, colore e alimentazione.
+ * Senza questa lettura quelle centocinque vetture verrebbero scartate tutte
+ * per "prezzo mancante", che e' falso: il prezzo sulla pagina c'e'.
+ *
+ * Il punto delicato e' *quale* cifra prendere. La pagina di una vettura ne
+ * contiene diverse: le auto simili proposte in fondo, e un'etichetta di
+ * filtro che si chiama anch'essa "price" ma vale "Qualsiasi prezzo". E' la
+ * stessa trappola che aveva messo in galleria le foto di altre automobili.
+ *
+ * Quindi non si cerca "un prezzo nella pagina": si cerca il prezzo scritto
+ * accanto all'identificativo di *questa* vettura, quello che sta anche
+ * nell'indirizzo. Sulle schede vere le due cose distano meno di duecento
+ * caratteri, e nessuna delle cifre altrui e' agganciata a questo numero.
+ *
+ * Fra piu' candidati vince la cifra scritta come numero: "20000" non si puo'
+ * fraintendere, mentre "20.000" ha un punto che in italiano separa le
+ * migliaia e altrove i decimali.
+ */
+const FINESTRA_INTORNO_ALL_ID = 400;
+
+function prezzoDaTesto(value: string): number | null {
+  const pulito = value
+    .replace(/\\u20ac/gi, "")
+    .replace(/[€\s]/g, "")
+    .trim();
+  if (!/^[0-9.,]+$/.test(pulito)) return null;
+
+  // "20.000" sono ventimila euro, "20000.00" sono ventimila euro con i
+  // centesimi: distingue quante cifre seguono l'ultimo separatore.
+  const ultimoSeparatore = Math.max(pulito.lastIndexOf("."), pulito.lastIndexOf(","));
+  if (ultimoSeparatore === -1) return numero(pulito);
+
+  const decimali = pulito.length - ultimoSeparatore - 1;
+  const intero = decimali === 3 ? pulito.replace(/[.,]/g, "") : pulito.slice(0, ultimoSeparatore).replace(/[.,]/g, "");
+  return numero(intero);
+}
+
+function leggiPrezzoDallaPagina(html: string, sourceId: string): number | null {
+  const id = sourceId.replace(/[^0-9a-z]/gi, "");
+  if (!id) return null;
+
+  const ancore = [...html.matchAll(new RegExp(`"vehicleId"\\s*:\\s*"?${id}"?`, "g"))].map((m) => m.index ?? -1);
+
+  for (const posizione of ancore) {
+    if (posizione < 0) continue;
+
+    const finestra = html.slice(
+      Math.max(0, posizione - FINESTRA_INTORNO_ALL_ID),
+      posizione + FINESTRA_INTORNO_ALL_ID
+    );
+
+    const comeNumero = finestra.match(/"price"\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*[,}]/);
+    if (comeNumero) {
+      const valore = numero(comeNumero[1].includes(".") ? comeNumero[1].split(".")[0] : comeNumero[1]);
+      if (valore !== null) return valore;
+    }
+
+    const comeTesto = finestra.match(/"price"\s*:\s*"([^"]{1,24})"/);
+    if (comeTesto) {
+      const valore = prezzoDaTesto(comeTesto[1]);
+      if (valore !== null) return valore;
+    }
+  }
+
+  return null;
+}
+
 function leggiMarca(vehicle: SchemaVehicle): string | null {
   const brand = vehicle.brand;
   if (typeof brand === "string") return testo(brand);
@@ -302,7 +375,7 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
     return { ok: false, reason: "nessun-dato-strutturato", url: entry.url };
   }
 
-  const price = leggiPrezzo(grezzo);
+  const price = leggiPrezzo(grezzo) ?? leggiPrezzoDallaPagina(html, entry.sourceId);
   const name = testo(grezzo.name) ?? "";
   const description = testo(grezzo.description);
 
