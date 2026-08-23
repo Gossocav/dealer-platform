@@ -10,6 +10,7 @@ import {
 } from "@/lib/dealer-site-import";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
+import { derivaVersioneDalTitolo } from "@/lib/vehicle-label";
 
 /**
  * Importa lo stock usato dal sito che la concessionaria ha gia'.
@@ -129,9 +130,15 @@ function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, st
     dealer_id: dealerId,
     brand: v.brand,
     model: v.model,
-    // La versione non arriva separata dal titolo: meglio il titolo intero che
-    // un troncamento inventato.
-    version: v.name || null,
+    // La versione non arriva separata: il sito da' un titolo intero. Prima ci
+    // finiva dentro tal quale, e siccome marca e modello sono gia' due campi a
+    // parte, l'intestazione dell'annuncio li diceva due volte -- "Hyundai
+    // Tucson Hyundai Tucson" -- su ogni veicolo importato.
+    //
+    // Adesso si scrive solo quello che il titolo aggiunge davvero
+    // ("1.6 CRDi Xline"): niente troncamenti inventati, si toglie solo cio'
+    // che e' gia' scritto nei campi accanto.
+    version: derivaVersioneDalTitolo(v.name, v.brand, v.model),
     price: v.price,
     mileage: v.mileage,
     fuel: v.fuel,
