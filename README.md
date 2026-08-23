@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KeyAuto — piattaforma per concessionarie
 
-## Getting Started
+Marketplace pubblico di auto usate e km 0, con il gestionale delle concessionarie
+che lo alimenta. Una sola applicazione Next.js serve entrambe le cose:
 
-First, run the development server:
+- **il sito pubblico** (`/`, `/ricerca`, `/auto/...`, `/concessionarie/...`): chi cerca
+  un'auto lo vede senza registrarsi, ed e' quello che Google indicizza;
+- **il gestionale** (`/dashboard`, `/veicoli`, `/lead`, `/clienti`, `/agenda`, ...):
+  ci entra la concessionaria, con i propri dati e nessun altro;
+- **il pannello amministrativo** (`/admin`): approvazioni, richieste demo, account.
+
+Il dominio in produzione e' [www.keyauto.it](https://www.keyauto.it), ospitato su
+Vercel; i dati stanno su Supabase (Postgres).
+
+## Far girare il progetto
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev            # sviluppo, su http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Prima di aprire una modifica, gli stessi quattro controlli della CI:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx tsc --noEmit       # i tipi
+npm run lint           # le regole di scrittura
+npm run test           # l'intera batteria di prove
+npm run build          # la compilazione vera
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Attenzione a quale database si sta usando.** Next carica `.env.local` con
+priorita' su `.env.production`: una prova in locale legge il database di
+sviluppo anche quando si crede di guardare la produzione, e risponde "non
+trovato" invece di fallire. Per provare davvero contro i dati veri:
 
-## Learn More
+```bash
+set -a; . ./.env.production; set +a
+npm run build && npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Dove sta cosa
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Cartella | Cosa contiene |
+|---|---|
+| `src/app/(marketplace)/` | le pagine pubbliche |
+| `src/app/api/` | gli endpoint del server |
+| `src/app/admin/` | il pannello amministrativo |
+| `src/components/` | i componenti condivisi |
+| `src/lib/` | la logica riutilizzabile, e i test accanto ai file che provano |
+| `supabase/migrations/` | le modifiche al database, applicate a mano |
+| `scripts/` | strumenti di verifica, non fanno parte dell'applicazione |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Le tre cose da sapere prima di toccare qualcosa
 
-## Deploy on Vercel
+**I dati di una concessionaria non devono mai finire sotto gli occhi di
+un'altra.** Non e' un principio astratto: e' successo, il 22 agosto 2026, ed e'
+costato una giornata. Ogni interrogazione dichiara di quale concessionaria sono
+i dati, e il database lo impone comunque con la protezione per riga. Due
+serrature, non una.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Le modifiche al database si applicano a mano**, dall'editor SQL di Supabase.
+Nessuna automazione le esegue: `supabase db push` e' vietato. Un controllo
+settimanale segnala quando la produzione e' rimasta indietro.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Un dato che non c'e' non si finge.** Un numero scritto nel codice, mostrato
+accanto a numeri veri, e' peggio di un dato assente: chi guarda lo crede.
+
+## Per approfondire
+
+- [AGENTS.md](AGENTS.md) — come si lavora su questo progetto, in dettaglio
+- [ARCHITECTURE.md](ARCHITECTURE.md) — architettura e modello multi-concessionaria
+- [PRODUCT_BOOK.md](PRODUCT_BOOK.md) — prodotto e ambito funzionale
+- [supabase/MIGRAZIONI.md](supabase/MIGRAZIONI.md) — come si applica una modifica al database
