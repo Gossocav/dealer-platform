@@ -82,7 +82,11 @@ const REQUIRED_EDITOR_FIELDS = [
   "registrationDate",
   "color",
   "status",
-  "description",
+  // La descrizione non e' piu' obbligatoria per salvare. Le vetture importate
+  // dal sito della concessionaria non ne hanno una -- novantuno su
+  // centoventicinque -- e pretenderla scritta a mano significa non poterle
+  // toccare. Resta nel punteggio di salute della scheda: un annuncio
+  // descritto vende meglio, ed e' un consiglio, non un divieto.
 ] as const satisfies ReadonlyArray<keyof EditorState>;
 
 type RequiredEditorFieldKey = (typeof REQUIRED_EDITOR_FIELDS)[number];
@@ -107,7 +111,6 @@ const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   registrationDate: "Data immatricolazione",
   color: "Colore",
   status: "Stato",
-  description: "Descrizione",
 };
 
 function getFieldInputClass(missing: boolean): string {
@@ -1382,15 +1385,15 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
             </div>
 
             <label className="mt-3 block space-y-2">
-              <span className={getFieldLabelClass(missingFieldSet.has("description"))}>Descrizione *</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Descrizione <span className="font-normal normal-case tracking-normal text-slate-400">(consigliata)</span>
+              </span>
               <textarea
                 rows={5}
                 value={state.description}
                 onChange={(event) => updateField("description", event.target.value)}
-                placeholder="Descrizione commerciale del veicolo"
-                className={`w-full rounded-xl border px-3 py-2.5 text-sm text-slate-900 outline-none transition ${
-                  missingFieldSet.has("description") ? "border-red-300 bg-red-50 focus:border-red-400" : "border-slate-200 bg-white focus:border-blue-300"
-                }`}
+                placeholder="Descrizione commerciale del veicolo: aiuta a vendere, ma non e' obbligatoria"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-300"
               />
             </label>
 
