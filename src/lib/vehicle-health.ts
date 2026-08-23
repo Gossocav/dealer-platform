@@ -204,7 +204,15 @@ export function evaluateVehicleHealth(params: EvaluateVehicleHealthParams): Vehi
       weight: 10,
       message: "Descrizione troppo breve o assente.",
       severity: "warning",
-      blocksPublication: true,
+      // Segnala, non impedisce. Bloccava la pubblicazione, e con un catalogo
+      // importato dal sito della concessionaria significava tenere fuori
+      // novantuno vetture su centoventicinque: i siti di origine spesso non
+      // pubblicano una descrizione commerciale, e chiederne una scritta a mano
+      // per ognuna vuol dire non pubblicarle mai.
+      //
+      // Resta nel punteggio di salute della scheda con lo stesso peso, perche'
+      // un annuncio descritto vende meglio: e' un consiglio, non un divieto.
+      blocksPublication: false,
       suggestion: "Aggiungi una descrizione commerciale di almeno 80 caratteri.",
     },
     {
