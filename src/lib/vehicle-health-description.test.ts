@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 
@@ -68,5 +70,32 @@ describe("la descrizione consiglia, non impedisce", () => {
 
     expect(salute.publishable).toBe(true);
     expect(salute.issues.some((issue) => issue.code === "mileage")).toBe(false);
+  });
+});
+
+// Toglierla dalla pubblicazione non bastava: il modulo di modifica del
+// veicolo la pretendeva per salvare, quindi una vettura importata non si
+// poteva nemmeno correggere senza scriverne una a mano.
+describe("il modulo veicolo non pretende la descrizione", () => {
+  const modulo = readFileSync(
+    resolve(process.cwd(), "src/components/vehicles/vehicle-editor-page.tsx"),
+    "utf8"
+  );
+
+  it("non e' fra i campi obbligatori", () => {
+    const elenco = modulo.slice(
+      modulo.indexOf("const REQUIRED_EDITOR_FIELDS"),
+      modulo.indexOf("] as const satisfies ReadonlyArray<keyof EditorState>;")
+    );
+
+    expect(elenco).not.toContain('"description"');
+    // Gli altri restano dove sono: qui si toglie una regola, non tutte.
+    expect(elenco).toContain('"brand"');
+    expect(elenco).toContain('"price"');
+  });
+
+  it("l'etichetta non porta piu' l'asterisco, e dice che e' consigliata", () => {
+    expect(modulo).not.toContain("Descrizione *");
+    expect(modulo).toContain("(consigliata)");
   });
 });
