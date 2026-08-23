@@ -28,6 +28,7 @@ import {
   type MarketplaceDealer,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { raggruppaConcessionariePartner, type PartnerDealer } from "@/lib/marketplace-partner-dealers";
 import { DISTANCE_OPTIONS } from "@/lib/search-distance";
 import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
@@ -50,12 +51,6 @@ import { formatRegistrationLabel } from "@/lib/vehicles";
 //
 // Le altre pagine tengono la loro cache: il difetto ha colpito solo questa.
 export const dynamic = "force-dynamic";
-
-type DealerCluster = {
-  dealerId: string;
-  dealer: MarketplaceDealer | null;
-  vehicles: MarketplaceVehicle[];
-};
 
 const PRICE_BANDS = [
   { label: "Fino a 5.000 €", value: "5000" },
@@ -172,7 +167,14 @@ export default async function MarketplaceHomePage() {
   const vehicles = (data ?? []) as unknown as MarketplaceVehicle[];
   const latestVehicles = [...vehicles].sort(byNewest).slice(0, 6);
   const featuredVehicles = [...vehicles].sort(byFeatured);
-  const partnerDealers = groupDealers(vehicles).slice(0, 4);
+  // Le concessionarie partner nascono da publishedRows, che copre tutto il
+  // pubblicato: erano ricavate dai 24 veicoli delle "ultime arrivate" e la
+  // sezione mostrava solo chi aveva caricato per ultimo. In produzione, con
+  // 149 veicoli pubblicati, i primi 24 erano tutti di una concessionaria: la
+  // seconda spariva dalla rete pur avendo 98 auto in vetrina, e il numero
+  // "Concessionarie partner" poco sopra diceva 2. Stessa correzione gia' fatta
+  // per le categorie e per le marche piu' presenti.
+  const partnerDealers = raggruppaConcessionariePartner(publishedRows ?? []).slice(0, 4);
   const brands = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
   const allModels = uniqueValues(vehicles.map((vehicle) => vehicle.model));
   const brandModelMap: Record<string, string[]> = {};
@@ -669,7 +671,7 @@ function Tag({ children }: { children: React.ReactNode }) {
   return <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300">{children}</span>;
 }
 
-function PartnerDealerCard({ group }: { group: DealerCluster }) {
+function PartnerDealerCard({ group }: { group: PartnerDealer }) {
   const dealerName = group.dealer?.legal_name ?? group.dealer?.name ?? "Concessionaria";
   const dealerSlug = resolveDealerSlug(group.dealer ? [group.dealer] : null);
 
@@ -683,7 +685,7 @@ function PartnerDealerCard({ group }: { group: DealerCluster }) {
       </div>
       <h3 className="mt-4 font-semibold text-white">{dealerName}</h3>
       <p className="mt-3 border-t border-white/10 pt-3 text-sm text-slate-400">
-        <span className="font-semibold text-cyan-300">{group.vehicles.length}</span> veicoli disponibili
+        <span className="font-semibold text-cyan-300">{group.vehicleCount}</span> veicoli disponibili
       </p>
     </Link>
   );
@@ -782,22 +784,6 @@ function CheckIcon({ className }: { className?: string }) {
    Data helpers (unchanged logic from the previous home page)
    ============================================================ */
 
-function groupDealers(vehicles: MarketplaceVehicle[]) {
-  const map = new Map<string, DealerCluster>();
-
-  for (const vehicle of vehicles) {
-    const dealer = Array.isArray(vehicle.dealers) ? vehicle.dealers[0] ?? null : vehicle.dealers ?? null;
-    const dealerId = String(vehicle.dealer_id ?? dealer?.id ?? resolveDealerSlug(vehicle.dealers));
-
-    if (!map.has(dealerId)) {
-      map.set(dealerId, { dealerId, dealer, vehicles: [] });
-    }
-
-    map.get(dealerId)?.vehicles.push(vehicle);
-  }
-
-  return [...map.values()].sort((a, b) => b.vehicles.length - a.vehicles.length);
-}
 
 function uniqueValues(values: Array<string | number | null | undefined>) {
   return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) =>
