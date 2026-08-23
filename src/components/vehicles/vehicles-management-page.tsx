@@ -71,6 +71,8 @@ export function VehiclesManagementPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyVehicleId, setBusyVehicleId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkPublishing, setBulkPublishing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -550,6 +552,131 @@ export function VehiclesManagementPage() {
     refreshData();
   }, [currentDealerId, ensureDemoWriteAllowed, refreshData]);
 
+  /**
+   * Pubblica in una volta sola i veicoli selezionati.
+   *
+   * Con un catalogo importato dal sito della concessionaria, pubblicare uno
+   * per uno significa centocinque clic. Le verifiche restano quelle della
+   * pubblicazione singola -- scheda completa, passaggio di stato consentito --
+   * e vengono fatte veicolo per veicolo: uno incompleto non blocca gli altri,
+   * viene saltato e alla fine si dice quanti e perche'.
+   *
+   * Il tetto di annunci del piano lo impone il database. Quando scatta, ci si
+   * ferma li' e lo si riporta con le sue parole: continuare significherebbe
+   * accumulare rifiuti identici.
+   */
+  const handlePublishSelected = useCallback(async () => {
+    if (!currentDealerId) {
+      setError("Concessionaria non associata all'utente.");
+      return;
+    }
+
+    const daPubblicare = items.filter(
+      (vehicle) => selectedVehicleIds.includes(vehicle.id) && vehicle.status !== "published"
+    );
+
+    if (daPubblicare.length === 0) {
+      setNotice("I veicoli selezionati sono gia' pubblicati.");
+      return;
+    }
+
+    const confermato = globalThis.confirm(
+      `Vuoi pubblicare ${daPubblicare.length} veicoli? Compariranno sul marketplace pubblico.`
+    );
+    if (!confermato) return;
+
+    setBulkPublishing(true);
+    setError(null);
+    setNotice(null);
+
+    const demoWrite = await ensureDemoWriteAllowed("integration");
+    if (!demoWrite.allowed) {
+      setError(demoWrite.message);
+      setBulkPublishing(false);
+      return;
+    }
+
+    const { data: authData } = await supabase.auth.getUser();
+    const actorProfileId = authData.user?.id ?? null;
+
+    let pubblicati = 0;
+    const saltati: string[] = [];
+    let limiteDelPiano: string | null = null;
+
+    for (const vehicle of daPubblicare) {
+      const etichetta = `${vehicle.brand} ${vehicle.model}`.trim() || vehicle.id;
+
+      const health = evaluateVehicleHealth({ vehicle: vehicle.raw });
+      if (!health.publishable) {
+        saltati.push(`${etichetta}: ${health.issues[0]?.message ?? "scheda non pubblicabile"}`);
+        continue;
+      }
+
+      const transition = validateVehicleStatusTransitionForCrud({
+        fromStatus: vehicle.raw.status,
+        fromPublished: vehicle.raw.published,
+        toStatus: "published",
+        toPublished: true,
+      });
+
+      if (!transition.allowed) {
+        saltati.push(`${etichetta}: ${transition.message ?? "passaggio di stato non consentito"}`);
+        continue;
+      }
+
+      const { error: updateError } = await supabase
+        .from("vehicles")
+        .update({ status: transition.nextStatus, published: transition.nextPublished })
+        .eq("id", vehicle.id)
+        .eq("dealer_id", currentDealerId);
+
+      if (updateError) {
+        // Il tetto del piano non e' un errore del singolo veicolo: e' la fine
+        // dello spazio disponibile, e vale per tutti quelli dopo.
+        if (updateError.message.includes("limite di")) {
+          limiteDelPiano = updateError.message;
+          break;
+        }
+
+        saltati.push(`${etichetta}: ${updateError.message}`);
+        continue;
+      }
+
+      pubblicati += 1;
+
+      if (vehicle.raw.dealer_id) {
+        await writeVehicleTimelineEvent(supabase, {
+          dealerId: vehicle.raw.dealer_id,
+          vehicleId: vehicle.id,
+          action: "vehicle.published",
+          actorType: "user",
+          actorProfileId,
+          metadata: { fromStatus: String(vehicle.raw.status ?? "draft"), toStatus: transition.nextStatus },
+          before: { status: vehicle.raw.status, published: vehicle.raw.published },
+          after: { status: transition.nextStatus, published: transition.nextPublished },
+        });
+      }
+    }
+
+    setBulkPublishing(false);
+    setSelectedVehicleIds([]);
+
+    const riepilogo = [`Pubblicati ${pubblicati} veicoli su ${daPubblicare.length}.`];
+    if (limiteDelPiano) riepilogo.push(limiteDelPiano);
+    if (saltati.length > 0) {
+      riepilogo.push(`Saltati ${saltati.length}: ${saltati.slice(0, 3).join("; ")}${saltati.length > 3 ? "; ..." : ""}`);
+    }
+
+    const messaggio = riepilogo.join(" ");
+    if (limiteDelPiano || saltati.length > 0) {
+      setError(messaggio);
+    } else {
+      setNotice(messaggio);
+    }
+
+    await refreshData();
+  }, [currentDealerId, ensureDemoWriteAllowed, items, refreshData, selectedVehicleIds]);
+
   const handleDeleteSelected = useCallback(async () => {
     if (!currentDealerId) {
       setError("Concessionaria non associata all'utente.");
@@ -852,6 +979,15 @@ export function VehiclesManagementPage() {
           </span>
 
           {selectedCount > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePublishSelected}
+              disabled={bulkPublishing || bulkDeleting}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {bulkPublishing ? "Pubblicazione in corso..." : `Pubblica selezionati (${selectedCount})`}
+            </button>
             <button
               type="button"
               onClick={handleDeleteSelected}
@@ -860,12 +996,17 @@ export function VehiclesManagementPage() {
             >
               Elimina selezionati ({selectedCount})
             </button>
+            </div>
           ) : null}
         </div>
       </section>
 
       {error ? (
         <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</section>
+      ) : null}
+
+      {notice ? (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{notice}</section>
       ) : null}
 
       {loading ? (
