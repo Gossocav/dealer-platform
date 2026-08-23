@@ -37,6 +37,17 @@ export function logMarketplaceQueryError(context: string, error: unknown) {
   });
 }
 
+// Un elenco letto per intero puo' fermarsi al tetto di caricaTutto: da li' in
+// avanti i conteggi che ne derivano sono per difetto. Non si tace e non si
+// finge: resta scritto nei log del server, cosi' chi guarda sa perche' un
+// numero e' piu' basso del vero.
+export function logMarketplaceTruncatedList(context: string, righeLette: number) {
+  console.warn("[marketplace] elenco troncato", {
+    context,
+    righeLette,
+  });
+}
+
 export function isMarketplaceVehiclePublishable(input: { published?: boolean | null; status?: string | null; dealerStatus?: string | null }) {
   const published = Boolean(input.published);
   const vehicleStatus = String(input.status ?? "").trim().toLowerCase();

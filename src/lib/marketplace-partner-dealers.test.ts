@@ -75,7 +75,38 @@ describe("la home nutre la sezione con l'elenco intero", () => {
   const home = readFileSync(resolve(process.cwd(), "src/app/(marketplace)/page.tsx"), "utf8");
 
   it("raggruppa publishedRows e non i 24 veicoli delle ultime arrivate", () => {
-    expect(home).toContain("raggruppaConcessionariePartner(publishedRows ?? [])");
+    // Niente "?? []": caricaTutto consegna sempre un elenco, mai null.
+    expect(home).toContain("raggruppaConcessionariePartner(publishedRows)");
     expect(home).not.toContain("groupDealers(vehicles)");
+  });
+});
+
+// Le stesse righe che danno le concessionarie danno anche le citta' coperte,
+// le categorie e le marche piu' presenti. Erano lette con una richiesta sola,
+// e il database ne consegna mille per volta senza dirlo: al millesimo veicolo
+// pubblicato tutti quei numeri sarebbero calati in silenzio. Con i tetti dei
+// piani (50/150/300 annunci) il tetto si tocca con quattro o cinque
+// concessionarie, non con venti.
+//
+// Legge il sorgente: dice che l'elenco e' letto per intero, non che il
+// database consegni davvero tutto. La prova vera e' in carica-tutto.test.ts.
+describe("la home legge il pubblicato per intero", () => {
+  const home = readFileSync(resolve(process.cwd(), "src/app/(marketplace)/page.tsx"), "utf8");
+
+  it("usa caricaTutto invece di una richiesta sola", () => {
+    expect(home).toContain("caricaTutto<PublishedRow>");
+    expect(home).toContain(".range(da, a)");
+  });
+
+  // Senza un ordine stabile due blocchi possono consegnare due volte la stessa
+  // riga e saltarne un'altra: i conteggi sballerebbero senza che nulla avvisi.
+  it("chiede le righe in un ordine stabile", () => {
+    const blocco = home.slice(home.indexOf("caricaTutto<PublishedRow>"), home.indexOf(".range(da, a)"));
+    expect(blocco).toContain('.order("created_at", { ascending: false })');
+  });
+
+  it("segnala nei log quando l'elenco si ferma al tetto", () => {
+    expect(home).toContain("if (elencoTroncato)");
+    expect(home).toContain('logMarketplaceTruncatedList("home"');
   });
 });
