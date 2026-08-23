@@ -15,6 +15,7 @@ import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { supabase } from "@/lib/supabaseClient";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   applyPriceBandFilters,
   defaultVehicleFilters,
@@ -23,6 +24,8 @@ import {
   formatMileage,
   formatRegistrationLabel,
   formatVehicleStatus,
+  vehicleSortFromValue,
+  vehicleSortToValue,
   normalizeVehicleStatus,
   priceBandOptions,
   safeText,
@@ -53,11 +56,75 @@ type VehicleOptionKey = {
 
 const PAGE_SIZE = 9;
 
+/**
+ * Filtri, pagina, ordinamento e vista scritti nell'indirizzo.
+ *
+ * Prima vivevano solo in memoria: uscendo da un veicolo e tornando indietro
+ * l'elenco ripartiva dalla prima pagina, senza filtri -- anche premendo la
+ * freccia del browser, perche' quello che si riapriva era la stessa pagina
+ * ricostruita da zero.
+ *
+ * Nell'indirizzo servono anche a un'altra cosa: un elenco filtrato si puo'
+ * mandare a qualcuno o tenere fra i preferiti.
+ */
+function statoDaIndirizzo(params: URLSearchParams) {
+  const testo = (chiave: string, predefinito: string) => params.get(chiave)?.trim() || predefinito;
+
+  const filtri: VehicleFilters = {
+    query: testo("cerca", defaultVehicleFilters.query),
+    brand: testo("marca", defaultVehicleFilters.brand),
+    model: testo("modello", defaultVehicleFilters.model),
+    fuel: testo("alimentazione", defaultVehicleFilters.fuel),
+    transmission: testo("cambio", defaultVehicleFilters.transmission),
+    status: testo("stato", defaultVehicleFilters.status),
+    priceBand: testo("prezzo", defaultVehicleFilters.priceBand),
+  };
+
+  const paginaGrezza = Number(params.get("pagina"));
+  const pagina = Number.isFinite(paginaGrezza) && paginaGrezza >= 1 ? Math.floor(paginaGrezza) : 1;
+
+  const vista: ViewMode = params.get("vista") === "table" ? "table" : "card";
+  const ordinamento = vehicleSortFromValue(testo("ordine", "")) ?? { field: "created_at" as const, direction: "desc" as const };
+
+  return { filtri, pagina, vista, ordinamento };
+}
+
+function indirizzoDaStato(filters: VehicleFilters, page: number, viewMode: ViewMode, sort: VehicleSortState) {
+  const params = new URLSearchParams();
+  const aggiungi = (chiave: string, valore: string, predefinito: string) => {
+    if (valore && valore !== predefinito) params.set(chiave, valore);
+  };
+
+  aggiungi("cerca", filters.query, defaultVehicleFilters.query);
+  aggiungi("marca", filters.brand, defaultVehicleFilters.brand);
+  aggiungi("modello", filters.model, defaultVehicleFilters.model);
+  aggiungi("alimentazione", filters.fuel, defaultVehicleFilters.fuel);
+  aggiungi("cambio", filters.transmission, defaultVehicleFilters.transmission);
+  aggiungi("stato", filters.status, defaultVehicleFilters.status);
+  aggiungi("prezzo", filters.priceBand, defaultVehicleFilters.priceBand);
+
+  if (page > 1) params.set("pagina", String(page));
+  if (viewMode !== "card") params.set("vista", viewMode);
+
+  const ordine = vehicleSortToValue(sort);
+  if (ordine !== "created_at:desc") params.set("ordine", ordine);
+
+  return params.toString();
+}
+
 export function VehiclesManagementPage() {
-  const [filters, setFilters] = useState<VehicleFilters>(defaultVehicleFilters);
-  const [viewMode, setViewMode] = useState<ViewMode>("card");
-  const [sort, setSort] = useState<VehicleSortState>({ field: "created_at", direction: "desc" });
-  const [page, setPage] = useState(1);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Si legge una volta sola, all'apertura: da li' in poi comanda lo stato, e
+  // l'indirizzo lo segue.
+  const [iniziale] = useState(() => statoDaIndirizzo(new URLSearchParams(searchParams.toString())));
+
+  const [filters, setFilters] = useState<VehicleFilters>(iniziale.filtri);
+  const [viewMode, setViewMode] = useState<ViewMode>(iniziale.vista);
+  const [sort, setSort] = useState<VehicleSortState>(iniziale.ordinamento);
+  const [page, setPage] = useState(iniziale.pagina);
 
   const [items, setItems] = useState<VehicleListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -75,6 +142,18 @@ export function VehiclesManagementPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // L'indirizzo segue lo stato. "replace" e non "push": cambiare un filtro
+  // non deve riempire la cronologia del browser di passaggi intermedi, o la
+  // freccia indietro diventerebbe inutilizzabile.
+  useEffect(() => {
+    const query = indirizzoDaStato(filters, page, viewMode, sort);
+    const attuale = searchParams.toString();
+
+    if (query === attuale) return;
+
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [filters, page, viewMode, sort, pathname, router, searchParams]);
 
   const refreshData = useCallback(() => {
     setRefreshKey((prev) => prev + 1);

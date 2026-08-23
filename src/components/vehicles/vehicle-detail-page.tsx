@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { pickCoverPreviewUrl, resolveVehicleImageRows, type ResolvedVehicleImage } from "@/lib/vehicle-photos";
 import { buildVehicleTimelineEvents, listVehicleTimelineAuditEvents, writeVehicleTimelineEvent, type VehicleTimelineEvent } from "@/lib/vehicle-timeline";
+import { useRouter } from "next/navigation";
 import {
   formatCurrency,
   formatDate,
@@ -90,6 +91,7 @@ function getHealthLevelPill(level: "eccellente" | "buono" | "incompleto" | "crit
 }
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
+  const router = useRouter();
   const [dealerName, setDealerName] = useState("");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
@@ -352,12 +354,24 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               >
                 <Printer className="h-4 w-4" /> Stampa scheda
               </Link>
-              <Link
-                href="/veicoli"
+              {/* Torna dove si era davvero: alla pagina dell'elenco che si
+                  stava guardando, coi filtri scelti. Un collegamento fisso a
+                  "/veicoli" riportava sempre alla prima pagina senza filtri,
+                  che con un catalogo di cento vetture significa ricominciare
+                  da capo ogni volta. */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined" && window.history.length > 1) {
+                    router.back();
+                    return;
+                  }
+                  router.push("/veicoli");
+                }}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Torna alla lista
-              </Link>
+              </button>
             </div>
           </section>
 
