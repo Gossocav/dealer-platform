@@ -183,6 +183,19 @@ export const defaultVehicleFilters: VehicleFilters = {
   priceBand: "all",
 };
 
+// Quanti filtri restringono davvero l'elenco. La barra mostrava un'etichetta
+// "Filtri attivi" scritta in duro, sempre accesa anche a filtri vuoti: diceva
+// una cosa falsa a chi la leggeva. Il conteggio si fa qui, non nella barra,
+// perche' e' una regola sui dati e va provata chiamandola.
+export function countActiveVehicleFilters(filters: VehicleFilters): number {
+  return (Object.keys(defaultVehicleFilters) as Array<keyof VehicleFilters>).filter((campo) => {
+    const valore = filters[campo];
+    // La ricerca fatta di soli spazi non restringe niente.
+    if (campo === "query") return valore.trim().length > 0;
+    return valore !== defaultVehicleFilters[campo];
+  }).length;
+}
+
 export const statusOptions = [
   { value: "all", label: "Tutti gli stati" },
   { value: "published", label: "Pubblicato" },

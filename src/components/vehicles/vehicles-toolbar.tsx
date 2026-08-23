@@ -1,5 +1,7 @@
 import { Funnel, LayoutGrid, Search, SlidersHorizontal, Table2 } from "lucide-react";
 import {
+  countActiveVehicleFilters,
+  defaultVehicleFilters,
   VEHICLE_SORT_OPTIONS,
   vehicleSortFromValue,
   vehicleSortToValue,
@@ -69,6 +71,7 @@ export function VehiclesToolbar({
   onSortChange,
 }: VehiclesToolbarProps) {
   const valoreOrdinamento = vehicleSortToValue(sort);
+  const filtriAttivi = countActiveVehicleFilters(filters);
 
   // Ordinando dalla tabella si puo' finire su un criterio che la tendina non
   // elenca (marca, stato): in quel caso si aggiunge come voce, invece di
@@ -187,26 +190,28 @@ export function VehiclesToolbar({
 
           <button
             type="button"
-            onClick={() =>
-              onFiltersChange({
-                query: "",
-                brand: "all",
-                model: "all",
-                fuel: "all",
-                transmission: "all",
-                status: "all",
-                priceBand: "all",
-              })
-            }
-            className="ml-auto inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            onClick={() => onFiltersChange(defaultVehicleFilters)}
+            disabled={filtriAttivi === 0}
+            className="ml-auto inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white"
           >
             <SlidersHorizontal className="h-4 w-4" />
             Reset filtri
           </button>
 
-          <div className="inline-flex h-11 items-center gap-2 rounded-xl bg-blue-50 px-4 text-sm font-medium text-blue-700">
+          {/* L'etichetta compare solo quando un filtro c'e' davvero, e dice
+              quanti sono: prima era scritta in duro e restava accesa anche a
+              filtri vuoti, dichiarando una cosa che non era vera. */}
+          <div
+            className={`inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium ${
+              filtriAttivi > 0 ? "bg-blue-50 text-blue-700" : "text-slate-400"
+            }`}
+          >
             <Funnel className="h-4 w-4" />
-            Filtri attivi
+            {filtriAttivi === 0
+              ? "Nessun filtro attivo"
+              : filtriAttivi === 1
+                ? "1 filtro attivo"
+                : `${filtriAttivi} filtri attivi`}
           </div>
         </div>
       </div>
