@@ -17,6 +17,7 @@ import {
   formatPrice,
   formatText,
   logMarketplaceQueryError,
+  logMarketplaceTruncatedList,
   normalizeVehicleDealerName,
   resolveDealerLocality,
   publicSupabase,
@@ -28,6 +29,7 @@ import {
   type MarketplaceDealer,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { raggruppaConcessionariePartner, type PartnerDealer } from "@/lib/marketplace-partner-dealers";
 import { DISTANCE_OPTIONS } from "@/lib/search-distance";
 import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
@@ -51,6 +53,15 @@ import { formatRegistrationLabel } from "@/lib/vehicles";
 //
 // Le altre pagine tengono la loro cache: il difetto ha colpito solo questa.
 export const dynamic = "force-dynamic";
+
+// Le righe del pubblicato: una per veicolo, con la concessionaria agganciata.
+// Servono ai conteggi della home, non a disegnare le schede dei veicoli.
+type PublishedRow = {
+  dealer_id: string | null;
+  body_type: string | null;
+  brand: string | null;
+  dealers: { status: string | null; name: string | null; legal_name: string | null; city: string | null } | null;
+};
 
 const PRICE_BANDS = [
   { label: "Fino a 5.000 €", value: "5000" },
@@ -82,7 +93,7 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function MarketplaceHomePage() {
-  const [{ data, error }, { count: totalVehicleCount }, { data: publishedRows }] = await Promise.all([
+  const [{ data, error }, { count: totalVehicleCount }, { righe: publishedRows, troncato: elencoTroncato }] = await Promise.all([
     publicSupabase
       .from("vehicles")
       .select(
@@ -106,20 +117,41 @@ export default async function MarketplaceHomePage() {
     // actual values. This deliberately counts dealers that have at least one
     // published vehicle, not just any dealer marked active/approved in the
     // system — a "partner" with zero live inventory isn't a real partner yet.
-    publicSupabase
-      .from("vehicles")
-      .select("dealer_id, body_type, brand, dealers!inner(status, name, legal_name, city)")
-      .eq("published", true)
-      .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
-      .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES),
+    //
+    // Letto con caricaTutto: il database consegna mille righe per richiesta e
+    // non lo dice. Da queste righe escono le concessionarie della rete, i loro
+    // conteggi, le citta' coperte, le categorie e le marche piu' presenti: al
+    // millesimo veicolo pubblicato sarebbero tornati tutti a sbagliare in
+    // silenzio, che e' il modo peggiore di accorgersene. Con i tetti dei piani
+    // (50/150/300 annunci) il tetto si tocca con quattro o cinque
+    // concessionarie, non con venti.
+    caricaTutto<PublishedRow>((da, a) =>
+      publicSupabase
+        .from("vehicles")
+        .select("dealer_id, body_type, brand, dealers!inner(status, name, legal_name, city)")
+        .eq("published", true)
+        .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+        .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+        // Un ordine stabile serve a caricaTutto: senza, due blocchi possono
+        // consegnare due volte la stessa riga e saltarne un'altra.
+        .order("created_at", { ascending: false })
+        .range(da, a)
+        .returns<PublishedRow[]>()
+    ),
   ]);
 
-  const totalDealerCount = new Set((publishedRows ?? []).map((row) => row.dealer_id)).size;
+  // Se si e' toccato il tetto di caricaTutto i conteggi qui sotto sono per
+  // difetto: non si tace, si scrive nei log del server.
+  if (elencoTroncato) {
+    logMarketplaceTruncatedList("home", publishedRows.length);
+  }
+
+  const totalDealerCount = new Set(publishedRows.map((row) => row.dealer_id)).size;
 
   // "Citta' coperte" sono quelle dove c'e' una concessionaria, non quelle
   // scritte sui singoli veicoli: la copertura del marketplace la danno le sedi.
   const coveredCities = new Set(
-    (publishedRows ?? [])
+    publishedRows
       .map((row) => {
         const dealer = row.dealers as unknown as { city?: string | null } | Array<{ city?: string | null }> | null;
         const first = Array.isArray(dealer) ? dealer[0] : dealer;
@@ -139,7 +171,7 @@ export default async function MarketplaceHomePage() {
   // concessionaria, quindi il link porta per forza dove dice di portare.
   const marqueeDealers: MarqueeDealer[] = Array.from(
     new Map(
-      (publishedRows ?? []).map(
+      publishedRows.map(
         (row) =>
           [row.dealer_id, normalizeVehicleDealerName(row.dealers as unknown as MarketplaceDealer | MarketplaceDealer[])] as const,
       ),
@@ -174,7 +206,7 @@ export default async function MarketplaceHomePage() {
   // seconda spariva dalla rete pur avendo 98 auto in vetrina, e il numero
   // "Concessionarie partner" poco sopra diceva 2. Stessa correzione gia' fatta
   // per le categorie e per le marche piu' presenti.
-  const partnerDealers = raggruppaConcessionariePartner(publishedRows ?? []).slice(0, 4);
+  const partnerDealers = raggruppaConcessionariePartner(publishedRows).slice(0, 4);
   const brands = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
   const allModels = uniqueValues(vehicles.map((vehicle) => vehicle.model));
   const brandModelMap: Record<string, string[]> = {};
@@ -199,7 +231,7 @@ export default async function MarketplaceHomePage() {
   // Il conteggio arriva da publishedRows, che copre tutto il pubblicato: era
   // calcolato sugli stessi 24 e diceva "3 disponibili" dove ce n'erano trenta.
   const publishedBodyTypeCounts = new Map<string, number>();
-  for (const row of publishedRows ?? []) {
+  for (const row of publishedRows) {
     const bodyType = String((row as { body_type?: string | null }).body_type ?? "").trim();
     if (bodyType) {
       publishedBodyTypeCounts.set(bodyType, (publishedBodyTypeCounts.get(bodyType) ?? 0) + 1);
@@ -226,7 +258,7 @@ export default async function MarketplaceHomePage() {
   // veicoli caricati per le "ultime arrivate" avrebbero dato una classifica
   // delle marche appena inserite, non delle piu' presenti.
   const brandCounts = new Map<string, number>();
-  for (const row of publishedRows ?? []) {
+  for (const row of publishedRows) {
     const brand = String((row as { brand?: string | null }).brand ?? "").trim();
     if (brand) brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
   }
