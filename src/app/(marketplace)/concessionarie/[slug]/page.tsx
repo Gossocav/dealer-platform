@@ -40,7 +40,13 @@ async function resolveDealerBySlug(slug: string) {
     // Google di riconoscere la concessionaria come un'azienda con una sede,
     // invece che come una pagina qualsiasi.
     .select("id, name, logo_url, legal_name, city, province, address, phone, email, website")
-    .eq("status", "approved");
+    // Gli stessi stati con cui il marketplace pubblica i veicoli, non il solo
+    // "approved" che c'era qui: le due condizioni devono coincidere, altrimenti
+    // una concessionaria in stato "active" avrebbe le sue auto in vetrina e la
+    // propria pagina che risponde "non trovato" -- con il bottone della scheda
+    // veicolo che ci punta dritto. Il resto del marketplace (/ricerca, e
+    // l'immagine di anteprima di questa stessa pagina) usava gia' la costante.
+    .in("status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
 
   if (error) {
     return null;
