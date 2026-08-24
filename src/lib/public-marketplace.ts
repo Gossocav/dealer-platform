@@ -121,6 +121,9 @@ export type MarketplaceVehicle = {
   traction?: string | null;
   description: string | null;
   body_type: string | null;
+  // Nuovo / Usato / Aziendale / Km0. Serve al filtro "Condizioni" della
+  // ricerca nella pagina concessionaria e ai dati strutturati dell'annuncio.
+  vehicle_condition?: string | null;
   color: string | null;
   power_cv: number | null;
   doors: number | null;
