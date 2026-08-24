@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatText, logMarketplaceQueryError, normalizeVehicleDealerName, publicSupabase, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-search";
+import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatText, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 import { resolveClickableWebsite } from "@/lib/website-url";
@@ -25,7 +27,11 @@ export async function generateStaticParams() {
 }
 
 
-const DEALER_PAGE_VEHICLES_LIMIT = 120;
+// Il tetto del piano piu' capiente (Elite, 300 annunci): la ricerca avanzata
+// di questa pagina filtra i veicoli gia' scaricati, quindi tagliarne una parte
+// prima di filtrarli darebbe risultati incompleti senza dirlo. Se un giorno un
+// piano superasse questo numero, l'avviso qui sotto lo scrive nei log.
+const DEALER_PAGE_VEHICLES_LIMIT = 300;
 
 async function resolveDealerBySlug(slug: string) {
   const { data, error } = await publicSupabase
@@ -95,7 +101,9 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   const { data, error } = await publicSupabase
     .from("vehicles")
-    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
+    // body_type e vehicle_condition non servono alla scheda: servono alle
+    // tendine "Carrozzeria" e "Condizioni" della ricerca qui sotto.
+    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, body_type, vehicle_condition, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
     .eq("dealer_id", matchedDealer.id)
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -117,12 +125,36 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     notFound();
   }
 
+  // Un elenco arrivato esattamente al tetto e' quasi sempre un elenco tagliato:
+  // resta scritto nei log, perche' da li' in avanti la ricerca filtrerebbe su
+  // una parte dello stock credendo di averlo tutto.
+  if (dealerVehicles.length === DEALER_PAGE_VEHICLES_LIMIT) {
+    logMarketplaceTruncatedList("dealer-page", dealerVehicles.length);
+  }
+
   const dealer = Array.isArray(dealerVehicles[0].dealers) ? dealerVehicles[0].dealers[0] ?? null : dealerVehicles[0].dealers ?? null;
   const dealerLegalName = String(dealer?.legal_name ?? "").trim();
   const dealerFallbackName = String(dealer?.name ?? "").trim();
   const dealerName = dealerLegalName || dealerFallbackName || "Concessionaria";
   const cities = Array.from(new Set(dealerVehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
   const totalVehicles = dealerVehicles.length;
+
+  // Il minimo indispensabile perche' il browser possa filtrare: nessuna foto,
+  // nessun testo lungo. Le schede restano disegnate dal server.
+  const searchFacets: DealerVehicleFacets[] = dealerVehicles.map((vehicle) => ({
+    id: vehicle.id,
+    label: resolveVehicleLabel(vehicle),
+    brand: String(vehicle.brand ?? ""),
+    model: String(vehicle.model ?? ""),
+    bodyType: String(vehicle.body_type ?? ""),
+    condition: String(vehicle.vehicle_condition ?? ""),
+    fuel: String(vehicle.fuel ?? ""),
+    transmission: String(vehicle.transmission ?? ""),
+    year: resolveVehicleYear(vehicle),
+    price: toFiniteNumber(vehicle.price),
+    mileage: toFiniteNumber(vehicle.mileage),
+    createdAt: Date.parse(String(vehicle.created_at ?? "")) || 0,
+  }));
 
   const canonicalUrl = toAbsoluteUrl(`/concessionarie/${slug}`);
   const dealerJsonLd = buildDealerJsonLd({
@@ -190,15 +222,37 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
           </div>
         </section>
 
-        <section>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Veicoli della concessionaria</p>
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {dealerVehicles.map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
-            ))}
-          </div>
-        </section>
+        <DealerVehicleSearch vehicles={searchFacets}>
+          {dealerVehicles.map((vehicle) => (
+            <VehicleCard key={vehicle.id} vehicle={vehicle} />
+          ))}
+        </DealerVehicleSearch>
       </div>
     </main>
   );
+}
+
+/**
+ * L'anno su cui filtra "Anno da / Anno a". Come nella ricerca del marketplace
+ * si guarda prima l'immatricolazione vera; a differenza di li', se manca si
+ * ripiega sulla colonna "year" -- i veicoli importati dai siti spesso portano
+ * solo quella, e senza il ripiego resterebbero fuori da ogni intervallo di
+ * anni pur essendo in vetrina.
+ */
+function resolveVehicleYear(vehicle: MarketplaceVehicle) {
+  const fromRegistration = String(vehicle.registration_date ?? "").slice(0, 4);
+  if (/^\d{4}$/.test(fromRegistration)) {
+    return Number(fromRegistration);
+  }
+
+  const fromYear = String(vehicle.year ?? "").slice(0, 4);
+  return /^\d{4}$/.test(fromYear) ? Number(fromYear) : null;
+}
+
+function toFiniteNumber(value: string | number | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
 }
