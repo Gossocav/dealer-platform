@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
+import { FileSignature, Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { pianoIncludeSchedaConsegna } from "@/lib/scheda-consegna";
 import { supabase } from "@/lib/supabaseClient";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { pickCoverPreviewUrl, resolveVehicleImageRows, type ResolvedVehicleImage } from "@/lib/vehicle-photos";
 import { buildVehicleTimelineEvents, listVehicleTimelineAuditEvents, writeVehicleTimelineEvent, type VehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -92,6 +94,7 @@ function getHealthLevelPill(level: "eccellente" | "buono" | "incompleto" | "crit
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const router = useRouter();
+  const { planCode } = usePianoInVigore();
   const [dealerName, setDealerName] = useState("");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
@@ -354,6 +357,17 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               >
                 <Printer className="h-4 w-4" /> Stampa scheda
               </Link>
+              {/* Servizio del solo Piano Elite: a chi non ce l'ha il bottone
+                  non compare, e chi arrivasse all'indirizzo a mano trova la
+                  pagina che glielo spiega. */}
+              {pianoIncludeSchedaConsegna(planCode) ? (
+                <Link
+                  href={`/veicoli/${vehicle.id}/consegna`}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <FileSignature className="h-4 w-4" /> Scheda consegna
+                </Link>
+              ) : null}
               {/* Torna dove si era davvero: alla pagina dell'elenco che si
                   stava guardando, coi filtri scelti. Un collegamento fisso a
                   "/veicoli" riportava sempre alla prima pagina senza filtri,

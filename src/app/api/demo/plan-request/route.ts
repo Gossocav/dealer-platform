@@ -4,6 +4,7 @@ import { hitRateLimit } from "../../../../lib/api-rate-limit";
 import { sendAdminNotificationEmail } from "../../../../lib/admin-notification-email";
 import { resolveDealerIdFromTenantSources } from "../../../../lib/dealer-id-resolution";
 import { getDemoPlan, normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
+import { resolveActivePlanCode } from "../../../../lib/dealer-plan";
 
 const PLAN_REQUEST_RATE_LIMIT = {
   windowMs: 60_000,
@@ -14,12 +15,14 @@ type DealerRow = {
   id: string;
   name: string | null;
   account_type: string | null;
+  subscription_plan: string | null;
 };
 
 type SubscriptionRow = {
   requested_plan_code: string | null;
   requested_plan_at: string | null;
   converted_plan_code: string | null;
+  demo_profile_code: string | null;
 };
 
 function normalizeText(value: unknown) {
@@ -125,7 +128,7 @@ export async function GET(request: Request) {
 
   const dealer = await context.supabaseAdmin
     .from("dealers")
-    .select("id, name, account_type")
+    .select("id, name, account_type, subscription_plan")
     .eq("id", context.dealerId)
     .maybeSingle<DealerRow>();
 
@@ -141,7 +144,7 @@ export async function GET(request: Request) {
   // conversion flow.
   const subscription = await context.supabaseAdmin
     .from("dealer_demo_subscriptions")
-    .select("requested_plan_code, requested_plan_at, converted_plan_code")
+    .select("requested_plan_code, requested_plan_at, converted_plan_code, demo_profile_code")
     .eq("dealer_id", context.dealerId)
     .maybeSingle<SubscriptionRow>();
 
@@ -156,6 +159,17 @@ export async function GET(request: Request) {
       requestedPlanCode: isDemo ? (normalizeDemoPlanCode(subscription.data?.requested_plan_code) ?? null) : null,
       requestedPlanAt: isDemo ? normalizeText(subscription.data?.requested_plan_at) : null,
       activePlanCode: normalizeDemoPlanCode(subscription.data?.converted_plan_code) ?? null,
+      // Campo distinto da "activePlanCode", che significa "piano a cui e'
+      // stata convertita la demo" e la pagina abbonamento usa proprio con quel
+      // senso. Questo invece e' il piano **in vigore adesso**, con la stessa
+      // precedenza che applica il database: convertito, poi profilo demo, poi
+      // la colonna vecchia. Serve a decidere chi puo' usare le funzioni
+      // riservate a un piano, come la scheda di consegna dell'Elite.
+      effectivePlanCode: resolveActivePlanCode({
+        convertedPlanCode: subscription.data?.converted_plan_code,
+        demoProfileCode: subscription.data?.demo_profile_code,
+        legacyPlanCode: dealer.data?.subscription_plan,
+      }),
     },
     { status: 200 }
   );
