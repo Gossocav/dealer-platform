@@ -152,7 +152,7 @@ export default function LoginClient() {
             </div>
             <h1 className="mt-8 max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">Accedi al gestionale della tua concessionaria.</h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-              Dashboard, veicoli, lead, clienti, agenda e notifiche in un&apos;unica esperienza sicura basata su Supabase Auth.
+              Dashboard, veicoli, lead, clienti, agenda e notifiche in un&apos;unica area riservata.
             </p>
           </div>
 
@@ -162,8 +162,8 @@ export default function LoginClient() {
               <p className="mt-2 text-sm text-slate-300">Entra con le tue credenziali e torna operativo in pochi secondi.</p>
             </div>
             <div className="rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
-              <p className="text-sm font-semibold text-white">Sicurezza Supabase</p>
-              <p className="mt-2 text-sm text-slate-300">Sessione gestita in modo nativo con persistenza controllata dal remember me.</p>
+              <p className="text-sm font-semibold text-white">Accesso protetto</p>
+              <p className="mt-2 text-sm text-slate-300">Con &laquo;Ricordami&raquo; resti collegato; senza, l&apos;accesso si chiude quando chiudi il browser.</p>
             </div>
           </div>
         </section>

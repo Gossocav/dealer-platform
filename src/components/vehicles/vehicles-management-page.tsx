@@ -1015,7 +1015,7 @@ export function VehiclesManagementPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory Hub</p>
             <h2 className="mt-1 text-2xl font-semibold text-slate-900">Gestisci il tuo parco auto</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Ricerca istantanea, filtri evoluti, ordinamento e paginazione collegati a Supabase.
+              Ricerca, filtri, ordinamento e pagine per trovare in fretta il veicolo che cerchi.
             </p>
           </div>
 
