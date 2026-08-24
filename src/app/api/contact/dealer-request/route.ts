@@ -9,6 +9,7 @@ type DealerInfoRequestBody = {
   email?: string;
   phone?: string;
   message?: string;
+  planCode?: string;
   websiteTrap?: string;
 };
 
@@ -18,6 +19,28 @@ const DEALER_INFO_REQUEST_RATE_LIMIT = {
 };
 
 const MAX_MESSAGE_LENGTH = 4000;
+
+/**
+ * Il piano da cui arriva la richiesta.
+ *
+ * Senza, la notifica diceva soltanto "una concessionaria ha inviato una
+ * richiesta dalla pagina di registrazione": chi risponde non sapeva se stava
+ * guardando il Base da 99 euro o l'Elite da 699, e doveva chiederlo di nuovo a
+ * chi aveva gia' scritto.
+ *
+ * Si accetta solo un codice conosciuto: e' un valore che arriva dal browser, e
+ * finisce in una email. Uno sconosciuto si ignora invece di riportarlo.
+ */
+const PIANI_AMMESSI: Record<string, string> = {
+  base: "Base",
+  pro: "Pro",
+  elite: "Elite",
+};
+
+function normalizePlanLabel(value: unknown) {
+  const codice = String(value ?? "").trim().toLowerCase();
+  return PIANI_AMMESSI[codice] ?? null;
+}
 
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
@@ -84,6 +107,7 @@ export async function POST(request: Request) {
     const email = normalizeEmail(body.email);
     const phone = normalizeText(body.phone);
     const message = normalizeText(body.message);
+    const planLabel = normalizePlanLabel(body.planCode);
 
     if (!companyName || !contactName || !email || !phone || !message) {
       return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 });
@@ -135,16 +159,21 @@ export async function POST(request: Request) {
     // failure (Resend warm-up cap) must not tell the dealer their enquiry was
     // lost, because it wasn't -- it is visible in the admin area.
     const notification = await sendAdminNotificationEmail({
-      subject: `Richiesta informazioni da ${companyName}`,
+      subject: planLabel ? `Richiesta informazioni sul Piano ${planLabel} da ${companyName}` : `Richiesta informazioni da ${companyName}`,
       html: `
         <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
           <h2 style="margin:0 0 12px;">Richiesta informazioni da una concessionaria</h2>
-          <p style="margin:0 0 12px;">Una concessionaria ha inviato una richiesta dalla pagina di registrazione.</p>
+          <p style="margin:0 0 12px;">${
+            planLabel
+              ? `Una concessionaria ha inviato una richiesta dalla pagina del <strong>Piano ${escapeHtml(planLabel)}</strong>.`
+              : "Una concessionaria ha inviato una richiesta dalla pagina di registrazione."
+          }</p>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
             <tr><td style="padding:6px 0;font-weight:600;">Concessionaria</td><td style="padding:6px 0;">${escapeHtml(companyName)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Referente</td><td style="padding:6px 0;">${escapeHtml(contactName)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Email</td><td style="padding:6px 0;">${escapeHtml(email)}</td></tr>
             <tr><td style="padding:6px 0;font-weight:600;">Telefono</td><td style="padding:6px 0;">${escapeHtml(phone ?? "-")}</td></tr>
+            ${planLabel ? `<tr><td style="padding:6px 0;font-weight:600;">Piano</td><td style="padding:6px 0;">${escapeHtml(planLabel)}</td></tr>` : ""}
           </table>
           <p style="margin:16px 0 6px;font-weight:600;">Messaggio</p>
           <p style="margin:0;white-space:pre-wrap;">${escapeHtml(message)}</p>

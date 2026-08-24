@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import DealerInfoRequestForm from "../dealer-info-request-form";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
 
 export const metadata: Metadata = {
@@ -128,6 +129,23 @@ export default function RegistrazioneProPage() {
           >
             Richiedi Demo
           </Link>
+          <Link
+            href="#richiedi-informazioni"
+            className="mt-5 ml-0 inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:ml-3"
+          >
+            Richiedi informazioni
+          </Link>
+        </section>
+
+        {/* La demo era l'unica strada offerta in fondo alla pagina: chi non
+            era ancora pronto a provarla, e voleva soltanto una risposta, non
+            aveva dove chiederla e se ne andava. Il modulo e' lo stesso della
+            pagina dei piani, ma dice da quale piano arriva la richiesta. */}
+        <section
+          id="richiedi-informazioni"
+          className="scroll-mt-8 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8"
+        >
+          <DealerInfoRequestForm planCode="pro" planName="Pro" />
         </section>
       </div>
     </main>

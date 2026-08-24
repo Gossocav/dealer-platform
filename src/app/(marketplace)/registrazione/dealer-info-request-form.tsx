@@ -34,7 +34,17 @@ function getFieldClass(missing: boolean) {
 // resterebbe nero su fondo scuro, cioe' invisibile.
 const FIELD_TEXT_STYLE = { color: "#f8fafc" } as const;
 
-export default function DealerInfoRequestForm() {
+/**
+ * Da quale pagina arriva la richiesta. Senza, la notifica non diceva quale
+ * piano stesse guardando chi scrive, e per rispondere bisognava richiederlo a
+ * chi aveva gia' scritto.
+ */
+type DealerInfoRequestFormProps = {
+  planCode?: "base" | "pro" | "elite";
+  planName?: string;
+};
+
+export default function DealerInfoRequestForm({ planCode, planName }: DealerInfoRequestFormProps = {}) {
   const [values, setValues] = useState<FormState>(initialState);
   const [websiteTrap, setWebsiteTrap] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -83,6 +93,7 @@ export default function DealerInfoRequestForm() {
           email,
           phone,
           message,
+          planCode,
           websiteTrap,
         }),
       });
@@ -110,9 +121,13 @@ export default function DealerInfoRequestForm() {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-white">Hai bisogno di informazioni?</h2>
+      <h2 className="text-2xl font-semibold text-white">
+        {planName ? `Vuoi saperne di più sul Piano ${planName}?` : "Hai bisogno di informazioni?"}
+      </h2>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-        Scrivici: il nostro team ti ricontatta per aiutarti a scegliere il piano piu adatto alla tua concessionaria.
+        {planName
+          ? `Scrivici: ti ricontattiamo per spiegarti cosa comprende il Piano ${planName} e per capire insieme se è quello giusto per la tua concessionaria.`
+          : "Scrivici: il nostro team ti ricontatta per aiutarti a scegliere il piano piu adatto alla tua concessionaria."}
       </p>
 
       {successMessage ? (
