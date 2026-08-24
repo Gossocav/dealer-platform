@@ -429,6 +429,24 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <InfoRow label="Email" value={formatText(dealerEmail)} />
                 <WebsiteRow website={dealerWebsite} />
               </div>
+
+              {/* Il nome di chi vende l'auto era testo morto: si leggeva e non
+                  portava da nessuna parte, cosi' per vedere cos'altro ha in
+                  vetrina quella concessionaria bisognava cercarla a mano
+                  nell'elenco. Il collegamento esisteva gia' -- ma solo dentro i
+                  dati strutturati, cioe' Google sapeva arrivarci e il
+                  visitatore no.
+
+                  La pagina di destinazione esiste sempre: la si raggiunge da un
+                  veicolo pubblicato, quindi quella concessionaria ha almeno un
+                  veicolo in vetrina, che e' la condizione perche' la sua pagina
+                  risponda. */}
+              <Link
+                href={`/concessionarie/${dealerSlug}`}
+                className="mt-5 block break-words rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-semibold text-slate-200 transition [overflow-wrap:anywhere] hover:bg-white/[0.08] hover:text-white"
+              >
+                Vedi tutti i veicoli di {dealerDisplayName}
+              </Link>
             </div>
 
             <Link
