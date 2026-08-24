@@ -51,7 +51,7 @@ export default function RegistrazionePage() {
           />
           <PlanCard
             title="Piano Elite"
-            description="Tutto il Piano Pro, con in piu la gestione della visibilita social e delle campagne Google Ads."
+            description="Tutto il Piano Pro, con in piu il doppio degli annunci, la visibilita social e la scheda consegna veicolo."
             href="/registrazione/elite"
             cta="Vai al Piano Elite"
           />
