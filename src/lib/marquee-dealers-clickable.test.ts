@@ -9,6 +9,7 @@ function read(path: string) {
 
 const marquee = read("src/components/marketplace/marquee-dealers.tsx");
 const dealerPage = read("src/app/(marketplace)/concessionarie/[slug]/page.tsx");
+const vehiclePage = read("src/app/(marketplace)/auto/[id]/page.tsx");
 
 function dealer(fields: Partial<MarketplaceDealer>): MarketplaceDealer {
   return fields as MarketplaceDealer;
@@ -101,5 +102,42 @@ describe("con poche concessionarie i nomi non si raddoppiano", () => {
   it("la soglia e' piu' di due: due nomi ripetuti si notano quanto uno", () => {
     const soglia = Number(marquee.match(/MIN_DEALERS_FOR_MARQUEE = (\d+)/)?.[1] ?? 0);
     expect(soglia).toBeGreaterThan(2);
+  });
+});
+
+
+// Chi guardava un'auto leggeva il nome di chi la vende e finiva li': per vedere
+// cos'altro avesse in vetrina quella concessionaria doveva cercarla a mano
+// nell'elenco. Il collegamento esisteva gia', ma solo dentro i dati
+// strutturati: Google sapeva arrivarci, il visitatore no.
+describe("dalla scheda del veicolo si arriva alla concessionaria", () => {
+  it("la scheda porta un collegamento visibile alla pagina della concessionaria", () => {
+    expect(vehiclePage).toContain("href={`/concessionarie/${dealerSlug}`}");
+  });
+
+  // Se il bottone usasse un indirizzo costruito a modo suo, basterebbe un nome
+  // con un accento o una virgola per mandare il visitatore su una pagina che
+  // non esiste.
+  it("l'indirizzo del bottone nasce dalla stessa formula dei dati strutturati", () => {
+    expect(vehiclePage).toContain("const dealerSlug = resolveDealerSlug(vehicle.dealers);");
+    expect(vehiclePage).toContain("dealerUrl: toAbsoluteUrl(`/concessionarie/${dealerSlug}`)");
+  });
+
+  it("quella formula e' una di quelle che la pagina concessionaria sa risolvere", () => {
+    const casi = [
+      dealer({ legal_name: "Autosalone Città Verde S.r.l.", name: "Città Verde" }),
+      dealer({ legal_name: null, name: "Rossi & Figli Auto" }),
+      dealer({ legal_name: "AUTOGEPY SPA", name: "AUTOGEPY SPA" }),
+    ];
+
+    for (const record of casi) {
+      // resolveDealerSlug parte da legal_name; la pagina concessionaria prova
+      // proprio quella come seconda chiave di ricerca.
+      const slugBottone = createMarketplaceSlug(record.legal_name ?? record.name);
+      expect(slugBottone, String(record.legal_name ?? record.name)).not.toContain(" ");
+      expect(slugBottone.length).toBeGreaterThan(0);
+    }
+
+    expect(dealerPage).toContain("createMarketplaceSlug(dealer.legal_name ?? dealer.name) === slug");
   });
 });
