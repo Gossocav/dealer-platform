@@ -28,23 +28,20 @@ export const DEMO_PLAN_CATALOG: DemoPlan[] = [
     code: "elite",
     name: "KeyAuto Elite",
     priceMonthly: 699,
-    description: "Tutte le funzionalità del piano Pro, con in più i servizi di visibilità social e la gestione della pubblicità online.",
+    description: "Tutte le funzionalità del piano Pro, con in più il doppio degli annunci pubblicabili, la promozione sui canali social ufficiali e la scheda consegna da dare al cliente.",
     includedServices: [
       "Fino a 300 annunci veicolo attivi",
       "Gestione completa delle schede veicolo",
       "Ricezione e gestione dei lead",
       "Dashboard concessionario avanzata",
       "CRM Lead avanzato",
+      "Scheda consegna veicolo",
       "Statistiche e KPI dettagliati",
       "Esportazione dati",
       "Supporto prioritario",
       "Maggiore visibilità sulla piattaforma",
       "Visibilità sui social ufficiali KeyAuto",
-      "Gestione campagna Google Ads",
-      "Report mensile delle performance marketing",
     ],
-    marketingNote:
-      "La gestione della campagna Google Ads è inclusa. Il budget pubblicitario non è incluso nel canone di € 699/mese, viene concordato con il cliente ed è sostenuto direttamente dal cliente.",
   },
 ];
 
