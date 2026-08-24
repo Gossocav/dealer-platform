@@ -20,6 +20,7 @@ import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import {
   extractVehicleImagePath,
   formatVehicleStatus,
+  resolveVehicleImageSource,
   normalizeVehicleTraction,
   safeText,
   validateVehicleStatusTransitionForCrud,
@@ -404,20 +405,34 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       // public/private setting, so try that first.
       const resolvedImages = await Promise.all(
         (imageRows ?? []).map(async (row) => {
-          const raw = String(row.image_url ?? "").trim();
-          const path = extractVehicleImagePath(raw);
+          // Le foto delle auto importate dal sito della concessionaria non
+          // stanno nel nostro archivio, e in produzione sono la quasi
+          // totalita': qui finivano dentro createSignedUrl come se fossero un
+          // percorso, la firma falliva, e getPublicUrl costruiva un indirizzo
+          // senza senso -- ".../vehicle-images/https://cdn.esterno.it/foto.jpg"
+          // -- che il browser non poteva caricare. Il riquadro restava vuoto, e
+          // senza vedere una foto non si puo' sceglierla ne' sostituirla.
+          //
+          // L'elenco veicoli questa distinzione la faceva gia': e' il motivo
+          // per cui le stesse foto si vedevano li' e non qui. Adesso la fa
+          // resolveVehicleImageSource per tutti e due.
+          const source = resolveVehicleImageSource(row.image_url);
 
-          if (!path) {
-            return { ...row, previewUrl: raw || null } as ViewImage;
+          if (source.kind === "proxy") {
+            return { ...row, previewUrl: source.url } as ViewImage;
           }
 
-          const { data: signed } = await supabase.storage.from("vehicle-images").createSignedUrl(path, 3600);
+          if (source.kind === "nessuna") {
+            return { ...row, previewUrl: null } as ViewImage;
+          }
+
+          const { data: signed } = await supabase.storage.from("vehicle-images").createSignedUrl(source.path, 3600);
           if (signed?.signedUrl) {
             return { ...row, previewUrl: signed.signedUrl } as ViewImage;
           }
 
-          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(path);
-          return { ...row, previewUrl: publicData.publicUrl || raw } as ViewImage;
+          const { data: publicData } = supabase.storage.from("vehicle-images").getPublicUrl(source.path);
+          return { ...row, previewUrl: publicData.publicUrl || null } as ViewImage;
         })
       );
 
