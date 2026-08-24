@@ -367,6 +367,77 @@ export function normalizeVehicleTraction(value: unknown): VehicleTraction | null
   return null;
 }
 
+/**
+ * Una foto che non vive nel nostro archivio.
+ *
+ * E' il caso delle auto importate dal sito della concessionaria: in
+ * `vehicle_images` resta l'indirizzo del listino di partenza
+ * (`https://cdn.esterno.it/...`), non un percorso dell'archivio. In produzione
+ * sono la quasi totalita' delle foto.
+ *
+ * Vanno distinte perche' non si possono firmare, e perche' il browser non le
+ * caricherebbe comunque: le regole di sicurezza della pagina ammettono solo
+ * immagini nostre (`img-src 'self'`). Si mostrano passando dal proxy.
+ *
+ * Il controllo legge il nome dell'host invece di cercare ".supabase.co" dentro
+ * la stringa: un indirizzo esterno che avesse quel testo nel percorso
+ * ingannerebbe la ricerca ingenua.
+ */
+export function isExternalVehicleImageUrl(value: string) {
+  if (!/^https?:\/\//i.test(value)) {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(value);
+    return hostname !== "supabase.co" && !hostname.endsWith(".supabase.co");
+  } catch {
+    return false;
+  }
+}
+
+/** L'indirizzo con cui il browser puo' chiedere una foto che sta fuori. */
+export function vehicleImageProxyUrl(value: string) {
+  return `/api/image-proxy?url=${encodeURIComponent(value)}`;
+}
+
+/**
+ * Da cosa e' salvato in `vehicle_images.image_url` a come si mostra.
+ *
+ * Tre esiti soli, e vanno tenuti distinti:
+ * - `proxy`: la foto sta su un sito esterno, si chiede al nostro proxy;
+ * - `storage`: e' roba nostra, va firmata prima di poterla mostrare;
+ * - `nessuna`: non c'e' niente da mostrare.
+ *
+ * Sta qui e non dentro le pagine perche' le pagine erano due e la regola era
+ * scritta due volte, in modo diverso: l'elenco veicoli le foto importate le
+ * mostrava, l'editor no -- ed e' il difetto per cui aprendo un veicolo in
+ * modifica il riquadro delle foto restava vuoto.
+ *
+ * La firma non avviene qui: richiede il client di Supabase, che nell'editor e'
+ * quello dell'utente collegato. Qui si decide soltanto, e la decisione si puo'
+ * provare senza database.
+ */
+export type VehicleImageSource =
+  | { kind: "proxy"; url: string }
+  | { kind: "storage"; path: string }
+  | { kind: "nessuna" };
+
+export function resolveVehicleImageSource(rawValue: string | null | undefined): VehicleImageSource {
+  const value = String(rawValue ?? "").trim();
+
+  if (!value) {
+    return { kind: "nessuna" };
+  }
+
+  if (isExternalVehicleImageUrl(value)) {
+    return { kind: "proxy", url: vehicleImageProxyUrl(value) };
+  }
+
+  const path = extractVehicleImagePath(value);
+  return path ? { kind: "storage", path } : { kind: "nessuna" };
+}
+
 export function extractVehicleImagePath(value: string) {
   if (!value) return null;
 

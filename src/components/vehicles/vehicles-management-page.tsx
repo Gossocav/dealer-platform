@@ -19,11 +19,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   applyPriceBandFilters,
   defaultVehicleFilters,
-  extractVehicleImagePath,
   formatCurrency,
   formatMileage,
   formatRegistrationLabel,
   formatVehicleStatus,
+  resolveVehicleImageSource,
   vehicleSortFromValue,
   vehicleSortToValue,
   normalizeVehicleStatus,
@@ -427,22 +427,20 @@ export function VehiclesManagementPage() {
       const imageUrlCache = new Map<string, Promise<string | null>>();
 
       const resolveVehiclePhotoUrl = (rawValue: string) => {
-        const normalized = rawValue.trim();
-        if (!normalized) {
+        // La stessa decisione dell'editor veicolo, adesso presa in un posto
+        // solo: qui cercava ".supabase.co" dentro la stringa, e un indirizzo
+        // esterno con quel testo nel percorso l'avrebbe ingannata.
+        const source = resolveVehicleImageSource(rawValue);
+
+        if (source.kind === "proxy") {
+          return Promise.resolve(source.url);
+        }
+
+        if (source.kind === "nessuna") {
           return Promise.resolve(null);
         }
 
-        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-          if (!normalized.includes(".supabase.co")) {
-            return Promise.resolve(`/api/image-proxy?url=${encodeURIComponent(normalized)}`);
-          }
-        }
-
-        const path = extractVehicleImagePath(normalized);
-        if (!path) {
-          return Promise.resolve(null);
-        }
-
+        const path = source.path;
         const cached = imageUrlCache.get(path);
         if (cached) {
           return cached;
@@ -479,16 +477,9 @@ export function VehiclesManagementPage() {
             return;
           }
 
-          if (cover.startsWith("http://") || cover.startsWith("https://")) {
-            if (cover.includes(".supabase.co")) {
-              imageMap.set(row.id, await resolveVehiclePhotoUrl(cover));
-              return;
-            }
-
-            imageMap.set(row.id, `/api/image-proxy?url=${encodeURIComponent(cover)}`);
-            return;
-          }
-
+          // La distinzione fra foto nostra e foto importata era scritta due
+          // volte, qui e dentro resolveVehiclePhotoUrl, con due controlli
+          // diversi. Ne basta uno: quella funzione le tratta gia' entrambe.
           imageMap.set(row.id, await resolveVehiclePhotoUrl(cover));
         })
       );
