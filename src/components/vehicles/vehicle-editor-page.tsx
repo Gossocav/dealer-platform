@@ -9,6 +9,7 @@ import { resizeImageForUpload } from "@/lib/image-resize";
 import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
+import { campiImmatricolazioneDaModulo } from "@/lib/vehicles";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { getVehicleModelsForBrand } from "@/lib/vehicle-models";
 import { getActiveDealerId } from "@/lib/active-tenant";
@@ -64,7 +65,30 @@ type EditorState = {
   status: string;
 };
 
-const REQUIRED_EDITOR_FIELDS = [
+/**
+ * Cosa serve davvero per salvare una scheda.
+ *
+ * L'elenco era lungo il doppio, e il risultato era che **un veicolo importato
+ * non si poteva modificare affatto**: aprire la scheda, cambiare il prezzo e
+ * premere Salva rispondeva "compila i campi obbligatori mancanti".
+ *
+ * Misurato in produzione il 27/08/2026 sulle 232 automobili importate dai siti
+ * delle concessionarie: interni, cilindrata, potenza kW e potenza CV mancavano
+ * su **tutte e 232**, la data di immatricolazione pure -- quelle vetture
+ * portano mese e anno, il giorno non lo dichiara nessun sito. Carrozzeria e
+ * porte mancavano su dieci, i chilometri su tredici.
+ *
+ * Sono dati che il concessionario non ha, non dati che si e' dimenticato di
+ * scrivere: pretenderli per salvare significa impedirgli di correggere un
+ * prezzo. Restano tutti nel punteggio di salute della scheda -- un annuncio
+ * completo vende meglio -- che e' un consiglio, non un divieto. E' la stessa
+ * strada gia' presa per la descrizione.
+ *
+ * Qui resta cio' senza cui l'annuncio non sta in piedi, e che infatti
+ * l'importazione porta sempre: che veicolo e', di che marca e modello, quanto
+ * costa, come va alimentato.
+ */
+const CAMPI_DELLA_SCHEDA = [
   "vehicleCategory",
   "vehicleCondition",
   "bodyType",
@@ -83,15 +107,26 @@ const REQUIRED_EDITOR_FIELDS = [
   "registrationDate",
   "color",
   "status",
-  // La descrizione non e' piu' obbligatoria per salvare. Le vetture importate
-  // dal sito della concessionaria non ne hanno una -- novantuno su
-  // centoventicinque -- e pretenderla scritta a mano significa non poterle
-  // toccare. Resta nel punteggio di salute della scheda: un annuncio
-  // descritto vende meglio, ed e' un consiglio, non un divieto.
 ] as const satisfies ReadonlyArray<keyof EditorState>;
 
-type RequiredEditorFieldKey = (typeof REQUIRED_EDITOR_FIELDS)[number];
-type RequiredFieldKey = RequiredEditorFieldKey;
+type RequiredFieldKey = (typeof CAMPI_DELLA_SCHEDA)[number];
+
+// Quelli senza cui non si salva. Gli altri restano nella scheda e nel
+// punteggio di salute, ma non fermano nessuno.
+const CAMPI_OBBLIGATORI = new Set<RequiredFieldKey>([
+  "vehicleCategory",
+  "vehicleCondition",
+  "brand",
+  "model",
+  "price",
+  "fuel",
+  "transmission",
+  "status",
+]);
+
+const REQUIRED_EDITOR_FIELDS: readonly RequiredFieldKey[] = CAMPI_DELLA_SCHEDA.filter((campo) =>
+  CAMPI_OBBLIGATORI.has(campo),
+);
 
 const REQUIRED_FIELD_LABELS: Record<RequiredFieldKey, string> = {
   vehicleCategory: "Tipo veicolo",
@@ -301,6 +336,10 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const [plateLookupLoading, setPlateLookupLoading] = useState(false);
   const [licensePlate, setLicensePlate] = useState("");
   const [missingFields, setMissingFields] = useState<RequiredFieldKey[]>([]);
+  // L'anno e il mese che la scheda porta gia': il modulo non li mostra -- ha
+  // un solo campo, la data piena -- ma salvando non devono sparire.
+  const [annoInArchivio, setAnnoInArchivio] = useState<string | null>(null);
+  const [meseInArchivio, setMeseInArchivio] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [originalStatus, setOriginalStatus] = useState<string | null>(mode === "create" ? "draft" : null);
@@ -376,7 +415,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, description, equipment, status, published"
+          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .eq("dealer_id", currentDealerId)
@@ -463,6 +502,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         equipment: normalizeEquipment((data as Record<string, unknown>).equipment),
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
+      setAnnoInArchivio(String((data as Record<string, unknown>).year ?? "").trim() || null);
+      setMeseInArchivio(String((data as Record<string, unknown>).registration_month ?? "").trim() || null);
       setOriginalStatus(String(data.status ?? (data.published ? "published" : "draft")));
       setOriginalPublished(Boolean(data.published));
       setExistingVehicleDealerId(String(data.dealer_id ?? "").trim() || null);
@@ -479,7 +520,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
   const updateField = <K extends keyof EditorState>(key: K, value: EditorState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
-    if (REQUIRED_EDITOR_FIELDS.includes(key as RequiredEditorFieldKey)) {
+    if (REQUIRED_EDITOR_FIELDS.includes(key as RequiredFieldKey)) {
       setMissingFields((prev) => prev.filter((field) => field !== key));
     }
   };
@@ -693,17 +734,24 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       model: state.model.trim() || null,
       version: state.version.trim() || null,
       interior_type: state.interiorType.trim() || null,
-      // "Anno" non è un campo compilabile a parte: si ricava sempre dalla
-      // data di immatricolazione (obbligatoria), così i due valori non
-      // possono mai disallinearsi.
-      year: state.registrationDate.trim() ? state.registrationDate.trim().slice(0, 4) : null,
+      // "Anno" non e' un campo compilabile a parte: si ricava dalla data di
+      // immatricolazione, cosi' i due valori non possono disallinearsi. Ma le
+      // vetture importate la data piena non ce l'hanno, e senza questa
+      // funzione salvarle ne cancellava l'anno.
+      year: campiImmatricolazioneDaModulo({
+        registrationDate: state.registrationDate,
+        annoInArchivio: annoInArchivio,
+      }).year,
       engine_size: state.engineSize.trim() || null,
       traction: normalizeVehicleTraction(state.traction),
       power_kw: state.powerKw.trim() ? Number(state.powerKw) : null,
       power_cv: state.powerCv.trim() ? Number(state.powerCv) : null,
       doors: state.doors.trim() ? Number(state.doors) : null,
       emission_class: state.emissionClass.trim() || null,
-      registration_date: state.registrationDate.trim() || null,
+      registration_date: campiImmatricolazioneDaModulo({
+        registrationDate: state.registrationDate,
+        annoInArchivio: annoInArchivio,
+      }).registration_date,
       color: canonicalizeVehicleColorLabel(state.color) || null,
       vin: state.vin.trim() || null,
       mileage: parseMileageForSave(state.mileage),
@@ -1156,7 +1204,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 </select>
               </label>
               <label className="block space-y-2 sm:col-span-2">
-                <span className={getFieldLabelClass(missingFieldSet.has("bodyType"))}>Carrozzeria *</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("bodyType"))}>Carrozzeria</span>
                 <select
                   value={state.bodyType}
                   onChange={(event) => updateField("bodyType", event.target.value)}
@@ -1231,13 +1279,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   </select>
                 )}
               </label>
-              <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} required missing={missingFieldSet.has("version")} />
+              <EditorField label="Versione" value={state.version} onChange={(value) => updateField("version", value)} missing={missingFieldSet.has("version")} />
               <EditorField
                 label="Cilindrata"
                 value={state.engineSize}
                 onChange={(value) => updateField("engineSize", value)}
                 inputMode="numeric"
-                required
                 missing={missingFieldSet.has("engineSize")}
               />
               <label className="block space-y-2">
@@ -1261,7 +1308,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 value={state.powerKw}
                 onChange={(value) => updateField("powerKw", value)}
                 inputMode="numeric"
-                required
                 missing={missingFieldSet.has("powerKw")}
               />
               <EditorField
@@ -1269,7 +1315,6 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 value={state.powerCv}
                 onChange={(value) => updateField("powerCv", value)}
                 inputMode="numeric"
-                required
                 missing={missingFieldSet.has("powerCv")}
               />
               <EditorField
@@ -1277,12 +1322,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 value={state.doors}
                 onChange={(value) => updateField("doors", value)}
                 inputMode="numeric"
-                required
                 missing={missingFieldSet.has("doors")}
               />
               <EditorField label="Classe Euro" value={state.emissionClass} onChange={(value) => updateField("emissionClass", value)} />
               <label className="block space-y-2">
-                <span className={getFieldLabelClass(missingFieldSet.has("registrationDate"))}>Data immatricolazione *</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("registrationDate"))}>Data immatricolazione</span>
                 <input
                   type="date"
                   value={state.registrationDate}
@@ -1291,9 +1335,18 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   onChange={(event) => updateField("registrationDate", event.target.value)}
                   className={getFieldInputClass(missingFieldSet.has("registrationDate"))}
                 />
+                {/* Le vetture importate portano mese e anno, non il giorno: il
+                    campo qui sopra risulta vuoto e sembra un dato perso.
+                    Dirlo evita che qualcuno ne inventi uno per riempirlo. */}
+                {!state.registrationDate && annoInArchivio ? (
+                  <span className="block text-xs text-slate-500">
+                    Dal sito della concessionaria: {meseInArchivio ? `${meseInArchivio}/` : ""}
+                    {annoInArchivio}. Resta cosi&apos; se non compili il giorno.
+                  </span>
+                ) : null}
               </label>
               <label className="block space-y-2">
-                <span className={getFieldLabelClass(missingFieldSet.has("color"))}>Colore *</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("color"))}>Colore</span>
                 <select
                   value={state.color}
                   onChange={(event) => updateField("color", event.target.value)}
@@ -1308,7 +1361,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 </select>
               </label>
               <label className="block space-y-2">
-                <span className={getFieldLabelClass(missingFieldSet.has("interiorType"))}>Interni *</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("interiorType"))}>Interni</span>
                 <select
                   value={state.interiorType}
                   onChange={(event) => updateField("interiorType", event.target.value)}
@@ -1332,10 +1385,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 missing={missingFieldSet.has("price")}
               />
               <label className="block space-y-2">
-                <span className={getFieldLabelClass(missingFieldSet.has("mileage"))}>Chilometri *</span>
+                <span className={getFieldLabelClass(missingFieldSet.has("mileage"))}>Chilometri</span>
                 <input
                   type="text"
-                  required
                   value={state.mileage}
                   inputMode="numeric"
                   onFocus={() => updateField("mileage", sanitizeMileageDigits(state.mileage))}
