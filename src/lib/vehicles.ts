@@ -65,6 +65,8 @@ export type VehicleRow = {
   description: string | null;
   created_at: string | null;
   updated_at: string | null;
+  /** Da quando la sorgente non dichiara piu' questo veicolo. Vuoto: c'e' ancora. */
+  import_missing_since?: string | null;
   vehicle_images?: VehicleImageRow[] | null;
 };
 

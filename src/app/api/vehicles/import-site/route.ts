@@ -1,23 +1,30 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import {
-  parseDealerStockSitemap,
-  parseDealerStockVehicle,
-  type DealerSiteEntry,
-  type DealerSiteVehicle,
-} from "@/lib/dealer-site-import";
-import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
-import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
-import { derivaVersioneDalTitolo } from "@/lib/vehicle-label";
+  elencoStock,
+  leggiPagina,
+  normalizzaSitoConcessionaria,
+  PAUSA_FRA_SCHEDE_MS,
+} from "@/lib/dealer-site-fetch";
+import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-site-import";
+import {
+  campiVeicoloRitrovato,
+  campiVeicoloSparito,
+  payloadDatiVeicolo,
+  pianoRiconciliazione,
+  type RigaImportata,
+} from "@/lib/dealer-site-sync";
 
 /**
  * Importa lo stock usato dal sito che la concessionaria ha gia'.
  *
- * Due azioni distinte, e la distinzione conta: "analizza" guarda e non scrive
- * niente, "importa" scrive un lotto alla volta. Cosi' si vede cosa arriverebbe
- * prima che arrivi qualcosa.
+ * Tre azioni distinte, e la distinzione conta: "analizza" guarda e non scrive
+ * niente, "importa" scrive un lotto alla volta -- cosi' si vede cosa
+ * arriverebbe prima che arrivi qualcosa -- e "riconcilia" non porta dentro
+ * niente: toglie dalla vetrina cio' che sul sito non c'e' piu'.
  *
  * A lotti perche' leggere il sito di qualcun altro non e' istantaneo: qualche
  * secondo a scheda. Un lotto per richiesta sta dentro i limiti di tempo del
@@ -25,18 +32,10 @@ import { derivaVersioneDalTitolo } from "@/lib/vehicle-label";
  * schermata ferma.
  */
 
-const SITEMAP_USATO = "auto_usate_0-sitemap.xml";
-
-// Il sito della concessionaria non e' un fornitore su cui contare: interrogato
-// in fretta smette di rispondere. Misurato sul sito vero -- leggendo 154
-// schede di fila ventidue tornavano vuote; rilette con calma c'erano tutte.
-const PAUSA_FRA_SCHEDE_MS = 400;
-const TENTATIVI_PER_SCHEDA = 2;
-const TIMEOUT_SCHEDA_MS = 15000;
-const MAX_LOTTO = 25;
-
 // Lo stesso tetto usato dal resto dell'importazione veicoli.
 const MAX_FOTO_VEICOLO = 20;
+
+const MAX_LOTTO = 25;
 
 // Senza i tipi generati dello schema il client inferisce "never" per i
 // payload di inserimento: stessa dichiarazione usata dalla sincronizzazione
@@ -50,39 +49,6 @@ type EsitoScheda = {
   motivo?: string;
   titolo?: string;
 };
-
-function normalizzaSito(value: unknown) {
-  const grezzo = String(value ?? "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-  if (!grezzo || /\s/.test(grezzo)) return null;
-
-  // Solo il nome del sito: niente percorsi, niente parametri. Gli indirizzi
-  // veri li costruiamo noi, cosi' questa funzione non si puo' usare per far
-  // leggere al server un indirizzo qualsiasi.
-  const host = grezzo.split("/")[0].toLowerCase();
-  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host.replace(/^www\./, "") : null;
-}
-
-async function leggi(url: string, tentativi = TENTATIVI_PER_SCHEDA): Promise<string | null> {
-  for (let i = 0; i < tentativi; i += 1) {
-    try {
-      const risposta = await fetch(url, {
-        headers: { "User-Agent": "KeyAuto/1.0 (+https://www.keyauto.it)" },
-        signal: AbortSignal.timeout(TIMEOUT_SCHEDA_MS),
-      });
-      if (risposta.ok) return await risposta.text();
-    } catch {
-      // Si ritenta: vedi la nota sulla pausa qui sopra.
-    }
-    if (i + 1 < tentativi) await new Promise((r) => setTimeout(r, 800));
-  }
-  return null;
-}
-
-async function elencoStock(host: string): Promise<DealerSiteEntry[] | null> {
-  const xml = await leggi(`https://www.${host}/${SITEMAP_USATO}`);
-  if (!xml) return null;
-  return parseDealerStockSitemap(xml);
-}
 
 /**
  * Rimette la galleria com'e' adesso sulla sorgente, invece di aggiungerci
@@ -127,45 +93,98 @@ async function sostituisciFoto(supabase: ApiSupabaseClient, dealerId: string, ve
 
 function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, status: "draft" | "published") {
   return {
+    ...payloadDatiVeicolo(v),
     dealer_id: dealerId,
-    brand: v.brand,
-    model: v.model,
-    // La versione non arriva separata: il sito da' un titolo intero. Prima ci
-    // finiva dentro tal quale, e siccome marca e modello sono gia' due campi a
-    // parte, l'intestazione dell'annuncio li diceva due volte -- "Hyundai
-    // Tucson Hyundai Tucson" -- su ogni veicolo importato.
-    //
-    // Adesso si scrive solo quello che il titolo aggiunge davvero
-    // ("1.6 CRDi Xline"): niente troncamenti inventati, si toglie solo cio'
-    // che e' gia' scritto nei campi accanto.
-    version: derivaVersioneDalTitolo(v.name, v.brand, v.model),
-    price: v.price,
-    mileage: v.mileage,
-    fuel: v.fuel,
-    transmission: v.transmission,
-    doors: v.doors,
-    seats: v.seats,
-    color: canonicalizeVehicleColorLabel(v.color ?? "") || null,
-    // Senza carrozzeria un veicolo non compare in "Esplora per categoria" ne'
-    // nel filtro della ricerca avanzata: e' invisibile a chi cerca per tipo.
-    // Il sito la scrive a modo suo ("Berlina due volumi", "Furgoni/Van") e la
-    // tabella dei sinonimi la riporta alle nostre.
-    body_type: canonicalizeVehicleBodyType(v.bodyType ?? "") || null,
-    year: v.year,
-    // Il mese sta a se' e non dentro registration_date: quella e' una data
-    // piena, e per scriverla servirebbe un giorno che nessuno ci ha dato.
-    // Un "1 gennaio" inventato comparirebbe sulle schede come se fosse il
-    // giorno vero dell'immatricolazione.
-    registration_month: v.registrationMonth,
-    vehicle_condition: v.condition,
-    vehicle_category: "Auto",
-    description: v.description,
     status,
     published: status === "published",
     import_source: host,
     import_source_id: v.sourceId,
+    // Appena riletta dal sito: non e' sparita, e sappiamo di quando e' la
+    // lettura. La data serve alla sincronizzazione notturna per sapere quali
+    // schede sono le piu' vecchie.
+    import_missing_since: null,
+    import_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+}
+
+/**
+ * Toglie dalla vetrina le automobili che il sito della concessionaria non
+ * dichiara piu', e rimette quelle che ci sono tornate.
+ *
+ * Sta qui e non dentro l'importazione a lotti perche' vuole l'elenco
+ * **intero** del sito: fatta su un lotto di cinque direbbe che le altre
+ * centoquaranta sono sparite. Costa una sola richiesta -- la sitemap -- e
+ * quindi si puo' fare in un colpo anche su uno stock grosso.
+ *
+ * Le due reti di sicurezza (elenco vuoto, sparizione in massa) stanno in
+ * "pianoRiconciliazione", dove si possono provare.
+ */
+async function riconcilia(
+  supabase: ApiSupabaseClient,
+  dealerId: string,
+  host: string,
+  idsSulSito: string[],
+) {
+  const { righe, troncato, error } = await caricaTutto<RigaImportata>((da, a) =>
+    supabase
+      .from("vehicles")
+      .select("id, import_source_id, status, published, import_missing_since")
+      .eq("dealer_id", dealerId)
+      .eq("import_source", host)
+      .range(da, a),
+  );
+
+  if (error) {
+    return NextResponse.json({ error: "Non siamo riusciti a leggere il tuo archivio." }, { status: 500 });
+  }
+
+  const esito = pianoRiconciliazione({ idsSulSito, righe });
+
+  if (!esito.ok) {
+    // Un messaggio che dice cosa e' successo e cosa NON abbiamo fatto: il
+    // silenzio qui somiglierebbe a "e' andato tutto bene".
+    const messaggio =
+      esito.motivo === "elenco-vuoto"
+        ? `Il sito ${host} non ha dichiarato nessun veicolo: non l'abbiamo toccato. Riprova fra qualche minuto.`
+        : `Su ${host} risultano sparite ${esito.assenti} auto su ${esito.totale}: sono troppe perche' sia una vendita. ` +
+          "Di solito vuol dire che il sito ha cambiato gli indirizzi delle schede. Non abbiamo tolto niente dalla vetrina.";
+    return NextResponse.json({ error: messaggio }, { status: 409 });
+  }
+
+  const adesso = new Date();
+  const { daNascondere, daRipristinare } = esito.piano;
+
+  if (daNascondere.length > 0) {
+    const { error: erroreNascondi } = await supabase
+      .from("vehicles")
+      .update(campiVeicoloSparito(adesso))
+      .eq("dealer_id", dealerId)
+      .in("id", daNascondere);
+
+    if (erroreNascondi) {
+      return NextResponse.json({ error: "Non siamo riusciti ad aggiornare i veicoli." }, { status: 500 });
+    }
+  }
+
+  if (daRipristinare.length > 0) {
+    // Se questo non riesce non si annulla quanto sopra: sono due correzioni
+    // indipendenti, e averne fatta una sola e' meglio che nessuna.
+    await supabase
+      .from("vehicles")
+      .update(campiVeicoloRitrovato(adesso))
+      .eq("dealer_id", dealerId)
+      .in("id", daRipristinare);
+  }
+
+  return NextResponse.json({
+    site: host,
+    nascoste: daNascondere.length,
+    ripristinate: daRipristinare.length,
+    inArchivio: righe.length,
+    sulSito: idsSulSito.length,
+    troncato,
+  });
 }
 
 export async function POST(request: Request) {
@@ -178,7 +197,7 @@ export async function POST(request: Request) {
       status?: string;
     } | null;
 
-    const host = normalizzaSito(body?.site);
+    const host = normalizzaSitoConcessionaria(body?.site);
     if (!host) {
       return NextResponse.json({ error: "Indirizzo del sito non valido. Esempio: autogepy.it" }, { status: 400 });
     }
@@ -233,7 +252,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (body?.action !== "import") {
+    if (body?.action !== "import" && body?.action !== "riconcilia") {
       return NextResponse.json({ error: "Azione non riconosciuta." }, { status: 400 });
     }
 
@@ -246,6 +265,10 @@ export async function POST(request: Request) {
     const demoBlock = getDemoFeatureBlockReason(demoContext, "import");
     if (demoBlock) {
       return NextResponse.json({ error: demoBlock.message }, { status: 403 });
+    }
+
+    if (body?.action === "riconcilia") {
+      return await riconcilia(supabase, dealerId, host, voci.map((voce) => voce.sourceId));
     }
 
     // Le bozze non consumano il tetto del piano, che conta solo i pubblicati:
@@ -261,7 +284,7 @@ export async function POST(request: Request) {
     const esiti: EsitoScheda[] = [];
 
     for (const voce of lotto) {
-      const html = await leggi(voce.url);
+      const html = await leggiPagina(voce.url);
 
       if (!html) {
         // Non e' un veicolo che non c'e': e' una lettura andata male. La

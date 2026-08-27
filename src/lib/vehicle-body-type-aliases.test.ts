@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 
-const route = readFileSync(resolve(process.cwd(), "src/app/api/vehicles/import-site/route.ts"), "utf8");
+// La mappatura sito -> nostre colonne e' uscita dall'endpoint quando la
+// sincronizzazione notturna ha avuto bisogno della stessa: sta qui, e vale
+// per entrambe.
+const route = readFileSync(resolve(process.cwd(), "src/lib/dealer-site-sync.ts"), "utf8");
 
 // I nomi veri usati dai siti delle concessionarie, raccolti leggendo quindici
 // schede su autogepy.it e delorenziauto.it il 22/08/2026.

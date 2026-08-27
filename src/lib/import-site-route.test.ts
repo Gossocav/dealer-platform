@@ -8,14 +8,20 @@ function read(path: string) {
 
 const route = read("src/app/api/vehicles/import-site/route.ts");
 const pagina = read("src/components/vehicles/vehicles-import-page.tsx");
+// La lettura del sito e' uscita dall'endpoint quando la sincronizzazione
+// notturna ha avuto bisogno delle stesse funzioni: le regole qui sotto
+// valgono ancora, e valgono per entrambi i chiamanti.
+const lettura = read("src/lib/dealer-site-fetch.ts");
+const sincronizzazione = read("src/lib/dealer-site-sync.ts");
 
 // Chi lancia l'importazione manda un indirizzo. Se il server leggesse
 // qualunque cosa gli venga passata, diventerebbe un modo per fargli aprire
 // indirizzi altrui -- compresi quelli interni alla nostra rete.
 describe("il server non legge indirizzi arbitrari", () => {
   it("dell'indirizzo tiene solo il nome del sito", () => {
-    expect(route).toContain("const host = grezzo.split(\"/\")[0].toLowerCase()");
-    expect(route).toMatch(/\^\[a-z0-9-\]\+\(\\\.\[a-z0-9-\]\+\)\+\$/);
+    expect(lettura).toContain("const host = grezzo.split(\"/\")[0].toLowerCase()");
+    expect(lettura).toMatch(/\^\[a-z0-9-\]\+\(\\\.\[a-z0-9-\]\+\)\+\$/);
+    expect(route).toContain("normalizzaSitoConcessionaria(body?.site)");
   });
 
   // Il browser manda quanti veicoli, non quali: l'elenco lo rilegge il server
@@ -36,8 +42,8 @@ describe("il server non legge indirizzi arbitrari", () => {
 describe("il sito della concessionaria viene letto con calma", () => {
   it("c'e' una pausa fra una scheda e l'altra, e un secondo tentativo", () => {
     expect(route).toContain("PAUSA_FRA_SCHEDE_MS");
-    expect(route).toContain("TENTATIVI_PER_SCHEDA");
-    expect(route).toContain("AbortSignal.timeout(TIMEOUT_SCHEDA_MS)");
+    expect(lettura).toContain("TENTATIVI_PER_SCHEDA");
+    expect(lettura).toContain("AbortSignal.timeout(TIMEOUT_SCHEDA_MS)");
   });
 
   // La distinzione che conta: quando ci sara' la rimozione delle vendute,
@@ -52,6 +58,23 @@ describe("il sito della concessionaria viene letto con calma", () => {
 
   it("l'interfaccia spiega che quelle schede si riprendono, non sono perse", () => {
     expect(pagina).toContain("Non sono veicoli mancanti");
+  });
+});
+
+// La sincronizzazione notturna scrive con la chiave di servizio e senza
+// nessuno davanti allo schermo: se potesse toccare "status" o "published",
+// un suo errore toglierebbe dal marketplace lo stock di una concessionaria.
+// Non puo', perche' quei campi non esistono in quello che scrive.
+describe("cosa la sincronizzazione notturna non puo' scrivere", () => {
+  it("i dati del veicolo stanno separati dalla pubblicazione", () => {
+    const payload = sincronizzazione.slice(sincronizzazione.indexOf("export function payloadDatiVeicolo"));
+    expect(payload).not.toContain("status");
+    expect(payload).not.toContain("published");
+  });
+
+  it("chi importa a mano aggiunge lui stato e pubblicazione", () => {
+    expect(route).toContain("...payloadDatiVeicolo(v)");
+    expect(route).toContain('published: status === "published"');
   });
 });
 

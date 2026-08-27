@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Link2, Loader2, UploadCloud } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Link2, Loader2, RefreshCw, UploadCloud } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { buildActiveDealerHeaders, getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -80,6 +80,14 @@ const MOTIVI_SALTO: Record<string, string> = {
 
 type SiteProgress = { importati: number; aggiornati: number; saltati: number; lettureFallite: number; letti: number };
 
+type SiteAlignResult = {
+  site: string;
+  nascoste: number;
+  ripristinate: number;
+  inArchivio: number;
+  sulSito: number;
+};
+
 type PreviewRow = {
   rowNumber: number;
   mapped: VehicleImportMappedRow;
@@ -154,6 +162,8 @@ export function VehiclesImportPage() {
   const [siteQuante, setSiteQuante] = useState(20);
   const [siteStatus, setSiteStatus] = useState<VehicleImportStatus>("draft");
   const [siteProgress, setSiteProgress] = useState<SiteProgress | null>(null);
+  const [siteAligning, setSiteAligning] = useState(false);
+  const [siteAlignResult, setSiteAlignResult] = useState<SiteAlignResult | null>(null);
   const [siteLog, setSiteLog] = useState<string[]>([]);
 
   const loadSyncHistory = useCallback(
@@ -254,6 +264,48 @@ export function VehiclesImportPage() {
       setSiteError("Non siamo riusciti a contattare il sito. Controlla la connessione.");
     } finally {
       setSiteAnalyzing(false);
+    }
+  };
+
+  /**
+   * Allinea lo stock con quello che il sito dichiara adesso: toglie dalla
+   * vetrina le auto che non ci sono piu' e rimette quelle tornate.
+   *
+   * Sta a se' e non dentro l'importazione perche' costa una richiesta sola --
+   * la sitemap -- e vuole l'elenco intero: fatto su un lotto di cinque
+   * direbbe che tutte le altre sono sparite.
+   */
+  const handleAlignSite = async () => {
+    setSiteAligning(true);
+    setSiteError(null);
+    setSiteAlignResult(null);
+
+    try {
+      const token = await resolveAccessToken(sessionToken);
+      if (!token) {
+        setSiteError("Sessione non valida.");
+        return;
+      }
+      setSessionToken(token);
+
+      const response = await fetch("/api/vehicles/import-site", {
+        method: "POST",
+        headers: buildActiveDealerHeaders({ "Content-Type": "application/json", Authorization: `Bearer ${token}` }),
+        body: JSON.stringify({ action: "riconcilia", site: siteUrl }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as (SiteAlignResult & { error?: string }) | null;
+
+      if (!response.ok || !payload) {
+        setSiteError(payload?.error || "Non siamo riusciti ad allineare lo stock.");
+        return;
+      }
+
+      setSiteAlignResult(payload);
+    } catch {
+      setSiteError("Non siamo riusciti a contattare il sito. Controlla la connessione.");
+    } finally {
+      setSiteAligning(false);
     }
   };
 
@@ -1113,6 +1165,57 @@ export function VehiclesImportPage() {
                 {siteImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
                 Importa {siteQuante} veicoli
               </button>
+            </div>
+          ) : null}
+
+          {siteUrl.trim().length > 0 ? (
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">Allinea con il tuo sito</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Toglie dalla vetrina le auto che sul tuo sito non ci sono piu&apos; — quasi sempre perche&apos; le hai
+                vendute — e rimette quelle che ci sono tornate. Non importa niente di nuovo e non cambia i prezzi:
+                dura pochi secondi. Succede comunque da solo una volta al giorno.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => void handleAlignSite()}
+                disabled={siteAligning || siteImporting || siteAnalyzing}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {siteAligning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Allinea adesso
+              </button>
+
+              {siteAlignResult ? (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  {siteAlignResult.nascoste === 0 && siteAlignResult.ripristinate === 0 ? (
+                    <p>
+                      Tutto in ordine: le <strong>{siteAlignResult.inArchivio}</strong> auto importate da{" "}
+                      <strong>{siteAlignResult.site}</strong> sono ancora tutte sul tuo sito.
+                    </p>
+                  ) : (
+                    <p>
+                      {siteAlignResult.nascoste > 0 ? (
+                        <>
+                          <strong>{siteAlignResult.nascoste}</strong>{" "}
+                          {siteAlignResult.nascoste === 1 ? "auto non e' piu'" : "auto non sono piu'"} sul tuo sito:{" "}
+                          {siteAlignResult.nascoste === 1 ? "l'abbiamo tolta" : "le abbiamo tolte"} dal marketplace e{" "}
+                          {siteAlignResult.nascoste === 1 ? "la trovi" : "le trovi"} in elenco con la scritta
+                          &quot;Non piu&apos; sul tuo sito&quot;.{" "}
+                        </>
+                      ) : null}
+                      {siteAlignResult.ripristinate > 0 ? (
+                        <>
+                          <strong>{siteAlignResult.ripristinate}</strong>{" "}
+                          {siteAlignResult.ripristinate === 1 ? "e' tornata" : "sono tornate"} sul tuo sito e{" "}
+                          {siteAlignResult.ripristinate === 1 ? "l'abbiamo rimessa" : "le abbiamo rimesse"} in vetrina.
+                        </>
+                      ) : null}
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
