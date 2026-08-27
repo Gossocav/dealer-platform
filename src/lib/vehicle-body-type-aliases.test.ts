@@ -12,9 +12,13 @@ const route = readFileSync(resolve(process.cwd(), "src/lib/dealer-site-sync.ts")
 // I nomi veri usati dai siti delle concessionarie, raccolti leggendo quindici
 // schede su autogepy.it e delorenziauto.it il 22/08/2026.
 const COME_LE_SCRIVONO_I_SITI: Array<[string, string | null]> = [
-  ["SUV", "SUV/Pick-up/Fuoristrada"],
-  ["Fuoristrada", "SUV/Pick-up/Fuoristrada"],
-  ["Crossover", "SUV/Pick-up/Fuoristrada"],
+  // Divise il 27/08/2026: "SUV" e "Pick-up/Fuoristrada" sono due cose diverse
+  // per chi cerca. Il crossover sta coi SUV -- e' un SUV piccolo, non un
+  // mezzo da sterrato.
+  ["SUV", "SUV"],
+  ["Crossover", "SUV"],
+  ["Fuoristrada", "Pick-up/Fuoristrada"],
+  ["Pick-up", "Pick-up/Fuoristrada"],
   ["Berlina due volumi", "Berlina"],
   ["Berlina tre volumi", "Berlina"],
   ["Station Wagon", "Station Wagon"],
