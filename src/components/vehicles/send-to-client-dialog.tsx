@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
 import { formatCurrency, formatRegistrationLabel, safeText } from "@/lib/vehicles";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -183,6 +184,10 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
       `Km: ${formatMileage(vehicle.mileage)}`,
       `Prezzo: ${price}`,
       `Link annuncio: ${publicUrl}`,
+      // Il messaggio da copiare su WhatsApp non ha un piede come l'email:
+      // l'avviso deve viaggiare dentro il testo, o non viaggia.
+      "",
+      AVVISO_FOTOGRAFIE,
     ]
       .filter((item) => item.length > 0)
       .join("\n");

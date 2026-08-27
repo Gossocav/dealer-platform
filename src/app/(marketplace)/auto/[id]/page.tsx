@@ -31,6 +31,7 @@ import { WhatsAppContactButton } from "@/components/marketplace/whatsapp-contact
 import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data";
 import RequestInformationForm from "./request-information-form";
 import VehicleGallery from "./vehicle-gallery";
+import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
 
 // Prima era "force-dynamic": ogni singola visita ricalcolava la pagina e il
 // browser riceveva l'ordine di non conservarne niente. Su una pagina
@@ -318,6 +319,12 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           <section className="order-1 min-w-0 space-y-6">
             {/* ============ GALLERY ============ */}
             <VehicleGallery images={resolvedImages} label={resolveVehicleLabel(vehicle)} />
+
+            {/* Attaccato alle foto, non in fondo alla pagina: chi guarda le
+                immagini deve leggerlo mentre le guarda. Nei Termini c'era gia'
+                (sezione 4), ma li' non ci arriva nessuno mentre sceglie
+                un'automobile. */}
+            <p className="px-1 text-xs leading-6 text-slate-500">{AVVISO_FOTOGRAFIE}</p>
 
             {/* ============ HERO SPEC STRIP ============ */}
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
