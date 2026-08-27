@@ -37,7 +37,7 @@ const STOCK: DealerVehicleFacets[] = [
     label: "Hyundai Tucson 1.6 CRDi Xline",
     brand: "Hyundai",
     model: "Tucson",
-    bodyType: "SUV/Pick-up/Fuoristrada",
+    bodyType: "SUV",
     condition: "Usato",
     fuel: "Diesel",
     transmission: "Manuale",
@@ -114,7 +114,7 @@ describe("le tendine non portano mai su un elenco vuoto", () => {
   it("propongono solo cio' che questa concessionaria ha davvero", () => {
     const opzioni = opzioniFiltri(STOCK, DEALER_FILTERS_EMPTY);
     expect(opzioni.brands).toEqual(["Fiat", "Hyundai"]);
-    expect(opzioni.bodyTypes).toEqual(["City Car", "SUV/Pick-up/Fuoristrada"]);
+    expect(opzioni.bodyTypes).toEqual(["City Car", "SUV"]);
     expect(opzioni.conditions).toEqual(["Km/0", "Usato"]);
     expect(opzioni.years).toEqual(["2024", "2019", "2016"]);
   });

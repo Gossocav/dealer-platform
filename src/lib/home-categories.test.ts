@@ -23,18 +23,19 @@ describe("elenco carrozzerie condiviso", () => {
 
     // Nessuno dei tre riscrive l'elenco a mano.
     for (const source of [homePage, searchPage, editor]) {
-      expect(source).not.toMatch(/"SUV\/Pick-up\/Fuoristrada",\s*"Berlina"/);
+      expect(source).not.toMatch(/"SUV",\s*"Pick-up\/Fuoristrada"/);
       expect(source).not.toContain('<option value="Berlina">');
     }
   });
 
   it("contiene le voci attese", () => {
-    // "Fuoristrada" nel nome e' una richiesta esplicita: chi cerca un
-    // fuoristrada non lo trovava nell'elenco e non immaginava che stesse
-    // sotto "SUV".
-    expect(VEHICLE_BODY_TYPES).toContain("SUV/Pick-up/Fuoristrada");
+    // Divise il 27/08/2026: erano una voce sola, e chi voleva un fuoristrada
+    // si trovava davanti centoventotto SUV. Misurato sui due siti prima di
+    // dividerle: 109 "SUV", 19 "Crossover", 5 "Fuoristrada", nessun pick-up.
+    expect(VEHICLE_BODY_TYPES).toContain("SUV");
+    expect(VEHICLE_BODY_TYPES).toContain("Pick-up/Fuoristrada");
     expect(VEHICLE_BODY_TYPES).toContain("Furgone/Van");
-    expect(VEHICLE_BODY_TYPES).toHaveLength(8);
+    expect(VEHICLE_BODY_TYPES).toHaveLength(9);
   });
 });
 

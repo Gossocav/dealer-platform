@@ -519,8 +519,14 @@ const CATEGORY_BY_ALIAS: Record<string, string> = {
 // un errore di compilazione invece di scrivere in silenzio una carrozzeria
 // che non esiste piu'.
 const BODY_TYPE_BY_ALIAS: Record<string, VehicleBodyType> = {
-  suv: "SUV/Pick-up/Fuoristrada", pickup: "SUV/Pick-up/Fuoristrada", fuoristrada: "SUV/Pick-up/Fuoristrada",
-  offroad: "SUV/Pick-up/Fuoristrada", crossover: "SUV/Pick-up/Fuoristrada",
+  // Come le chiamano i due siti, contate il 27/08/2026 sulle 134 automobili
+  // che stavano nella categoria unica: "SUV" 109, "Crossover" 19,
+  // "Fuoristrada" 5, nessun pick-up. Il crossover sta con i SUV perche' e' un
+  // SUV di taglia piccola, non un mezzo da sterrato.
+  suv: "SUV", crossover: "SUV", suvcrossover: "SUV",
+  pickup: "Pick-up/Fuoristrada", fuoristrada: "Pick-up/Fuoristrada",
+  offroad: "Pick-up/Fuoristrada", fuoristradapickup: "Pick-up/Fuoristrada",
+  "4x4": "Pick-up/Fuoristrada",
   berlina: "Berlina", sedan: "Berlina", limousine: "Berlina", saloon: "Berlina",
   // Come le scrivono i siti delle concessionarie, misurato su autogepy.it e
   // delorenziauto.it: "Berlina due volumi", "Furgone - Van", "Furgoni/Van".
@@ -540,8 +546,8 @@ function canonicalizeFromAliases(value: string, table: Record<string, string>, a
   const key = normalizeKey(value);
   if (!key) return null;
 
-  // Prima il valore gia' corretto: "SUV/Pick-up/Fuoristrada" normalizzato e'
-  // "suvpickupfuoristrada", che nella tabella dei sinonimi non c'e'.
+  // Prima il valore gia' corretto: "Pick-up/Fuoristrada" normalizzato e'
+  // "pickupfuoristrada", che nella tabella dei sinonimi non c'e'.
   const exact = allowed.find((option) => normalizeKey(option) === key);
   if (exact) return exact;
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
@@ -16,12 +16,27 @@ import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
  *
  * L'elenco vive in due posti che non possono parlarsi -- un file TypeScript e
  * un file SQL applicato a mano -- e questo test e' l'unico ponte fra i due.
+ *
+ * Guarda la migration **piu' recente** che ridefinisce il vincolo, non una
+ * scritta qui a mano: quella dovremmo ricordarci di cambiarla a ogni
+ * rinomina, ed e' esattamente il tipo di cosa che non ci si ricorda.
  */
 
-const migrazione = readFileSync(
-  resolve(process.cwd(), "supabase/migrations/20260827020000_vehicles_carrozzeria_fuoristrada.sql"),
-  "utf8",
-);
+const CARTELLA = resolve(process.cwd(), "supabase/migrations");
+
+function migrazioneDelVincolo() {
+  const candidate = readdirSync(CARTELLA)
+    .filter((nome) => nome.endsWith(".sql"))
+    .sort()
+    .filter((nome) =>
+      readFileSync(resolve(CARTELLA, nome), "utf8").includes("add constraint vehicles_body_type_check"),
+    );
+
+  const ultima = candidate.at(-1);
+  if (!ultima) throw new Error("nessuna migration definisce vehicles_body_type_check");
+
+  return { nome: ultima, sql: readFileSync(resolve(CARTELLA, ultima), "utf8") };
+}
 
 function valoriDelVincolo(sql: string): string[] {
   const dentro = sql.slice(sql.lastIndexOf("body_type in ("));
@@ -31,21 +46,34 @@ function valoriDelVincolo(sql: string): string[] {
 
 describe("il vincolo del database e l'elenco del codice dicono la stessa cosa", () => {
   it("ogni carrozzeria che il codice puo' salvare, il database la accetta", () => {
-    expect(valoriDelVincolo(migrazione).sort()).toEqual([...VEHICLE_BODY_TYPES].sort());
+    const { sql } = migrazioneDelVincolo();
+    expect(valoriDelVincolo(sql).sort()).toEqual([...VEHICLE_BODY_TYPES].sort());
   });
 
-  // Il nome vecchio non deve restare ammesso: se restasse, una riga scritta
-  // con quello passerebbe il vincolo e poi non comparirebbe in nessun filtro.
-  it("il nome vecchio non e' piu' ammesso", () => {
-    expect(valoriDelVincolo(migrazione)).not.toContain("SUV/Pick-up");
+  // I nomi vecchi non devono restare ammessi: se restassero, una riga scritta
+  // con quelli passerebbe il vincolo e poi non comparirebbe in nessun filtro.
+  it("i nomi gia' abbandonati non sono piu' ammessi", () => {
+    const valori = valoriDelVincolo(migrazioneDelVincolo().sql);
+    expect(valori).not.toContain("SUV/Pick-up");
+    expect(valori).not.toContain("SUV/Pick-up/Fuoristrada");
   });
 
-  // Prima il vincolo, i dati: se una riga avesse ancora il nome vecchio,
-  // aggiungere il vincolo nuovo farebbe fallire tutta la migration.
-  it("le righe col nome vecchio vengono aggiornate prima del vincolo", () => {
-    const posizioneUpdate = migrazione.indexOf("set body_type = 'SUV/Pick-up/Fuoristrada'");
-    const posizioneVincolo = migrazione.indexOf("add constraint vehicles_body_type_check");
-    expect(posizioneUpdate).toBeGreaterThan(-1);
-    expect(posizioneUpdate).toBeLessThan(posizioneVincolo);
+  /**
+   * L'ordine dei tre passi, che sbagliato fa fallire la migration a meta'.
+   *
+   * Visto succedere il 27/08/2026 provandola su un Postgres in Docker: scritta
+   * con i dati prima del "drop", l'aggiornamento delle righe avviene mentre e'
+   * ancora in vigore il vincolo vecchio -- che il nome nuovo non lo conosce --
+   * e Postgres rifiuta.
+   */
+  it("prima si toglie il vincolo vecchio, poi si aggiornano i dati, poi si mette quello nuovo", () => {
+    const { sql } = migrazioneDelVincolo();
+    const drop = sql.indexOf("drop constraint if exists vehicles_body_type_check");
+    const update = sql.indexOf("set body_type =");
+    const add = sql.indexOf("add constraint vehicles_body_type_check");
+
+    expect(drop).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(drop);
+    expect(add).toBeGreaterThan(update);
   });
 });
