@@ -101,7 +101,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   let query = publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, interior_type, year, registration_date, mileage, price, fuel, transmission, traction, color, city, province, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)",
+      "id, brand, model, version, interior_type, year, registration_date, registration_month, mileage, price, fuel, transmission, traction, color, city, province, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)",
       { count: "exact" }
     )
     .eq("published", true)

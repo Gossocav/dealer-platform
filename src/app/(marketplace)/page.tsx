@@ -97,7 +97,7 @@ export default async function MarketplaceHomePage() {
     publicSupabase
       .from("vehicles")
       .select(
-        "id, brand, model, version, registration_date, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)"
+        "id, brand, model, version, registration_date, registration_month, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)"
       )
       .eq("published", true)
       .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -561,7 +561,7 @@ async function resolveEliteShowcaseVehicle(): Promise<MarketplaceVehicle | null>
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select(
-      "id, brand, model, version, registration_date, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, registration_date, registration_month, year, mileage, price, fuel, transmission, body_type, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)"
     )
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -608,7 +608,7 @@ async function buildShowcaseVehicle(
       {
         key: "registration",
         label: "Immatricolazione",
-        value: formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-",
+        value: formatRegistrationLabel({ registration_date: vehicle.registration_date, registration_month: vehicle.registration_month, year: vehicle.year }) ?? "-",
         icon: "calendar",
       },
       { key: "fuel", label: "Alimentazione", value: formatText(vehicle.fuel), icon: "fuel" },

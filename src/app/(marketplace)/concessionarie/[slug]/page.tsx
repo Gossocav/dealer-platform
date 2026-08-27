@@ -109,7 +109,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     .from("vehicles")
     // body_type e vehicle_condition non servono alla scheda: servono alle
     // tendine "Carrozzeria" e "Condizioni" della ricerca qui sotto.
-    .select("id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, body_type, vehicle_condition, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, registration_date, registration_month, mileage, price, fuel, transmission, body_type, vehicle_condition, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
     .eq("dealer_id", matchedDealer.id)
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)

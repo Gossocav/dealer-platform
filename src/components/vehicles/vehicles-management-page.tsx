@@ -364,7 +364,7 @@ export function VehiclesManagementPage() {
       let query = supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
+          "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
           { count: "exact" }
         )
         .eq("dealer_id", currentDealerId)
@@ -494,7 +494,12 @@ export function VehiclesManagementPage() {
           brand: safeText(row.brand),
           model: safeText(row.model),
           version: safeText(row.version),
-          registration: formatRegistrationLabel({ registration_date: row.registration_date, year: row.year }) ?? "-",
+          registration:
+            formatRegistrationLabel({
+              registration_date: row.registration_date,
+              registration_month: row.registration_month,
+              year: row.year,
+            }) ?? "-",
           priceValue: normalizedPrice,
           priceLabel: formatCurrency(normalizedPrice),
           status,

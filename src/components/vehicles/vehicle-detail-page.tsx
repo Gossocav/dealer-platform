@@ -46,6 +46,7 @@ type VehicleWithEquipment = VehicleRow & {
   availability?: string | null;
   emission_class?: string | null;
   registration_date?: string | null;
+  registration_month?: string | null;
   vin?: string | null;
   equipment?: string[] | string | null;
 };
@@ -147,7 +148,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, color, vin, equipment, created_at, updated_at"
+            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, vin, equipment, created_at, updated_at"
           )
           .eq("id", vehicleId)
           .eq("dealer_id", dealerId)
@@ -446,6 +447,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   value={
                     formatRegistrationLabel({
                       registration_date: vehicle.registration_date,
+                      registration_month: vehicle.registration_month,
                       year: vehicle.year,
                     }) ?? "-"
                   }
@@ -554,6 +556,8 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               brand: vehicle.brand,
               model: vehicle.model,
               version: vehicle.version,
+              registration_date: vehicle.registration_date,
+              registration_month: vehicle.registration_month,
               year: vehicle.year,
               mileage: vehicle.mileage,
               fuel: vehicle.fuel,

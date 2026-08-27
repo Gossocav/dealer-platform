@@ -28,6 +28,7 @@ const COLONNE_VEICOLO = [
   "plate",
   "vin",
   "registration_date",
+  "registration_month",
   "year",
   "mileage",
   "fuel",

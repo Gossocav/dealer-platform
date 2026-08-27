@@ -152,6 +152,11 @@ function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, st
     // tabella dei sinonimi la riporta alle nostre.
     body_type: canonicalizeVehicleBodyType(v.bodyType ?? "") || null,
     year: v.year,
+    // Il mese sta a se' e non dentro registration_date: quella e' una data
+    // piena, e per scriverla servirebbe un giorno che nessuno ci ha dato.
+    // Un "1 gennaio" inventato comparirebbe sulle schede come se fosse il
+    // giorno vero dell'immatricolazione.
+    registration_month: v.registrationMonth,
     vehicle_condition: v.condition,
     vehicle_category: "Auto",
     description: v.description,

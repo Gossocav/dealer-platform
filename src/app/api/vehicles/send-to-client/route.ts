@@ -32,6 +32,7 @@ type VehicleOwnershipRow = {
   model: string | null;
   version: string | null;
   registration_date: string | null;
+  registration_month: string | null;
   year: number | null;
   mileage: number | null;
   fuel: string | null;
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
 
     const { data: ownedVehicle, error: ownedVehicleError } = await supabase
       .from("vehicles")
-      .select("id, dealer_id, brand, model, version, registration_date, year, mileage, fuel, transmission, price")
+      .select("id, dealer_id, brand, model, version, registration_date, registration_month, year, mileage, fuel, transmission, price")
       .eq("id", vehicleId)
       .eq("dealer_id", resolvedDealerId)
       .maybeSingle<VehicleOwnershipRow>();
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
     const model = normalizeText(ownedVehicle.model) ?? "-";
     const version = normalizeText(ownedVehicle.version) ?? "-";
     const registration =
-      formatRegistrationLabel({ registration_date: ownedVehicle.registration_date, year: ownedVehicle.year }) ?? "-";
+      formatRegistrationLabel({ registration_date: ownedVehicle.registration_date, registration_month: ownedVehicle.registration_month, year: ownedVehicle.year }) ?? "-";
     const mileage = ownedVehicle.mileage === null ? "-" : String(ownedVehicle.mileage);
     const fuel = normalizeText(ownedVehicle.fuel) ?? "-";
     const transmission = normalizeText(ownedVehicle.transmission) ?? "-";

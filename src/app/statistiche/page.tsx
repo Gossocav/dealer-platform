@@ -13,6 +13,7 @@ type Vehicle = {
   model?: string | null;
   version?: string | null;
   registration_date?: string | null;
+  registration_month?: string | null;
   year?: string | null;
   price?: string | null;
   status?: string | null;
@@ -124,7 +125,7 @@ export default function StatistichePage() {
         await Promise.all([
           supabase
             .from("vehicles")
-            .select("id, brand, model, version, registration_date, year, price, status, published, created_at")
+            .select("id, brand, model, version, registration_date, registration_month, year, price, status, published, created_at")
             .eq("dealer_id", dealerId)
             .order("created_at", { ascending: false }),
           supabase.from("leads").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
@@ -348,7 +349,7 @@ export default function StatistichePage() {
                   latestVehicles.map((vehicle) => (
                     <div key={vehicle.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <p className="font-semibold text-slate-900">{vehicle.brand ?? "-"} {vehicle.model ?? ""} {vehicle.version ?? ""}</p>
-                      <p className="text-sm text-slate-600">Immatricolazione: {formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-"} • Prezzo: €{parsePrice(vehicle.price).toLocaleString("it-IT")}</p>
+                      <p className="text-sm text-slate-600">Immatricolazione: {formatRegistrationLabel({ registration_date: vehicle.registration_date, registration_month: vehicle.registration_month, year: vehicle.year }) ?? "-"} • Prezzo: €{parsePrice(vehicle.price).toLocaleString("it-IT")}</p>
                     </div>
                   ))
                 )}
