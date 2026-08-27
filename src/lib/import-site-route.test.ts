@@ -12,6 +12,10 @@ const pagina = read("src/components/vehicles/vehicles-import-page.tsx");
 // notturna ha avuto bisogno delle stesse funzioni: le regole qui sotto
 // valgono ancora, e valgono per entrambi i chiamanti.
 const lettura = read("src/lib/dealer-site-fetch.ts");
+// Anche la galleria e' uscita dall'endpoint quando la sincronizzazione ha
+// avuto bisogno della stessa regola: le foto vanno rifatte, non accumulate,
+// tanto per chi importa a mano quanto per chi sincronizza di notte.
+const foto = read("src/lib/dealer-site-photos.ts");
 const sincronizzazione = read("src/lib/dealer-site-sync.ts");
 
 // Chi lancia l'importazione manda un indirizzo. Se il server leggesse
@@ -104,25 +108,25 @@ describe("il caricamento e' prudente per costruzione", () => {
 // salvataggio delle foto aggiungeva soltanto.
 describe("la galleria si rifa', non si accumula", () => {
   it("le foto vengono sostituite con quelle attuali della sorgente", () => {
-    expect(route).toContain("async function sostituisciFoto");
-    expect(route).toContain('.from("vehicle_images").delete()');
+    expect(foto).toContain("export async function sostituisciFoto");
+    expect(foto).toContain('.from("vehicle_images").delete()');
     expect(route).toContain("sostituisciFoto(supabase, dealerId, vehicleId, veicolo.images)");
   });
 
   // La cancellazione e' limitata alla concessionaria oltre che al veicolo:
   // due condizioni invece di una, su un'operazione che toglie righe.
   it("cancella solo le foto di quel veicolo di quella concessionaria", () => {
-    const blocco = route.slice(route.indexOf('.from("vehicle_images").delete()'));
+    const blocco = foto.slice(foto.indexOf('.from("vehicle_images").delete()'));
     expect(blocco.slice(0, 160)).toContain('.eq("vehicle_id", vehicleId)');
     expect(blocco.slice(0, 160)).toContain('.eq("dealer_id", dealerId)');
   });
 
   it("se la galleria e' gia' quella giusta non si tocca niente", () => {
-    expect(route).toContain("if (gia) return;");
+    expect(foto).toContain("if (gia) return;");
   });
 
   it("resta il tetto di venti foto a veicolo", () => {
-    expect(route).toContain("urls.slice(0, MAX_FOTO_VEICOLO)");
+    expect(foto).toContain("urls.slice(0, MAX_FOTO_VEICOLO)");
   });
 });
 

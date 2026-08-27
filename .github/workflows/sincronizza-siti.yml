@@ -1,8 +1,8 @@
 name: Sincronizzazione stock dai siti
 
-# Ogni notte chiede alla piattaforma di riallineare lo stock importato con i
-# siti delle concessionarie: toglie dalla vetrina le auto vendute e rilegge
-# le schede piu' vecchie per ripassare prezzi e chilometri.
+# Riallinea lo stock di KeyAuto con i siti delle concessionarie: toglie dalla
+# vetrina le auto vendute, porta dentro quelle nuove, ripassa prezzi,
+# chilometri e fotografie di quelle che ci sono gia'.
 #
 # Perche' da GitHub e non da Vercel, che avrebbe il suo "cron": il primo
 # tentativo lo usava, e la pubblicazione in produzione falliva -- l'anteprima
@@ -11,25 +11,31 @@ name: Sincronizzazione stock dai siti
 # gira dove girano gia' i controlli di questo progetto, il registro delle
 # esecuzioni si legge dalla scheda Actions, e non dipende dal piano Vercel.
 #
-# Questo lavoro non decide niente: bussa a una porta e riporta cosa gli
-# risponde. Tutto quello che c'e' da decidere sta nell'endpoint.
+# Questo lavoro non decide niente: bussa a una porta finche' non gli dicono
+# che non c'e' piu' niente da fare. Tutto quello che c'e' da decidere sta
+# nell'endpoint, dove ci sono i test.
 
 on:
   schedule:
-    # Le quattro del mattino UTC: le sei in Italia d'estate, le cinque
-    # d'inverno. Nessuno sta guardando il marketplace, e i siti delle
-    # concessionarie sono scarichi.
-    - cron: "0 4 * * *"
+    # Ogni tre ore. Una sola volta al giorno non basterebbe: un'auto messa in
+    # vendita la mattina comparirebbe su KeyAuto la notte dopo.
+    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Due esecuzioni insieme leggerebbero gli stessi siti e si scriverebbero
+# addosso. Se una e' gia' in corso, questa aspetta.
+concurrency:
+  group: sincronizza-siti
+  cancel-in-progress: false
+
 jobs:
   sincronizza:
     name: sincronizza
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       # Senza segreto non si puo' bussare, e allora bisogna dirlo fallendo:
@@ -59,41 +65,62 @@ jobs:
           # segreto perche' non e' riservato: e' il sito.
           BASE_URL: https://www.keyauto.it
         run: |
-          risposta=$(mktemp)
-          # Il tempo massimo e' largo: l'endpoint si ferma da solo dopo
-          # quarantacinque secondi, ma la rete puo' aggiungere la sua.
-          codice=$(curl -s -o "$risposta" -w "%{http_code}" --max-time 180 \
-            -H "x-cron-secret: $CRON_SECRET" \
-            "$BASE_URL/api/cron/sincronizza-siti")
-
+          # Una chiamata sola ha meno di un minuto, e centocinquanta schede da
+          # leggere non ci stanno: si richiama finche' l'endpoint dice che ne
+          # restano, con un tetto perche' un giro non duri all'infinito.
+          MAX_CHIAMATE=20
           echo "## Sincronizzazione stock" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$codice" = "403" ]; then
-            echo "::error::La piattaforma ha rifiutato la chiamata (403): il segreto su GitHub non coincide con quello su Vercel."
-            echo "La piattaforma ha rifiutato la chiamata: il segreto \`CRON_SECRET\` su GitHub non coincide con quello su Vercel." >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          risposta=$(mktemp)
+          giro=0
+          ancora="true"
 
-          if [ "$codice" != "200" ]; then
-            echo "::error::La sincronizzazione non e' riuscita (HTTP $codice)."
+          while [ "$ancora" = "true" ] && [ "$giro" -lt "$MAX_CHIAMATE" ]; do
+            giro=$((giro + 1))
+
+            codice=$(curl -s -o "$risposta" -w "%{http_code}" --max-time 180 \
+              -H "x-cron-secret: $CRON_SECRET" \
+              "$BASE_URL/api/cron/sincronizza-siti")
+
+            if [ "$codice" = "403" ]; then
+              echo "::error::La piattaforma ha rifiutato la chiamata (403): il segreto su GitHub non coincide con quello su Vercel."
+              echo "La piattaforma ha rifiutato la chiamata: il segreto \`CRON_SECRET\` su GitHub non coincide con quello su Vercel." >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+
+            if [ "$codice" != "200" ]; then
+              echo "::error::La sincronizzazione non e' riuscita (HTTP $codice) al giro $giro."
+              {
+                echo "La chiamata numero $giro e' fallita con codice **$codice**."
+                echo ""
+                echo '```'
+                head -c 2000 "$risposta"
+                echo ""
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+
             {
-              echo "La chiamata e' fallita con codice **$codice**."
+              echo "### Giro $giro"
+              echo ""
+              echo '```json'
+              head -c 4000 "$risposta"
               echo ""
               echo '```'
-              head -c 2000 "$risposta"
               echo ""
-              echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
 
-          # Il riepilogo si legge dalla scheda Actions: quante tolte dalla
-          # vetrina, quante rimesse, quante schede rilette, e le eventuali
-          # note (sito irraggiungibile, sparizione sospetta).
-          {
-            echo '```json'
-            head -c 4000 "$risposta"
-            echo ""
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+            ancora=$(python3 -c "import json,sys; print(str(json.load(open('$risposta')).get('ancoraDaFare', False)).lower())")
+
+            # Una pausa fra un giro e l'altro: dall'altra parte ci sono i siti
+            # delle concessionarie, non i nostri server.
+            [ "$ancora" = "true" ] && sleep 5
+          done
+
+          if [ "$ancora" = "true" ]; then
+            echo "Fermata al tetto di $MAX_CHIAMATE chiamate: il resto lo prende il giro successivo." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Allineamento completo in $giro giri." >> "$GITHUB_STEP_SUMMARY"
+          fi

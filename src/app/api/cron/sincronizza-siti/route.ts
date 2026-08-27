@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { elencoStock, leggiPagina, PAUSA_FRA_SCHEDE_MS } from "@/lib/dealer-site-fetch";
 import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
+import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
   campiVeicoloRitrovato,
   campiVeicoloSparito,
@@ -10,48 +11,54 @@ import {
   pianoRiconciliazione,
   type RigaImportata,
 } from "@/lib/dealer-site-sync";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 
 /**
- * La sincronizzazione che gira da sola, una volta al giorno, chiamata dal
- * lavoro notturno in .github/workflows/sincronizza-siti.yml.
+ * KeyAuto deve rispecchiare il sito della concessionaria.
  *
- * Prima di questa, lo stock importato si aggiornava soltanto se qualcuno
- * apriva il pannello e premeva un bottone: un'auto venduta restava in vetrina
- * per sempre, e un prezzo ritoccato sul sito della concessionaria restava
- * quello vecchio qui.
+ * Chiamata dal lavoro periodico in .github/workflows/sincronizza-siti.yml, che
+ * la richiama piu' volte di fila finche' non risponde che non c'e' piu' niente
+ * da fare: una sola chiamata ha meno di un minuto, e centocinquanta schede da
+ * leggere non ci stanno.
  *
- * Fa due cose, in quest'ordine, perche' la prima costa una richiesta sola e
- * la seconda molte:
+ * Tre cose, in quest'ordine, e l'ordine e' il punto:
  *
- * 1. **allinea** cio' che c'e' con cio' che il sito dichiara adesso: basta la
- *    sitemap, e vale per tutto lo stock di ogni concessionaria.
- * 2. **rilegge** le schede piu' vecchie, per ripassare prezzo, chilometri e
- *    il resto -- ma solo finche' c'e' tempo. Leggere il sito di qualcun altro
- *    e' lento, e su una funzione che deve concludersi in un minuto ci stanno
- *    poche decine di pagine: si prendono le meno recenti, cosi' a giri
- *    successivi passano tutte.
+ * 1. **le sparizioni, per tutte le concessionarie.** Costano una richiesta
+ *    l'una -- l'indice del sito -- e sono la cosa che si vede di piu': un'auto
+ *    venduta in vetrina fa chiedere informazioni per qualcosa che non esiste
+ *    piu'. Vanno fatte tutte prima di qualsiasi altra cosa, altrimenti la
+ *    prima concessionaria si prende il tempo e la seconda resta indietro. E'
+ *    successo davvero nella prima versione di questo file.
+ * 2. **le auto nuove.** Sono quelle che mancano proprio: sul sito ci sono, qui
+ *    no.
+ * 3. **il ripasso di quelle che ci sono gia'**: prezzo, chilometri, foto.
  *
- * Quello che **non** fa, di proposito: non importa le auto nuove che compaiono
- * sul sito. Importare consuma il tetto di annunci del piano e obbliga a
- * scegliere se pubblicarle o tenerle in bozza: sono decisioni del
- * concessionario, non di un lavoro notturno.
+ * Il tempo che resta dopo il primo passo si divide in parti uguali fra le
+ * concessionarie, cosi' nessuna puo' affamare le altre.
  *
- * E non tocca mai la pubblicazione dei veicoli che rilegge: quello che scrive
- * arriva da "payloadDatiVeicolo", dove "status" e "published" non esistono
- * proprio.
+ * Le auto nuove entrano **pubblicate**: se il concessionario le espone sul suo
+ * sito, la sua intenzione e' che si vedano. Se il piano non ha piu' posto il
+ * database rifiuta l'inserimento, e qui lo si riporta invece di ritentare
+ * all'infinito.
  */
 
 export const maxDuration = 60;
 
-// Si ferma prima del limite della funzione: meglio lasciare a meta' e
-// riprendere domani dalle stesse schede, che essere interrotti a scrittura
-// iniziata.
+// Si ferma prima del limite della funzione: meglio lasciare a meta' -- tanto
+// chi chiama richiama -- che essere interrotti a scrittura iniziata.
 const BUDGET_MS = 45000;
 
-// Quante schede rileggere al massimo per ogni sorgente in un giro solo. Il
-// tempo e' comunque il vincolo vero; questo evita che una concessionaria
-// grossa si prenda tutto il giro a scapito delle altre.
-const MAX_SCHEDE_PER_SORGENTE = 25;
+// Una scheda riletta da meno di questo si considera fresca. Serve a far
+// finire il giro: senza, il lavoro si richiamerebbe all'infinito perche'
+// qualcosa da rileggere c'e' sempre.
+const ORE_PRIMA_DI_RILEGGERE = 6;
+
+// Quante schede per chiamata, per sorgente. Il tempo resta il vincolo vero:
+// questo evita solo di chiedere al database righe che non si faranno in tempo.
+const MAX_SCHEDE_PER_GIRO = 25;
+
+// Sotto questa soglia non vale la pena iniziare un'altra scheda.
+const TEMPO_MINIMO_PER_SCHEDA_MS = 3000;
 
 type ApiSupabaseClient = SupabaseClient;
 
@@ -62,6 +69,7 @@ type EsitoSorgente = {
   dealerId: string;
   nascoste: number;
   ripristinate: number;
+  importate: number;
   rilette: number;
   nota?: string;
   /** Le scritture non riuscite, con il motivo del database. */
@@ -70,11 +78,10 @@ type EsitoSorgente = {
 
 /**
  * Autorizza chi chiama con CRON_SECRET. Due modi, come per il cron delle demo:
- * "x-cron-secret: <segreto>", che manda il lavoro notturno di GitHub Actions
- * (.github/workflows/sincronizza-siti.yml), e "Authorization: Bearer
- * <segreto>" per lanciarlo a mano. Senza segreto configurato non si passa:
- * chi riesce a chiamare questo endpoint tocca lo stock di ogni
- * concessionaria, perche' scrive con la chiave di servizio.
+ * "x-cron-secret: <segreto>", che manda il lavoro di GitHub Actions, e
+ * "Authorization: Bearer <segreto>" per lanciarlo a mano. Senza segreto
+ * configurato non si passa: chi riesce a chiamare questo endpoint tocca lo
+ * stock di ogni concessionaria, perche' scrive con la chiave di servizio.
  */
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -103,12 +110,8 @@ async function sorgentiAttive(supabase: ApiSupabaseClient): Promise<Sorgente[]> 
   return [...viste.values()];
 }
 
-async function allinea(
-  supabase: ApiSupabaseClient,
-  sorgente: Sorgente,
-  idsSulSito: string[],
-): Promise<{ nascoste: number; ripristinate: number; nota?: string }> {
-  const { righe, error } = await caricaTutto<RigaImportata>((da, a) =>
+async function archivioDellaSorgente(supabase: ApiSupabaseClient, sorgente: Sorgente) {
+  return caricaTutto<RigaImportata>((da, a) =>
     supabase
       .from("vehicles")
       .select("id, import_source_id, status, published, import_missing_since")
@@ -116,11 +119,14 @@ async function allinea(
       .eq("import_source", sorgente.import_source)
       .range(da, a),
   );
+}
 
-  if (error) {
-    return { nascoste: 0, ripristinate: 0, nota: "archivio non letto" };
-  }
-
+async function allinea(
+  supabase: ApiSupabaseClient,
+  sorgente: Sorgente,
+  idsSulSito: string[],
+  righe: RigaImportata[],
+): Promise<{ nascoste: number; ripristinate: number; nota?: string }> {
   const esito = pianoRiconciliazione({ idsSulSito, righe });
 
   if (!esito.ok) {
@@ -158,35 +164,114 @@ async function allinea(
 }
 
 /**
- * Ripassa i dati delle schede meno recenti, finche' resta tempo.
+ * Porta dentro le automobili che sul sito ci sono e qui no.
+ *
+ * Entrano pubblicate: se la concessionaria le espone sul suo sito, vuole che
+ * si vedano. Il tetto di annunci del piano resta a fare da freno -- se non c'e'
+ * piu' posto il database rifiuta, e si smette invece di ritentare per ognuna.
+ */
+async function importaNuove(
+  supabase: ApiSupabaseClient,
+  sorgente: Sorgente,
+  nuove: DealerSiteEntry[],
+  scaduto: () => boolean,
+): Promise<{ importate: number; errori: string[]; restanti: number }> {
+  const errori: string[] = [];
+  let importate = 0;
+  let esaminate = 0;
+
+  for (const voce of nuove) {
+    if (scaduto()) break;
+    esaminate += 1;
+
+    const html = await leggiPagina(voce.url);
+    if (!html) {
+      // Lettura non riuscita: non e' un veicolo che non va importato. Si
+      // riprova alla prossima chiamata.
+      esaminate -= 1;
+      await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
+      continue;
+    }
+
+    const letto = parseDealerStockVehicle(html, voce);
+    if (!letto.ok) {
+      // Senza prezzo, senza foto, o e' un noleggio: sono gli stessi scarti
+      // dell'importazione a mano, e non sono errori.
+      await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
+      continue;
+    }
+
+    const adesso = new Date().toISOString();
+    const { data: inserito, error } = await supabase
+      .from("vehicles")
+      .insert({
+        ...payloadDatiVeicolo(letto.vehicle),
+        dealer_id: sorgente.dealer_id,
+        status: "published",
+        published: true,
+        import_source: sorgente.import_source,
+        import_source_id: letto.vehicle.sourceId,
+        import_synced_at: adesso,
+        updated_at: adesso,
+      })
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (error || !inserito?.id) {
+      // Il tetto del piano si presenta cosi': se non c'e' piu' posto per una,
+      // non ce n'e' per nessuna. Si smette e lo si dice.
+      errori.push(`${letto.vehicle.sourceId}: ${error?.message ?? "inserimento non riuscito"}`);
+      break;
+    }
+
+    if (letto.vehicle.images.length > 0) {
+      await sostituisciFoto(supabase, sorgente.dealer_id, inserito.id, letto.vehicle.images);
+    }
+
+    importate += 1;
+    await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
+  }
+
+  return { importate, errori, restanti: Math.max(0, nuove.length - esaminate) };
+}
+
+/**
+ * Ripassa prezzo, chilometri e fotografie delle schede meno recenti.
  *
  * L'ordinamento per "import_synced_at" con i vuoti per primi e' quello che
- * garantisce il giro completo: chi viene riletta oggi finisce in fondo alla
- * fila, e domani tocca alle altre.
+ * garantisce il giro completo: chi viene riletta adesso finisce in fondo alla
+ * fila, e alla chiamata dopo tocca alle altre.
  */
 async function rileggi(
   supabase: ApiSupabaseClient,
   sorgente: Sorgente,
   vociPerSourceId: Map<string, DealerSiteEntry>,
   scaduto: () => boolean,
-): Promise<{ rilette: number; errori: string[] }> {
+): Promise<{ rilette: number; errori: string[]; restanti: boolean }> {
+  const soglia = new Date(Date.now() - ORE_PRIMA_DI_RILEGGERE * 3600 * 1000).toISOString();
+
   const { data } = await supabase
     .from("vehicles")
     .select("id, import_source_id")
     .eq("dealer_id", sorgente.dealer_id)
     .eq("import_source", sorgente.import_source)
     .is("import_missing_since", null)
+    .or(`import_synced_at.is.null,import_synced_at.lt.${soglia}`)
     .order("import_synced_at", { ascending: true, nullsFirst: true })
-    .limit(MAX_SCHEDE_PER_SORGENTE);
+    .limit(MAX_SCHEDE_PER_GIRO);
 
   const daRileggere = (data ?? []) as Array<{ id: string; import_source_id: string | null }>;
-  let rilette = 0;
   const errori: string[] = [];
+  let rilette = 0;
+  let fermata = false;
 
   for (const riga of daRileggere) {
-    if (scaduto()) break;
+    if (scaduto()) {
+      fermata = true;
+      break;
+    }
 
-    // La voce della sitemap e non il solo indirizzo: da li' arriva anche la
+    // La voce dell'indice e non il solo indirizzo: da li' arriva anche la
     // condizione (usata o km 0), che sta nel percorso e non nella pagina.
     // Passandone una inventata, una km 0 riletta diventerebbe "Usato".
     const voce = vociPerSourceId.get(String(riga.import_source_id ?? ""));
@@ -197,7 +282,7 @@ async function rileggi(
 
     if (!html) {
       // Lettura non riuscita: non e' un veicolo cambiato. Si lascia il dato
-      // com'e' e non si segna la rilettura, cosi' domani riprova questa.
+      // com'e' e non si segna la rilettura, cosi' si riprova dopo.
       await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
       continue;
     }
@@ -231,11 +316,19 @@ async function rileggi(
       continue;
     }
 
+    // Le fotografie seguono i dati: sul sito cambiano, e una galleria vecchia
+    // e' visibile quanto un prezzo vecchio.
+    if (letto.ok && letto.vehicle.images.length > 0) {
+      await sostituisciFoto(supabase, sorgente.dealer_id, riga.id, letto.vehicle.images);
+    }
+
     rilette += 1;
     await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
   }
 
-  return { rilette, errori };
+  // Ne restano se ci siamo fermati per tempo scaduto, o se il lotto era pieno
+  // -- nel qual caso ce ne sono altre in coda.
+  return { rilette, errori, restanti: fermata || daRileggere.length === MAX_SCHEDE_PER_GIRO };
 }
 
 async function handle(request: Request) {
@@ -250,7 +343,7 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
   }
 
-  // Chiave di servizio perche' qui non c'e' nessuna sessione: gira di notte,
+  // Chiave di servizio perche' qui non c'e' nessuna sessione: gira da sola,
   // sul server, senza nessuno davanti allo schermo.
   const supabase = createClient(supabaseUrl, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -260,22 +353,32 @@ async function handle(request: Request) {
   const scaduto = () => Date.now() - inizio > BUDGET_MS;
 
   const sorgenti = await sorgentiAttive(supabase);
-  const esiti: EsitoSorgente[] = [];
+  const esiti = new Map<string, EsitoSorgente>();
+  const lavoro: Array<{ sorgente: Sorgente; voci: DealerSiteEntry[]; righe: RigaImportata[] }> = [];
 
+  // Primo passo, per tutte: le sparizioni. Una richiesta a testa, e sono la
+  // cosa che si vede di piu'.
   for (const sorgente of sorgenti) {
-    if (scaduto()) break;
+    const chiave = `${sorgente.dealer_id}|${sorgente.import_source}`;
+    const esito: EsitoSorgente = {
+      sito: sorgente.import_source,
+      dealerId: sorgente.dealer_id,
+      nascoste: 0,
+      ripristinate: 0,
+      importate: 0,
+      rilette: 0,
+    };
+    esiti.set(chiave, esito);
 
     const voci = await elencoStock(sorgente.import_source);
-
     if (!voci) {
-      esiti.push({
-        sito: sorgente.import_source,
-        dealerId: sorgente.dealer_id,
-        nascoste: 0,
-        ripristinate: 0,
-        rilette: 0,
-        nota: "sito non raggiungibile: niente toccato",
-      });
+      esito.nota = "sito non raggiungibile: niente toccato";
+      continue;
+    }
+
+    const { righe, error } = await archivioDellaSorgente(supabase, sorgente);
+    if (error) {
+      esito.nota = "archivio non letto";
       continue;
     }
 
@@ -283,38 +386,80 @@ async function handle(request: Request) {
       supabase,
       sorgente,
       voci.map((voce) => voce.sourceId),
+      righe,
     );
 
-    const vociPerSourceId = new Map(voci.map((voce) => [String(voce.sourceId), voce]));
-    const rilettura = scaduto()
-      ? { rilette: 0, errori: [] as string[] }
-      : await rileggi(supabase, sorgente, vociPerSourceId, scaduto);
+    esito.nascoste = allineamento.nascoste;
+    esito.ripristinate = allineamento.ripristinate;
+    if (allineamento.nota) esito.nota = allineamento.nota;
 
-    esiti.push({
-      sito: sorgente.import_source,
-      dealerId: sorgente.dealer_id,
-      nascoste: allineamento.nascoste,
-      ripristinate: allineamento.ripristinate,
-      rilette: rilettura.rilette,
-      ...(allineamento.nota ? { nota: allineamento.nota } : {}),
-      ...(rilettura.errori.length > 0 ? { errori: rilettura.errori } : {}),
-    });
+    lavoro.push({ sorgente, voci, righe });
+  }
+
+  // Secondo passo: col tempo che resta, in parti uguali. Cosi' una
+  // concessionaria grossa non puo' affamare le altre.
+  let ancoraDaFare = false;
+
+  for (let i = 0; i < lavoro.length; i += 1) {
+    const { sorgente, voci, righe } = lavoro[i];
+    const chiave = `${sorgente.dealer_id}|${sorgente.import_source}`;
+    const esito = esiti.get(chiave)!;
+
+    const rimanenti = lavoro.length - i;
+    const finePorzione = Math.min(inizio + BUDGET_MS, Date.now() + (BUDGET_MS - (Date.now() - inizio)) / rimanenti);
+    const scadutaPorzione = () => Date.now() > finePorzione - TEMPO_MINIMO_PER_SCHEDA_MS || scaduto();
+
+    const gia = new Set(righe.map((riga) => String(riga.import_source_id ?? "")));
+    const nuove = voci.filter((voce) => !gia.has(String(voce.sourceId)));
+
+    if (nuove.length > 0) {
+      // Il freno della demo vale anche qui: un account di prova non deve
+      // riempirsi di veicoli da solo. Le sparizioni invece si fanno comunque,
+      // perche' tolgono, non aggiungono.
+      const contesto = await resolveDemoAccessContext(supabase, sorgente.dealer_id, {
+        vehicleCount: righe.length,
+      });
+      const bloccoDemo = getDemoFeatureBlockReason(contesto, "import");
+
+      if (bloccoDemo) {
+        esito.nota = esito.nota ?? "importazione non consentita a questo account";
+      } else {
+        const esitoNuove = await importaNuove(supabase, sorgente, nuove, scadutaPorzione);
+        esito.importate = esitoNuove.importate;
+        if (esitoNuove.errori.length > 0) esito.errori = esitoNuove.errori;
+        if (esitoNuove.restanti > 0) ancoraDaFare = true;
+      }
+    }
+
+    if (!scadutaPorzione()) {
+      const vociPerSourceId = new Map(voci.map((voce) => [String(voce.sourceId), voce]));
+      const esitoRilettura = await rileggi(supabase, sorgente, vociPerSourceId, scadutaPorzione);
+      esito.rilette = esitoRilettura.rilette;
+      if (esitoRilettura.errori.length > 0) {
+        esito.errori = [...(esito.errori ?? []), ...esitoRilettura.errori];
+      }
+      if (esitoRilettura.restanti) ancoraDaFare = true;
+    } else {
+      ancoraDaFare = true;
+    }
   }
 
   return NextResponse.json({
     sorgenti: sorgenti.length,
-    esaminate: esiti.length,
+    // Chi chiama richiama finche' questo resta vero: una chiamata sola non
+    // basta a rileggere centocinquanta schede.
+    ancoraDaFare,
     durataMs: Date.now() - inizio,
-    esiti,
+    esiti: [...esiti.values()],
   });
 }
 
-// Il lavoro notturno di GitHub Actions chiama in GET.
+// Il lavoro periodico di GitHub Actions chiama in GET.
 export async function GET(request: Request) {
   return handle(request);
 }
 
-// Per lanciarla a mano quando serve.
+// Per lanciarla a mano.
 export async function POST(request: Request) {
   return handle(request);
 }
