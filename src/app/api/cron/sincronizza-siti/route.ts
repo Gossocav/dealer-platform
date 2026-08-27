@@ -12,7 +12,8 @@ import {
 } from "@/lib/dealer-site-sync";
 
 /**
- * La sincronizzazione che gira da sola, una volta al giorno.
+ * La sincronizzazione che gira da sola, una volta al giorno, chiamata dal
+ * lavoro notturno in .github/workflows/sincronizza-siti.yml.
  *
  * Prima di questa, lo stock importato si aggiornava soltanto se qualcuno
  * apriva il pannello e premeva un bottone: un'auto venduta restava in vetrina
@@ -69,9 +70,11 @@ type EsitoSorgente = {
 
 /**
  * Autorizza chi chiama con CRON_SECRET. Due modi, come per il cron delle demo:
- * "Authorization: Bearer <segreto>", che manda Vercel da solo, e
- * "x-cron-secret: <segreto>" per lanciarlo a mano. Senza segreto configurato
- * non si passa.
+ * "x-cron-secret: <segreto>", che manda il lavoro notturno di GitHub Actions
+ * (.github/workflows/sincronizza-siti.yml), e "Authorization: Bearer
+ * <segreto>" per lanciarlo a mano. Senza segreto configurato non si passa:
+ * chi riesce a chiamare questo endpoint tocca lo stock di ogni
+ * concessionaria, perche' scrive con la chiave di servizio.
  */
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -306,7 +309,7 @@ async function handle(request: Request) {
   });
 }
 
-// Vercel Cron chiama in GET.
+// Il lavoro notturno di GitHub Actions chiama in GET.
 export async function GET(request: Request) {
   return handle(request);
 }

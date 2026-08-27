@@ -1,0 +1,99 @@
+name: Sincronizzazione stock dai siti
+
+# Ogni notte chiede alla piattaforma di riallineare lo stock importato con i
+# siti delle concessionarie: toglie dalla vetrina le auto vendute e rilegge
+# le schede piu' vecchie per ripassare prezzi e chilometri.
+#
+# Perche' da GitHub e non da Vercel, che avrebbe il suo "cron": il primo
+# tentativo lo usava, e la pubblicazione in produzione falliva -- l'anteprima
+# della stessa modifica passava, e l'unica cosa che accade in produzione e non
+# nell'anteprima e' proprio la registrazione del lavoro periodico. Qui invece
+# gira dove girano gia' i controlli di questo progetto, il registro delle
+# esecuzioni si legge dalla scheda Actions, e non dipende dal piano Vercel.
+#
+# Questo lavoro non decide niente: bussa a una porta e riporta cosa gli
+# risponde. Tutto quello che c'e' da decidere sta nell'endpoint.
+
+on:
+  schedule:
+    # Le quattro del mattino UTC: le sei in Italia d'estate, le cinque
+    # d'inverno. Nessuno sta guardando il marketplace, e i siti delle
+    # concessionarie sono scarichi.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sincronizza:
+    name: sincronizza
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Senza segreto non si puo' bussare, e allora bisogna dirlo fallendo:
+      # un lavoro verde che non ha fatto niente e' peggio di uno rosso, perche'
+      # lo si crede fatto. Stessa ragione del controllo delle migration.
+      - name: Verifica che il segreto ci sia
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Manca il segreto CRON_SECRET: la sincronizzazione non e' stata eseguita."
+            {
+              echo "## Sincronizzazione non eseguita"
+              echo ""
+              echo "Manca il segreto \`CRON_SECRET\` su GitHub."
+              echo ""
+              echo "Si aggiunge in **Settings -> Secrets and variables -> Actions -> New repository secret**,"
+              echo "e deve valere **esattamente come quello omonimo su Vercel**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Riallinea lo stock
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # L'indirizzo pubblico della piattaforma. Sta qui e non in un
+          # segreto perche' non e' riservato: e' il sito.
+          BASE_URL: https://www.keyauto.it
+        run: |
+          risposta=$(mktemp)
+          # Il tempo massimo e' largo: l'endpoint si ferma da solo dopo
+          # quarantacinque secondi, ma la rete puo' aggiungere la sua.
+          codice=$(curl -s -o "$risposta" -w "%{http_code}" --max-time 180 \
+            -H "x-cron-secret: $CRON_SECRET" \
+            "$BASE_URL/api/cron/sincronizza-siti")
+
+          echo "## Sincronizzazione stock" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$codice" = "403" ]; then
+            echo "::error::La piattaforma ha rifiutato la chiamata (403): il segreto su GitHub non coincide con quello su Vercel."
+            echo "La piattaforma ha rifiutato la chiamata: il segreto \`CRON_SECRET\` su GitHub non coincide con quello su Vercel." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          if [ "$codice" != "200" ]; then
+            echo "::error::La sincronizzazione non e' riuscita (HTTP $codice)."
+            {
+              echo "La chiamata e' fallita con codice **$codice**."
+              echo ""
+              echo '```'
+              head -c 2000 "$risposta"
+              echo ""
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Il riepilogo si legge dalla scheda Actions: quante tolte dalla
+          # vetrina, quante rimesse, quante schede rilette, e le eventuali
+          # note (sito irraggiungibile, sparizione sospetta).
+          {
+            echo '```json'
+            head -c 4000 "$risposta"
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
