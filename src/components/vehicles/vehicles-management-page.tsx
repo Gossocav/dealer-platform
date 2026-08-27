@@ -364,7 +364,7 @@ export function VehiclesManagementPage() {
       let query = supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, vehicle_images(id, image_url, position, is_cover)",
+          "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, import_missing_since, vehicle_images(id, image_url, position, is_cover)",
           { count: "exact" }
         )
         .eq("dealer_id", currentDealerId)
@@ -504,7 +504,16 @@ export function VehiclesManagementPage() {
           priceLabel: formatCurrency(normalizedPrice),
           status,
           statusLabel: formatVehicleStatus(row.status, row.published),
-          badge: status === "published" ? "Pubblicato" : status === "sold" ? "Venduto" : "Bozza",
+          // Un veicolo che la sincronizzazione ha tolto dalla vetrina deve
+          // dire perche': senza, il concessionario lo trova "in revisione"
+          // senza aver toccato niente, e sembra un guasto.
+          badge: row.import_missing_since
+            ? "Non piu' sul tuo sito"
+            : status === "published"
+              ? "Pubblicato"
+              : status === "sold"
+                ? "Venduto"
+                : "Bozza",
           fuel: safeText(row.fuel),
           transmission: safeText(row.transmission),
           mileageLabel: formatMileage(row.mileage),
