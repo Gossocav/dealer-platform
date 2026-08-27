@@ -354,6 +354,37 @@ export function formatRegistrationLabel(input: {
   return rawYear;
 }
 
+/**
+ * Cosa scrivere in "registration_date" e "year" salvando il modulo del
+ * gestionale.
+ *
+ * L'anno si ricava dalla data, cosi' i due valori non possono disallinearsi.
+ * Ma il modulo ha un solo campo, la data piena, e le automobili importate dai
+ * siti delle concessionarie **non ce l'hanno**: portano soltanto mese e anno,
+ * perche' il giorno non lo dichiara nessuno.
+ *
+ * Prima di questa funzione, salvare la modifica di una di quelle vetture
+ * scriveva "anno: vuoto" -- e l'immatricolazione spariva dalla scheda e dagli
+ * annunci. Cioe' aprire un veicolo importato e premere Salva ne cancellava un
+ * dato vero. Riguardava 232 automobili su 234.
+ *
+ * Quindi: se la data c'e' comanda lei; se non c'e', l'anno gia' in archivio
+ * resta dov'e'.
+ */
+export function campiImmatricolazioneDaModulo(input: {
+  registrationDate: string;
+  annoInArchivio?: string | number | null;
+}): { registration_date: string | null; year: string | number | null } {
+  const data = String(input.registrationDate ?? "").trim();
+
+  if (data) {
+    return { registration_date: data, year: data.slice(0, 4) };
+  }
+
+  const anno = String(input.annoInArchivio ?? "").trim();
+  return { registration_date: null, year: anno ? input.annoInArchivio ?? null : null };
+}
+
 export function normalizeVehicleTraction(value: unknown): VehicleTraction | null {
   if (typeof value !== "string") {
     return null;

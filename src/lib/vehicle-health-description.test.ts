@@ -83,9 +83,12 @@ describe("il modulo veicolo non pretende la descrizione", () => {
   );
 
   it("non e' fra i campi obbligatori", () => {
+    // L'elenco degli obbligatori si e' accorciato ancora il 27/08/2026 --
+    // vedi modifica-veicolo-importato.test.ts, un veicolo importato non si
+    // poteva salvare affatto -- e da allora si chiama CAMPI_OBBLIGATORI.
     const elenco = modulo.slice(
-      modulo.indexOf("const REQUIRED_EDITOR_FIELDS"),
-      modulo.indexOf("] as const satisfies ReadonlyArray<keyof EditorState>;")
+      modulo.indexOf("const CAMPI_OBBLIGATORI"),
+      modulo.indexOf("const REQUIRED_EDITOR_FIELDS")
     );
 
     expect(elenco).not.toContain('"description"');
