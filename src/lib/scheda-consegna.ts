@@ -51,6 +51,7 @@ export type VeicoloDaConsegnare = {
   plate?: string | null;
   vin?: string | null;
   registration_date?: string | null;
+  registration_month?: string | null;
   year?: number | string | null;
   mileage?: number | null;
   fuel?: string | null;
@@ -77,7 +78,11 @@ export function formattaChilometri(mileage: number | null | undefined) {
 export function righeVeicolo(vehicle: VeicoloDaConsegnare): RigaConsegna[] {
   const marcaModello = [valore(vehicle.brand), valore(vehicle.model)].filter(Boolean).join(" ");
   const immatricolazione =
-    formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? null;
+    formatRegistrationLabel({
+      registration_date: vehicle.registration_date,
+      registration_month: vehicle.registration_month,
+      year: vehicle.year,
+    }) ?? null;
 
   return [
     { etichetta: "Marca e modello", valore: valore(marcaModello) },

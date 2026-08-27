@@ -49,6 +49,7 @@ export type VehicleRow = {
   power_cv?: number | null;
   doors?: number | null;
   registration_date?: string | null;
+  registration_month?: string | null;
   year: string | number | null;
   mileage: number | null;
   fuel: string | null;
@@ -315,6 +316,7 @@ export function safeText(value: string | number | null | undefined): string {
 // lasciare il campo vuoto su meta' del parco auto importato.
 export function formatRegistrationLabel(input: {
   registration_date?: string | null;
+  registration_month?: string | number | null;
   year?: string | number | null;
 }): string | null {
   const rawDate = String(input.registration_date ?? "").trim();
@@ -328,7 +330,26 @@ export function formatRegistrationLabel(input: {
   }
 
   const rawYear = String(input.year ?? "").trim();
-  return rawYear.length > 0 ? rawYear : null;
+  if (rawYear.length === 0) {
+    return null;
+  }
+
+  /**
+   * Le vetture importate dai siti delle concessionarie non hanno una data
+   * piena: il sito scrive "Immatricolazione 09/2018", il giorno non lo dice
+   * nessuno. Si mostra quello che si sa -- "09/2018" -- invece di completarlo
+   * con un primo del mese che nessuno ha mai dichiarato.
+   *
+   * Un mese fuori da 1-12 si ignora e resta il solo anno: e' un dato letto da
+   * una pagina altrui, e un "13" mostrato come mese sarebbe peggio del mese
+   * assente.
+   */
+  const mese = Number(String(input.registration_month ?? "").trim());
+  if (Number.isInteger(mese) && mese >= 1 && mese <= 12) {
+    return `${String(mese).padStart(2, "0")}/${rawYear}`;
+  }
+
+  return rawYear;
 }
 
 export function normalizeVehicleTraction(value: unknown): VehicleTraction | null {

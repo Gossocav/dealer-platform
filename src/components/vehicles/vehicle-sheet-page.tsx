@@ -23,6 +23,7 @@ type SheetVehicle = {
   body_type: string | null;
   year: number | string | null;
   registration_date: string | null;
+  registration_month: string | null;
   mileage: number | null;
   price: number | string | null;
   fuel: string | null;
@@ -52,6 +53,7 @@ const SHEET_VEHICLE_COLUMNS = [
   "body_type",
   "year",
   "registration_date",
+  "registration_month",
   "mileage",
   "price",
   "fuel",
@@ -236,7 +238,11 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
       { label: "Carrozzeria", value: text(vehicle.body_type) },
       {
         label: "Immatricolazione",
-        value: formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }),
+        value: formatRegistrationLabel({
+          registration_date: vehicle.registration_date,
+          registration_month: vehicle.registration_month,
+          year: vehicle.year,
+        }),
       },
       { label: "Chilometri", value: formatMileage(vehicle.mileage) },
       { label: "Alimentazione", value: text(vehicle.fuel) },

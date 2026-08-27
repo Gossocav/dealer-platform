@@ -39,6 +39,8 @@ export type DealerSiteVehicle = DealerSiteEntry & {
   /** Come la chiama il sito di origine: "SUV", "Berlina due volumi". */
   bodyType: string | null;
   year: number | null;
+  /** Il mese di immatricolazione, "01"-"12". Solo l'anno sta nei dati strutturati. */
+  registrationMonth: string | null;
   description: string | null;
   images: string[];
 };
@@ -189,6 +191,49 @@ function prezzoDaTesto(value: string): number | null {
   const decimali = pulito.length - ultimoSeparatore - 1;
   const intero = decimali === 3 ? pulito.replace(/[.,]/g, "") : pulito.slice(0, ultimoSeparatore).replace(/[.,]/g, "");
   return numero(intero);
+}
+
+/**
+ * Il mese di immatricolazione.
+ *
+ * Nei dati leggibili dalle macchine c'e' solo l'anno (`vehicleModelDate`), ma
+ * la pagina lo scrive per esteso nella tabella delle caratteristiche:
+ * "Immatricolazione 09/2018". Provato su venti schede vere dei due siti il
+ * 27 agosto 2026: il mese si legge su tutte e venti. Le prime diciannove
+ * soltanto, finche' un furgone del 1998 non ha fatto trovare il difetto --
+ * l'anno si accettava solo se cominciava per 20.
+ *
+ * Si legge solo se attaccato alla parola "Immatricolazione". La pagina
+ * contiene altre date nello stesso formato -- le vetture simili proposte in
+ * fondo -- ed e' la stessa trappola gia' pagata col prezzo e con le foto: una
+ * cifra che *sembra* il dato giusto perche' e' nella pagina giusta.
+ *
+ * Il mese puo' essere scritto senza lo zero davanti ("9/2018"), e viene
+ * normalizzato a due cifre.
+ *
+ * Ultima rete: l'anno accanto al mese deve combaciare con quello dei dati
+ * strutturati. Se non combacia, quella data appartiene a un'altra vettura e si
+ * scarta -- meglio nessun mese che il mese di un'altra auto. Nella prova
+ * combaciava su tutte e venti.
+ */
+const ETICHETTA_IMMATRICOLAZIONE = /Immatricolazione\s*(1[0-2]|0?[1-9])\s*\/\s*((?:19|20)\d{2})/;
+
+export function leggiMeseImmatricolazione(html: string, year: number | null): string | null {
+  const testo = html
+    .replace(/<script[\s\S]*?<\/script>/g, " ")
+    .replace(/<style[\s\S]*?<\/style>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ");
+
+  const trovato = testo.match(ETICHETTA_IMMATRICOLAZIONE);
+  if (!trovato) return null;
+
+  if (year !== null && Number(trovato[2]) !== year) {
+    return null;
+  }
+
+  return trovato[1].padStart(2, "0");
 }
 
 function leggiPrezzoDallaPagina(html: string, sourceId: string): number | null {
@@ -504,6 +549,7 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
       color: testo(grezzo.color),
       bodyType: leggiCarrozzeria(html),
       year: numero(grezzo.vehicleModelDate),
+      registrationMonth: leggiMeseImmatricolazione(html, numero(grezzo.vehicleModelDate)),
       description,
       images,
     },

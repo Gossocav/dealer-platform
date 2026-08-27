@@ -73,7 +73,7 @@ export default async function MarketplaceCatalogPage({ searchParams }: { searchP
   let query = publicSupabase
       .from("vehicles")
       .select(
-        "id, brand, model, version, year, registration_date, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)",
+        "id, brand, model, version, year, registration_date, registration_month, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)",
         { count: "exact" }
       )
       .eq("published", true)

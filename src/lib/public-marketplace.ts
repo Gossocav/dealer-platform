@@ -110,6 +110,8 @@ export type MarketplaceVehicle = {
   interior_type: string | null;
   year: string | number | null;
   registration_date?: string | null;
+  /** Il mese, quando la data piena non c'e': "01"-"12". */
+  registration_month?: string | null;
   registrationDate?: string | null;
   first_registration_date?: string | null;
   data_immatricolazione?: string | null;
@@ -391,7 +393,15 @@ export function resolveVehicleRegistrationDate(vehicle: MarketplaceVehicle) {
     }
   }
 
-  return formatRegistrationLabel({ year: source.year as string | number | null | undefined }) ?? "—";
+  // Senza data piena si mostra quello che si sa: "09/2018" se il mese c'e',
+  // il solo anno altrimenti. Le vetture importate dai siti delle
+  // concessionarie hanno quasi sempre soltanto mese e anno.
+  return (
+    formatRegistrationLabel({
+      registration_month: source.registration_month as string | number | null | undefined,
+      year: source.year as string | number | null | undefined,
+    }) ?? "—"
+  );
 }
 
 export function getAppBaseUrl() {

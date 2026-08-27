@@ -17,6 +17,7 @@ type SendToClientDialogProps = {
     model?: string | null;
     version?: string | null;
     registration_date?: string | null;
+    registration_month?: string | null;
     year?: string | number | null;
     mileage?: string | number | null;
     fuel?: string | null;
@@ -30,12 +31,21 @@ type SendToClientApiResponse = {
   error?: string;
 };
 
+function registrationLabel(vehicle: SendToClientDialogProps["vehicle"]): string {
+  return (
+    formatRegistrationLabel({
+      registration_date: vehicle.registration_date,
+      registration_month: vehicle.registration_month,
+      year: vehicle.year,
+    }) ?? "-"
+  );
+}
+
 function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: string): string {
   const brand = safeText(vehicle.brand);
   const model = safeText(vehicle.model);
   const version = safeText(vehicle.version);
-  const registration =
-    formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-";
+  const registration = registrationLabel(vehicle);
   const mileage = formatMileage(vehicle.mileage);
   const rawPrice = Number(vehicle.price ?? 0);
   const price = Number.isFinite(rawPrice) && rawPrice > 0 ? formatCurrency(rawPrice) : "Su richiesta";
@@ -169,7 +179,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
       `Marca: ${safeText(vehicle.brand)}`,
       `Modello: ${safeText(vehicle.model)}`,
       `Versione: ${safeText(vehicle.version)}`,
-      `Immatricolazione: ${formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-"}`,
+      `Immatricolazione: ${registrationLabel(vehicle)}`,
       `Km: ${formatMileage(vehicle.mileage)}`,
       `Prezzo: ${price}`,
       `Link annuncio: ${publicUrl}`,
@@ -286,8 +296,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
           brand: safeText(vehicle.brand),
           model: safeText(vehicle.model),
           version: safeText(vehicle.version),
-          registration:
-            formatRegistrationLabel({ registration_date: vehicle.registration_date, year: vehicle.year }) ?? "-",
+          registration: registrationLabel(vehicle),
           mileage: formatMileage(vehicle.mileage),
           fuel: safeText(vehicle.fuel),
           transmission: safeText(vehicle.transmission),
