@@ -84,8 +84,20 @@ jobs:
               "$BASE_URL/api/cron/sincronizza-siti")
 
             if [ "$codice" = "403" ]; then
-              echo "::error::La piattaforma ha rifiutato la chiamata (403): il segreto su GitHub non coincide con quello su Vercel."
-              echo "La piattaforma ha rifiutato la chiamata: il segreto \`CRON_SECRET\` su GitHub non coincide con quello su Vercel." >> "$GITHUB_STEP_SUMMARY"
+              # Tre cause, e sono state tutte e tre vere il 27/08/2026 nel giro
+              # di mezz'ora. La terza e' la piu' insidiosa perche' non somiglia
+              # a un errore: la variabile su Vercel c'e' e si legge giusta, ma
+              # la pubblicazione in linea porta ancora quella vecchia.
+              echo "::error::La piattaforma ha rifiutato la chiamata (403). Vedi il riepilogo per le tre cause possibili."
+              {
+                echo "La piattaforma ha rifiutato la chiamata (403). Tre cause possibili, in ordine di frequenza:"
+                echo ""
+                echo "1. Su **Vercel** la variabile \`CRON_SECRET\` non esiste (Settings -> Environment Variables)."
+                echo "2. E' stata **aggiunta o cambiata senza ripubblicare**: le variabili entrano in vigore solo"
+                echo "   con una nuova pubblicazione. Deployments -> i tre puntini sull'ultima -> Redeploy."
+                echo "3. Il valore su Vercel e quello qui su GitHub **non coincidono**, o non vale per l'ambiente"
+                echo "   Production."
+              } >> "$GITHUB_STEP_SUMMARY"
               exit 1
             fi
 
