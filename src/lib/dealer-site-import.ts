@@ -16,7 +16,7 @@
  */
 
 /** Le sole condizioni che ci interessano: stock fisico, non catalogo. */
-export type StockCondition = "Usato" | "Km/0";
+export type StockCondition = "Usato" | "Km/0" | "Nuovo";
 
 export type DealerSiteEntry = {
   url: string;
@@ -53,16 +53,28 @@ export type ParsedVehicle =
   | { ok: false; reason: SkipReason; url: string };
 
 /**
- * Le vetture nuove restano fuori, e non e' una semplificazione temporanea.
+ * Le vetture a catalogo restano fuori; quelle in piazzale entrano tutte.
  *
- * Le pagine sotto /auto/nuove/ non sono automobili: sono configurazioni di
- * modello a catalogo. Verificato su entrambi i siti -- niente identificativo,
- * spesso niente prezzo, mai i chilometri. Importarle riempirebbe il
- * marketplace di veicoli che in piazzale non esistono.
+ * Le pagine sotto `/auto/nuove/` non sono automobili: sono configurazioni di
+ * modello. Verificato su entrambi i siti -- niente identificativo, spesso
+ * niente prezzo, mai i chilometri. Importarle riempirebbe il marketplace di
+ * veicoli che in piazzale non esistono, e restano fuori.
+ *
+ * `/auto/nuove-pronta-consegna/` **e' un'altra cosa**, e per un po' e' stata
+ * confusa con la prima. "Pronta consegna" vuol dire che la macchina c'e',
+ * gia' comprata dal concessionario, pronta da consegnare. Erano 20 vetture
+ * fra i due siti -- il 7% del loro stock -- buttate via da questo filtro.
+ * Aperta una di quelle pagine il 28/08/2026, una Hyundai Tucson 1.6 PHEV:
+ * identificativo 7496248, prezzo 49.900, dieci fotografie, marca, modello,
+ * alimentazione, cambio, porte, posti ed emissioni. Tutto quello che serve.
+ *
+ * La distinzione sta nell'indirizzo, e va letta per intero: "/auto/nuove/"
+ * col taglio finale, altrimenti prenderebbe dentro anche la pronta consegna.
  */
 const CONDITION_BY_PATH: Array<[string, StockCondition]> = [
   ["/auto/usate/", "Usato"],
   ["/auto/km0/", "Km/0"],
+  ["/auto/nuove-pronta-consegna/", "Nuovo"],
 ];
 
 /** L'identificativo e' l'ultimo pezzo dell'indirizzo: .../1-2-turbo-altitude/7699913/ */
@@ -315,9 +327,22 @@ const MIN_PREZZO_VENDITA = 3000;
 
 const PAROLE_NOLEGGIO = ["noleggio", "nolegg", "renting", "a canone"];
 
+/**
+ * Guarda il **titolo**, non la descrizione.
+ *
+ * La descrizione ci stava dentro, e sarebbe diventata una trappola nel
+ * momento esatto in cui i concessionari cominciano a scriverla sul serio: un
+ * "disponibile anche a noleggio" dentro la descrizione di un'auto **in
+ * vendita** la faceva sparire dall'importazione, in silenzio. Un annuncio di
+ * noleggio si dichiara nel titolo; e la rete che ha preso il caso vero -- la
+ * Jeep Avenger a 239 euro -- non e' la parola, e' la cifra.
+ *
+ * La descrizione resta com'e': quello che ci scrive il concessionario e'
+ * affar suo, e non deve poter decidere se la sua auto entra o no.
+ */
 export function looksLikeRental(vehicle: { name?: string | null; description?: string | null; price: number | null }) {
-  const testoScheda = `${vehicle.name ?? ""} ${vehicle.description ?? ""}`.toLowerCase();
-  if (PAROLE_NOLEGGIO.some((parola) => testoScheda.includes(parola))) return true;
+  const titolo = String(vehicle.name ?? "").toLowerCase();
+  if (PAROLE_NOLEGGIO.some((parola) => titolo.includes(parola))) return true;
 
   return vehicle.price !== null && vehicle.price < MIN_PREZZO_VENDITA;
 }
@@ -515,8 +540,13 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
   // mentre le usate li hanno quasi sempre. Non e' un dato mancante, e' il
   // significato stesso della categoria -- "km 0" vuol dire zero. Lasciarli
   // sconosciuti le farebbe sparire dal filtro dei chilometri della ricerca.
+  //
+  // Vale identico per le nuove in pronta consegna, che dichiarano `false`
+  // allo stesso modo: una vettura mai immatricolata non ha chilometri, e
+  // scriverne zero non e' un'invenzione ma la lettura di cio' che e'.
   const mileageGrezzo = leggiChilometri(grezzo.mileageFromOdometer);
-  const mileage = mileageGrezzo === null && entry.condition === "Km/0" ? 0 : mileageGrezzo;
+  const senzaChilometriDiFabbrica = entry.condition === "Km/0" || entry.condition === "Nuovo";
+  const mileage = mileageGrezzo === null && senzaChilometriDiFabbrica ? 0 : mileageGrezzo;
 
   const images = leggiFoto(html);
 
