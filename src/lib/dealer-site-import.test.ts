@@ -26,14 +26,20 @@ const SITEMAP = `<?xml version="1.0"?>
 describe("dalla sitemap si prendono solo le automobili vere", () => {
   const voci = parseDealerStockSitemap(SITEMAP);
 
-  it("tiene usate e km 0", () => {
-    expect(voci.map((v) => v.condition).sort()).toEqual(["Km/0", "Usato"]);
+  it("tiene usate, km 0 e nuove in pronta consegna", () => {
+    expect(voci.map((v) => v.condition).sort()).toEqual(["Km/0", "Nuovo", "Usato"]);
   });
 
   // Le pagine sotto /auto/nuove/ sono configurazioni di modello a catalogo:
   // niente identificativo, spesso niente prezzo, mai i chilometri.
-  it("scarta le nuove, che non sono automobili in piazzale", () => {
-    expect(voci.some((v) => v.url.includes("/auto/nuove"))).toBe(false);
+  //
+  // Il taglio finale nell'indirizzo non e' un dettaglio: cercando la sola
+  // "/auto/nuove" si scartava anche "/auto/nuove-pronta-consegna/", che sono
+  // automobili vere. Erano 20 fra i due siti, il 7% del loro stock.
+  it("scarta le nuove a catalogo, non quelle in pronta consegna", () => {
+    expect(voci.some((v) => v.url.includes("/auto/nuove/"))).toBe(false);
+    expect(voci.some((v) => v.url.includes("/auto/nuove-pronta-consegna/"))).toBe(true);
+    expect(voci.find((v) => v.url.includes("pronta-consegna"))?.condition).toBe("Nuovo");
   });
 
   it("scarta le pagine di categoria, che non hanno un identificativo", () => {
@@ -46,7 +52,7 @@ describe("dalla sitemap si prendono solo le automobili vere", () => {
   });
 
   it("non elenca due volte lo stesso veicolo", () => {
-    expect(voci).toHaveLength(2);
+    expect(voci).toHaveLength(3);
   });
 });
 
@@ -209,6 +215,58 @@ describe("i canoni di noleggio non diventano prezzi di vendita", () => {
     expect(looksLikeRental({ name: "Jeep Avenger NOLEGGIO", description: null, price: 25000 })).toBe(true);
     expect(looksLikeRental({ name: "Jeep Avenger", description: null, price: 239 })).toBe(true);
     expect(looksLikeRental({ name: "Jeep Avenger", description: null, price: 25000 })).toBe(false);
+  });
+
+  // Il difetto che questo impedisce non era ancora accaduto, e sarebbe
+  // accaduto presto: dal 28/08/2026 il titolare ha cominciato a chiedere ai
+  // concessionari di scrivere descrizioni vere. Un "disponibile anche a
+  // noleggio" dentro la descrizione di un'auto in vendita la faceva sparire
+  // dall'importazione senza dirlo a nessuno.
+  it("la descrizione non decide se un'auto entra", () => {
+    expect(
+      looksLikeRental({
+        name: "Hyundai Tucson 1.6 CRDi",
+        description: "Vettura in vendita. Disponibile anche a noleggio lungo termine su richiesta.",
+        price: 24900,
+      })
+    ).toBe(false);
+  });
+});
+
+/**
+ * Una "nuova in pronta consegna" e' una vettura in piazzale, gia' comprata dal
+ * concessionario e pronta da consegnare. Non ha niente a che vedere con le
+ * pagine /auto/nuove/, che sono configurazioni di modello a catalogo -- ma il
+ * filtro le confondeva, e ne buttava via venti fra i due siti: il 7% del loro
+ * stock. Il campione qui sotto e' una di quelle pagine, scaricata il
+ * 28/08/2026.
+ */
+describe("una nuova in pronta consegna e' un'automobile vera", () => {
+  const esito = parseDealerStockVehicle(fixture("dealer-site-pronta-consegna.html"), {
+    url: "https://www.autogepy.it/auto/nuove-pronta-consegna/reggio-emilia/hyundai/tucson/ibrido/1-6-phev-4wd-aut-exellence/7496248/",
+    sourceId: "7496248",
+    condition: "Nuovo",
+  });
+
+  it("non viene scartata", () => {
+    expect(esito.ok, esito.ok ? "" : `scartata per ${esito.reason}`).toBe(true);
+  });
+
+  it("porta con se' tutto quello che serve a pubblicarla", () => {
+    if (!esito.ok) throw new Error("scartata");
+    expect(esito.vehicle.brand).toBe("Hyundai");
+    expect(esito.vehicle.price).toBe(49900);
+    expect(esito.vehicle.fuel).toBe("Ibrida");
+    expect(esito.vehicle.transmission).toBe("Automatico");
+    expect(esito.vehicle.images.length).toBeGreaterThan(0);
+  });
+
+  it("ha zero chilometri, non chilometri sconosciuti", () => {
+    // La pagina dichiara `false`, come fanno le km 0. Su una vettura mai
+    // immatricolata zero non e' un'invenzione: e' la lettura di cio' che e'.
+    // Lasciandolo sconosciuto sparirebbe dal filtro dei chilometri.
+    if (!esito.ok) throw new Error("scartata");
+    expect(esito.vehicle.mileage).toBe(0);
   });
 });
 
