@@ -184,3 +184,73 @@ describe("la porta e' chiusa in due punti", () => {
     expect(gancio).not.toContain("subscription_plan");
   });
 });
+
+/**
+ * Il foglio si scrive prima di stamparlo.
+ *
+ * Prima si poteva compilare solo il pannello -- cliente, data, chilometri,
+ * note -- e tutto il resto usciva com'era sulla scheda del veicolo. Misurato
+ * il 28/08/2026 in produzione: nessuno dei 235 veicoli aveva targa, telaio o
+ * garanzia, perche' arrivano dall'importazione dai siti che quei campi non li
+ * espone. Erano tre righe vuote su **ogni** foglio stampato, e proprio le due
+ * che identificano l'automobile su un documento che si firma.
+ */
+describe("le righe del foglio si possono scrivere", () => {
+  const pagina = read("src/components/vehicles/vehicle-delivery-sheet-page.tsx");
+  const codice = senzaCommenti(pagina);
+
+  it("ogni riga e' un campo, non un testo fisso", () => {
+    expect(codice).toContain("function CampoModificabile");
+    expect(codice).toContain("<CampoModificabile");
+    // La resa vecchia: il valore stampato cosi' com'era, senza modo di
+    // toccarlo. Se torna, le righe ridiventano di sola lettura in silenzio.
+    expect(codice).not.toContain("{riga.valore ?? <LineaVuota />}");
+  });
+
+  it("una riga vuota resta lo spazio per la penna", () => {
+    // Vale in stampa: se il dato non c'e' e non lo si scrive a schermo, il
+    // foglio deve comunque offrire la riga punteggiata su cui scriverlo.
+    expect(codice).toContain('vuoto\n          ? "border-dotted border-slate-400"');
+  });
+
+  it("una riga piena non lascia segni sulla carta", () => {
+    // Il bordo che a schermo dice "qui si scrive" non deve stamparsi: sul
+    // foglio consegnato al cliente sarebbe una sottolineatura senza motivo.
+    expect(codice).toContain("print:border-transparent");
+  });
+});
+
+describe("solo tre righe valgono anche come dato del veicolo", () => {
+  const pagina = read("src/components/vehicles/vehicle-delivery-sheet-page.tsx");
+  const codice = senzaCommenti(pagina);
+
+  it("targa, telaio e garanzia, con le loro colonne", () => {
+    const tabella = codice.slice(codice.indexOf("const SALVABILI"), codice.indexOf("] as const;", codice.indexOf("const SALVABILI")));
+    expect(tabella).toContain('{ etichetta: "Targa", colonna: "plate" }');
+    expect(tabella).toContain('{ etichetta: "Numero di telaio", colonna: "vin" }');
+    expect(tabella).toContain('{ etichetta: "Garanzia", colonna: "warranty" }');
+    // I chilometri sono formattati ("78.500 km"): rimetterli in una colonna
+    // numerica vorrebbe dire indovinare quale parte e' il numero.
+    expect(tabella).not.toContain("mileage");
+  });
+
+  it("la scrittura resta dentro la concessionaria", () => {
+    // Stessa regola della lettura poco sopra: senza questo vincolo la scheda
+    // di consegna diventerebbe un modo per scrivere sull'auto di un altro.
+    const salvataggio = codice.slice(codice.indexOf("const salvaSulVeicolo"), codice.indexOf("setSalvataggio(\"fatto\")"));
+    expect(salvataggio).toContain('.from("vehicles")');
+    expect(salvataggio).toContain('.eq("id", vehicleId)');
+    expect(salvataggio).toContain('.eq("dealer_id", dealerId)');
+  });
+
+  it("niente si salva da solo", () => {
+    // La scheda resta un foglio: il dato passa sul veicolo solo se qualcuno
+    // clicca. Un salvataggio automatico riscriverebbe l'anagrafica a ogni
+    // apertura della pagina, anche per una correzione buona per una stampa.
+    expect(codice).toContain("onClick={() => void salvaSulVeicolo()}");
+    const effetti = codice.split("useEffect(");
+    for (const blocco of effetti.slice(1)) {
+      expect(blocco.slice(0, blocco.indexOf("}, ["))).not.toContain("salvaSulVeicolo");
+    }
+  });
+});
