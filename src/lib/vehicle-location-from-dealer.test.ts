@@ -13,6 +13,7 @@ const card = read("src/components/marketplace/vehicle-card.tsx");
 const listing = read("src/app/(marketplace)/auto/[id]/page.tsx");
 const home = read("src/app/(marketplace)/page.tsx");
 const dealersPage = read("src/app/(marketplace)/concessionarie/page.tsx");
+const dealerPage = read("src/app/(marketplace)/concessionarie/[slug]/page.tsx");
 const sheet = read("src/components/vehicles/vehicle-sheet-page.tsx");
 const consolePage = read("src/components/vehicles/vehicle-detail-page.tsx");
 
@@ -88,6 +89,24 @@ describe("le pagine pubbliche mostrano la sede", () => {
     const block = home.slice(home.indexOf("const coveredCities"), home.indexOf("const marqueeDealers"));
     expect(block).toContain("publishedRows");
     expect(block).not.toContain("vehicle.city");
+  });
+
+  it("la pagina della singola concessionaria", () => {
+    // Sfuggita alla prima passata, e si vedeva: l'intestazione componeva le
+    // citta' dei veicoli, e in produzione una sola auto su 235 aveva quella
+    // colonna piena -- con dentro "Bard" (AO). Sulla pagina di AUTOGEPY, che
+    // ha sede a Reggio nell'Emilia, si leggeva "235 veicoli pubblicati -
+    // Bard". Segnalato dal titolare il 28/08/2026.
+    expect(dealerPage).toContain("resolveDealerLocality(");
+    expect(dealerPage).not.toMatch(/formatText\(vehicle\.city\)/);
+  });
+
+  it("non chiede nemmeno piu' la colonna citta' del veicolo", () => {
+    // La colonna esiste ancora nel database e conserva quel "Bard": finche'
+    // nessuno la seleziona non puo' ricomparire per sbaglio. Quella dentro
+    // dealers!inner e' un'altra cosa -- e' la sede, e deve restare.
+    const selectVeicoli = dealerPage.slice(dealerPage.indexOf("vehicle_condition"), dealerPage.indexOf("dealers!inner"));
+    expect(selectVeicoli).not.toContain("city");
   });
 
   it("legge la sede in ogni query che alimenta una card", () => {

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-search";
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, formatText, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 import { resolveClickableWebsite } from "@/lib/website-url";
@@ -109,7 +109,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     .from("vehicles")
     // body_type e vehicle_condition non servono alla scheda: servono alle
     // tendine "Carrozzeria" e "Condizioni" della ricerca qui sotto.
-    .select("id, brand, model, version, year, registration_date, registration_month, mileage, price, fuel, transmission, body_type, vehicle_condition, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
+    .select("id, brand, model, version, year, registration_date, registration_month, mileage, price, fuel, transmission, body_type, vehicle_condition, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
     .eq("dealer_id", matchedDealer.id)
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
@@ -142,7 +142,16 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   const dealerLegalName = String(dealer?.legal_name ?? "").trim();
   const dealerFallbackName = String(dealer?.name ?? "").trim();
   const dealerName = dealerLegalName || dealerFallbackName || "Concessionaria";
-  const cities = Array.from(new Set(dealerVehicles.map((vehicle) => formatText(vehicle.city)).filter((value) => value !== "-")));
+  // La sede della concessionaria, non le citta' scritte sui veicoli.
+  //
+  // Qui era rimasta l'unica lettura di `vehicles.city` sopravvissuta alla
+  // decisione di far valere ovunque la sede (resolveDealerLocality). Si
+  // vedeva: in produzione una sola auto su 235 aveva quella colonna
+  // valorizzata, con dentro "Bard" (AO), e l'intestazione della pagina di
+  // AUTOGEPY -- che sta a Reggio nell'Emilia -- annunciava "235 veicoli
+  // pubblicati - Bard". Una citta' sbagliata, presa da un dato che nessuno
+  // compila piu'.
+  const dealerLocality = resolveDealerLocality(matchedDealer as unknown as MarketplaceDealer);
   const totalVehicles = dealerVehicles.length;
 
   // Il minimo indispensabile perche' il browser possa filtrare: nessuna foto,
@@ -201,7 +210,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             {dealerName}
           </h1>
           <p className="relative mt-4 text-base leading-7 text-slate-400 sm:text-lg">
-            {totalVehicles} veicoli pubblicati{cities.length > 0 ? ` • ${cities.join(" • ")}` : ""}
+            {totalVehicles} veicoli pubblicati{dealerLocality ? ` • ${dealerLocality}` : ""}
           </p>
         </section>
 
