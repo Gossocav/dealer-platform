@@ -20,7 +20,7 @@
 import type { DealerSiteVehicle } from "@/lib/dealer-site-import";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
-import { derivaVersioneDalTitolo } from "@/lib/vehicle-label";
+import { derivaVersioneDalTitolo, normalizzaModello } from "@/lib/vehicle-label";
 
 export type RigaImportata = {
   id: string;
@@ -146,8 +146,13 @@ export function payloadDatiVeicolo(v: DealerSiteVehicle) {
     // Adesso si scrive solo quello che il titolo aggiunge davvero
     // ("1.6 CRDi Xline"): niente troncamenti inventati, si toglie solo cio'
     // che e' gia' scritto nei campi accanto.
-    model: v.model,
-    version: derivaVersioneDalTitolo(v.name, v.brand, v.model),
+    // Il modello come lo dichiara il sito, ma leggibile: alcuni lo mettono
+    // nei dati strutturati con la forma dell'indirizzo, `range-rover-evoque`.
+    model: normalizzaModello(v.model),
+    // L'indirizzo della scheda serve a riconoscere il nome della
+    // concessionaria dentro al titolo: sul suo sito ci sta di diritto, qui e'
+    // rumore che occupa lo spazio buono del titolo.
+    version: derivaVersioneDalTitolo(v.name, v.brand, v.model, { sorgente: v.url }),
     price: v.price,
     mileage: v.mileage,
     fuel: v.fuel,
