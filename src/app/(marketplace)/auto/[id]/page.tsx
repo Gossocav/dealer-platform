@@ -26,6 +26,7 @@ import {
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
 import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
+import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { WhatsAppContactButton } from "@/components/marketplace/whatsapp-contact-button";
 import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data";
@@ -122,8 +123,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const vehicle = data as MarketplaceVehicleWithTechnical;
   const dealerName = resolveDealerDisplayName(vehicle.dealers);
-  const title = resolveVehicleLabel(vehicle);
-  const description = `${title} disponibile presso ${dealerName}. Prezzo: ${formatPrice(vehicle.price)}.`;
+  const etichetta = resolveVehicleLabel(vehicle);
+  // Il titolo dei risultati di ricerca non e' l'intestazione della pagina: qui
+  // il colore serve a distinguere schede altrimenti gemelle, sull'intestazione
+  // sarebbe una ripetizione di cio' che la tabella dice due righe sotto.
+  const title = titoloSeoVeicolo(etichetta, vehicle);
+  const description = descrizioneSeoVeicolo(etichetta, vehicle, dealerName, formatPrice(vehicle.price));
 
   return {
     title,
@@ -138,7 +143,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       type: "website",
       // La foto dell'auto, disegnata su misura: e' il motivo per cui uno
       // condivide una scheda veicolo.
-      images: [{ url: `/og/veicolo/${id}`, width: 1200, height: 630, alt: title }],
+      images: [{ url: `/og/veicolo/${id}`, width: 1200, height: 630, alt: etichetta }],
     },
   };
 }

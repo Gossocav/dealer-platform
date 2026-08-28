@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { cache } from "react";
 import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
-import { stripLeadingRepeat } from "@/lib/vehicle-label";
+import { normalizzaModello, ripulisciTitoloVeicolo, stripLeadingRepeat } from "@/lib/vehicle-label";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -351,14 +351,26 @@ function normalizeVehicleLabelField(value: string): string {
 
 export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">) {
   const brand = vehicle.brand ? normalizeVehicleLabelField(String(vehicle.brand)) : "";
-  const rawModel = vehicle.model ? normalizeVehicleLabelField(String(vehicle.model)) : "";
+  // Il modello prima si rende leggibile, poi si scrive con le maiuscole
+  // giuste: `range-rover-evoque` diventa "Range Rover Evoque" e non
+  // "Range-rover-evoque", che e' quello che si leggeva su 14 annunci.
+  const rawModel = vehicle.model ? normalizeVehicleLabelField(normalizzaModello(String(vehicle.model)) ?? "") : "";
   // Un import che riversa lo stesso titolo in piu' campi lascia la marca anche
   // dentro il modello ("Hyundai" + "Hyundai Tucson"): senza questo, il titolo
   // la direbbe due volte prima ancora di arrivare alla versione.
   const model = stripLeadingRepeat(rawModel, brand);
   const brandModel = [brand, model].filter(Boolean).join(" ");
 
-  const rawVersion = vehicle.version ? normalizeVehicleLabelField(String(vehicle.version)) : "";
+  // La stessa pulizia dell'importazione, applicata anche in lettura: i 235
+  // veicoli gia' in archivio portano il rumore dentro il campo, e aspettare
+  // che la sincronizzazione li ripassi tutti vorrebbe dire lasciare in
+  // vetrina per ore dei titoli come "... Sd4 Pure Autogepy Sassuolo
+  // 05361881051 2012". Qui il nome della concessionaria non si conosce --
+  // serve l'indirizzo di origine, che in lettura non c'e' -- ma partita IVA,
+  // anno in coda e richiami tipografici se ne vanno subito.
+  const rawVersion = vehicle.version
+    ? normalizeVehicleLabelField(ripulisciTitoloVeicolo(String(vehicle.version)) ?? "")
+    : "";
   // Prima l'intero "Marca Modello", poi il solo modello: cosi' una versione
   // come "Hyundai Tucson 1.6" perde entrambe le ripetizioni, non solo la prima.
   const version = stripLeadingRepeat(stripLeadingRepeat(rawVersion, brandModel), model);
