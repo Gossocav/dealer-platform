@@ -1,3 +1,5 @@
+import { normalizeVehicleTraction } from "@/lib/vehicles";
+
 /**
  * Legge lo stock usato dal sito che la concessionaria ha gia'.
  *
@@ -41,6 +43,17 @@ export type DealerSiteVehicle = DealerSiteEntry & {
   year: number | null;
   /** Il mese di immatricolazione, "01"-"12". Solo l'anno sta nei dati strutturati. */
   registrationMonth: string | null;
+  /** Potenza in kW e in CV: la pagina le scrive insieme, "Potenza 73 KW (100 CV)". */
+  powerKw: number | null;
+  powerCv: number | null;
+  /** Cilindrata in centimetri cubi, come la salva il modulo a mano: 1598, non "1.598 cc". */
+  engineSize: number | null;
+  /** La sola cifra della classe Euro: "6", come la salva il modulo a mano. */
+  emissionClass: string | null;
+  /** Anteriore, Posteriore o Integrale 4x4. */
+  traction: string | null;
+  /** Grammi di CO2 al chilometro, dai dati strutturati. */
+  co2Emissions: number | null;
   description: string | null;
   images: string[];
 };
@@ -154,6 +167,85 @@ function leggiChilometri(value: unknown): number | null {
     return leggiChilometri((value as { value?: unknown }).value);
   }
   return numero(value);
+}
+
+/**
+ * Il testo della pagina senza impaginazione: etichetta e valore di fila.
+ *
+ * La tabella delle caratteristiche non sta nei dati strutturati -- che
+ * portano marca, modello, alimentazione e poco altro -- ma nella pagina, e li'
+ * si legge come la legge una persona: "Cilindrata 998 cc Potenza 73 KW
+ * (100 CV)".
+ */
+function testoDellaPagina(html: string): string {
+  return html
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Un valore si prende solo se la pagina lo dice **sempre allo stesso modo**.
+ *
+ * E' la stessa regola del prezzo e del mese di immatricolazione, e serve alla
+ * stessa cosa: in fondo a ogni scheda c'e' il carosello delle "vetture
+ * simili", e piu' avanti i testi di legge sui consumi. Un'etichetta che
+ * compare due volte con due valori diversi non e' un dato di questa
+ * automobile, e nel dubbio non si scrive niente.
+ *
+ * Misurato sui due siti il 28/08/2026: "Potenza" compare fino a tre volte per
+ * pagina, ma le altre due sono "Potenza fiscale" e "Potenza batteria", che
+ * questo modello di ricerca non intercetta; le occorrenze vere concordano
+ * sempre. "Cilindrata" e "Classe emissioni" compaiono una volta sola.
+ */
+function valoreConcorde(testo: string, modello: RegExp): RegExpMatchArray | null {
+  const trovati = Array.from(testo.matchAll(modello));
+  if (trovati.length === 0) return null;
+
+  const primo = trovati[0];
+  const impronta = (m: RegExpMatchArray) => m.slice(1).join("|").toLowerCase();
+  return trovati.every((m) => impronta(m) === impronta(primo)) ? primo : null;
+}
+
+/** "1.598" -> 1598. Il punto e' il separatore delle migliaia, non un decimale. */
+function numeroIntero(value: string | undefined): number | null {
+  if (!value) return null;
+  const n = Number(value.replace(/[.\s]/g, "").replace(",", "."));
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+/**
+ * I dati tecnici che i dati strutturati non dichiarano e la pagina si'.
+ *
+ * Perche' ne vale la pena, misurato in produzione il 28/08/2026: su 235
+ * automobili pubblicate la potenza era compilata su **2**, la cilindrata su 3,
+ * la classe Euro su 1, la trazione su 2. Sulla scheda pubblica il cliente
+ * leggeva nove trattini, fra cui "Potenza -" in cima. Eppure il dato sta sul
+ * sito della concessionaria: su cinque schede De Lorenzi la potenza c'era
+ * 5 volte su 5, la cilindrata 4 su 5, la classe emissioni 4 su 5.
+ *
+ * Si scrive nella stessa forma del modulo a mano, non in quella del sito:
+ * cilindrata come numero (1598, non "1.598 cc") e classe Euro come sola cifra
+ * ("6", non "EURO6"), altrimenti la stessa colonna direbbe due cose diverse a
+ * seconda di chi l'ha riempita.
+ */
+export function leggiDatiTecnici(html: string) {
+  const testo = testoDellaPagina(html);
+
+  const potenza = valoreConcorde(testo, /\bPotenza\s+([\d.,]+)\s*kW\s*\(\s*([\d.,]+)\s*CV\s*\)/gi);
+  const cilindrata = valoreConcorde(testo, /\bCilindrata\s+([\d.]+)\s*cc\b/gi);
+  // "EURO6", "Euro 6", "EURO 6D". Un "--" non corrisponde, e va bene cosi'.
+  const euro = valoreConcorde(testo, /\bClasse\s+emissioni\s+(?:euro\s*)?([0-9][a-z0-9]{0,3})\b/gi);
+  const trazione = valoreConcorde(testo, /\bTrazione\s+(Anteriore|Posteriore|Integrale(?:\s+permanente)?)\b/gi);
+
+  return {
+    powerKw: numeroIntero(potenza?.[1]),
+    powerCv: numeroIntero(potenza?.[2]),
+    engineSize: numeroIntero(cilindrata?.[1]),
+    emissionClass: euro?.[1]?.toUpperCase() ?? null,
+    traction: normalizeVehicleTraction(trazione?.[1] ?? null),
+  };
 }
 
 function leggiPrezzo(vehicle: SchemaVehicle): number | null {
@@ -580,6 +672,11 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
       bodyType: leggiCarrozzeria(html),
       year: numero(grezzo.vehicleModelDate),
       registrationMonth: leggiMeseImmatricolazione(html, numero(grezzo.vehicleModelDate)),
+      ...leggiDatiTecnici(html),
+      // La CO2 la dichiarano i dati strutturati, quando la dichiarano: sulla
+      // pagina compare piu' di venti volte fra i testi di legge sui consumi,
+      // e li' non e' distinguibile da quella di un altro allestimento.
+      co2Emissions: numero(grezzo.emissionsCO2),
       description,
       images,
     },

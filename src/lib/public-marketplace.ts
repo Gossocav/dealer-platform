@@ -342,7 +342,15 @@ function normalizeVehicleLabelWord(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-function normalizeVehicleLabelField(value: string): string {
+/**
+ * Le maiuscole di marca, modello e versione come le scrive il titolo.
+ *
+ * Esportata perche' la scheda tecnica dell'annuncio deve dire le stesse cose
+ * dell'intestazione: prima mostrava "Modello a3" sotto un titolo che diceva
+ * "Audi A3", e "Versione ... MY2025 2026" sotto uno che l'anno l'aveva gia'
+ * tolto. La stessa pagina si contraddiceva tre righe piu' sotto.
+ */
+export function normalizeVehicleLabelField(value: string): string {
   return value
     .split(" ")
     .map((word) => normalizeVehicleLabelWord(word))
