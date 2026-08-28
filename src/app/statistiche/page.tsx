@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { supabase } from "@/lib/supabaseClient";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
@@ -123,11 +124,20 @@ export default function StatistichePage() {
 
       const [vehiclesRes, leadsCount, customersCount, appointmentsCount, latestLeadsRes, latestCustomersRes, upcomingRes] =
         await Promise.all([
-          supabase
-            .from("vehicles")
-            .select("id, brand, model, version, registration_date, registration_month, year, price, status, published, created_at")
-            .eq("dealer_id", dealerId)
-            .order("created_at", { ascending: false }),
+          // Letto per intero, non per i primi mille: da questo elenco escono
+          // i conteggi per stato e il valore dello stock, e un elenco troncato
+          // li darebbe per difetto **senza dirlo**. Oggi il tetto del piano
+          // piu' capiente e' 300 annunci, quindi non ci si arriva -- ma e' lo
+          // stesso difetto che ha gia' morso due volte altrove, e costa una
+          // riga evitarlo. `caricaTutto` avvisa nei log quando tocca il tetto.
+          caricaTutto<Vehicle>((da, a) =>
+            supabase
+              .from("vehicles")
+              .select("id, brand, model, version, registration_date, registration_month, year, price, status, published, created_at")
+              .eq("dealer_id", dealerId)
+              .order("created_at", { ascending: false })
+              .range(da, a)
+          ),
           supabase.from("leads").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
           supabase.from("customers").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
           supabase.from("appointments").select("id", { count: "exact", head: true }).eq("dealer_id", dealerId),
@@ -174,7 +184,7 @@ export default function StatistichePage() {
         return;
       }
 
-      setVehicles((vehiclesRes.data ?? []) as Vehicle[]);
+      setVehicles(vehiclesRes.righe as Vehicle[]);
       setLeads((latestLeadsRes.data ?? []) as Lead[]);
       setCustomers((latestCustomersRes.data ?? []) as Customer[]);
       setAppointments((upcomingRes.data ?? []) as Appointment[]);

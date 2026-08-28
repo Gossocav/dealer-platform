@@ -25,3 +25,53 @@ describe("la richiesta informazioni dal marketplace", () => {
     expect(route).toContain('source: "marketplace"');
   });
 });
+
+/**
+ * Il modulo pretendeva nome, cognome, email **e** telefono: sei campi
+ * obbligatori. La pagina "Come funziona" prometteva invece "nome, un contatto
+ * (email o telefono) e un messaggio", e a valere era la richiesta piu' esosa.
+ *
+ * E' il punto del sito in cui nasce ogni euro della piattaforma, ed era anche
+ * quello con piu' attrito. Adesso la promessa e' vera.
+ */
+describe("per farsi ricontattare basta un recapito", () => {
+  const modulo = readFileSync(
+    resolve(process.cwd(), "src/app/(marketplace)/auto/[id]/request-information-form.tsx"),
+    "utf8"
+  );
+  const comeFunziona = readFileSync(
+    resolve(process.cwd(), "src/app/(marketplace)/come-funziona/page.tsx"),
+    "utf8"
+  );
+
+  it("il server accetta la richiesta con la sola email o il solo telefono", () => {
+    expect(route).toContain("const almenoUnRecapito = Boolean(customerEmail) || Boolean(customerPhone);");
+    expect(route).toContain("!almenoUnRecapito");
+    // Le due condizioni vecchie: pretendevano entrambi i recapiti.
+    expect(route).not.toMatch(/^\s*!customerEmail \|\|$/m);
+    expect(route).not.toMatch(/^\s*!customerPhone \|\|$/m);
+  });
+
+  it("il cognome non e' piu' obbligatorio", () => {
+    // Chi scrive per chiedere il prezzo di un'auto non sta firmando un
+    // contratto: il cognome lo dara' alla concessionaria che lo richiama.
+    expect(route).not.toMatch(/^\s*!lastName \|\|$/m);
+    expect(modulo).toContain('<Field label="Cognome" value={lastName}');
+    expect(modulo).not.toContain('label="Cognome *"');
+  });
+
+  it("il modulo chiede l'asterisco solo dove serve davvero", () => {
+    expect(modulo).toContain('label="Nome *"');
+    expect(modulo).not.toContain('label="Email *"');
+    expect(modulo).not.toContain('label="Telefono *"');
+  });
+
+  it("quello che promettiamo e quello che chiediamo coincidono", () => {
+    // Se un giorno il modulo tornasse a pretendere entrambi i recapiti,
+    // questa frase tornerebbe a essere falsa senza che nessuno se ne accorga.
+    // La frase e' spezzata su due righe nel sorgente: si controlla il pezzo
+    // che porta la promessa.
+    expect(comeFunziona).toContain("contatto (email o telefono)");
+    expect(route).toContain("almenoUnRecapito");
+  });
+});

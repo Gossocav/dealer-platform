@@ -104,17 +104,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
     }
 
+    // Un recapito basta, e devono essere per forza tutti e due.
+    //
+    // Il modulo pretendeva nome, cognome, email **e** telefono. La pagina
+    // "Come funziona" prometteva invece "nome, un contatto (email o telefono)
+    // e un messaggio": due cose diverse, e a valere era quella piu' esosa. E'
+    // il punto in cui nasce ogni euro della piattaforma, ed era anche quello
+    // con piu' attrito. Adesso la promessa e' vera.
+    //
+    // Il cognome resta facoltativo per la stessa ragione: chi scrive per
+    // chiedere il prezzo di un'auto non sta compilando un contratto.
+    const almenoUnRecapito = Boolean(customerEmail) || Boolean(customerPhone);
+
     if (
       !vehicleId ||
       !customerType ||
       !VALID_CUSTOMER_TYPES.has(customerType) ||
       !firstName ||
-      !lastName ||
-      !customerEmail ||
-      !customerPhone ||
+      !almenoUnRecapito ||
       !customerMessage
     ) {
-      return NextResponse.json({ error: "Tutti i campi sono obbligatori." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Servono il nome, un recapito (email o telefono) e il messaggio." },
+        { status: 400 }
+      );
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
