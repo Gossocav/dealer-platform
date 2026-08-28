@@ -88,10 +88,12 @@ export default function MarketplaceLayout({ children }: Readonly<{ children: Rea
             <FooterLink href="/auto">Auto</FooterLink>
             <FooterLink href="/ricerca">Ricerca</FooterLink>
             <FooterLink href="/concessionarie">Concessionarie</FooterLink>
+            <FooterLink href="/per-chi-compra">Per chi compra</FooterLink>
             <FooterLink href="/faq">Domande Frequenti</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="Per i concessionari">
+            <FooterLink href="/per-le-concessionarie">Cosa offriamo</FooterLink>
             <FooterLink href="/demo">Richiedi una Demo</FooterLink>
             <FooterLink href="/registrazione">Registrati</FooterLink>
             <FooterLink href="/login">Accedi</FooterLink>

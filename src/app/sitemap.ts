@@ -30,6 +30,8 @@ const STATIC_ENTRIES: Array<{ path: string; priority: number; changeFrequency: M
   { path: "/ricerca", priority: 0.8, changeFrequency: "daily" },
   { path: "/concessionarie", priority: 0.8, changeFrequency: "weekly" },
   { path: "/come-funziona", priority: 0.6, changeFrequency: "monthly" },
+  { path: "/per-chi-compra", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/per-le-concessionarie", priority: 0.7, changeFrequency: "monthly" },
   { path: "/faq", priority: 0.6, changeFrequency: "monthly" },
   { path: "/registrazione", priority: 0.7, changeFrequency: "monthly" },
   { path: "/registrazione/base", priority: 0.5, changeFrequency: "monthly" },
