@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  leggiDatiTecnici,
   looksLikeRental,
   normalizzaMisuraFoto,
   parseDealerStockSitemap,
@@ -583,5 +584,82 @@ describe("la carrozzeria si legge dalla pagina", () => {
 
   it("una scheda che non la dichiara resta senza, non inventa", () => {
     expect(carrozzeriaDi("")).toBeNull();
+  });
+});
+
+/**
+ * I dati tecnici stanno nella pagina, non nei dati strutturati -- e per mesi
+ * non li abbiamo letti. Misurato in produzione il 28/08/2026, su 235 automobili
+ * pubblicate: potenza compilata su **2**, cilindrata su 3, classe Euro su 1,
+ * trazione su 2. Sulla scheda pubblica il cliente leggeva nove trattini, fra
+ * cui "Potenza -" in cima all'annuncio.
+ *
+ * Passato il lettore su sedici schede vere dei due siti: potenza 16 su 16,
+ * cilindrata 14, classe Euro 8, trazione 8.
+ */
+describe("i dati tecnici si leggono dalla pagina", () => {
+  const dati = leggiDatiTecnici(fixture("dealer-site-caratteristiche.html"));
+
+  it("potenza in kW e in CV", () => {
+    expect(dati.powerKw).toBe(194);
+    expect(dati.powerCv).toBe(265);
+  });
+
+  it("la cilindrata diventa un numero, come la salva il modulo a mano", () => {
+    // Sulla pagina e' "1.598 cc": il punto e' il separatore delle migliaia.
+    // Nel database i veicoli inseriti a mano hanno 2000 e 1500, non "2.000 cc":
+    // scriverci dentro il testo del sito farebbe dire alla stessa colonna due
+    // cose diverse a seconda di chi l'ha riempita.
+    expect(dati.engineSize).toBe(1598);
+  });
+
+  it("della classe Euro resta la sola cifra", () => {
+    // "EURO6" sul sito, "6" nel modulo a mano. Vince il modulo.
+    expect(dati.emissionClass).toBe("6");
+  });
+
+  it("la trazione passa dal normalizzatore che usa gia' il gestionale", () => {
+    // "Integrale permanente" non e' una voce del nostro elenco: diventa
+    // "Integrale 4x4", altrimenti il filtro della ricerca non la troverebbe.
+    expect(dati.traction).toBe("Integrale 4x4");
+  });
+
+  it("non confonde la potenza fiscale con quella del motore", () => {
+    // "Potenza fiscale 17 CV" sta sulla stessa pagina, due righe sotto. Il
+    // modello di ricerca pretende la forma "N KW (M CV)", che solo la potenza
+    // vera ha.
+    expect(dati.powerCv).not.toBe(17);
+  });
+});
+
+describe("un dato si prende solo se la pagina lo dice sempre allo stesso modo", () => {
+  it("due valori diversi per la stessa etichetta valgono come nessun valore", () => {
+    // In fondo a ogni scheda c'e' il carosello delle "vetture simili". Se una
+    // di quelle portasse con se' la propria cilindrata, prenderla sarebbe
+    // scrivere sul nostro annuncio il dato di un'altra automobile.
+    const pagina = "<p>Cilindrata 1.598 cc</p><p>Vetture simili</p><p>Cilindrata 999 cc</p>";
+    expect(leggiDatiTecnici(pagina).engineSize).toBeNull();
+  });
+
+  it("lo stesso valore ripetuto va bene", () => {
+    // E' il caso normale: i due siti scrivono la potenza due volte, nel
+    // riquadro in alto e nella tabella tecnica.
+    const pagina = "<p>Potenza 73 KW (100 CV)</p><p>Potenza 73 KW (100 CV)</p>";
+    expect(leggiDatiTecnici(pagina).powerKw).toBe(73);
+  });
+
+  it("regge la spaziatura dell'altro sito", () => {
+    // delorenziauto.it scrive "Potenza 100 KW ( 136 CV )", con gli spazi
+    // dentro le parentesi.
+    expect(leggiDatiTecnici("<p>Potenza 100 KW ( 136 CV )</p>").powerCv).toBe(136);
+  });
+
+  it("un trattino non e' un dato", () => {
+    // "Cilindrata -" e "Classe emissioni --" compaiono davvero sulle pagine.
+    const pagina = "<p>Cilindrata - Classe emissioni -- Trazione -</p>";
+    const dati = leggiDatiTecnici(pagina);
+    expect(dati.engineSize).toBeNull();
+    expect(dati.emissionClass).toBeNull();
+    expect(dati.traction).toBeNull();
   });
 });

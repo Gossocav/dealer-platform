@@ -24,9 +24,10 @@ import {
   resolveVehicleLabel,
   resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
-} from "@/lib/public-marketplace";
+  normalizeVehicleLabelField,} from "@/lib/public-marketplace";
 import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
+import { normalizzaModello, ripulisciTitoloVeicolo } from "@/lib/vehicle-label";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { WhatsAppContactButton } from "@/components/marketplace/whatsapp-contact-button";
 import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data";
@@ -277,10 +278,18 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     { key: "power_cv", label: "Potenza", value: vehicle.power_cv ? `${formatText(vehicle.power_cv)} CV` : "-", icon: "bolt" },
   ];
 
+  const descrizione = String(vehicle.description ?? "").trim();
+
+  /** Le maiuscole del titolo, applicate anche alla scheda tecnica. */
+  const etichettaCampo = (value: string | null) => (value ? normalizeVehicleLabelField(value) : null);
+
   const technicalSpecs: Array<{ label: string; value: string }> = [
-    { label: "Marca", value: formatText(vehicle.brand) },
-    { label: "Modello", value: formatText(vehicle.model) },
-    { label: "Versione", value: formatText(vehicle.version) },
+    { label: "Marca", value: formatText(etichettaCampo(vehicle.brand)) },
+    { label: "Modello", value: formatText(etichettaCampo(normalizzaModello(vehicle.model))) },
+    // La stessa pulizia del titolo. Senza, la pagina diceva due cose diverse
+    // di se stessa: intestazione "Honda Prelude P1 2.0 Advance My2025" e, tre
+    // righe sotto, "Versione P1 2.0 Advance MY2025 2026" con l'anno ripetuto.
+    { label: "Versione", value: formatText(etichettaCampo(ripulisciTitoloVeicolo(vehicle.version))) },
     { label: "Trazione", value: formatText(vehicle.traction) },
     { label: "Cilindrata", value: formatText(vehicle.engine_size) },
     { label: "Potenza kW", value: formatText(vehicle.power_kw) },
@@ -349,12 +358,18 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
 
             {/* ============ DESCRIPTION + TECHNICAL SPECS ============ */}
             <div className="min-w-0 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">
-              <div className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-white/[0.03] px-5 py-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Descrizione</p>
-                <p className="mt-3 min-w-0 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 [overflow-wrap:anywhere]">
-                  {formatText(vehicle.description)}
-                </p>
-              </div>
+              {/* Senza descrizione il riquadro non si disegna. Prima si
+                  leggeva "Descrizione -": un trattino sotto un'intestazione,
+                  su 85 delle 235 automobili pubblicate. Una sezione che non
+                  c'e' e' meglio di una sezione vuota, che sembra un guasto. */}
+              {descrizione ? (
+                <div className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-white/[0.03] px-5 py-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Descrizione</p>
+                  <p className="mt-3 min-w-0 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 [overflow-wrap:anywhere]">
+                    {descrizione}
+                  </p>
+                </div>
+              ) : null}
 
               <h2 className="mt-7 text-lg font-bold tracking-tight text-white">Scheda tecnica</h2>
               <div className="mt-4 grid gap-x-8 sm:grid-cols-2">

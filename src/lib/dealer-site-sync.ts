@@ -173,6 +173,15 @@ export function payloadDatiVeicolo(v: DealerSiteVehicle) {
     registration_month: v.registrationMonth,
     vehicle_condition: v.condition,
     vehicle_category: "Auto",
+    // I dati tecnici letti dalla pagina. Erano il buco piu' visibile della
+    // scheda pubblica: al 28/08/2026 la potenza era compilata su 2 automobili
+    // su 235, e il cliente leggeva "Potenza -" in cima all'annuncio.
+    power_kw: v.powerKw,
+    power_cv: v.powerCv,
+    engine_size: v.engineSize,
+    emission_class: v.emissionClass,
+    traction: v.traction,
+    co2_emissions: v.co2Emissions,
     description: v.description,
   };
 }
