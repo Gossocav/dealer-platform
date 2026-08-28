@@ -7,6 +7,7 @@ import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
 import { pickCoverPreviewUrl, resolveVehicleImageRows } from "@/lib/vehicle-photos";
+import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { buildVehicleSheetQr } from "@/lib/vehicle-sheet-qr";
 
@@ -437,6 +438,10 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
         {/* Pushes the footer to the bottom of a short sheet, and guarantees a
             gap above it on a full one, where mt-auto alone collapses to zero. */}
         <div className="mt-auto min-h-8" aria-hidden="true" />
+
+        {/* Il foglio se lo porta via il cliente: l'avviso deve stare sulla
+            carta, non solo sul sito. */}
+        <p className="sheet-block mt-4 text-[12px] leading-snug text-slate-600">{AVVISO_FOTOGRAFIE}</p>
 
         <footer className="sheet-block flex items-end justify-between gap-8 border-t-4 border-slate-900 pt-5">
           <div>

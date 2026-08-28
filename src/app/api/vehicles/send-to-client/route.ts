@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
+import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
 type SendToClientBody = {
@@ -433,6 +434,7 @@ function buildCustomerEmailHtml({
           </table>
         </div>
         ${publicUrlBlock}
+        <p style="margin:20px 0 0 0;color:#64748b;font-size:12px;line-height:1.6;">${escapeHtml(AVVISO_FOTOGRAFIE)}</p>
         <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
         <p style="margin:0 0 8px 0;color:#64748b;font-size:13px;">Riferimento veicolo: ${escapeHtml(vehicleId)}</p>
         <p style="margin:0 0 8px 0;color:#64748b;font-size:13px;">Email destinatario: ${escapeHtml(email)}</p>
