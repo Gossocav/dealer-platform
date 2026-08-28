@@ -477,6 +477,51 @@ export default async function MarketplaceHomePage() {
         </div>
       </section>
 
+      {/* ============ DUE PORTE ============ */}
+      {/* Fino a qui la home mostra automobili, e chi arriva senza sapere cos'e'
+          KeyAuto non trova scritto da nessuna parte cosa ci si viene a fare --
+          ne' se compra, ne' se vende. Queste sono le due porte: una per lato,
+          nello stesso punto, così nessuno dei due pubblici deve indovinare
+          quale link sia il suo. */}
+      <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <RevealOnScroll className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Chi siamo, in due minuti</p>
+            <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-extrabold tracking-tight text-white sm:text-4xl" style={{ textWrap: "balance" }}>
+              Da che parte del banco ti trovi?
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-slate-400">
+              KeyAuto serve due persone diverse, e a ognuna promette una cosa diversa. Scegli la tua e te la raccontiamo per esteso.
+            </p>
+          </RevealOnScroll>
+
+          <div className="mt-10 grid gap-5 lg:grid-cols-2">
+            <RevealOnScroll delayMs={60}>
+              <PortaCard
+                occhiello="Sto cercando un'auto"
+                titolo="Cosa offre KeyAuto a chi compra"
+                testo="Solo concessionarie verificate, schede complete, prezzo scritto e contatto diretto con chi vende. Nessuna registrazione, nessun costo, nessun intermediario."
+                punti={["Venditori con partita IVA verificata", "Ricerca per marca, prezzo e distanza da casa", "La richiesta arriva direttamente al venditore"]}
+                href="/per-chi-compra"
+                cta="Scopri cosa offriamo a chi compra"
+              />
+            </RevealOnScroll>
+
+            <RevealOnScroll delayMs={140}>
+              <PortaCard
+                occhiello="Ho una concessionaria"
+                titolo="Cosa offre KeyAuto a chi vende"
+                testo="Una vetrina davanti a chi sta cercando un'automobile e un pannello dove gestire stock, richieste, clienti e agenda. Sette giorni di prova gratuita."
+                punti={["Vetrina nel marketplace e pagina dedicata", "Stock caricabile da file, feed o dal tuo sito", "Canone mensile, nessuna commissione sulle vendite"]}
+                href="/per-le-concessionarie"
+                cta="Scopri cosa offriamo alle concessionarie"
+                inEvidenza
+              />
+            </RevealOnScroll>
+          </div>
+        </div>
+      </section>
+
       {/* ============ CTA ============ */}
       <section className="bg-slate-950 px-4 pb-24 pt-4 sm:px-6 lg:px-8">
         <RevealOnScroll
@@ -634,6 +679,56 @@ function Stat({ value, label, suffix }: { value: number; label: string; suffix?:
       />
       <p className="mt-2 text-sm text-slate-400">{label}</p>
     </div>
+  );
+}
+
+function PortaCard({
+  occhiello,
+  titolo,
+  testo,
+  punti,
+  href,
+  cta,
+  inEvidenza = false,
+}: {
+  occhiello: string;
+  titolo: string;
+  testo: string;
+  punti: string[];
+  href: string;
+  cta: string;
+  inEvidenza?: boolean;
+}) {
+  return (
+    <article
+      className={`flex h-full flex-col rounded-[30px] border p-8 transition ${
+        inEvidenza
+          ? "border-cyan-300/30 bg-cyan-400/[0.06] hover:border-cyan-300/60"
+          : "border-white/10 bg-white/[0.03] hover:border-blue-400/40"
+      }`}
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">{occhiello}</p>
+      <h3 className="mt-3 text-2xl font-bold text-white" style={{ textWrap: "balance" }}>
+        {titolo}
+      </h3>
+      <p className="mt-4 text-sm leading-6 text-slate-400">{testo}</p>
+
+      <ul className="mt-6 flex flex-1 flex-col gap-3">
+        {punti.map((punto) => (
+          <li key={punto} className="flex items-start gap-3 text-sm text-slate-300">
+            <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
+            <span>{punto}</span>
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        href={href}
+        className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-6 py-3 text-sm font-bold text-slate-950 shadow-[0_16px_40px_-14px_rgba(76,130,247,0.8)] transition hover:brightness-105"
+      >
+        {cta} <ArrowIcon />
+      </Link>
+    </article>
   );
 }
 

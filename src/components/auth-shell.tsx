@@ -21,6 +21,8 @@ const PUBLIC_OR_STATUS_ROUTES = [
   "/ricerca",
   "/concessionarie",
   "/come-funziona",
+  "/per-chi-compra",
+  "/per-le-concessionarie",
   "/faq",
   "/privacy",
   "/termini",

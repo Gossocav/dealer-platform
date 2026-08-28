@@ -17,6 +17,8 @@ const PAGINE_INDICIZZABILI = [
   "src/app/(marketplace)/ricerca/page.tsx",
   "src/app/(marketplace)/concessionarie/page.tsx",
   "src/app/(marketplace)/come-funziona/page.tsx",
+  "src/app/(marketplace)/per-chi-compra/page.tsx",
+  "src/app/(marketplace)/per-le-concessionarie/page.tsx",
   "src/app/(marketplace)/faq/page.tsx",
   "src/app/(marketplace)/registrazione/page.tsx",
   "src/app/(marketplace)/registrazione/base/page.tsx",
