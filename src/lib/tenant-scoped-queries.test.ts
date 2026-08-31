@@ -14,6 +14,10 @@ const TABELLE_DI_CONCESSIONARIA = [
   "email_messages",
   "email_threads",
   "lead_activities",
+  // Il conto economico di un veicolo: quanto e' costato e quanto ha reso.
+  // Sta in una tabella a parte proprio perche' non deve mai uscire, e vale
+  // la stessa regola di tutte le altre.
+  "vehicle_economics",
 ];
 
 const CARTELLE = [
