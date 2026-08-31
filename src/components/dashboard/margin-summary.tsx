@@ -194,13 +194,18 @@ export function MarginSummary({ dealerId }: { dealerId: string | null }) {
             />
           </div>
 
-          {riepilogo.senzaPrezzo > 0 ? (
+          {/* Non si dice piu' "manca il prezzo di vendita": dal 31/08/2026 il
+              margine esige anche quello di acquisto, e in produzione c'era
+              gia' una vettura venduta a 11.500 con l'acquisto mai inserito.
+              Dirle di scrivere il prezzo di vendita l'avrebbe mandata a
+              cercare un dato che c'era gia'. */}
+          {riepilogo.senzaConto > 0 ? (
             <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-600">
               In questo mese risultano <strong className="font-semibold text-slate-800">{riepilogo.venduti} vetture vendute</strong>, ma{" "}
-              <strong className="font-semibold text-slate-800">{riepilogo.senzaPrezzo}</strong>{" "}
-              {riepilogo.senzaPrezzo === 1 ? "non ha" : "non hanno"} il prezzo di vendita e quindi{" "}
-              {riepilogo.senzaPrezzo === 1 ? "non entra" : "non entrano"} in questi conti. Scrivilo nella scheda del veicolo per
-              vederle qui.
+              <strong className="font-semibold text-slate-800">{riepilogo.senzaConto}</strong>{" "}
+              {riepilogo.senzaConto === 1 ? "non ha" : "non hanno"} il conto completo &mdash; manca il prezzo di acquisto o quello
+              di vendita &mdash; e quindi {riepilogo.senzaConto === 1 ? "non entra" : "non entrano"} in questi calcoli. La scheda
+              del veicolo dice quale dei due manca.
             </p>
           ) : null}
 

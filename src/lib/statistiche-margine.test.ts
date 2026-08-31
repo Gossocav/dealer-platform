@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   inPerdita,
@@ -74,14 +76,14 @@ describe("una vendita senza prezzo non vale margine zero", () => {
     expect(r.marginePerVettura).toBe(3000);
   });
 
-  it("ma si dice quante sono", () => {
+  it("ma si dice quante sono, e perche'", () => {
     // Un numero accanto al quale c'e' scritto "di cui una senza prezzo" e' un
     // numero di cui ci si puo' fidare. Senza quella nota, il concessionario
     // crederebbe di aver venduto due auto con quel margine.
     const r = riepilogoDelMese(conti, "2026-08");
     expect(r.venduti).toBe(2);
     expect(r.conMargine).toBe(1);
-    expect(r.senzaPrezzo).toBe(1);
+    expect(r.senzaConto).toBe(1);
   });
 
   it("non entra nelle classifiche", () => {
@@ -137,5 +139,35 @@ describe("i mesi", () => {
     expect(meseCorrente(new Date("2026-01-05T12:00:00Z"))).toBe("2026-01");
     expect(meseDi("2026-01-05")).toBe("2026-01");
     expect(meseDi(null)).toBeNull();
+  });
+});
+
+/**
+ * Il nome "senzaPrezzo" e' invecchiato male nel giro di un'ora: quando l'ho
+ * scritto il margine dipendeva dal solo prezzo di vendita, e poco dopo ha
+ * cominciato a esigere anche quello di acquisto.
+ *
+ * In produzione c'era gia' il caso: una vettura venduta a 11.500 con
+ * l'acquisto mai inserito. Il messaggio le avrebbe detto di scrivere il
+ * prezzo di vendita -- che c'era gia' -- mandandola a cercare un dato
+ * inesistente.
+ */
+describe("il conto del mese dice cosa manca davvero", () => {
+  const carta = readFileSync(resolve(process.cwd(), "src/components/dashboard/margin-summary.tsx"), "utf8");
+
+  it("non attribuisce la colpa al solo prezzo di vendita", () => {
+    expect(carta).not.toContain("non hanno il prezzo di vendita");
+    expect(carta).toContain("manca il prezzo di acquisto o quello");
+  });
+
+  it("una venduta con il solo prezzo di vendita resta fuori e viene contata", () => {
+    const conti = [
+      { vehicleId: "a", etichetta: "Audi", saleDate: "2026-08-27", salePrice: 11500, totalCost: 0, margin: null },
+      { vehicleId: "b", etichetta: "Jeep", saleDate: "2026-08-29", salePrice: 50000, totalCost: 49000, margin: 1000 },
+    ];
+    const r = riepilogoDelMese(conti, "2026-08");
+    expect(r.venduti).toBe(2);
+    expect(r.senzaConto).toBe(1);
+    expect(r.margine).toBe(1000);
   });
 });
