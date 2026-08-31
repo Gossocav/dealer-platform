@@ -44,31 +44,6 @@ export function aspettaUnaRisposta(veicolo: VeicoloDaChiudere): boolean {
   return !GIA_CHIUSI.has(String(veicolo.status ?? "").trim().toLowerCase());
 }
 
-/**
- * La data di vendita da proporre: quella in cui la vettura e' sparita dal
- * sito.
- *
- * E' una proposta, non un dato: la sparizione dice quando la piattaforma se
- * n'e' accorta, non quando e' stato firmato il contratto. Il concessionario
- * la corregge se sa la data vera, ma partire dal giorno giusto gli risparmia
- * di cercarlo per tredici automobili.
- */
-export function dataDiVenditaProposta(veicolo: VeicoloDaChiudere): string {
-  const grezza = String(veicolo.import_missing_since ?? "").trim();
-  const iso = /^(\d{4}-\d{2}-\d{2})/.exec(grezza);
-  return iso ? iso[1] : "";
-}
-
-/**
- * Il prezzo di vendita da proporre: quello a cui era esposta.
- *
- * Quasi mai e' quello vero -- si tratta sempre -- ma e' il numero da cui il
- * concessionario parte per correggere, ed e' molto piu' vicino del vuoto.
- */
-export function prezzoDiVenditaProposto(veicolo: VeicoloDaChiudere): number | null {
-  return typeof veicolo.price === "number" && Number.isFinite(veicolo.price) ? veicolo.price : null;
-}
-
 /** Da quanti giorni aspetta. Serve a mettere in cima le piu' vecchie. */
 export function giorniDiAttesa(veicolo: VeicoloDaChiudere, adesso: Date = new Date()): number | null {
   const quando = Date.parse(String(veicolo.import_missing_since ?? ""));

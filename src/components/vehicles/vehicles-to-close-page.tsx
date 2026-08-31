@@ -10,13 +10,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { formattaImporto, leggiImporto } from "@/lib/conto-economico";
 import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
-import {
-  aspettaUnaRisposta,
-  dataDiVenditaProposta,
-  giorniDiAttesa,
-  prezzoDiVenditaProposto,
-  type VeicoloDaChiudere,
-} from "@/lib/auto-da-chiudere";
+import { aspettaUnaRisposta, giorniDiAttesa, type VeicoloDaChiudere } from "@/lib/auto-da-chiudere";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
 
 /**
@@ -102,8 +96,15 @@ export function VehiclesToClosePage() {
         ...veicolo,
         targa: veicolo.plate ?? "",
         telaio: veicolo.vin ?? "",
-        prezzoVendita: prezzoDiVenditaProposto(veicolo)?.toString().replace(".", ",") ?? "",
-        dataVendita: dataDiVenditaProposta(veicolo),
+        // Prezzo e data nascono vuoti, e non e' una semplificazione.
+        // Proponevamo il prezzo di listino e il giorno della sparizione:
+        // nessuno dei due e' il dato vero -- sul prezzo si tratta sempre, e
+        // la sparizione dice quando ce ne siamo accorti noi, non quando e'
+        // stato firmato il contratto. Un campo precompilato con un numero
+        // quasi giusto si conferma senza guardarlo, e l'archivio si riempie
+        // di cifre plausibili e false. Meglio vuoto: chi lo sa lo scrive.
+        prezzoVendita: "",
+        dataVendita: "",
         inCorso: false,
         esito: "aperta" as const,
       }))
@@ -328,9 +329,8 @@ export function VehiclesToClosePage() {
 
             <p className="mt-3 text-xs leading-5 text-slate-500">
               <strong className="font-semibold text-slate-700">Targa o telaio servono per forza</strong>: sono l&apos;unica cosa
-              che dice quale vettura e stata venduta. Prezzo e data invece li scrivi se vuoi &mdash; quelli proposti sono il
-              prezzo di listino e il giorno in cui e sparita dal sito. &laquo;Solo ritirata&raquo; la mette in archivio senza
-              registrare nessuna vendita.
+              che dice quale vettura e stata venduta. Prezzo e data invece sono facoltativi: li
+              scrivi se li sai. &laquo;Solo ritirata&raquo; la mette in archivio senza registrare nessuna vendita.
             </p>
           </section>
         );
