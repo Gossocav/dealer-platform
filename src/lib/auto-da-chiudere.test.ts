@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   aspettaUnaRisposta,
+  puoEssereSegnataVenduta,
   dataDiVenditaProposta,
   giorniDiAttesa,
   prezzoDiVenditaProposto,
@@ -17,6 +18,8 @@ function veicolo(campi: Partial<VeicoloDaChiudere> = {}): VeicoloDaChiudere {
     version: "SPB 30 TDI",
     price: 24900,
     status: "in_review",
+    plate: null,
+    vin: null,
     import_missing_since: "2026-08-18T03:12:44.000Z",
     ...campi,
   };
@@ -97,8 +100,11 @@ describe("niente si chiude da solo", () => {
     expect(pagina.split('.from("vehicles")').length - 1).toBe(2);
   });
 
-  it("senza prezzo non si puo' segnare venduta", () => {
-    expect(pagina).toContain("Per segnare una vettura come venduta serve il prezzo");
+  it("senza targa ne telaio non si puo' segnare venduta", () => {
+    // La regola e' cambiata il 31/08/2026: prima pretendeva il prezzo. Adesso
+    // pretende cio' che identifica la vettura, e lascia i conti alla
+    // discrezione del concessionario.
+    expect(pagina).toContain("serve la targa oppure il numero di telaio");
   });
 
   it("prima il prezzo, poi lo stato", () => {
@@ -121,5 +127,76 @@ describe("dallo stato in cui la sincronizzazione le parcheggia si puo' chiudere"
     const inizio = tabella.indexOf("in_review: [");
     const riga = tabella.slice(inizio, tabella.indexOf("],", inizio));
     expect(riga).toContain('"sold"');
+  });
+});
+
+/**
+ * La regola che il titolare ha chiesto il 31/08/2026, e la sua meta' meno
+ * ovvia: **la targa e' obbligatoria, i conti no**.
+ */
+describe("targa o telaio per chiudere una vendita", () => {
+  it("basta uno dei due", () => {
+    expect(puoEssereSegnataVenduta({ targa: "AB123CD", telaio: null })).toBe(true);
+    expect(puoEssereSegnataVenduta({ targa: null, telaio: "WAUZZZ8K" })).toBe(true);
+  });
+
+  it("senza nessuno dei due non si chiude", () => {
+    // In produzione al 31/08/2026 nessuna delle 269 automobili aveva targa o
+    // telaio: arrivano tutte dall'importazione, che non li espone. Vuol dire
+    // che questa regola morde davvero, su ogni singola chiusura.
+    expect(puoEssereSegnataVenduta({ targa: null, telaio: null })).toBe(false);
+    expect(puoEssereSegnataVenduta({})).toBe(false);
+  });
+
+  it("gli spazi non sono una targa", () => {
+    expect(puoEssereSegnataVenduta({ targa: "   ", telaio: "  " })).toBe(false);
+  });
+});
+
+describe("i conti economici restano facoltativi", () => {
+  const pagina = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicles-to-close-page.tsx"), "utf8");
+
+  it("si puo' chiudere una vendita senza scrivere nessun importo", () => {
+    // Pretendere il prezzo costringerebbe a inventare una cifra pur di
+    // chiudere la riga, ed e' il modo piu' sicuro di riempire l'archivio di
+    // numeri falsi.
+    const blocco = pagina.slice(pagina.indexOf("const chiudi = async"), pagina.indexOf("const aperte ="));
+    expect(blocco).not.toContain('come === "venduta" && prezzo === null');
+    expect(blocco).toContain('come === "venduta" && !targa && !telaio');
+  });
+
+  it("il conto economico si scrive solo se c'e' qualcosa da scriverci", () => {
+    expect(pagina).toContain('come === "venduta" && (prezzo !== null || riga.dataVendita)');
+  });
+
+  it("un prezzo scritto storto si segnala, ma uno vuoto no", () => {
+    expect(pagina).toContain('riga.prezzoVendita.trim() !== "" && prezzo === null');
+  });
+});
+
+describe("la regola vive anche nel database", () => {
+  const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260831020000_targa_obbligatoria_su_venduto.sql"), "utf8");
+
+  it("un trigger la impone da qualunque schermata", () => {
+    // Lo stato si cambia da piu' punti -- questa pagina, il modulo di
+    // modifica, un domani un'importazione -- e una regola scritta in uno solo
+    // di quei posti prima o poi si aggira senza accorgersene.
+    expect(sql).toContain("create trigger trg_enforce_plate_on_sold");
+    expect(sql).toContain("before insert or update on public.vehicles");
+  });
+
+  it("vale anche per 'consegnata', che viene dopo 'venduta'", () => {
+    expect(sql).toContain("v_stato in ('sold', 'delivered')");
+  });
+
+  it("una targa fatta di spazi non conta", () => {
+    expect(sql).toContain("btrim(coalesce(new.plate, ''))");
+    expect(sql).toContain("btrim(coalesce(new.vin, ''))");
+  });
+
+  it("non pretende nessun importo", () => {
+    for (const campo of ["purchase_price", "sale_price", "vehicle_economics"]) {
+      expect(sql, `il trigger nomina ${campo}`).not.toContain(campo);
+    }
   });
 });

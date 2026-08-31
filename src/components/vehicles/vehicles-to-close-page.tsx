@@ -31,6 +31,8 @@ import { resolveVehicleLabel } from "@/lib/public-marketplace";
  */
 
 type Riga = VeicoloDaChiudere & {
+  targa: string;
+  telaio: string;
   prezzoVendita: string;
   dataVendita: string;
   inCorso: boolean;
@@ -77,7 +79,7 @@ export function VehiclesToClosePage() {
       caricaTutto<VeicoloDaChiudere>((da, a) =>
         supabase
           .from("vehicles")
-          .select("id, brand, model, version, price, status, import_missing_since")
+          .select("id, brand, model, version, price, status, plate, vin, import_missing_since")
           .eq("dealer_id", risolto)
           .not("import_missing_since", "is", null)
           .order("import_missing_since", { ascending: true })
@@ -98,6 +100,8 @@ export function VehiclesToClosePage() {
     setRighe(
       elenco.righe.filter(aspettaUnaRisposta).map((veicolo) => ({
         ...veicolo,
+        targa: veicolo.plate ?? "",
+        telaio: veicolo.vin ?? "",
         prezzoVendita: prezzoDiVenditaProposto(veicolo)?.toString().replace(".", ",") ?? "",
         dataVendita: dataDiVenditaProposta(veicolo),
         inCorso: false,
@@ -121,10 +125,29 @@ export function VehiclesToClosePage() {
   const chiudi = async (riga: Riga, come: "venduta" | "ritirata") => {
     if (!dealerId) return;
 
+    const targa = riga.targa.trim();
+    const telaio = riga.telaio.trim();
     const prezzo = leggiImporto(riga.prezzoVendita);
-    if (come === "venduta" && prezzo === null) {
+
+    // Targa o telaio: sono l'unica cosa che dice **quale** automobile e'
+    // stata venduta. Marca e modello si ripetono -- in produzione c'erano
+    // cinque "Peugeot 2008 Allure PureTech 100 S&S" identiche in tutto -- e
+    // fra sei mesi un archivio senza targa non e' piu' ricostruibile.
+    // Lo pretende anche il database, con un trigger: qui si dice prima, per
+    // non far arrivare il concessionario a un errore che poteva evitare.
+    if (come === "venduta" && !targa && !telaio) {
       aggiorna(riga.id, { esito: "errore" });
-      setErrore("Per segnare una vettura come venduta serve il prezzo. Scrivilo come 18.000 oppure 18000,50.");
+      setErrore("Per segnare una vettura come venduta serve la targa oppure il numero di telaio.");
+      return;
+    }
+
+    // Il prezzo invece **non** e' obbligatorio, ed e' una scelta: pretenderlo
+    // costringerebbe a inventare una cifra pur di chiudere la riga, ed e' il
+    // modo piu' sicuro di riempire l'archivio di numeri falsi. I conti li
+    // scrive il concessionario se e quando vuole.
+    if (come === "venduta" && riga.prezzoVendita.trim() !== "" && prezzo === null) {
+      aggiorna(riga.id, { esito: "errore" });
+      setErrore("Il prezzo non si legge. Scrivilo come 18.000 oppure 18000,50, oppure lascialo vuoto.");
       return;
     }
 
@@ -134,7 +157,7 @@ export function VehiclesToClosePage() {
     // Prima il conto economico, poi lo stato del veicolo: se il primo
     // fallisce l'auto resta da chiudere e si riprova, mentre l'ordine opposto
     // lascerebbe una vettura segnata venduta senza il prezzo che la spiega.
-    if (come === "venduta") {
+    if (come === "venduta" && (prezzo !== null || riga.dataVendita)) {
       const { error: erroreConto } = await supabase.from("vehicle_economics").upsert(
         { vehicle_id: riga.id, dealer_id: dealerId, sale_price: prezzo, sale_date: riga.dataVendita || null },
         { onConflict: "vehicle_id" }
@@ -154,6 +177,10 @@ export function VehiclesToClosePage() {
     const { error: erroreVeicolo } = await supabase
       .from("vehicles")
       .update({
+        // La sincronizzazione non tocca targa e telaio -- non li legge dal
+        // sito -- quindi quello che si scrive qui resta.
+        plate: targa || null,
+        vin: telaio || null,
         status: come === "venduta" ? "sold" : "archived",
         published: false,
         // Non aspetta piu' una risposta: l'ha appena data lui.
@@ -233,9 +260,34 @@ export function VehiclesToClosePage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+            {/* Targa e telaio per primi, e segnati come obbligatori: sono
+                l'unica cosa che dice quale automobile e' stata venduta.
+                Arrivano vuoti perche' l'importazione dal sito non li espone. */}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Venduta a</span>
+                <span className="text-sm font-medium text-slate-700">Targa *</span>
+                <input
+                  value={riga.targa}
+                  onChange={(evento) => aggiorna(riga.id, { targa: evento.target.value.toUpperCase(), esito: "aperta" })}
+                  placeholder="AB123CD"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase tracking-wide text-slate-900 outline-none focus:border-slate-900"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">oppure numero di telaio *</span>
+                <input
+                  value={riga.telaio}
+                  onChange={(evento) => aggiorna(riga.id, { telaio: evento.target.value.toUpperCase(), esito: "aperta" })}
+                  placeholder="WAUZZZ8K..."
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase tracking-wide text-slate-900 outline-none focus:border-slate-900"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Venduta a <span className="font-normal text-slate-400">(facoltativo)</span></span>
                 <input
                   inputMode="decimal"
                   value={riga.prezzoVendita}
@@ -245,7 +297,7 @@ export function VehiclesToClosePage() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Il giorno</span>
+                <span className="text-sm font-medium text-slate-700">Il giorno <span className="font-normal text-slate-400">(facoltativo)</span></span>
                 <input
                   type="date"
                   value={riga.dataVendita}
@@ -275,8 +327,10 @@ export function VehiclesToClosePage() {
             </div>
 
             <p className="mt-3 text-xs leading-5 text-slate-500">
-              Il prezzo proposto e quello a cui era esposta e la data e il giorno in cui e sparita: correggili se sai le cifre
-              vere. &laquo;Solo ritirata&raquo; la mette in archivio senza registrare nessuna vendita.
+              <strong className="font-semibold text-slate-700">Targa o telaio servono per forza</strong>: sono l&apos;unica cosa
+              che dice quale vettura e stata venduta. Prezzo e data invece li scrivi se vuoi &mdash; quelli proposti sono il
+              prezzo di listino e il giorno in cui e sparita dal sito. &laquo;Solo ritirata&raquo; la mette in archivio senza
+              registrare nessuna vendita.
             </p>
           </section>
         );

@@ -26,6 +26,9 @@ export type VeicoloDaChiudere = {
   version: string | null;
   price: number | null;
   status: string | null;
+  /** La targa e il telaio: su una vettura importata sono quasi sempre vuoti. */
+  plate: string | null;
+  vin: string | null;
   import_missing_since: string | null;
 };
 
@@ -71,4 +74,26 @@ export function giorniDiAttesa(veicolo: VeicoloDaChiudere, adesso: Date = new Da
   const quando = Date.parse(String(veicolo.import_missing_since ?? ""));
   if (!Number.isFinite(quando)) return null;
   return Math.max(0, Math.floor((adesso.getTime() - quando) / 86400000));
+}
+
+/**
+ * Si puo' segnare venduta?
+ *
+ * Serve la targa **oppure** il telaio, e nient'altro. Sono l'unica cosa che
+ * dice *quale* automobile e' stata venduta: marca e modello si ripetono -- al
+ * 31/08/2026 in produzione c'erano cinque "Peugeot 2008 Allure PureTech 100
+ * S&S" identiche in tutto -- e senza uno dei due, fra sei mesi, l'archivio
+ * delle vendite non e' piu' ricostruibile.
+ *
+ * I conti economici **non** entrano in questa regola. Pretenderli
+ * costringerebbe a inventare una cifra pur di chiudere la riga, ed e' il modo
+ * piu' sicuro di riempire l'archivio di numeri falsi: quanto e' costata e a
+ * quanto e' stata venduta le scrive il concessionario se e quando vuole.
+ *
+ * La stessa regola vive anche nel database, come trigger
+ * (20260831020000_targa_obbligatoria_su_venduto.sql): lo stato si cambia da
+ * piu' punti, e una regola scritta in uno solo prima o poi si aggira.
+ */
+export function puoEssereSegnataVenduta(input: { targa?: string | null; telaio?: string | null }): boolean {
+  return String(input.targa ?? "").trim().length > 0 || String(input.telaio ?? "").trim().length > 0;
 }
