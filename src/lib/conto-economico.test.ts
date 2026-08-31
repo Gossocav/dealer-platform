@@ -269,3 +269,31 @@ describe("la migration delle due voci nuove", () => {
     expect(vincolo).toContain("cost_workshop >= 0");
   });
 });
+
+/**
+ * L'impaginazione, chiesta dal titolare il 31/08/2026: le sette voci di costo
+ * erano una sotto l'altra in una colonna stretta, e con carrozzeria e officina
+ * la lista era diventata alta al punto da spingere fuori schermo tutto il
+ * resto della scheda.
+ */
+describe("i costi stanno in griglia, non in colonna", () => {
+  const carta = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicle-economics-card.tsx"), "utf8");
+
+  it("le voci di costo si affiancano", () => {
+    const blocco = carta.slice(carta.indexOf('<Gruppo titolo="Costi">'), carta.indexOf("</Gruppo>", carta.indexOf('<Gruppo titolo="Costi">')));
+    expect(blocco).toContain("sm:grid-cols-2 lg:grid-cols-4");
+  });
+
+  it("acquisto e vendita stanno affiancati fra loro", () => {
+    // Sono i due capi del conto, tre campi per uno: in tre colonne insieme ai
+    // costi lasciavano a questi ultimi uno spazio troppo stretto.
+    expect(carta).toContain('<div className="mt-6 grid gap-6 lg:grid-cols-2">');
+    expect(carta).not.toContain("lg:grid-cols-3");
+  });
+
+  it("la nota sull'altro costo compare solo quando quel costo c'e'", () => {
+    // Un campo che chiede di spiegare una cifra che nessuno ha scritto e'
+    // solo rumore in mezzo alla griglia.
+    expect(carta).toContain("{modulo.cost_other.trim() ? (");
+  });
+});
