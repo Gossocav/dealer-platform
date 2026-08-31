@@ -19,7 +19,6 @@ function veicolo(overrides: Partial<Parameters<typeof buildVehicleJsonLd>[0]> = 
     brand: "Audi",
     model: "A4",
     version: "Avant",
-    vin: "WAUZZZ8K",
     year: 2019,
     registrationDate: "2019-03-15",
     mileage: 85000,
@@ -106,9 +105,12 @@ describe("la scheda veicolo si racconta a Google", () => {
   // Un campo dichiarato e lasciato vuoto vale meno di uno assente: Google lo
   // segnala come incompleto.
   it("non dichiara i campi che non abbiamo", () => {
-    const scarno = veicolo({ vin: null, color: null, doors: null, seats: null, powerKw: null });
+    const scarno = veicolo({ color: null, doors: null, seats: null, powerKw: null });
 
+    // Il telaio non c'e' mai, nemmeno quando l'automobile ce l'ha: e' il dato
+    // con cui si clona l'identita' di una vettura, e non si pubblica.
     expect(scarno).not.toHaveProperty("vehicleIdentificationNumber");
+    expect(veicolo({})).not.toHaveProperty("vehicleIdentificationNumber");
     expect(scarno).not.toHaveProperty("color");
     expect(scarno).not.toHaveProperty("numberOfDoors");
     expect(scarno).not.toHaveProperty("vehicleEngine");

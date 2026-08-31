@@ -117,7 +117,6 @@ type VehicleJsonLdInput = {
   brand: string | null;
   model: string | null;
   version: string | null;
-  vin: string | null;
   year: string | number | null;
   registrationDate: string | null;
   mileage: number | null;
@@ -176,7 +175,6 @@ export function buildVehicleJsonLd(input: VehicleJsonLdInput): JsonLdObject {
     description: input.description,
     url: input.url,
     image: input.images,
-    vehicleIdentificationNumber: input.vin,
     brand: input.brand ? { "@type": "Brand", name: input.brand } : undefined,
     model: input.model,
     vehicleConfiguration: input.version,
