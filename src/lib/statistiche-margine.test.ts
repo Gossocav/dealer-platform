@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  anniConVendite,
+  annoCorrente,
   inPerdita,
   meseCorrente,
   meseDi,
@@ -9,7 +11,10 @@ import {
   migliori,
   nomeDelMese,
   peggiori,
+  nomeBreveDelMese,
+  riepilogoAnnuale,
   riepilogoDelMese,
+  senzaDataDiVendita,
   type ContoVenduto,
 } from "@/lib/statistiche-margine";
 
@@ -169,5 +174,101 @@ describe("il conto del mese dice cosa manca davvero", () => {
     expect(r.venduti).toBe(2);
     expect(r.senzaConto).toBe(1);
     expect(r.margine).toBe(1000);
+  });
+});
+
+/**
+ * Il conto dell'anno, mese per mese: chiesto dal titolare il 31/08/2026.
+ * Le statistiche danno il conto di **un** mese; qui si vede l'andamento.
+ */
+describe("il conto dell'anno", () => {
+  const conti = [
+    conto({ vehicleId: "a", saleDate: "2026-08-12", salePrice: 24900, totalCost: 21200, margin: 3700 }),
+    conto({ vehicleId: "b", saleDate: "2026-08-29", salePrice: 15000, totalCost: 13500, margin: 1500 }),
+    conto({ vehicleId: "c", saleDate: "2026-06-03", salePrice: 10000, totalCost: 9000, margin: 1000 }),
+    conto({ vehicleId: "d", saleDate: "2025-12-20", salePrice: 99000, totalCost: 1, margin: 98999 }),
+  ];
+
+  it("una riga per mese, in ordine di calendario", () => {
+    const { mesi } = riepilogoAnnuale(conti, "2026");
+    expect(mesi.map((r) => r.mese)).toEqual(["2026-06", "2026-08"]);
+    expect(mesi[1].venduti).toBe(2);
+    expect(mesi[1].margine).toBe(5200);
+  });
+
+  it("compaiono solo i mesi in cui si e' venduto", () => {
+    // Dodici righe di zeri non raccontano niente e nascondono le poche che
+    // contano.
+    expect(riepilogoAnnuale(conti, "2026").mesi).toHaveLength(2);
+  });
+
+  it("il totale e' dell'anno, non di tutta la storia", () => {
+    const { totale } = riepilogoAnnuale(conti, "2026");
+    expect(totale.venduti).toBe(3);
+    expect(totale.margine).toBe(6200);
+    expect(totale.ricavo).toBe(49900);
+    // Il 2025 resta fuori: quei 98.999 non devono comparire nel 2026.
+    expect(totale.margine).not.toBe(105199);
+  });
+
+  it("un anno senza vendite non e' un errore", () => {
+    const { mesi, totale } = riepilogoAnnuale(conti, "2024");
+    expect(mesi).toEqual([]);
+    expect(totale.venduti).toBe(0);
+    expect(totale.marginePercentuale).toBeNull();
+  });
+
+  it("gli anni si ricavano dalle vendite, dal piu' recente", () => {
+    expect(anniConVendite(conti)).toEqual(["2026", "2025"]);
+    expect(annoCorrente(new Date("2026-08-31T10:00:00Z"))).toBe("2026");
+  });
+
+  it("i mesi si scrivono per esteso, senza l'anno che e' gia' in cima", () => {
+    expect(nomeBreveDelMese("2026-08")).toBe("agosto");
+    expect(nomeBreveDelMese("2026-01")).toBe("gennaio");
+  });
+});
+
+/**
+ * Le vendute senza data non appartengono a nessun mese e non comparirebbero
+ * mai in nessun riepilogo. Sono vendite vere: vanno trovate per essere
+ * completate, non nascoste.
+ */
+describe("le vendute senza data si trovano lo stesso", () => {
+  it("si raccolgono a parte", () => {
+    const conti = [conto({ vehicleId: "a" }), conto({ vehicleId: "b", saleDate: null })];
+    expect(senzaDataDiVendita(conti).map((c) => c.vehicleId)).toEqual(["b"]);
+  });
+
+  it("e non finiscono in nessun anno", () => {
+    const conti = [conto({ saleDate: null })];
+    expect(riepilogoAnnuale(conti, annoCorrente()).totale.venduti).toBe(0);
+    expect(anniConVendite(conti)).toEqual([]);
+  });
+});
+
+/**
+ * La pagina parte dai **veicoli venduti**, non dai conti economici.
+ *
+ * Un'auto venduta senza conto compilato e' comunque venduta: partendo dai
+ * conti sparirebbe dall'elenco, e la pagina direbbe di aver venduto meno di
+ * quanto si e' venduto. Il titolare ha chiesto "un quadro completo", e un
+ * quadro a cui mancano delle auto non lo e'.
+ */
+describe("l'elenco delle vendite e' completo", () => {
+  const pagina = readFileSync(resolve(process.cwd(), "src/components/dashboard/sales-report-page.tsx"), "utf8");
+
+  it("legge i veicoli venduti e vi aggancia il conto, non il contrario", () => {
+    expect(pagina).toContain('.from("vehicles")');
+    expect(pagina).toContain('.in("status", ["sold", "delivered"])');
+    expect(pagina).toContain("vehicle_economics(sale_date, sale_price, total_cost, margin)");
+  });
+
+  it("le vetture senza conto restano nell'elenco, segnate", () => {
+    expect(pagina).toContain("da completare");
+  });
+
+  it("resta dentro la concessionaria", () => {
+    expect(pagina).toContain('.eq("dealer_id", dealerId)');
   });
 });

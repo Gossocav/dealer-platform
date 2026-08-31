@@ -131,3 +131,72 @@ export function nomeDelMese(mese: string): string {
   const indice = Number(trovato[2]) - 1;
   return indice >= 0 && indice < 12 ? `${nomi[indice]} ${trovato[1]}` : mese;
 }
+
+/** Gli anni in cui c'e' stata almeno una vendita, dal piu' recente. */
+export function anniConVendite(conti: ContoVenduto[]): string[] {
+  const anni = new Set<string>();
+  for (const conto of conti) {
+    const mese = meseDi(conto.saleDate);
+    if (mese) anni.add(mese.slice(0, 4));
+  }
+  return Array.from(anni).sort().reverse();
+}
+
+/** L'anno corrente, nella stessa forma. */
+export function annoCorrente(adesso: Date = new Date()): string {
+  return String(adesso.getFullYear());
+}
+
+export type RigaAnnuale = { mese: string } & RiepilogoMese;
+
+/**
+ * Il conto mese per mese di un anno, piu' il totale.
+ *
+ * Compaiono **solo i mesi in cui si e' venduto qualcosa**. Dodici righe di
+ * zeri non raccontano niente e nascondono le poche che contano: chi vuole
+ * sapere se a marzo ha venduto guarda se marzo c'e'.
+ */
+export function riepilogoAnnuale(conti: ContoVenduto[], anno: string): { mesi: RigaAnnuale[]; totale: RiepilogoMese } {
+  const mesi = mesiConVendite(conti)
+    .filter((mese) => mese.startsWith(anno))
+    .sort()
+    .map((mese) => ({ mese, ...riepilogoDelMese(conti, mese) }));
+
+  const dellAnno = conti.filter((conto) => (meseDi(conto.saleDate) ?? "").startsWith(anno));
+  const conMargine = dellAnno.filter((conto) => typeof conto.margin === "number" && Number.isFinite(conto.margin));
+
+  const ricavo = conMargine.reduce((somma, conto) => somma + (conto.salePrice ?? 0), 0);
+  const costo = conMargine.reduce((somma, conto) => somma + (conto.totalCost ?? 0), 0);
+  const margine = conMargine.reduce((somma, conto) => somma + (conto.margin ?? 0), 0);
+
+  return {
+    mesi,
+    totale: {
+      venduti: dellAnno.length,
+      conMargine: conMargine.length,
+      senzaConto: dellAnno.length - conMargine.length,
+      ricavo,
+      costo,
+      margine,
+      marginePercentuale: ricavo > 0 ? (margine / ricavo) * 100 : null,
+      marginePerVettura: conMargine.length > 0 ? margine / conMargine.length : null,
+    },
+  };
+}
+
+/**
+ * Le vetture vendute che non appartengono a nessun mese, perche' la data di
+ * vendita non c'e'.
+ *
+ * Non si nascondono: sono vendite vere che nessun riepilogo mostrera' mai
+ * finche' quella data manca, e il concessionario deve poterle trovare per
+ * completarle.
+ */
+export function senzaDataDiVendita(conti: ContoVenduto[]): ContoVenduto[] {
+  return conti.filter((conto) => meseDi(conto.saleDate) === null);
+}
+
+/** Il nome breve del mese, per una tabella: "agosto". */
+export function nomeBreveDelMese(mese: string): string {
+  return nomeDelMese(mese).replace(/\s\d{4}$/, "");
+}
