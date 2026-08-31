@@ -27,6 +27,7 @@ const CARTELLE = [
   "src/app/clienti",
   "src/app/agenda",
   "src/app/statistiche",
+  "src/app/vendite",
   "src/app/email",
   "src/app/impostazioni",
   "src/app/account",

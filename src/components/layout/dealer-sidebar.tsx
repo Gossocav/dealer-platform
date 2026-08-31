@@ -13,6 +13,7 @@ import {
   Mail,
   PlusSquare,
   CheckSquare,
+  Receipt,
   Settings,
   ShieldCheck,
   Users,
@@ -37,6 +38,10 @@ const sidebarItems: SidebarItem[] = [
   { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },
   { label: "Email", href: "/email", icon: Mail },
   { label: "Statistiche", href: "/statistiche", icon: BarChart3 },
+  // Le vendite stanno accanto alle statistiche e non dentro: si aprono
+  // apposta, non di passaggio, e sono la pagina su cui il titolare fa i
+  // conti a fine mese.
+  { label: "Vendite", href: "/vendite", icon: Receipt },
   { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
