@@ -66,7 +66,6 @@ type MarketplaceVehicleWithTechnical = MarketplaceVehicle & {
   interior_type?: string | null;
   power_kw?: number | null;
   registration_date?: string | null;
-  vin?: string | null;
   equipment?: string[] | string | null;
 };
 
@@ -95,7 +94,7 @@ async function fetchMarketplaceVehicleDetail(id: string) {
     .select(
       // vehicle_condition serve ai dati strutturati: e' la differenza fra
       // dichiarare a Google un'auto nuova e una usata.
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, vin, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("published", true)
@@ -242,7 +241,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     brand: vehicle.brand,
     model: vehicle.model,
     version: vehicle.version,
-    vin: vehicle.vin ?? null,
     year: vehicle.year,
     registrationDate: vehicle.registration_date ?? null,
     mileage: vehicle.mileage,
@@ -297,7 +295,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     { label: "Classe Euro", value: formatText(vehicle.emission_class) },
     { label: "Colore", value: formatText(vehicle.color) },
     { label: "Interni", value: formatText(vehicle.interior_type) },
-    { label: "Telaio", value: formatText(vehicle.vin) },
   ];
 
   return (
