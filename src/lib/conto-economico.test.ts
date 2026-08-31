@@ -157,3 +157,36 @@ describe("il conto economico non e' roba da marketplace", () => {
     }
   });
 });
+
+/**
+ * Il 31/08/2026 il titolare ha compilato il conto economico sull'anteprima e
+ * ha ricevuto un errore generico. Non era un guasto: la tabella non era
+ * ancora stata creata, perche' in questo progetto le modifiche al database si
+ * applicano a mano e c'e' sempre una finestra fra il codice in linea e la
+ * tabella che nasce. Un messaggio generico, dentro quella finestra, fa
+ * cercare un difetto che non esiste.
+ */
+describe("la finestra fra il codice e la tabella si spiega, non si nasconde", () => {
+  const carta = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicle-economics-card.tsx"), "utf8");
+
+  it("la schermata riconosce la tabella che non c'e' ancora", () => {
+    expect(carta).toContain("tabellaNonAncoraCreata");
+    expect(carta).toContain("non e ancora attivo sul tuo account");
+  });
+
+  it("parla al concessionario, non a chi scrive il codice", () => {
+    // Un test gia' esistente (nomi-fornitori-non-visibili) mi ha fermato:
+    // avevo scritto in schermata il nome del fornitore tecnico e quello del
+    // file da applicare. Al concessionario non dicono niente, e soprattutto
+    // non e' lui a dover fare quel passaggio.
+    expect(carta).toContain("non e ancora attivo sul tuo account");
+    expect(carta).not.toContain("SQL");
+    expect(carta).not.toContain(".sql\"");
+  });
+
+  it("non promette un salvataggio che non puo' avvenire", () => {
+    // Il bottone resta spento: cliccarlo e vedere un errore, sapendo gia' che
+    // fallira', e' peggio che non poterlo cliccare.
+    expect(carta).toContain("|| daCreare}");
+  });
+});

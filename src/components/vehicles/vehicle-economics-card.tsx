@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 import {
   VOCI_DI_COSTO,
   costoTotale,
@@ -77,6 +78,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
   const [caricamento, setCaricamento] = useState(true);
   const [salvataggio, setSalvataggio] = useState<"fermo" | "invio" | "fatto" | "errore">("fermo");
   const [errore, setErrore] = useState<string | null>(null);
+  const [daCreare, setDaCreare] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -96,7 +98,17 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
       if (!vivo) return;
 
       if (error) {
-        setErrore("Non e stato possibile leggere il conto economico.");
+        // La finestra fra il codice in linea e la tabella creata a mano: dire
+        // "operazione non riuscita" farebbe sembrare un guasto quello che e'
+        // solo un passaggio non ancora fatto. Il passaggio e' applicare
+        // 20260831010000_conto_economico_veicolo.sql, ma quel nome sullo
+        // schermo non aiuterebbe il concessionario: non e' lui a doverlo fare.
+        setDaCreare(tabellaNonAncoraCreata(error.message, "vehicle_economics"));
+        setErrore(
+          tabellaNonAncoraCreata(error.message, "vehicle_economics")
+            ? null
+            : "Non e stato possibile leggere il conto economico."
+        );
         setCaricamento(false);
         return;
       }
@@ -168,6 +180,11 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
 
     if (error) {
       setSalvataggio("errore");
+      if (tabellaNonAncoraCreata(error.message, "vehicle_economics")) {
+        setDaCreare(true);
+        setErrore(null);
+        return;
+      }
       setErrore("Non e stato possibile salvare. Riprova, oppure segnala il problema.");
       return;
     }
@@ -242,13 +259,23 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         </p>
       ) : null}
 
+      {daCreare ? (
+        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          <p className="font-semibold">Il conto economico non e ancora attivo sul tuo account.</p>
+          <p className="mt-1">
+            E una funzione appena rilasciata: manca un ultimo passaggio dalla nostra parte, che si fa una volta sola. Quello
+            che scrivi adesso non viene salvato. Se la vedi ancora domani, scrivici.
+          </p>
+        </div>
+      ) : null}
+
       {errore ? <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{errore}</p> : null}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => void salva()}
-          disabled={salvataggio === "invio" || importiIlleggibili.length > 0}
+          disabled={salvataggio === "invio" || importiIlleggibili.length > 0 || daCreare}
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {salvataggio === "invio" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

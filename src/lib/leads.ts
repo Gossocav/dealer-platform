@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 
 export type LeadStage = "nuovo" | "contattato" | "appuntamento" | "proposta_inviata" | "chiuso_positivo" | "chiuso_negativo";
 
@@ -247,11 +248,6 @@ export function mapStageToDbStatus(stage: LeadStage): string {
   return "chiuso_negativo";
 }
 
-function isMissingRelationError(message: string | undefined, relationName: string) {
-  const text = String(message ?? "").toLowerCase();
-  return text.includes(relationName.toLowerCase()) && (text.includes("relation") || text.includes("does not exist") || text.includes("schema cache"));
-}
-
 function buildLeadActivityTitle(type: LeadActivityType) {
   if (type === "lead_created") return "Lead ricevuto";
   if (type === "status_changed") return "Stato aggiornato";
@@ -287,7 +283,7 @@ export async function listLeadActivities(
     .returns<LeadActivityRow[]>();
 
   if (error) {
-    if (isMissingRelationError(error.message, "lead_activities")) {
+    if (tabellaNonAncoraCreata(error.message, "lead_activities")) {
       return [
         {
           id: `lead-created-${leadId}`,
@@ -337,7 +333,7 @@ export async function writeLeadActivity(
   });
 
   if (error) {
-    if (isMissingRelationError(error.message, "lead_activities")) {
+    if (tabellaNonAncoraCreata(error.message, "lead_activities")) {
       return false;
     }
 
