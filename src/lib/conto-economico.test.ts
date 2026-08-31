@@ -8,6 +8,7 @@ import {
   leggiImporto,
   margine,
   marginePercentuale,
+  perche,
 } from "@/lib/conto-economico";
 
 /**
@@ -16,7 +17,11 @@ import {
  * calcolate. Leggerne una sola direbbe una verita' vecchia.
  */
 const MIGRATION = "supabase/migrations/20260831010000_conto_economico_veicolo.sql";
-const MIGRATIONS = [MIGRATION, "supabase/migrations/20260831030000_spese_carrozzeria_e_officina.sql"];
+const MIGRATIONS = [
+  MIGRATION,
+  "supabase/migrations/20260831030000_spese_carrozzeria_e_officina.sql",
+  "supabase/migrations/20260831040000_margine_solo_con_prezzo_acquisto.sql",
+];
 const sql = MIGRATIONS.map((percorso) => readFileSync(resolve(process.cwd(), percorso), "utf8")).join("\n");
 
 // Il caso provato su Postgres vero il 31/08/2026, con gli stessi numeri.
@@ -75,9 +80,11 @@ describe("il conto qui e il conto nel database sono lo stesso conto", () => {
     }
   });
 
-  it("il database lascia il margine nullo finche' non c'e' la vendita", () => {
+  it("il database lascia il margine nullo finche' mancano le cifre", () => {
+    // Dal 31/08/2026 servono tutte e due: senza prezzo di vendita non si sa
+    // quanto ha reso, senza prezzo di acquisto non si sa quanto e' costata.
     const formula = sql.slice(sql.lastIndexOf("margin numeric"), sql.indexOf(") stored", sql.lastIndexOf("margin numeric")));
-    expect(formula).toContain("when sale_price is null then null");
+    expect(formula).toContain("when sale_price is null or purchase_price is null then null");
   });
 
   it("ogni voce di costo esiste davvero come colonna", () => {
@@ -267,6 +274,60 @@ describe("la migration delle due voci nuove", () => {
     const vincolo = sql.slice(sql.indexOf("vehicle_economics_importi_non_negativi\n  check"), sql.indexOf("commit;"));
     expect(vincolo).toContain("cost_bodywork >= 0");
     expect(vincolo).toContain("cost_workshop >= 0");
+  });
+});
+
+/**
+ * Il margine esige **tutte e due** le cifre, dal 31/08/2026.
+ *
+ * Prima il prezzo d'acquisto mancante valeva zero, e una vettura venduta a
+ * 11.500 senza acquisto scritto risultava con 11.500 di margine. Visto su una
+ * riga vera in produzione: nelle statistiche quella cifra gonfiava il totale
+ * del mese e la marginalita' media senza che si capisse da dove venisse.
+ */
+describe("senza prezzo di acquisto il margine non si puo' dire", () => {
+  it("una vendita senza acquisto non produce margine", () => {
+    expect(margine({ sale_price: 11500 })).toBeNull();
+    expect(marginePercentuale({ sale_price: 11500 })).toBeNull();
+  });
+
+  it("ma uno zero scritto e' un dato, e il margine si calcola", () => {
+    // La differenza fra il campo vuoto e il campo con dentro uno zero: nel
+    // database e' la differenza fra null e 0, e va rispettata.
+    expect(margine({ purchase_price: 0, cost_transport: 500, sale_price: 4000 })).toBe(3500);
+  });
+
+  it("il costo totale invece resta la somma di cio' che e' scritto", () => {
+    // E' una risposta onesta anche senza acquisto: dice quanto si e' speso
+    // finora, non quanto vale l'automobile.
+    expect(costoTotale({ cost_transport: 400, cost_bodywork: 600 })).toBe(1000);
+  });
+
+  it("la schermata dice quale delle due cifre manca", () => {
+    expect(perche({ sale_price: 11500 })).toBe("manca il prezzo di acquisto");
+    expect(perche({ purchase_price: 20000 })).toBe("si vede dopo la vendita");
+    expect(perche({})).toBe("mancano acquisto e vendita");
+    expect(perche({ purchase_price: 10000, sale_price: 12000 })).toBeNull();
+  });
+
+  it("il database dice la stessa cosa", () => {
+    const formula = sql.slice(sql.lastIndexOf("add column margin"), sql.indexOf(") stored", sql.lastIndexOf("add column margin")));
+    expect(formula).toContain("sale_price is null or purchase_price is null");
+    // E non annega piu' l'acquisto mancante dentro un coalesce.
+    expect(formula).not.toContain("coalesce(purchase_price, 0)");
+  });
+});
+
+/**
+ * Le statistiche non sono state toccate, ed e' il punto: escludevano gia' le
+ * righe senza margine e ne contavano il numero a parte. La correzione si
+ * propaga da sola a totali del mese, medie e classifiche.
+ */
+describe("la correzione si propaga alle statistiche senza toccarle", () => {
+  it("il conto del mese continua a escludere chi non ha margine", () => {
+    const statistiche = readFileSync(resolve(process.cwd(), "src/lib/statistiche-margine.ts"), "utf8");
+    expect(statistiche).toContain('typeof conto.margin === "number" && Number.isFinite(conto.margin)');
+    expect(statistiche).toContain("senzaPrezzo");
   });
 });
 

@@ -61,15 +61,40 @@ export function costoTotale(voci: VociConto): number {
 }
 
 /**
- * Il margine, che esiste solo dopo la vendita.
+ * Il margine, che esiste solo quando si sanno **tutte e due** le cose: quanto
+ * e' costata e a quanto e' andata.
  *
- * Senza prezzo di vendita torna null, non zero: zero vorrebbe dire "venduta
- * in pari", ed e' un'altra cosa. Su una schermata di soldi la differenza fra
+ * Senza uno dei due torna null, non zero. Zero vorrebbe dire "venduta in
+ * pari", ed e' un'altra cosa: su una schermata di soldi la differenza fra
  * "non lo so" e "zero" non e' una sfumatura.
+ *
+ * Il prezzo d'acquisto entra in questa regola dal 31/08/2026. Prima mancando
+ * valeva zero, e una vettura venduta a 11.500 senza acquisto scritto risultava
+ * con 11.500 di margine -- visto su una riga vera in produzione. Nelle
+ * statistiche quella cifra gonfiava il totale del mese senza che si capisse da
+ * dove venisse.
+ *
+ * Chi ha davvero avuto un costo d'acquisto nullo scrive **0**, e il margine si
+ * calcola: e' la differenza fra il campo vuoto e il campo con dentro uno zero.
  */
 export function margine(voci: VociConto): number | null {
   if (typeof voci.sale_price !== "number" || !Number.isFinite(voci.sale_price)) return null;
+  if (typeof voci.purchase_price !== "number" || !Number.isFinite(voci.purchase_price)) return null;
   return voci.sale_price - costoTotale(voci);
+}
+
+/**
+ * Perche' il margine non si puo' ancora dire. Serve a scriverlo accanto al
+ * trattino invece di lasciare il concessionario a indovinare.
+ */
+export function perche(voci: VociConto): string | null {
+  const senzaVendita = typeof voci.sale_price !== "number" || !Number.isFinite(voci.sale_price);
+  const senzaAcquisto = typeof voci.purchase_price !== "number" || !Number.isFinite(voci.purchase_price);
+
+  if (senzaVendita && senzaAcquisto) return "mancano acquisto e vendita";
+  if (senzaVendita) return "si vede dopo la vendita";
+  if (senzaAcquisto) return "manca il prezzo di acquisto";
+  return null;
 }
 
 /** Il margine in percentuale sul prezzo di vendita. Null se non si puo' dire. */
