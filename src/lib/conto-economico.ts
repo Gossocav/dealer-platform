@@ -12,6 +12,8 @@
 export type VociConto = {
   purchase_price?: number | null;
   cost_transport?: number | null;
+  cost_bodywork?: number | null;
+  cost_workshop?: number | null;
   cost_preparation?: number | null;
   cost_parts?: number | null;
   cost_commission?: number | null;
@@ -19,9 +21,21 @@ export type VociConto = {
   sale_price?: number | null;
 };
 
-/** Le voci che compongono il costo, nell'ordine in cui si compilano. */
+/**
+ * Le voci che compongono il costo, nell'ordine in cui le spese arrivano
+ * davvero: la vettura si trasporta, si raddrizza, si mette a posto
+ * meccanicamente, si prepara, e infine si vende.
+ *
+ * Carrozzeria e officina stanno separate dalla preparazione perche' sono le
+ * due spese piu' ricorrenti su un usato, e schiacciate dentro un'unica voce
+ * non dicono niente. Separate rispondono a una domanda che il concessionario
+ * si fa davvero: conviene comprare macchine che hanno bisogno di lamiera
+ * oppure di meccanica?
+ */
 export const VOCI_DI_COSTO = [
   { campo: "cost_transport", etichetta: "Trasporto" },
+  { campo: "cost_bodywork", etichetta: "Carrozzeria" },
+  { campo: "cost_workshop", etichetta: "Officina" },
   { campo: "cost_preparation", etichetta: "Preparazione" },
   { campo: "cost_parts", etichetta: "Ricambi" },
   { campo: "cost_commission", etichetta: "Provvigione" },
@@ -37,6 +51,8 @@ export function costoTotale(voci: VociConto): number {
   return (
     numero(voci.purchase_price) +
     numero(voci.cost_transport) +
+    numero(voci.cost_bodywork) +
+    numero(voci.cost_workshop) +
     numero(voci.cost_preparation) +
     numero(voci.cost_parts) +
     numero(voci.cost_commission) +

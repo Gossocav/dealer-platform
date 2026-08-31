@@ -36,7 +36,7 @@ type ContoSalvato = VociConto & {
   margin: number | null;
 };
 
-const CAMPI_IMPORTO = ["purchase_price", "cost_transport", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
+const CAMPI_IMPORTO = ["purchase_price", "cost_transport", "cost_bodywork", "cost_workshop", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
 
 type CampoImporto = (typeof CAMPI_IMPORTO)[number];
 
@@ -51,6 +51,8 @@ type Modulo = Record<CampoImporto, string> & {
 const MODULO_VUOTO: Modulo = {
   purchase_price: "",
   cost_transport: "",
+  cost_bodywork: "",
+  cost_workshop: "",
   cost_preparation: "",
   cost_parts: "",
   cost_commission: "",
@@ -90,7 +92,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
       // economico di un'auto non deve poter uscire per quella di un altro.
       const { data, error } = await supabase
         .from("vehicle_economics")
-        .select("purchase_price, purchase_date, supplier, cost_transport, cost_preparation, cost_parts, cost_commission, cost_other, cost_other_note, sale_price, sale_date, notes, total_cost, margin")
+        .select("purchase_price, purchase_date, supplier, cost_transport, cost_bodywork, cost_workshop, cost_preparation, cost_parts, cost_commission, cost_other, cost_other_note, sale_price, sale_date, notes, total_cost, margin")
         .eq("vehicle_id", vehicleId)
         .eq("dealer_id", dealerId)
         .maybeSingle<ContoSalvato>();
@@ -117,6 +119,8 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         setModulo({
           purchase_price: scrivi(data.purchase_price),
           cost_transport: scrivi(data.cost_transport),
+          cost_bodywork: scrivi(data.cost_bodywork),
+          cost_workshop: scrivi(data.cost_workshop),
           cost_preparation: scrivi(data.cost_preparation),
           cost_parts: scrivi(data.cost_parts),
           cost_commission: scrivi(data.cost_commission),
@@ -166,6 +170,8 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         purchase_date: modulo.purchase_date || null,
         supplier: modulo.supplier.trim() || null,
         cost_transport: leggiImporto(modulo.cost_transport) ?? 0,
+        cost_bodywork: leggiImporto(modulo.cost_bodywork) ?? 0,
+        cost_workshop: leggiImporto(modulo.cost_workshop) ?? 0,
         cost_preparation: leggiImporto(modulo.cost_preparation) ?? 0,
         cost_parts: leggiImporto(modulo.cost_parts) ?? 0,
         cost_commission: leggiImporto(modulo.cost_commission) ?? 0,
