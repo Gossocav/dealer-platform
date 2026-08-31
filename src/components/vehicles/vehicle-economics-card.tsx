@@ -11,6 +11,7 @@ import {
   leggiImporto,
   margine,
   marginePercentuale,
+  perche,
   type VociConto,
 } from "@/lib/conto-economico";
 
@@ -227,7 +228,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
           etichetta="Margine"
           valore={formattaImporto(guadagno)}
           tono={guadagno === null ? "neutro" : guadagno >= 0 ? "buono" : "cattivo"}
-          nota={guadagno === null ? "si vede dopo la vendita" : undefined}
+          nota={perche(conto) ?? undefined}
         />
         <Riquadro
           etichetta="Margine %"
