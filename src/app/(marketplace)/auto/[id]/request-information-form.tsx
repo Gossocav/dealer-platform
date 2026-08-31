@@ -28,8 +28,17 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
     const normalizedPhone = phone.trim();
     const normalizedMessage = message.trim();
 
-    if (!customerType || !normalizedFirstName || !normalizedLastName || !normalizedEmail || !normalizedPhone || !normalizedMessage) {
-      setErrorMessage("Tutti i campi sono obbligatori.");
+    // Un recapito basta. Vedi la nota nell'endpoint: il modulo pretendeva
+    // email **e** telefono mentre la pagina "Come funziona" prometteva "un
+    // contatto (email o telefono)". Vinceva il modulo, sul punto del sito che
+    // genera i contatti.
+    if (!customerType || !normalizedFirstName || !normalizedMessage) {
+      setErrorMessage("Servono il nome e il messaggio.");
+      return;
+    }
+
+    if (!normalizedEmail && !normalizedPhone) {
+      setErrorMessage("Lasciaci almeno un recapito: l'email oppure il telefono.");
       return;
     }
 
@@ -127,10 +136,11 @@ export default function RequestInformationForm({ vehicleId, vehicleLabel }: Requ
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nome *" value={firstName} onChange={setFirstName} required />
-          <Field label="Cognome *" value={lastName} onChange={setLastName} required />
+          <Field label="Cognome" value={lastName} onChange={setLastName} />
         </div>
-        <Field label="Email *" type="email" value={email} onChange={setEmail} required />
-        <Field label="Telefono *" type="tel" value={phone} onChange={setPhone} required />
+        <Field label="Email" type="email" value={email} onChange={setEmail} />
+        <Field label="Telefono" type="tel" value={phone} onChange={setPhone} />
+        <p className="-mt-1 text-xs text-slate-400">Basta uno dei due: ti ricontattano dove preferisci.</p>
 
         <label className="block">
           <span className="text-sm font-medium text-slate-300">Messaggio *</span>
