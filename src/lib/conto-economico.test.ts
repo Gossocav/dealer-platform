@@ -10,13 +10,21 @@ import {
   marginePercentuale,
 } from "@/lib/conto-economico";
 
+/**
+ * Lo schema del conto economico e' la **somma** delle sue migration: la prima
+ * lo crea, la seconda aggiunge carrozzeria e officina rifacendo le colonne
+ * calcolate. Leggerne una sola direbbe una verita' vecchia.
+ */
 const MIGRATION = "supabase/migrations/20260831010000_conto_economico_veicolo.sql";
-const sql = readFileSync(resolve(process.cwd(), MIGRATION), "utf8");
+const MIGRATIONS = [MIGRATION, "supabase/migrations/20260831030000_spese_carrozzeria_e_officina.sql"];
+const sql = MIGRATIONS.map((percorso) => readFileSync(resolve(process.cwd(), percorso), "utf8")).join("\n");
 
 // Il caso provato su Postgres vero il 31/08/2026, con gli stessi numeri.
 const AUTO = {
   purchase_price: 18000,
   cost_transport: 400,
+  cost_bodywork: 1200,
+  cost_workshop: 800,
   cost_preparation: 1900,
   cost_parts: 700,
   cost_commission: 200,
@@ -25,12 +33,12 @@ const AUTO = {
 
 describe("le due somme", () => {
   it("il costo totale e' l'acquisto piu' tutte le voci", () => {
-    expect(costoTotale(AUTO)).toBe(21200);
+    expect(costoTotale(AUTO)).toBe(23200);
   });
 
   it("il margine e' quello che resta dopo la vendita", () => {
-    expect(margine({ ...AUTO, sale_price: 24900 })).toBe(3700);
-    expect(marginePercentuale({ ...AUTO, sale_price: 24900 })).toBeCloseTo(14.86, 2);
+    expect(margine({ ...AUTO, sale_price: 24900 })).toBe(1700);
+    expect(marginePercentuale({ ...AUTO, sale_price: 24900 })).toBeCloseTo(6.83, 2);
   });
 
   it("senza vendita il margine e' ignoto, non zero", () => {
@@ -46,7 +54,7 @@ describe("le due somme", () => {
   });
 
   it("una vendita in perdita si vede", () => {
-    expect(margine({ ...AUTO, sale_price: 19000 })).toBe(-2200);
+    expect(margine({ ...AUTO, sale_price: 19000 })).toBe(-4200);
   });
 });
 
@@ -60,7 +68,7 @@ describe("le due somme", () => {
  */
 describe("il conto qui e il conto nel database sono lo stesso conto", () => {
   it("il database somma le stesse voci", () => {
-    const formula = sql.slice(sql.indexOf("total_cost numeric"), sql.indexOf(") stored", sql.indexOf("total_cost numeric")));
+    const formula = sql.slice(sql.lastIndexOf("total_cost numeric"), sql.indexOf(") stored", sql.lastIndexOf("total_cost numeric")));
     expect(formula).toContain("coalesce(purchase_price, 0)");
     for (const { campo } of VOCI_DI_COSTO) {
       expect(formula, `il database non somma ${campo}`).toContain(campo);
@@ -68,7 +76,7 @@ describe("il conto qui e il conto nel database sono lo stesso conto", () => {
   });
 
   it("il database lascia il margine nullo finche' non c'e' la vendita", () => {
-    const formula = sql.slice(sql.indexOf("margin numeric"), sql.indexOf(") stored", sql.indexOf("margin numeric")));
+    const formula = sql.slice(sql.lastIndexOf("margin numeric"), sql.indexOf(") stored", sql.lastIndexOf("margin numeric")));
     expect(formula).toContain("when sale_price is null then null");
   });
 
@@ -188,5 +196,76 @@ describe("la finestra fra il codice e la tabella si spiega, non si nasconde", ()
     // Il bottone resta spento: cliccarlo e vedere un errore, sapendo gia' che
     // fallira', e' peggio che non poterlo cliccare.
     expect(carta).toContain("|| daCreare}");
+  });
+});
+
+/**
+ * Carrozzeria e officina, chieste dal titolare il 31/08/2026: sono le due
+ * spese piu' ricorrenti su un usato e finivano schiacciate dentro
+ * "preparazione" o dentro "altro".
+ */
+describe("carrozzeria e officina sono voci a se'", () => {
+  it("compaiono fra le voci di costo, nell'ordine in cui le spese arrivano", () => {
+    // Trasporto, carrozzeria, officina, preparazione: la vettura si porta a
+    // casa, si raddrizza, si mette a posto meccanicamente, si prepara.
+    expect(VOCI_DI_COSTO.map((v) => v.campo)).toEqual([
+      "cost_transport",
+      "cost_bodywork",
+      "cost_workshop",
+      "cost_preparation",
+      "cost_parts",
+      "cost_commission",
+      "cost_other",
+    ]);
+  });
+
+  it("entrano nel costo totale", () => {
+    const senza = { purchase_price: 10000 };
+    expect(costoTotale({ ...senza, cost_bodywork: 1200 })).toBe(11200);
+    expect(costoTotale({ ...senza, cost_workshop: 800 })).toBe(10800);
+    expect(costoTotale({ ...senza, cost_bodywork: 1200, cost_workshop: 800 })).toBe(12000);
+  });
+
+  it("e abbassano il margine di conseguenza", () => {
+    const base = { purchase_price: 10000, sale_price: 13000 };
+    expect(margine(base)).toBe(3000);
+    expect(margine({ ...base, cost_bodywork: 1200, cost_workshop: 800 })).toBe(1000);
+  });
+});
+
+describe("la migration delle due voci nuove", () => {
+  const sql = readFileSync(
+    resolve(process.cwd(), "supabase/migrations/20260831030000_spese_carrozzeria_e_officina.sql"),
+    "utf8"
+  );
+
+  it("crea le colonne a zero, senza toccare i dati esistenti", () => {
+    expect(sql).toContain("add column if not exists cost_bodywork numeric(12, 2) not null default 0");
+    expect(sql).toContain("add column if not exists cost_workshop numeric(12, 2) not null default 0");
+  });
+
+  it("rifa' le due somme, perche' una colonna calcolata non si puo' modificare", () => {
+    // In PostgreSQL la formula di una colonna generata non si altera: si
+    // toglie e si rimette. Non si perde niente -- e' calcolata, non scritta --
+    // ma se ci si scordasse di rimetterla il conto sparirebbe.
+    expect(sql).toContain("drop column if exists total_cost");
+    expect(sql).toContain("drop column if exists margin");
+    expect(sql).toContain("add column total_cost numeric(12, 2) generated always as");
+    expect(sql).toContain("add column margin numeric(12, 2) generated always as");
+  });
+
+  it("le due voci nuove entrano in entrambe le formule", () => {
+    const totale = sql.slice(sql.indexOf("add column total_cost"), sql.indexOf(") stored", sql.indexOf("add column total_cost")));
+    const margine = sql.slice(sql.indexOf("add column margin"), sql.indexOf(") stored", sql.indexOf("add column margin")));
+    for (const formula of [totale, margine]) {
+      expect(formula).toContain("cost_bodywork");
+      expect(formula).toContain("cost_workshop");
+    }
+  });
+
+  it("il vincolo sugli importi negativi le comprende", () => {
+    const vincolo = sql.slice(sql.indexOf("vehicle_economics_importi_non_negativi\n  check"), sql.indexOf("commit;"));
+    expect(vincolo).toContain("cost_bodywork >= 0");
+    expect(vincolo).toContain("cost_workshop >= 0");
   });
 });
