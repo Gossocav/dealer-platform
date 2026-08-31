@@ -12,6 +12,7 @@ import {
   LogOut,
   Mail,
   PlusSquare,
+  CheckSquare,
   Settings,
   ShieldCheck,
   Users,
@@ -28,6 +29,9 @@ const sidebarItems: SidebarItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge },
   { label: "Veicoli", href: "/veicoli", icon: Car },
   { label: "Inserisci Veicolo", href: "/veicoli/nuovo", icon: PlusSquare },
+  // Le vetture sparite dal sito, in attesa di sapere com'e' andata. Sta qui
+  // accanto al parco auto perche' e' lavoro sul parco auto, non un rapporto.
+  { label: "Da chiudere", href: "/veicoli/da-chiudere", icon: CheckSquare },
   { label: "Lead", href: "/lead", icon: Inbox },
   { label: "Clienti", href: "/clienti", icon: Users },
   { label: "Appuntamenti", href: "/agenda", icon: CalendarDays },

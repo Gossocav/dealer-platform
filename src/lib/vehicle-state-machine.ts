@@ -142,7 +142,13 @@ const PIPELINE_TRANSITIONS: Record<VehicleLifecycleState, VehicleLifecycleState[
   in_acquisition: ["in_preparation", "archived"],
   in_preparation: ["in_acquisition", "in_photography", "in_review", "archived"],
   in_photography: ["in_preparation", "in_review", "archived"],
-  in_review: ["in_preparation", "in_photography", "ready_to_publish", "archived"],
+  // "sold" da qui non e' una scorciatoia: e' dove la sincronizzazione notturna
+  // parcheggia le auto sparite dal sito della concessionaria, e la spiegazione
+  // piu' frequente di quella sparizione e' che siano state vendute. Senza
+  // questo passaggio le tredici auto sparite in produzione al 31/08/2026 non
+  // potevano essere chiuse se non ripubblicandole prima, cioe' rimettendo in
+  // vetrina per un istante un'automobile che non c'e' piu'.
+  in_review: ["in_preparation", "in_photography", "ready_to_publish", "sold", "archived"],
   ready_to_publish: ["in_review", "archived"],
   published: ["reserved", "in_negotiation", "sold", "archived", "in_review"],
   reserved: ["in_negotiation", "sold", "archived"],
