@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { MarginSummary } from "@/components/dashboard/margin-summary";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { caricaTutto } from "@/lib/carica-tutto";
@@ -81,6 +82,7 @@ export default function StatistichePage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [dealerIdCorrente, setDealerIdCorrente] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusMessageType, setStatusMessageType] = useState<"success" | "error" | null>(null);
@@ -113,6 +115,7 @@ export default function StatistichePage() {
       // un domani quella protezione venisse allentata, sarebbe questa riga a
       // fare la differenza.
       const dealerId = await resolveDealerIdForCurrentUser(supabase);
+      setDealerIdCorrente(dealerId ?? null);
 
       if (!attivo) return;
 
@@ -300,6 +303,8 @@ export default function StatistichePage() {
               <p className="mt-4 text-3xl font-semibold text-slate-900">€{averagePrice.toLocaleString("it-IT")}</p>
             </div>
           </div>
+
+          <MarginSummary dealerId={dealerIdCorrente} />
 
           <section className="mt-10 rounded-[28px] border border-slate-200 bg-slate-50 p-6 shadow-sm sm:p-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

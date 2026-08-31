@@ -31,6 +31,9 @@ const CARTELLE = [
   "src/app/impostazioni",
   "src/app/account",
   "src/components/vehicles",
+  // Il conto del mese legge i margini di una concessionaria: vale la stessa
+  // regola di tutto il resto del gestionale.
+  "src/components/dashboard",
 ];
 
 function tuttiIFile(cartella: string): string[] {
