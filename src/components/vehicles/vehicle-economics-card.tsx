@@ -31,13 +31,12 @@ type ContoSalvato = VociConto & {
   purchase_date: string | null;
   supplier: string | null;
   sale_date: string | null;
-  cost_other_note: string | null;
   notes: string | null;
   total_cost: number | null;
   margin: number | null;
 };
 
-const CAMPI_IMPORTO = ["purchase_price", "cost_transport", "cost_bodywork", "cost_workshop", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
+const CAMPI_IMPORTO = ["purchase_price", "cost_transport", "cost_bodywork", "cost_workshop", "cost_tyres", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
 
 type CampoImporto = (typeof CAMPI_IMPORTO)[number];
 
@@ -45,7 +44,6 @@ type Modulo = Record<CampoImporto, string> & {
   purchase_date: string;
   supplier: string;
   sale_date: string;
-  cost_other_note: string;
   notes: string;
 };
 
@@ -54,6 +52,7 @@ const MODULO_VUOTO: Modulo = {
   cost_transport: "",
   cost_bodywork: "",
   cost_workshop: "",
+  cost_tyres: "",
   cost_preparation: "",
   cost_parts: "",
   cost_commission: "",
@@ -62,7 +61,6 @@ const MODULO_VUOTO: Modulo = {
   purchase_date: "",
   supplier: "",
   sale_date: "",
-  cost_other_note: "",
   notes: "",
 };
 
@@ -93,7 +91,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
       // economico di un'auto non deve poter uscire per quella di un altro.
       const { data, error } = await supabase
         .from("vehicle_economics")
-        .select("purchase_price, purchase_date, supplier, cost_transport, cost_bodywork, cost_workshop, cost_preparation, cost_parts, cost_commission, cost_other, cost_other_note, sale_price, sale_date, notes, total_cost, margin")
+        .select("purchase_price, purchase_date, supplier, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes, total_cost, margin")
         .eq("vehicle_id", vehicleId)
         .eq("dealer_id", dealerId)
         .maybeSingle<ContoSalvato>();
@@ -122,6 +120,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
           cost_transport: scrivi(data.cost_transport),
           cost_bodywork: scrivi(data.cost_bodywork),
           cost_workshop: scrivi(data.cost_workshop),
+          cost_tyres: scrivi(data.cost_tyres),
           cost_preparation: scrivi(data.cost_preparation),
           cost_parts: scrivi(data.cost_parts),
           cost_commission: scrivi(data.cost_commission),
@@ -130,7 +129,6 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
           purchase_date: data.purchase_date ?? "",
           supplier: data.supplier ?? "",
           sale_date: data.sale_date ?? "",
-          cost_other_note: data.cost_other_note ?? "",
           notes: data.notes ?? "",
         });
       }
@@ -173,11 +171,11 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         cost_transport: leggiImporto(modulo.cost_transport) ?? 0,
         cost_bodywork: leggiImporto(modulo.cost_bodywork) ?? 0,
         cost_workshop: leggiImporto(modulo.cost_workshop) ?? 0,
+        cost_tyres: leggiImporto(modulo.cost_tyres) ?? 0,
         cost_preparation: leggiImporto(modulo.cost_preparation) ?? 0,
         cost_parts: leggiImporto(modulo.cost_parts) ?? 0,
         cost_commission: leggiImporto(modulo.cost_commission) ?? 0,
         cost_other: leggiImporto(modulo.cost_other) ?? 0,
-        cost_other_note: modulo.cost_other_note.trim() || null,
         sale_price: leggiImporto(modulo.sale_price),
         sale_date: modulo.sale_date || null,
         notes: modulo.notes.trim() || null,
@@ -269,13 +267,6 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
             {VOCI_DI_COSTO.map(({ campo, etichetta }) => (
               <Importo key={campo} etichetta={etichetta} valore={modulo[campo]} onChange={(v) => aggiorna(campo, v)} />
             ))}
-            {/* La nota sull'"altro" prende il posto rimasto libero in fondo
-                alla griglia, e compare solo quando quel costo c'e' davvero:
-                un campo che chiede di spiegare una cifra che nessuno ha
-                scritto e' solo rumore. */}
-            {modulo.cost_other.trim() ? (
-              <Testo etichetta="Che cos'e l'altro costo" valore={modulo.cost_other_note} onChange={(v) => aggiorna("cost_other_note", v)} placeholder="Es. gommatura" />
-            ) : null}
           </div>
         </Gruppo>
       </div>
