@@ -405,3 +405,41 @@ describe("il gommista e' una voce, non una nota da scrivere", () => {
     expect(vincolo).toContain("cost_tyres >= 0");
   });
 });
+
+/**
+ * Il conto economico sopravvive alla sincronizzazione notturna.
+ *
+ * Domanda del titolare, 31/08/2026: "quando il sito si aggiorna
+ * automaticamente, il conto economico rimane memorizzato?". Rimane, e questo
+ * test fa in modo che continui a rimanere -- perche' e' il tipo di cosa che
+ * si rompe in silenzio, e a rompersi sarebbero i soldi.
+ */
+describe("la sincronizzazione notturna non tocca i conti", () => {
+  const cron = readFileSync(resolve(process.cwd(), "src/app/api/cron/sincronizza-siti/route.ts"), "utf8");
+  const sync = readFileSync(resolve(process.cwd(), "src/lib/dealer-site-sync.ts"), "utf8");
+  const importa = readFileSync(resolve(process.cwd(), "src/app/api/vehicles/import-site/route.ts"), "utf8");
+
+  it("non nomina nemmeno la tabella del conto economico", () => {
+    for (const [nome, sorgente] of [["il lavoro notturno", cron], ["la riconciliazione", sync], ["l'importazione", importa]] as const) {
+      expect(sorgente, `${nome} nomina vehicle_economics`).not.toContain("vehicle_economics");
+    }
+  });
+
+  it("non cancella nessun veicolo, e quindi nessun conto", () => {
+    // Il conto economico sparisce insieme al suo veicolo -- e' legato con una
+    // cascata. Finche' la sincronizzazione nasconde invece di cancellare, i
+    // conti restano anche per le auto tolte dalla vetrina.
+    for (const sorgente of [cron, sync, importa]) {
+      expect(sorgente).not.toContain(".delete()");
+    }
+  });
+
+  it("riscrive solo cio' che il sito dichiara", () => {
+    // L'elenco delle colonne sovrascritte e' quello e nessun altro: nessuna
+    // appartiene al conto economico.
+    const payload = sync.slice(sync.indexOf("export function payloadDatiVeicolo"), sync.indexOf("\n}", sync.indexOf("export function payloadDatiVeicolo")));
+    for (const campo of ["purchase_price", "sale_price", "cost_", "margin", "total_cost"]) {
+      expect(payload, `la sincronizzazione riscrive ${campo}`).not.toContain(campo);
+    }
+  });
+});

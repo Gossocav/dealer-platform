@@ -27,8 +27,15 @@ export type RiepilogoMese = {
   venduti: number;
   /** Di quelle, quante hanno il prezzo e quindi entrano nei conti. */
   conMargine: number;
-  /** Quante restano fuori perche' il prezzo non c'e'. */
-  senzaPrezzo: number;
+  /**
+   * Quante restano fuori perche' il conto non e' completo.
+   *
+   * Si chiamava "senzaPrezzo", e il nome e' invecchiato male: dal 31/08/2026
+   * il margine esige **anche** il prezzo di acquisto, quindi una vettura puo'
+   * restare fuori pur avendo il prezzo di vendita scritto. In produzione ce
+   * n'era una: venduta a 11.500, acquisto mai inserito.
+   */
+  senzaConto: number;
   ricavo: number;
   costo: number;
   margine: number;
@@ -77,7 +84,7 @@ export function riepilogoDelMese(conti: ContoVenduto[], mese: string): Riepilogo
   return {
     venduti: delMese.length,
     conMargine: conMargine.length,
-    senzaPrezzo: delMese.length - conMargine.length,
+    senzaConto: delMese.length - conMargine.length,
     ricavo,
     costo,
     margine,
