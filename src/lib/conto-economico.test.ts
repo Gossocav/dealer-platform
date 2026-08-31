@@ -21,6 +21,7 @@ const MIGRATIONS = [
   MIGRATION,
   "supabase/migrations/20260831030000_spese_carrozzeria_e_officina.sql",
   "supabase/migrations/20260831040000_margine_solo_con_prezzo_acquisto.sql",
+  "supabase/migrations/20260831050000_voce_gommista.sql",
 ];
 const sql = MIGRATIONS.map((percorso) => readFileSync(resolve(process.cwd(), percorso), "utf8")).join("\n");
 
@@ -219,6 +220,7 @@ describe("carrozzeria e officina sono voci a se'", () => {
       "cost_transport",
       "cost_bodywork",
       "cost_workshop",
+      "cost_tyres",
       "cost_preparation",
       "cost_parts",
       "cost_commission",
@@ -352,9 +354,54 @@ describe("i costi stanno in griglia, non in colonna", () => {
     expect(carta).not.toContain("lg:grid-cols-3");
   });
 
-  it("la nota sull'altro costo compare solo quando quel costo c'e'", () => {
-    // Un campo che chiede di spiegare una cifra che nessuno ha scritto e'
-    // solo rumore in mezzo alla griglia.
-    expect(carta).toContain("{modulo.cost_other.trim() ? (");
+  it("le otto voci riempiono esattamente due righe da quattro", () => {
+    expect(VOCI_DI_COSTO).toHaveLength(8);
+  });
+});
+
+/**
+ * Il gommista al posto della nota, chiesto dal titolare il 31/08/2026.
+ *
+ * La nota chiedeva di spiegare a parole cosa fosse l'"altro costo", e il suo
+ * esempio era proprio "gommatura". Nessuno l'aveva mai compilata: era vuota su
+ * tutte le righe in produzione, **compresa quella con 500 euro di "altro"
+ * scritti dentro**. Un campo che chiede di spiegare a parole una cifra non si
+ * riempie; quella cifra si sposta in una voce che porta gia' il suo nome.
+ */
+describe("il gommista e' una voce, non una nota da scrivere", () => {
+  const carta = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicle-economics-card.tsx"), "utf8");
+  const gommista = readFileSync(resolve(process.cwd(), "supabase/migrations/20260831050000_voce_gommista.sql"), "utf8");
+
+  it("sta fra officina e preparazione", () => {
+    // Le tre spese di officina in fila: lamiera, meccanica, gomme. Poi la
+    // preparazione, che viene dopo.
+    const campi = VOCI_DI_COSTO.map((v) => v.campo);
+    expect(campi.indexOf("cost_tyres")).toBe(campi.indexOf("cost_workshop") + 1);
+    expect(campi.indexOf("cost_tyres")).toBe(campi.indexOf("cost_preparation") - 1);
+  });
+
+  it("entra nel costo totale e abbassa il margine", () => {
+    const base = { purchase_price: 10000, sale_price: 13000 };
+    expect(margine(base)).toBe(3000);
+    expect(margine({ ...base, cost_tyres: 600 })).toBe(2400);
+    expect(costoTotale({ cost_tyres: 600 })).toBe(600);
+  });
+
+  it("la nota non esiste piu', ne' a schermo ne' nell'archivio", () => {
+    // Una colonna che nessuno scrive e nessuno legge diventa una domanda per
+    // chi la trovera' fra un anno. Verificato vuota prima di toglierla.
+    expect(carta).not.toContain("cost_other_note");
+    expect(gommista).toContain("drop column if exists cost_other_note");
+  });
+
+  it("il database somma anche le gomme, in tutte e due le formule", () => {
+    const totale = sql.slice(sql.lastIndexOf("add column total_cost"), sql.indexOf(") stored", sql.lastIndexOf("add column total_cost")));
+    const marg = sql.slice(sql.lastIndexOf("add column margin"), sql.indexOf(") stored", sql.lastIndexOf("add column margin")));
+    for (const formula of [totale, marg]) expect(formula).toContain("cost_tyres");
+  });
+
+  it("un costo del gommista negativo resta rifiutato", () => {
+    const vincolo = gommista.slice(gommista.lastIndexOf("check ("));
+    expect(vincolo).toContain("cost_tyres >= 0");
   });
 });
