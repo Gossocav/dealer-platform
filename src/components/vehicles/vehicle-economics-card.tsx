@@ -237,26 +237,46 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      {/* Acquisto e vendita affiancati: sono i due capi del conto, tre campi
+          per uno. I costi stanno sotto e per larghezza intera, perche' sono
+          sette e in colonna facevano una lista alta e sottile che spingeva
+          tutto il resto fuori schermo. */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Gruppo titolo="Acquisto">
-          <Importo etichetta="Prezzo di acquisto" valore={modulo.purchase_price} onChange={(v) => aggiorna("purchase_price", v)} />
-          <Data etichetta="Data di acquisto" valore={modulo.purchase_date} onChange={(v) => aggiorna("purchase_date", v)} />
-          <Testo etichetta="Fornitore" valore={modulo.supplier} onChange={(v) => aggiorna("supplier", v)} placeholder="Da chi l'hai comprata" />
-        </Gruppo>
-
-        <Gruppo titolo="Costi">
-          {VOCI_DI_COSTO.map(({ campo, etichetta }) => (
-            <Importo key={campo} etichetta={etichetta} valore={modulo[campo]} onChange={(v) => aggiorna(campo, v)} />
-          ))}
-          {modulo.cost_other.trim() ? (
-            <Testo etichetta="Che cos'e l'altro costo" valore={modulo.cost_other_note} onChange={(v) => aggiorna("cost_other_note", v)} placeholder="Es. gommatura" />
-          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Importo etichetta="Prezzo di acquisto" valore={modulo.purchase_price} onChange={(v) => aggiorna("purchase_price", v)} />
+            <Data etichetta="Data di acquisto" valore={modulo.purchase_date} onChange={(v) => aggiorna("purchase_date", v)} />
+            <div className="sm:col-span-2">
+              <Testo etichetta="Fornitore" valore={modulo.supplier} onChange={(v) => aggiorna("supplier", v)} placeholder="Da chi l'hai comprata" />
+            </div>
+          </div>
         </Gruppo>
 
         <Gruppo titolo="Vendita">
-          <Importo etichetta="Prezzo di vendita" valore={modulo.sale_price} onChange={(v) => aggiorna("sale_price", v)} />
-          <Data etichetta="Data di vendita" valore={modulo.sale_date} onChange={(v) => aggiorna("sale_date", v)} />
-          <Testo etichetta="Note" valore={modulo.notes} onChange={(v) => aggiorna("notes", v)} placeholder="Quello che ti serve ricordare" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Importo etichetta="Prezzo di vendita" valore={modulo.sale_price} onChange={(v) => aggiorna("sale_price", v)} />
+            <Data etichetta="Data di vendita" valore={modulo.sale_date} onChange={(v) => aggiorna("sale_date", v)} />
+            <div className="sm:col-span-2">
+              <Testo etichetta="Note" valore={modulo.notes} onChange={(v) => aggiorna("notes", v)} placeholder="Quello che ti serve ricordare" />
+            </div>
+          </div>
+        </Gruppo>
+      </div>
+
+      <div className="mt-6">
+        <Gruppo titolo="Costi">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {VOCI_DI_COSTO.map(({ campo, etichetta }) => (
+              <Importo key={campo} etichetta={etichetta} valore={modulo[campo]} onChange={(v) => aggiorna(campo, v)} />
+            ))}
+            {/* La nota sull'"altro" prende il posto rimasto libero in fondo
+                alla griglia, e compare solo quando quel costo c'e' davvero:
+                un campo che chiede di spiegare una cifra che nessuno ha
+                scritto e' solo rumore. */}
+            {modulo.cost_other.trim() ? (
+              <Testo etichetta="Che cos'e l'altro costo" valore={modulo.cost_other_note} onChange={(v) => aggiorna("cost_other_note", v)} placeholder="Es. gommatura" />
+            ) : null}
+          </div>
         </Gruppo>
       </div>
 
