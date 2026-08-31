@@ -138,7 +138,11 @@ const EVENTS_BY_STATE: Record<VehicleLifecycleState, string[]> = {
 
 // Lifecycle-specific transitions: the "forward" flow of the pipeline.
 const PIPELINE_TRANSITIONS: Record<VehicleLifecycleState, VehicleLifecycleState[]> = {
-  draft: ["in_acquisition", "in_preparation", "ready_to_publish", "archived"],
+  // "sold" anche da bozza: capita di vendere una vettura prima di averla
+  // pubblicata -- un cliente che passa in concessionaria e la compra dal
+  // piazzale. Senza questo passaggio quella vendita non si potrebbe
+  // registrare se non pubblicando prima l'annuncio di un'auto gia' venduta.
+  draft: ["in_acquisition", "in_preparation", "ready_to_publish", "sold", "archived"],
   in_acquisition: ["in_preparation", "archived"],
   in_preparation: ["in_acquisition", "in_photography", "in_review", "archived"],
   in_photography: ["in_preparation", "in_review", "archived"],

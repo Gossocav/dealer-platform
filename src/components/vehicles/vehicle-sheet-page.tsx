@@ -39,6 +39,7 @@ type SheetVehicle = {
   seats: number | null;
   warranty: string | null;
   emission_class: string | null;
+  plate: string | null;
   vin: string | null;
   description: string | null;
   equipment: string[] | string | null;
@@ -69,6 +70,7 @@ const SHEET_VEHICLE_COLUMNS = [
   "seats",
   "warranty",
   "emission_class",
+  "plate",
   "vin",
   "description",
   "equipment",
@@ -257,6 +259,7 @@ export function VehicleSheetPage({ vehicleId }: { vehicleId: string }) {
       { label: "Porte", value: vehicle.doors ? String(vehicle.doors) : null },
       { label: "Posti", value: vehicle.seats ? String(vehicle.seats) : null },
       { label: "Garanzia", value: text(vehicle.warranty) },
+      { label: "Targa", value: text(vehicle.plate) },
       { label: "Telaio", value: text(vehicle.vin) },
     ];
 

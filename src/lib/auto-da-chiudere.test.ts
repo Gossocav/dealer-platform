@@ -205,3 +205,55 @@ describe("la regola vive anche nel database", () => {
     }
   });
 });
+
+/**
+ * Una vendita si registra anche dalla scheda del veicolo, dal 31/08/2026.
+ *
+ * Prima "Da chiudere" era l'unico modo, e quella pagina elenca le sole
+ * vetture **sparite dal sito**: un'auto venduta mentre era ancora online, o
+ * inserita a mano, non aveva nessun modo di essere chiusa e restava fuori dai
+ * conti delle vendite per sempre. In produzione erano 251 in vetrina e 8
+ * bozze: la situazione si sarebbe presentata presto.
+ */
+describe("si puo' chiudere una vendita anche dalla scheda del veicolo", () => {
+  const modulo = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicle-editor-page.tsx"), "utf8");
+  const macchina = readFileSync(resolve(process.cwd(), "src/lib/vehicle-state-machine.ts"), "utf8");
+
+  it("lo stato Venduto si puo' scegliere", () => {
+    expect(modulo).toContain('<option value="sold">Venduto</option>');
+  });
+
+  it("il modulo ha la targa, non solo il telaio", () => {
+    // La targa e' quello che un concessionario ha sotto mano; il telaio va
+    // cercato sul libretto. Il campo mancava del tutto.
+    expect(modulo).toContain('<EditorField label="Targa" value={state.plate}');
+    expect(modulo).toContain("plate: state.plate.trim().toUpperCase() || null,");
+    expect(modulo).toContain("registration_date, color, plate, vin, mileage");
+  });
+
+  it("senza targa ne telaio il salvataggio si ferma prima del database", () => {
+    // Il trigger lo rifiuterebbe comunque, ma con un errore che arriva dopo:
+    // meglio dirlo mentre si compila.
+    expect(modulo).toContain("puoEssereSegnataVenduta({ targa: state.plate, telaio: state.vin })");
+    expect(modulo).toContain("serve la targa oppure il numero di telaio");
+  });
+
+  it("si puo' vendere anche una bozza", () => {
+    // Capita di vendere una vettura prima di averla pubblicata: un cliente
+    // che passa e la compra dal piazzale. Senza questo passaggio quella
+    // vendita si sarebbe potuta registrare solo pubblicando prima l'annuncio
+    // di un'auto gia' venduta.
+    const tabella = macchina.slice(macchina.indexOf("const PIPELINE_TRANSITIONS"));
+    const riga = tabella.slice(tabella.indexOf("draft: ["), tabella.indexOf("],", tabella.indexOf("draft: [")));
+    expect(riga).toContain('"sold"');
+  });
+
+  it("la regola sulla targa e' una sola, scritta in un posto solo", () => {
+    // La stessa funzione serve "Da chiudere" e il modulo di modifica: due
+    // copie divergerebbero, e una delle due schermate finirebbe per lasciar
+    // passare quello che l'altra blocca.
+    const chiusura = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicles-to-close-page.tsx"), "utf8");
+    expect(chiusura).toContain("!targa && !telaio");
+    expect(modulo).toContain("puoEssereSegnataVenduta");
+  });
+});
