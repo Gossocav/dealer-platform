@@ -3,10 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   aspettaUnaRisposta,
-  puoEssereSegnataVenduta,
-  dataDiVenditaProposta,
   giorniDiAttesa,
-  prezzoDiVenditaProposto,
+  puoEssereSegnataVenduta,
   type VeicoloDaChiudere,
 } from "@/lib/auto-da-chiudere";
 
@@ -49,29 +47,36 @@ describe("quali vetture aspettano una risposta", () => {
 });
 
 /**
- * Le proposte non sono dati: sono il punto da cui il concessionario corregge.
- * Su tredici automobili, partire dal giorno e dalla cifra giusti gli
- * risparmia di andarli a cercare tredici volte.
+ * Prezzo e data nascono **vuoti**, per decisione del titolare del 31/08/2026.
+ *
+ * Li proponevo: il prezzo di listino e il giorno in cui la vettura era sparita
+ * dal sito. Nessuno dei due e' il dato vero -- sul prezzo si tratta sempre, e
+ * la sparizione dice quando ce ne siamo accorti noi, non quando e' stato
+ * firmato il contratto.
+ *
+ * Il difetto che questo impedisce: un campo precompilato con un numero quasi
+ * giusto si conferma senza guardarlo, e l'archivio si riempie di cifre
+ * plausibili e false -- che e' peggio di un archivio incompleto, perche' non
+ * si distinguono piu' dalle vere.
  */
-describe("cosa si propone, e perche' e' solo una proposta", () => {
-  it("la data e' il giorno in cui e' sparita dal sito", () => {
-    // Dice quando la piattaforma se n'e' accorta, non quando e' stato
-    // firmato il contratto: e' il motivo per cui resta correggibile.
-    expect(dataDiVenditaProposta(veicolo())).toBe("2026-08-18");
+describe("niente viene proposto: chi sa, scrive", () => {
+  const pagina = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicles-to-close-page.tsx"), "utf8");
+
+  it("i due campi nascono vuoti", () => {
+    expect(pagina).toContain('prezzoVendita: ""');
+    expect(pagina).toContain('dataVendita: ""');
   });
 
-  it("senza sparizione non si propone nessuna data", () => {
-    expect(dataDiVenditaProposta(veicolo({ import_missing_since: null }))).toBe("");
+  it("le funzioni che proponevano non esistono piu'", () => {
+    // Codice morto che dice "proponiamo" sarebbe fuorviante per chi legge.
+    const libreria = readFileSync(resolve(process.cwd(), "src/lib/auto-da-chiudere.ts"), "utf8");
+    expect(libreria).not.toContain("dataDiVenditaProposta");
+    expect(libreria).not.toContain("prezzoDiVenditaProposto");
   });
 
-  it("il prezzo e' quello a cui era esposta", () => {
-    // Quasi mai e' quello vero -- si tratta sempre -- ma e' molto piu' vicino
-    // del vuoto.
-    expect(prezzoDiVenditaProposto(veicolo())).toBe(24900);
-    expect(prezzoDiVenditaProposto(veicolo({ price: null }))).toBeNull();
-  });
-
-  it("da quanti giorni aspetta", () => {
+  it("i giorni di attesa restano, perche' quelli sono un fatto", () => {
+    // Non e' una proposta da confermare: e' da quanto tempo la vettura
+    // aspetta, e serve a mettere in cima le piu' vecchie.
     const adesso = new Date("2026-08-31T10:00:00.000Z");
     expect(giorniDiAttesa(veicolo(), adesso)).toBe(13);
     expect(giorniDiAttesa(veicolo({ import_missing_since: null }), adesso)).toBeNull();
