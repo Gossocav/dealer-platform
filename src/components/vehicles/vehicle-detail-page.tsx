@@ -8,6 +8,7 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { VehicleEconomicsCard } from "@/components/vehicles/vehicle-economics-card";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { pianoIncludeSchedaConsegna } from "@/lib/scheda-consegna";
 import { supabase } from "@/lib/supabaseClient";
@@ -546,6 +547,12 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               ))}
             </div>
           </section>
+
+          {/* Il conto economico sta qui e non nel modulo di modifica: e' un
+              dato di un'altra natura, che vive in un'altra tabella e non deve
+              mai uscire sul marketplace. Tenerlo separato anche a schermo
+              rende evidente che e' cosa d'ufficio, non dell'annuncio. */}
+          <VehicleEconomicsCard vehicleId={vehicleId} dealerId={currentDealerId} />
 
           <SendToClientDialog
             open={sendDialogOpen}
