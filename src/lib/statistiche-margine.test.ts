@@ -257,11 +257,19 @@ describe("le vendute senza data si trovano lo stesso", () => {
  */
 describe("l'elenco delle vendite e' completo", () => {
   const pagina = readFileSync(resolve(process.cwd(), "src/components/dashboard/sales-report-page.tsx"), "utf8");
+  // La lettura si e' spostata in un aggancio condiviso quando e' nato il
+  // foglio da stampare: la pagina a schermo e la carta devono partire dagli
+  // stessi numeri. La regola che questo test difende non e' cambiata, e' solo
+  // scritta in un file diverso.
+  const lettura = readFileSync(
+    resolve(process.cwd(), "src/components/dashboard/vendite-della-concessionaria.tsx"),
+    "utf8"
+  );
 
   it("legge i veicoli venduti e vi aggancia il conto, non il contrario", () => {
-    expect(pagina).toContain('.from("vehicles")');
-    expect(pagina).toContain('.in("status", ["sold", "delivered"])');
-    expect(pagina).toContain("vehicle_economics(sale_date, sale_price, total_cost, margin)");
+    expect(lettura).toContain('.from("vehicles")');
+    expect(lettura).toContain('.in("status", ["sold", "delivered"])');
+    expect(lettura).toContain("vehicle_economics(sale_date, sale_price, total_cost, margin)");
   });
 
   it("le vetture senza conto restano nell'elenco, segnate", () => {
@@ -269,6 +277,6 @@ describe("l'elenco delle vendite e' completo", () => {
   });
 
   it("resta dentro la concessionaria", () => {
-    expect(pagina).toContain('.eq("dealer_id", dealerId)');
+    expect(lettura).toContain('.eq("dealer_id", dealerId)');
   });
 });

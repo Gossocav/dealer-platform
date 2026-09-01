@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Loader2, Printer } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
-import { getActiveDealerId } from "@/lib/active-tenant";
-import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
-import { supabase } from "@/lib/supabaseClient";
-import { caricaTutto } from "@/lib/carica-tutto";
+import { useVenditeDellaConcessionaria, type Vendita } from "@/components/dashboard/vendite-della-concessionaria";
 import { formattaImporto } from "@/lib/conto-economico";
-import { resolveVehicleLabel } from "@/lib/public-marketplace";
 import {
   anniConVendite,
   annoCorrente,
@@ -17,7 +13,6 @@ import {
   nomeBreveDelMese,
   riepilogoAnnuale,
   senzaDataDiVendita,
-  type ContoVenduto,
 } from "@/lib/statistiche-margine";
 
 /**
@@ -33,115 +28,18 @@ import {
  * Il conto, quando c'e', si aggancia; quando manca, la riga lo dice.
  */
 
-type RigaLetta = {
-  id: string;
-  brand: string | null;
-  model: string | null;
-  version: string | null;
-  plate: string | null;
-  vin: string | null;
-  vehicle_economics: DatiConto | DatiConto[] | null;
-};
-
-type DatiConto = {
-  sale_date: string | null;
-  sale_price: number | null;
-  total_cost: number | null;
-  margin: number | null;
-};
-
-type Vendita = ContoVenduto & { targa: string | null };
-
-function primoConto(valore: RigaLetta["vehicle_economics"]): DatiConto | null {
-  return (Array.isArray(valore) ? valore[0] : valore) ?? null;
-}
-
 export function SalesReportPage() {
-  const [vendite, setVendite] = useState<Vendita[]>([]);
-  const [dealerName, setDealerName] = useState("");
-  const [caricamento, setCaricamento] = useState(true);
-  const [errore, setErrore] = useState<string | null>(null);
-  const [anno, setAnno] = useState<string>(() => annoCorrente());
+  const { vendite, dealerName, caricamento, errore } = useVenditeDellaConcessionaria();
+  const [annoScelto, setAnnoScelto] = useState<string | null>(null);
   const [meseScelto, setMeseScelto] = useState<string | null>(null);
 
-  useEffect(() => {
-    let vivo = true;
-
-    const carica = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
-      if (!vivo) return;
-
-      if (!userId) {
-        setErrore("Sessione non valida. Effettua di nuovo l'accesso.");
-        setCaricamento(false);
-        return;
-      }
-
-      const dealerId = await resolveDealerIdFromTenantSources(supabase, userId, { activeDealerId: getActiveDealerId() });
-      if (!vivo) return;
-
-      if (!dealerId) {
-        setErrore("Concessionaria non associata all'utente.");
-        setCaricamento(false);
-        return;
-      }
-
-      const [{ data: concessionaria }, elenco] = await Promise.all([
-        supabase.from("dealers").select("legal_name, name").eq("id", dealerId).maybeSingle<{ legal_name: string | null; name: string | null }>(),
-        // Letto per intero: e' un elenco di vendite, e uno troncato in
-        // silenzio farebbe sparire fatturato senza dirlo.
-        caricaTutto<RigaLetta>((da, a) =>
-          supabase
-            .from("vehicles")
-            .select("id, brand, model, version, plate, vin, vehicle_economics(sale_date, sale_price, total_cost, margin)")
-            .eq("dealer_id", dealerId)
-            .in("status", ["sold", "delivered"])
-            .range(da, a)
-            .returns<RigaLetta[]>()
-        ),
-      ]);
-
-      if (!vivo) return;
-
-      setDealerName(String(concessionaria?.legal_name ?? concessionaria?.name ?? "").trim());
-
-      if (elenco.error) {
-        setErrore("Non e stato possibile leggere l'elenco delle vendite.");
-        setCaricamento(false);
-        return;
-      }
-
-      const lette: Vendita[] = elenco.righe.map((riga) => {
-        const conto = primoConto(riga.vehicle_economics);
-        return {
-          vehicleId: riga.id,
-          etichetta: resolveVehicleLabel(riga as never),
-          targa: riga.plate ?? riga.vin ?? null,
-          saleDate: conto?.sale_date ?? null,
-          salePrice: conto?.sale_price ?? null,
-          totalCost: conto?.total_cost ?? null,
-          margin: conto?.margin ?? null,
-        };
-      });
-
-      setVendite(lette);
-
-      // Ci si apre sull'anno corrente, ma se non ha ancora vendite si apre
-      // sull'ultimo che ne ha: una pagina vuota fa credere che non funzioni.
-      const anni = anniConVendite(lette);
-      if (anni.length > 0 && !anni.includes(annoCorrente())) setAnno(anni[0]);
-
-      setCaricamento(false);
-    };
-
-    void carica();
-    return () => {
-      vivo = false;
-    };
-  }, []);
-
   const anni = useMemo(() => anniConVendite(vendite), [vendite]);
+
+  // Ci si apre sull'anno corrente, ma se non ha ancora vendite si mostra
+  // l'ultimo che ne ha: una pagina vuota fa credere che non funzioni. Si
+  // ricava invece di essere scritto in memoria, cosi' non c'e' un momento in
+  // cui lo stato dice un anno e le vendite ne raccontano un altro.
+  const anno = annoScelto ?? (anni.length > 0 && !anni.includes(annoCorrente()) ? anni[0] : annoCorrente());
   const { mesi, totale } = useMemo(() => riepilogoAnnuale(vendite, anno), [vendite, anno]);
   const orfane = useMemo(() => senzaDataDiVendita(vendite), [vendite]);
 
@@ -160,13 +58,14 @@ export function SalesReportPage() {
             <h2 className="mt-1 text-2xl font-semibold text-slate-900">Le auto vendute e quanto hanno reso</h2>
           </div>
 
+          <div className="flex flex-wrap items-end gap-3">
           {anni.length > 0 ? (
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Anno</span>
               <select
                 value={anno}
                 onChange={(evento) => {
-                  setAnno(evento.target.value);
+                  setAnnoScelto(evento.target.value);
                   setMeseScelto(null);
                 }}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
@@ -179,6 +78,17 @@ export function SalesReportPage() {
               </select>
             </label>
           ) : null}
+
+          {/* Il conto su carta: stessa tabella, stesso anno, senza il
+              gestionale intorno. Porta l'anno nell'indirizzo perche' la
+              pagina di stampa non condivide lo stato con questa. */}
+          <Link
+            href={`/vendite/stampa?anno=${anno}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Printer className="h-4 w-4" /> Stampa il conto
+          </Link>
+          </div>
         </div>
       </section>
 
