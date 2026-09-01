@@ -64,10 +64,17 @@ export default function AttivazioneDirettaPage() {
   const [errore, setErrore] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
   const [esito, setEsito] = useState<{ nome: string; piano: string } | null>(null);
+  // Un clic crea l'account **e manda l'email**, e un'email non si richiama
+  // indietro: un indirizzo sbagliato manda le credenziali a un estraneo. La
+  // conferma ripete a schermo le due cose che non si possono correggere dopo.
+  const [conferma, setConferma] = useState(false);
 
   const aggiorna = (campo: keyof Modulo, valore: string) => {
     setModulo((precedente) => ({ ...precedente, [campo]: valore }));
     setErrore(null);
+    // Cambiare un dato annulla la conferma: quella che si stava per dare
+    // riguardava un'email che adesso e' un'altra.
+    setConferma(false);
   };
 
   const attiva = async () => {
@@ -97,6 +104,7 @@ export default function AttivazioneDirettaPage() {
 
     if (!creazione?.ok || !creata?.requestId) {
       setPasso("fermo");
+      setConferma(false);
       setErrore(creata?.error ?? "Non e stato possibile preparare l'attivazione.");
       return;
     }
@@ -147,6 +155,7 @@ export default function AttivazioneDirettaPage() {
     setPasso("fatto");
     setEsito({ nome: modulo.dealershipName, piano: modulo.planCode });
     setModulo(VUOTO);
+    setConferma(false);
   };
 
   const inCorso = passo === "creo" || passo === "attivo" || passo === "converto";
@@ -219,19 +228,67 @@ export default function AttivazioneDirettaPage() {
           </div>
         ) : null}
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void attiva()}
-            disabled={inCorso}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Attiva la concessionaria
-          </button>
+        {/* Due passaggi invece di uno. Il primo non fa niente di irreversibile;
+            il secondo crea l'account e manda l'email, e l'email non torna
+            indietro. Fra i due si rileggono l'indirizzo e il piano, che sono
+            le due cose che dopo non si correggono. */}
+        {conferma ? (
+          <div className="mt-6 rounded-2xl border border-slate-300 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Controlla prima di procedere</p>
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-slate-500">Concessionaria</dt>
+                <dd className="font-medium text-slate-900">{modulo.dealershipName || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Piano</dt>
+                <dd className="font-medium text-slate-900">
+                  {DEMO_PLAN_CATALOG.find((piano) => piano.code === modulo.planCode)?.name ?? modulo.planCode}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-slate-500">L&apos;email di accesso va a</dt>
+                <dd className="break-all font-semibold text-slate-900">{modulo.email || "—"}</dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Premendo Conferma l&apos;account viene creato e l&apos;email parte subito. Non si puo&apos; richiamare
+              indietro: se l&apos;indirizzo e sbagliato, le credenziali arrivano a un estraneo.
+            </p>
 
-          {inCorso ? <span className="text-sm text-slate-600">{DESCRIZIONE_PASSO[passo]}</span> : null}
-        </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void attiva()}
+                disabled={inCorso}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Conferma e attiva
+              </button>
+              <button
+                type="button"
+                onClick={() => setConferma(false)}
+                disabled={inCorso}
+                className="text-sm font-semibold text-slate-700 underline disabled:opacity-60"
+              >
+                Torna a correggere
+              </button>
+
+              {inCorso ? <span className="text-sm text-slate-600">{DESCRIZIONE_PASSO[passo]}</span> : null}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setConferma(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Attiva la concessionaria
+            </button>
+          </div>
+        )}
       </section>
     </AdminShell>
   );
