@@ -38,7 +38,6 @@ type ContoLetto = VociConto & {
   supplier: string | null;
   sale_date: string | null;
   notes: string | null;
-  cost_other_note: string | null;
 };
 
 type VeicoloLetto = {
@@ -102,7 +101,7 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
           supabase
             .from("vehicle_economics")
             .select(
-              "purchase_price, purchase_date, supplier, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, cost_other_note, sale_price, sale_date, notes"
+              "purchase_price, purchase_date, supplier, cost_minivoltura, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes"
             )
             .eq("vehicle_id", vehicleId)
             .eq("dealer_id", dealerId)
@@ -273,9 +272,6 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
               <Voce key={campo} etichetta={etichetta} valore={importo(voci[campo])} />
             ))}
           </div>
-          {testo(conto?.cost_other_note) ? (
-            <p className="mt-2 text-xs text-slate-600">Altro: {testo(conto?.cost_other_note)}</p>
-          ) : null}
         </div>
 
         <div className="sheet-block mt-8 border-t-2 border-slate-900 pt-4">

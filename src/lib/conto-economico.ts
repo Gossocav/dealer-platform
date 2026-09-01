@@ -11,6 +11,7 @@
 
 export type VociConto = {
   purchase_price?: number | null;
+  cost_minivoltura?: number | null;
   cost_transport?: number | null;
   cost_bodywork?: number | null;
   cost_workshop?: number | null;
@@ -24,8 +25,15 @@ export type VociConto = {
 
 /**
  * Le voci che compongono il costo, nell'ordine in cui le spese arrivano
- * davvero: la vettura si trasporta, si raddrizza, si mette a posto
- * meccanicamente, si prepara, e infine si vende.
+ * davvero: la vettura si voltura, si trasporta, si raddrizza, si mette a
+ * posto meccanicamente, si prepara, e infine si vende.
+ *
+ * La minivoltura sta per prima perche' viene con l'acquisto, prima ancora che
+ * l'automobile si muova. Chiesta dal titolare il 01/09/2026: e' una spesa che
+ * c'e' su ogni vettura che entra in piazzale, e finiva dentro "Altro" o fuori
+ * dal conto. Nel secondo caso il margine risultava piu' alto del vero su
+ * **tutte** le automobili, perche' una spesa che c'e' sempre restava fuori
+ * sempre.
  *
  * Carrozzeria, officina e gommista stanno separate dalla preparazione perche'
  * sono le tre spese piu' ricorrenti su un usato, e schiacciate dentro un'unica
@@ -41,6 +49,7 @@ export type VociConto = {
  * si sposta in una voce che porta gia' il suo nome.
  */
 export const VOCI_DI_COSTO = [
+  { campo: "cost_minivoltura", etichetta: "Minivoltura" },
   { campo: "cost_transport", etichetta: "Trasporto" },
   { campo: "cost_bodywork", etichetta: "Carrozzeria" },
   { campo: "cost_workshop", etichetta: "Officina" },
@@ -59,6 +68,7 @@ function numero(value: number | null | undefined): number {
 export function costoTotale(voci: VociConto): number {
   return (
     numero(voci.purchase_price) +
+    numero(voci.cost_minivoltura) +
     numero(voci.cost_transport) +
     numero(voci.cost_bodywork) +
     numero(voci.cost_workshop) +

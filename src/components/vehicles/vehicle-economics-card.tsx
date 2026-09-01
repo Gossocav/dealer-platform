@@ -36,7 +36,7 @@ type ContoSalvato = VociConto & {
   margin: number | null;
 };
 
-const CAMPI_IMPORTO = ["purchase_price", "cost_transport", "cost_bodywork", "cost_workshop", "cost_tyres", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
+const CAMPI_IMPORTO = ["purchase_price", "cost_minivoltura", "cost_transport", "cost_bodywork", "cost_workshop", "cost_tyres", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
 
 type CampoImporto = (typeof CAMPI_IMPORTO)[number];
 
@@ -49,6 +49,7 @@ type Modulo = Record<CampoImporto, string> & {
 
 const MODULO_VUOTO: Modulo = {
   purchase_price: "",
+  cost_minivoltura: "",
   cost_transport: "",
   cost_bodywork: "",
   cost_workshop: "",
@@ -91,7 +92,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
       // economico di un'auto non deve poter uscire per quella di un altro.
       const { data, error } = await supabase
         .from("vehicle_economics")
-        .select("purchase_price, purchase_date, supplier, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes, total_cost, margin")
+        .select("purchase_price, purchase_date, supplier, cost_minivoltura, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes, total_cost, margin")
         .eq("vehicle_id", vehicleId)
         .eq("dealer_id", dealerId)
         .maybeSingle<ContoSalvato>();
@@ -117,6 +118,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
       if (data) {
         setModulo({
           purchase_price: scrivi(data.purchase_price),
+          cost_minivoltura: scrivi(data.cost_minivoltura),
           cost_transport: scrivi(data.cost_transport),
           cost_bodywork: scrivi(data.cost_bodywork),
           cost_workshop: scrivi(data.cost_workshop),
@@ -168,6 +170,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         purchase_price: leggiImporto(modulo.purchase_price),
         purchase_date: modulo.purchase_date || null,
         supplier: modulo.supplier.trim() || null,
+        cost_minivoltura: leggiImporto(modulo.cost_minivoltura) ?? 0,
         cost_transport: leggiImporto(modulo.cost_transport) ?? 0,
         cost_bodywork: leggiImporto(modulo.cost_bodywork) ?? 0,
         cost_workshop: leggiImporto(modulo.cost_workshop) ?? 0,
@@ -263,7 +266,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
 
       <div className="mt-6">
         <Gruppo titolo="Costi">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {VOCI_DI_COSTO.map(({ campo, etichetta }) => (
               <Importo key={campo} etichetta={etichetta} valore={modulo[campo]} onChange={(v) => aggiorna(campo, v)} />
             ))}
