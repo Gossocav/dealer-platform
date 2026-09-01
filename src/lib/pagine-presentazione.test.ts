@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { getDemoPlan } from "@/lib/demo-plan-catalog";
 
 function leggi(percorso: string) {
   return readFileSync(resolve(process.cwd(), percorso), "utf8");
@@ -73,27 +74,54 @@ describe("le due pagine sono raggiungibili senza login", () => {
  * Il prezzo sbagliato su una pagina di vendita non e' un dettaglio estetico:
  * e' una cifra che un concessionario legge e su cui decide.
  */
-describe("i prezzi e i limiti coincidono con le pagine dei piani", () => {
-  const piani = [
-    { nome: "base", prezzo: "€149/mese", annunci: "50" },
-    { nome: "pro", prezzo: "€399/mese", annunci: "150" },
-    { nome: "elite", prezzo: "€699/mese", annunci: "300" },
+describe("i prezzi e i limiti hanno una sorgente sola", () => {
+  // Fino al 01/09/2026 prezzi ed elenchi erano scritti a mano in cinque
+  // pagine, e avevano gia' divaricato: Pro ed Elite promettevano
+  // "Esportazione dati", che non esiste. Adesso stanno nel catalogo e le
+  // pagine lo leggono, quindi il controllo non e' piu' "dicono la stessa
+  // cosa" ma "esiste una cosa sola da dire".
+  const PAGINE_CHE_MOSTRANO_UN_PREZZO = [
+    "src/app/(marketplace)/registrazione/base/page.tsx",
+    "src/app/(marketplace)/registrazione/pro/page.tsx",
+    "src/app/(marketplace)/registrazione/elite/page.tsx",
+    "src/app/(marketplace)/per-le-concessionarie/page.tsx",
+    "src/app/abbonamento/page.tsx",
+    "src/app/abbonamento/base/page.tsx",
+    "src/app/abbonamento/pro/page.tsx",
   ];
 
-  for (const piano of piani) {
-    it(`il piano ${piano.nome} dice lo stesso prezzo di /registrazione/${piano.nome}`, () => {
-      const paginaPiano = leggi(`src/app/(marketplace)/registrazione/${piano.nome}/page.tsx`);
-      expect(paginaPiano, `la pagina del piano ${piano.nome} non espone piu' ${piano.prezzo}`).toContain(piano.prezzo);
-      expect(paginaConcessionarie, `la presentazione non espone ${piano.prezzo}`).toContain(piano.prezzo);
-    });
+  it("nessuna pagina scrive un prezzo a mano", () => {
+    for (const percorso of PAGINE_CHE_MOSTRANO_UN_PREZZO) {
+      expect(leggi(percorso), `${percorso} scrive un prezzo a mano`).not.toMatch(/€\s*\d+\s*(\/mese)?["'`<]/);
+    }
+  });
 
-    it(`il piano ${piano.nome} dice lo stesso tetto di annunci`, () => {
-      const paginaPiano = leggi(`src/app/(marketplace)/registrazione/${piano.nome}/page.tsx`);
-      const atteso = `Fino a ${piano.annunci} annunci`;
-      expect(paginaPiano, `la pagina del piano ${piano.nome} non dichiara "${atteso}"`).toContain(atteso);
-      expect(paginaConcessionarie, `la presentazione non dichiara "${atteso}"`).toContain(atteso);
-    });
-  }
+  it("ogni pagina che mostra un prezzo lo prende dal catalogo", () => {
+    for (const percorso of PAGINE_CHE_MOSTRANO_UN_PREZZO) {
+      expect(leggi(percorso), `${percorso} non legge dal catalogo`).toContain("getDemoPlan");
+    }
+  });
+
+  // Il prezzo sbagliato su una pagina di vendita non e' un dettaglio
+  // estetico: e' una cifra su cui un concessionario decide.
+  it("il catalogo dichiara i tre prezzi di lancio", () => {
+    expect(getDemoPlan("base")?.priceMonthly).toBe(99);
+    expect(getDemoPlan("pro")?.priceMonthly).toBe(199);
+    expect(getDemoPlan("elite")?.priceMonthly).toBe(399);
+  });
+
+  // La scala conta quanto le cifre: se il piano di mezzo costasse quasi come
+  // quello sopra nessuno lo sceglierebbe, e se costasse quasi come quello
+  // sotto non pagherebbe il conto economico che lo giustifica.
+  it("i tre prezzi salgono, e il salto e' sensato", () => {
+    const base = getDemoPlan("base")!.priceMonthly;
+    const pro = getDemoPlan("pro")!.priceMonthly;
+    const elite = getDemoPlan("elite")!.priceMonthly;
+    expect(pro).toBeGreaterThan(base);
+    expect(elite).toBeGreaterThan(pro);
+    expect(pro / base).toBeGreaterThanOrEqual(1.5);
+    expect(elite / pro).toBeGreaterThanOrEqual(1.5);
+  });
 
   it("i limiti della demo sono quelli che la demo applica davvero", () => {
     // 10 veicoli e' il tetto scritto in demo-access.ts: se cambia li',

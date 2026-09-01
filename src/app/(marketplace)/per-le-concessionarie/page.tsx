@@ -10,6 +10,7 @@ import {
   SchedaPunto,
   Sezione,
 } from "@/components/marketplace/sezioni-presentazione";
+import { formattaPrezzoPiano, getDemoPlan } from "@/lib/demo-plan-catalog";
 
 /**
  * Il lato concessionaria della presentazione. Speculare a /per-chi-compra:
@@ -102,27 +103,30 @@ const modiPerCaricare = [
   },
 ];
 
+// Prezzi e capienza dal catalogo dei piani: la sorgente e' una sola, e le
+// frasi qui sotto raccontano il criterio della divisione -- vetrina,
+// gestione, crescita -- senza ripetere l'elenco delle funzioni.
 const piani = [
   {
     nome: "Piano Base",
-    prezzo: "€149/mese",
+    prezzo: formattaPrezzoPiano(getDemoPlan("base")!),
     annunci: "Fino a 50 annunci attivi",
-    testo: "Pubblicazione, schede veicolo, gestione delle richieste e pannello concessionario. Il necessario per esserci davvero.",
+    testo: "La vetrina: pubblicazione, schede veicolo, richieste dei clienti, rubrica e agenda. Il necessario per esserci davvero.",
     href: "/registrazione/base",
   },
   {
     nome: "Piano Pro",
-    prezzo: "€399/mese",
+    prezzo: formattaPrezzoPiano(getDemoPlan("pro")!),
     annunci: "Fino a 150 annunci attivi",
-    testo: "Tutto il Base, più il CRM delle richieste, le statistiche dettagliate, l'esportazione dei dati e il supporto prioritario.",
+    testo: "Tutto il Base, più il conto economico di ogni vettura: quanto l'hai pagata, quanto ti è costata e quanto ci hai guadagnato. Con vendite, giacenza e supporto prioritario.",
     href: "/registrazione/pro",
     inEvidenza: true,
   },
   {
     nome: "Piano Elite",
-    prezzo: "€699/mese",
+    prezzo: formattaPrezzoPiano(getDemoPlan("elite")!),
     annunci: "Fino a 300 annunci attivi",
-    testo: "Tutto il Pro, più la maggiore visibilità in vetrina, la promozione sui canali social ufficiali e la scheda consegna da far firmare al cliente.",
+    testo: "Tutto il Pro, più la vetrina in evidenza sulla home, la promozione sui canali social ufficiali e la scheda consegna da far firmare al cliente.",
     href: "/registrazione/elite",
   },
 ];

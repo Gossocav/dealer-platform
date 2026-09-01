@@ -21,7 +21,6 @@ import {
  * cui il controllo servirebbe. E' lo stesso errore gia' pagato il 01/09/2026
  * con l'elenco delle sezioni fuori dai motori di ricerca.
  */
-const MIGRATION = "supabase/migrations/20260831010000_conto_economico_veicolo.sql";
 const MIGRATIONS = readdirSync(resolve(process.cwd(), "supabase/migrations"))
   .filter((nome) => nome.endsWith(".sql"))
   .sort()
