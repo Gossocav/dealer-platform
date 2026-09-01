@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Car,
   Gauge,
+  Hourglass,
   Inbox,
   LogOut,
   Mail,
@@ -42,6 +43,9 @@ const sidebarItems: SidebarItem[] = [
   // apposta, non di passaggio, e sono la pagina su cui il titolare fa i
   // conti a fine mese.
   { label: "Vendite", href: "/vendite", icon: Receipt },
+  // La giacenza sta dopo le vendite perche' e' la stessa domanda vista
+  // dall'altra parte: li' cosa e' uscito, qui cosa non esce.
+  { label: "Giacenza", href: "/giacenza", icon: Hourglass },
   { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
