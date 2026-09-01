@@ -24,10 +24,21 @@ describe("vehicle state machine", () => {
     expect(isTransitionAllowed("in_review", "ready_to_publish")).toBe(true);
   });
 
-  it("still forbids transitions that skip the pipeline", () => {
-    expect(isTransitionAllowed("draft", "sold")).toBe(false);
+  // Dal 31/08/2026 una bozza si puo' vendere: capita di vendere una vettura
+  // prima di averla pubblicata -- un cliente che passa in concessionaria e la
+  // compra dal piazzale. Senza quel passaggio, l'unico modo di registrare
+  // quella vendita sarebbe stato pubblicare prima l'annuncio di un'auto gia'
+  // venduta.
+  it("allows selling a draft, but not delivering one", () => {
+    expect(isTransitionAllowed("draft", "sold")).toBe(true);
+    // "consegnata" resta il passo dopo "venduta": ci si arriva da li'.
     expect(isTransitionAllowed("draft", "delivered")).toBe(false);
+  });
+
+  it("still forbids transitions that skip the pipeline", () => {
+    // Archiviato e' terminale: da li' non si vende piu' niente.
     expect(isTransitionAllowed("archived", "sold")).toBe(false);
+    expect(isTransitionAllowed("in_acquisition", "sold")).toBe(false);
   });
 
   it("never allows a state to transition to itself", () => {

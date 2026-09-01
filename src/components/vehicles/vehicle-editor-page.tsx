@@ -10,6 +10,7 @@ import { VEHICLE_EQUIPMENT_OPTIONS } from "@/lib/vehicle-equipment-options";
 import { canonicalizeVehicleColorLabel, VEHICLE_COLOR_OPTIONS } from "@/lib/vehicle-colors";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { campiImmatricolazioneDaModulo } from "@/lib/vehicles";
+import { puoEssereSegnataVenduta } from "@/lib/auto-da-chiudere";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { getVehicleModelsForBrand } from "@/lib/vehicle-models";
 import { getActiveDealerId } from "@/lib/active-tenant";
@@ -55,6 +56,7 @@ type EditorState = {
   emissionClass: string;
   registrationDate: string;
   color: string;
+  plate: string;
   vin: string;
   mileage: string;
   fuel: string;
@@ -192,6 +194,7 @@ type PlateLookupVehicle = {
   euroClass?: string;
   registrationDate?: string;
   color?: string;
+  plate?: string;
   vin?: string;
 };
 
@@ -301,6 +304,7 @@ const INITIAL_STATE: EditorState = {
   emissionClass: "",
   registrationDate: "",
   color: "",
+  plate: "",
   vin: "",
   mileage: "",
   fuel: "",
@@ -415,7 +419,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, vin, mileage, fuel, transmission, price, description, equipment, status, published"
+          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, plate, vin, mileage, fuel, transmission, price, description, equipment, status, published"
         )
         .eq("id", vehicleId)
         .eq("dealer_id", currentDealerId)
@@ -493,6 +497,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         emissionClass: String((data as Record<string, unknown>).emission_class ?? ""),
         registrationDate: normalizeDateForInput((data as Record<string, unknown>).registration_date),
         color: canonicalizeVehicleColorLabel((data as Record<string, unknown>).color),
+        plate: String((data as Record<string, unknown>).plate ?? ""),
         vin: String((data as Record<string, unknown>).vin ?? ""),
         mileage: typeof data.mileage === "number" ? formatMileageInput(String(data.mileage)) : "",
         fuel: String(data.fuel ?? ""),
@@ -635,6 +640,17 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       return;
     }
 
+    // Una vettura venduta senza targa ne' telaio non si sa piu' quale sia:
+    // marca e modello si ripetono, e in produzione c'erano cinque "Peugeot
+    // 2008 Allure PureTech 100 S&S" identiche in tutto. Lo pretende anche il
+    // database con un trigger -- qui si dice prima, per non far arrivare il
+    // concessionario a un errore che poteva evitare.
+    if (state.status.trim().toLowerCase() === "sold" && !puoEssereSegnataVenduta({ targa: state.plate, telaio: state.vin })) {
+      setError("Per segnare una vettura come venduta serve la targa oppure il numero di telaio.");
+      setSaving(false);
+      return;
+    }
+
     if (nextMissing.length > 0) {
       setMissingFields(nextMissing);
       setError(`Compila i campi obbligatori mancanti:\n- ${nextMissing.map((field) => REQUIRED_FIELD_LABELS[field]).join("\n- ")}`);
@@ -753,7 +769,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         annoInArchivio: annoInArchivio,
       }).registration_date,
       color: canonicalizeVehicleColorLabel(state.color) || null,
-      vin: state.vin.trim() || null,
+      plate: state.plate.trim().toUpperCase() || null,
+      vin: state.vin.trim().toUpperCase() || null,
       mileage: parseMileageForSave(state.mileage),
       fuel: state.fuel.trim() || null,
       transmission: state.transmission.trim() || null,
@@ -1375,6 +1392,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   ))}
                 </select>
               </label>
+              <EditorField label="Targa" value={state.plate} onChange={(value) => updateField("plate", value)} />
               <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
               <EditorField
                 label="Prezzo"
@@ -1440,6 +1458,13 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 >
                   <option value="draft">Bozza</option>
                   <option value="published">Pubblicato</option>
+                  {/* "Venduto" toglie l'auto dalla vetrina e la fa entrare
+                      nei conti delle vendite. Prima una vendita si poteva
+                      registrare solo dalla pagina "Da chiudere", che pero'
+                      elenca le sole vetture sparite dal sito: un'auto
+                      venduta mentre era ancora online, o inserita a mano,
+                      non aveva nessun modo di essere chiusa. */}
+                  <option value="sold">Venduto</option>
                   {/* A vehicle can still hold another lifecycle state (set by
                       feed import or an earlier version of this form), so keep
                       that value selectable rather than silently rewriting it. */}
