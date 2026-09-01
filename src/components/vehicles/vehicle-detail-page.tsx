@@ -360,6 +360,16 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               >
                 <Printer className="h-4 w-4" /> Stampa scheda
               </Link>
+              {/* Due fogli separati e non uno: la scheda finisce sul
+                  parabrezza, il conto economico no. Il prezzo di acquisto
+                  sul vetro di un'auto in vendita e' l'unica cosa che non
+                  deve succedere mai. */}
+              <Link
+                href={`/veicoli/${vehicle.id}/conto`}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Printer className="h-4 w-4" /> Stampa conto
+              </Link>
               {/* Servizio del solo Piano Elite: a chi non ce l'ha il bottone
                   non compare, e chi arrivasse all'indirizzo a mano trova la
                   pagina che glielo spiega. */}
