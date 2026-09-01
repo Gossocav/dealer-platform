@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CalendarDays, Car, Inbox, Loader2, PencilLine, Rocket, Tag, TrendingUp, Users, Wallet } from "lucide-react";
 import { MarginSummary } from "@/components/dashboard/margin-summary";
+import { MetricCard } from "@/components/dashboard/metric-card";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { caricaTutto } from "@/lib/carica-tutto";
+import { formattaEuroTondo, formattaNumero, quotaPercentuale } from "@/lib/cifre";
+import { resolveVehicleLabel } from "@/lib/public-marketplace";
 import { supabase } from "@/lib/supabaseClient";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
@@ -26,6 +30,10 @@ type Vehicle = {
 type Lead = {
   id: string;
   vehicle_id?: string | null;
+  // Il veicolo richiesto, agganciato al lead: sulla scheda si scriveva
+  // l'identificativo interno, una stringa di trentasei caratteri che non
+  // dice niente a nessuno.
+  vehicles?: DatiVeicoloLead | DatiVeicoloLead[] | null;
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
@@ -34,6 +42,12 @@ type Lead = {
   status?: string | null;
   created_at?: string | null;
 };
+
+type DatiVeicoloLead = { brand: string | null; model: string | null; version: string | null };
+
+function veicoloDelLead(valore: Lead["vehicles"]): DatiVeicoloLead | null {
+  return (Array.isArray(valore) ? valore[0] : valore) ?? null;
+}
 
 type Customer = {
   id: string;
@@ -149,7 +163,7 @@ export default function StatistichePage() {
           // che non sono gli ultimi cinque.
           supabase
             .from("leads")
-            .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at")
+            .select("id, vehicle_id, first_name, last_name, email, phone, message, status, created_at, vehicles(brand, model, version)")
             .eq("dealer_id", dealerId)
             .order("created_at", { ascending: false })
             .limit(5),
@@ -228,205 +242,259 @@ export default function StatistichePage() {
   // piu' vicino. Prima si scaricava tutta l'agenda per tenerne cinque.
   const upcomingAppointments = appointments;
 
-  const maxGraphValue = Math.max(publishedVehicles, draftVehicles, totalLeads, totalCustomers, totalAppointments, 1);
+  const quotaPubblicati = quotaPercentuale(publishedVehicles, totalVehicles);
+  const quotaBozze = quotaPercentuale(draftVehicles, totalVehicles);
 
   return (
     <DealerDashboardShell title="Statistiche">
-      <div className="min-h-screen bg-slate-50 px-4 py-10 sm:px-6 lg:px-10">
-        <div className="mx-auto w-full max-w-7xl">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/40 sm:p-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-blue-600">Statistiche</p>
-              <h1 className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Statistiche</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                Monitora i KPI principali del tuo gestionale con i dati aggiornati in tempo reale.
+      {/* Niente sfondo, margini o riquadro attorno a tutta la pagina: li mette
+          gia' il guscio del gestionale. Prima ce n'erano due sovrapposti, ed
+          era il motivo per cui questa pagina sembrava fatta da un'altra mano
+          rispetto a Vendite e Giacenza. */}
+      <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Statistiche</p>
+            {/* Il titolo si diceva tre volte: nella barra in alto, come
+                soprattitolo e come titolo. Qui resta la frase che dice cosa
+                si sta guardando. */}
+            <h2 className="mt-1 text-2xl font-semibold text-slate-900">Come sta andando la concessionaria</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Il parco auto, le persone che ti hanno contattato e il conto del mese, in una pagina sola.
+            </p>
+          </div>
+
+          <Link
+            href="/agenda"
+            className="inline-flex flex-none items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            <CalendarDays className="h-4 w-4" /> Nuovo appuntamento
+          </Link>
+        </div>
+      </section>
+
+      {statusMessage ? (
+        <section
+          className={`rounded-2xl border px-4 py-3 text-sm ${statusMessageType === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}
+        >
+          {statusMessage}
+        </section>
+      ) : null}
+
+      {loading ? (
+        <section className="rounded-3xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">
+          <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> Sto raccogliendo i numeri...
+        </section>
+      ) : null}
+
+      {/* ============ IL PARCO AUTO ============ */}
+      <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-lg font-semibold text-slate-900">Il parco auto</h3>
+          <Link href="/veicoli" className="text-sm font-semibold text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline">
+            Vai ai veicoli
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <MetricCard label="Veicoli in archivio" value={formattaNumero(totalVehicles)} icon={Car} accent="blu" />
+          <MetricCard
+            label="Pubblicati"
+            value={formattaNumero(publishedVehicles)}
+            delta={quotaPubblicati === null ? undefined : `${quotaPubblicati.toFixed(0)}% del parco`}
+            tone="positive"
+            icon={Rocket}
+            accent="verde"
+          />
+          <MetricCard
+            label="Bozze"
+            value={formattaNumero(draftVehicles)}
+            delta={quotaBozze === null ? undefined : `${quotaBozze.toFixed(0)}% del parco`}
+            icon={PencilLine}
+            accent="ambra"
+          />
+          <MetricCard
+            label="Valore del parco"
+            value={formattaEuroTondo(totalValue)}
+            delta="somma dei prezzi in vetrina"
+            icon={Wallet}
+            accent="viola"
+          />
+          <MetricCard
+            label="Prezzo medio"
+            value={formattaEuroTondo(averagePrice)}
+            delta="per vettura"
+            icon={Tag}
+            accent="viola"
+          />
+          <MetricCard label="Appuntamenti" value={formattaNumero(totalAppointments)} icon={CalendarDays} accent="rosa" />
+        </div>
+
+        {/* Una barra sola divisa in due, e non due barre accanto: pubblicati e
+            bozze sono parti dello stesso parco. Prima questa pagina metteva
+            sulla stessa scala veicoli, lead e clienti -- tre cose che non si
+            sommano fra loro e il cui confronto non voleva dire niente. */}
+        {totalVehicles > 0 ? (
+          <div className="mt-6">
+            <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+              <span className="h-full bg-emerald-500" style={{ width: `${quotaPubblicati ?? 0}%` }} />
+              <span className="h-full bg-amber-400" style={{ width: `${quotaBozze ?? 0}%` }} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                In vetrina <strong className="font-semibold tabular-nums text-slate-900">{publishedVehicles}</strong>
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
+                Da pubblicare <strong className="font-semibold tabular-nums text-slate-900">{draftVehicles}</strong>
+              </span>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      {/* ============ LE PERSONE ============ */}
+      <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-lg font-semibold text-slate-900">Chi ti ha contattato</h3>
+          <Link href="/lead" className="text-sm font-semibold text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline">
+            Vai ai lead
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <MetricCard label="Richieste ricevute" value={formattaNumero(totalLeads)} icon={Inbox} accent="blu" />
+          <MetricCard label="Clienti in rubrica" value={formattaNumero(totalCustomers)} icon={Users} accent="verde" />
+          <MetricCard
+            label="Richieste per vettura"
+            value={totalVehicles > 0 ? (totalLeads / totalVehicles).toFixed(1) : "—"}
+            delta="media sul parco"
+            icon={TrendingUp}
+            accent="grigio"
+          />
+        </div>
+      </section>
+
+      <MarginSummary dealerId={dealerIdCorrente} />
+
+      {/* ============ GLI ULTIMI ARRIVATI ============ */}
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Elenco titolo="Ultimi veicoli inseriti" vuoto="Nessun veicolo, per ora." dove="/veicoli">
+          {latestVehicles.map((vehicle) => (
+            <Link
+              key={vehicle.id}
+              href={`/veicoli/${vehicle.id}`}
+              className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+            >
+              <p className="font-semibold text-slate-900">
+                {[vehicle.brand, vehicle.model, vehicle.version].filter(Boolean).join(" ") || "Veicolo senza nome"}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Immatricolazione{" "}
+                {formatRegistrationLabel({
+                  registration_date: vehicle.registration_date,
+                  registration_month: vehicle.registration_month,
+                  year: vehicle.year,
+                }) ?? "—"}
+                {" · "}
+                {formattaEuroTondo(parsePrice(vehicle.price) || null)}
+              </p>
+            </Link>
+          ))}
+        </Elenco>
+
+        <Elenco titolo="Ultime richieste" vuoto="Nessuna richiesta, per ora." dove="/lead">
+          {latestLeads.map((lead) => {
+            const veicolo = veicoloDelLead(lead.vehicles);
+            return (
+              <Link
+                key={lead.id}
+                href={`/lead/${lead.id}`}
+                className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+              >
+                <p className="font-semibold text-slate-900">
+                  {`${lead.first_name ?? ""} ${lead.last_name ?? ""}`.trim() || "Senza nome"}
+                </p>
+                <p className="mt-1 truncate text-sm text-slate-600">
+                  {[lead.email, lead.phone].filter(Boolean).join(" · ") || "Nessun recapito"}
+                </p>
+                {/* Prima qui compariva l'identificativo interno del veicolo.
+                    Se il lead non e' legato a nessuna vettura non si scrive
+                    una riga vuota: si omette. */}
+                {veicolo ? (
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    Chiede: {resolveVehicleLabel(veicolo as never)}
+                  </p>
+                ) : null}
+              </Link>
+            );
+          })}
+        </Elenco>
+
+        <Elenco titolo="Ultimi clienti" vuoto="Nessun cliente, per ora." dove="/clienti">
+          {latestCustomers.map((customer) => (
+            <div key={customer.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="font-semibold text-slate-900">
+                {customer.company?.trim() || `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim() || "Senza nome"}
+              </p>
+              <p className="mt-1 truncate text-sm text-slate-600">
+                {[customer.email, customer.phone].filter(Boolean).join(" · ") || "Nessun recapito"}
               </p>
             </div>
-            {/* Era un bottone senza niente collegato: si poteva premere e non
-                succedeva nulla. Ora porta dove gli appuntamenti si creano
-                davvero. */}
-            <Link
-              href="/agenda"
-              className="inline-flex items-center justify-center rounded-3xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200"
-            >
-              Nuovo appuntamento
-            </Link>
-          </div>
+          ))}
+        </Elenco>
 
-          {statusMessage ? (
-            <div className={`mt-6 rounded-3xl border px-5 py-4 text-sm ${statusMessageType === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>
-              {statusMessage}
+        <Elenco titolo="Prossimi appuntamenti" vuoto="Niente in calendario." dove="/agenda">
+          {upcomingAppointments.map((appointment) => (
+            <div key={appointment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="font-semibold text-slate-900">{appointment.title ?? "Senza titolo"}</p>
+              <p className="mt-1 text-sm text-slate-600">{formatDate(appointment.start_at)}</p>
+              {appointment.description ? (
+                <p className="mt-1 truncate text-xs text-slate-500">{appointment.description}</p>
+              ) : null}
             </div>
-          ) : null}
-
-          {loading ? (
-            <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-700">
-              Caricamento statistiche in corso...
-            </div>
-          ) : null}
-
-          <div className="mt-10 grid gap-6 xl:grid-cols-4">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Totale veicoli</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">{totalVehicles}</p>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Veicoli pubblicati</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">{publishedVehicles}</p>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Bozze</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">{draftVehicles}</p>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Totale lead</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">{totalLeads}</p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-6 xl:grid-cols-4">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Totale clienti</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">{totalCustomers}</p>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Totale appuntamenti</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">{totalAppointments}</p>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Valore totale parco auto</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">€{totalValue.toLocaleString("it-IT")}</p>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Prezzo medio veicoli</p>
-              <p className="mt-4 text-3xl font-semibold text-slate-900">€{averagePrice.toLocaleString("it-IT")}</p>
-            </div>
-          </div>
-
-          <MarginSummary dealerId={dealerIdCorrente} />
-
-          <section className="mt-10 rounded-[28px] border border-slate-200 bg-slate-50 p-6 shadow-sm sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-900">Panoramica grafica</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Confronto rapido tra le metriche principali.</p>
-              </div>
-            </div>
-
-            <div className="mt-8 space-y-6">
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium text-slate-700">Veicoli pubblicati</p>
-                  <p className="text-sm font-semibold text-slate-900">{publishedVehicles}</p>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                  <div className={`h-full rounded-full bg-blue-600`} style={{ width: `${(publishedVehicles / maxGraphValue) * 100}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium text-slate-700">Bozze</p>
-                  <p className="text-sm font-semibold text-slate-900">{draftVehicles}</p>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                  <div className={`h-full rounded-full bg-emerald-600`} style={{ width: `${(draftVehicles / maxGraphValue) * 100}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium text-slate-700">Lead</p>
-                  <p className="text-sm font-semibold text-slate-900">{totalLeads}</p>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                  <div className={`h-full rounded-full bg-indigo-600`} style={{ width: `${(totalLeads / maxGraphValue) * 100}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium text-slate-700">Clienti</p>
-                  <p className="text-sm font-semibold text-slate-900">{totalCustomers}</p>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                  <div className={`h-full rounded-full bg-fuchsia-600`} style={{ width: `${(totalCustomers / maxGraphValue) * 100}%` }} />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <div className="mt-10 grid gap-6 xl:grid-cols-2">
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-slate-900">Ultimi 5 veicoli inseriti</h3>
-              <div className="mt-6 space-y-4">
-                {latestVehicles.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nessun veicolo disponibile.</p>
-                ) : (
-                  latestVehicles.map((vehicle) => (
-                    <div key={vehicle.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="font-semibold text-slate-900">{vehicle.brand ?? "-"} {vehicle.model ?? ""} {vehicle.version ?? ""}</p>
-                      <p className="text-sm text-slate-600">Immatricolazione: {formatRegistrationLabel({ registration_date: vehicle.registration_date, registration_month: vehicle.registration_month, year: vehicle.year }) ?? "-"} • Prezzo: €{parsePrice(vehicle.price).toLocaleString("it-IT")}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-slate-900">Ultimi 5 lead</h3>
-              <div className="mt-6 space-y-4">
-                {latestLeads.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nessun lead disponibile.</p>
-                ) : (
-                  latestLeads.map((lead) => (
-                    <div key={lead.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="font-semibold text-slate-900">{`${lead.first_name ?? ""} ${lead.last_name ?? ""}`.trim() || "-"}</p>
-                      <p className="text-sm text-slate-600">{lead.email ?? "-"} • {lead.phone ?? "-"}</p>
-                      <p className="mt-1 text-xs text-slate-500">Veicolo: {lead.vehicle_id ?? "-"}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className="mt-6 grid gap-6 xl:grid-cols-2">
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-slate-900">Ultimi 5 clienti</h3>
-              <div className="mt-6 space-y-4">
-                {latestCustomers.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nessun cliente disponibile.</p>
-                ) : (
-                  latestCustomers.map((customer) => (
-                    <div key={customer.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="font-semibold text-slate-900">
-                        {customer.company?.trim() || `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim() || "-"}
-                      </p>
-                      <p className="text-sm text-slate-600">{customer.email ?? "-"} • {customer.phone ?? "-"}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-slate-900">Prossimi appuntamenti</h3>
-              <div className="mt-6 space-y-4">
-                {upcomingAppointments.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nessun appuntamento in calendario.</p>
-                ) : (
-                  upcomingAppointments.map((appointment) => (
-                    <div key={appointment.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="font-semibold text-slate-900">{appointment.title ?? "-"}</p>
-                      <p className="text-sm text-slate-600">{appointment.description ?? "-"} • {formatDate(appointment.start_at)}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
-        </div>
-        </div>
+          ))}
+        </Elenco>
       </div>
     </DealerDashboardShell>
+  );
+}
+
+/**
+ * Un elenco breve con il suo titolo e il collegamento alla sezione intera.
+ *
+ * Le quattro liste in fondo erano quattro blocchi copiati, ognuno con la sua
+ * frase per il caso vuoto scritta in modo diverso ("Nessun veicolo
+ * disponibile", "Nessun appuntamento in calendario").
+ */
+function Elenco({
+  titolo,
+  vuoto,
+  dove,
+  children,
+}: {
+  titolo: string;
+  vuoto: string;
+  dove: string;
+  children: ReactNode;
+}) {
+  const righe = Children.toArray(children);
+
+  return (
+    <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-lg font-semibold text-slate-900">{titolo}</h3>
+        <Link href={dove} className="text-sm font-semibold text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline">
+          Vedi tutto
+        </Link>
+      </div>
+
+      {righe.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">{vuoto}</p>
+      ) : (
+        <div className="mt-4 space-y-3">{righe}</div>
+      )}
+    </section>
   );
 }

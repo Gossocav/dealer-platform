@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { caricaTutto } from "@/lib/carica-tutto";
+import { dimensioneCifra } from "@/lib/cifre";
 import { formattaImporto } from "@/lib/conto-economico";
 import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
@@ -121,7 +122,7 @@ export function MarginSummary({ dealerId }: { dealerId: string | null }) {
 
   if (caricamento) {
     return (
-      <section className="mt-10 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <p className="flex items-center gap-2 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Conto del mese...
         </p>
@@ -131,7 +132,7 @@ export function MarginSummary({ dealerId }: { dealerId: string | null }) {
 
   if (daCreare) {
     return (
-      <section className="mt-10 rounded-[28px] border border-amber-200 bg-amber-50 p-6 text-sm leading-6 text-amber-900">
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900 sm:p-6">
         <p className="font-semibold">Il conto del mese non e ancora attivo sul tuo account.</p>
         <p className="mt-1">E una funzione appena rilasciata: manca un ultimo passaggio dalla nostra parte.</p>
       </section>
@@ -139,11 +140,11 @@ export function MarginSummary({ dealerId }: { dealerId: string | null }) {
   }
 
   return (
-    <section className="mt-10 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-600">Il conto del mese</p>
-          <h2 className="mt-3 text-2xl font-semibold text-slate-900">Quanto hai guadagnato</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Il conto del mese</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">Quanto hai guadagnato</h3>
         </div>
 
         {mesi.length > 0 ? (
@@ -238,7 +239,11 @@ function Cifra({ etichetta, valore, nota, tono = "neutro" }: { etichetta: string
   return (
     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
       <p className="text-sm font-medium text-slate-500">{etichetta}</p>
-      <p className={`mt-3 text-2xl font-semibold tabular-nums ${colore}`}>{valore}</p>
+      {/* Stessa regola dei riquadri del parco auto: la misura scende quando
+          la cifra si allunga, invece di uscire dal bordo. */}
+      <p className={`mt-3 break-words font-semibold tabular-nums leading-tight ${dimensioneCifra(valore)} ${colore}`}>
+        {valore}
+      </p>
       {nota ? <p className="mt-1 text-xs text-slate-500">{nota}</p> : null}
     </div>
   );
