@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PRIVATE_AREA_PREFIXES, isPrivateAreaPath } from "@/lib/private-areas";
@@ -44,6 +44,42 @@ describe("le aree private restano fuori dai motori di ricerca", () => {
     expect(PRIVATE_AREA_PREFIXES).toContain("/dashboard");
     expect(PRIVATE_AREA_PREFIXES).toContain("/admin");
     expect(PRIVATE_AREA_PREFIXES).toContain("/api");
+  });
+
+  /**
+   * Il difetto che questo test impedisce, con il caso che l'ha prodotto: la
+   * pagina Vendite e' nata il 31/08/2026 e nessuno si e' ricordato di
+   * aggiungerla all'elenco. Per un giorno `/vendite` e' stata l'unica pagina
+   * del gestionale che i motori di ricerca potevano indicizzare -- non i
+   * dati, che senza login non si vedono, ma una pagina vuota a nome della
+   * concessionaria.
+   *
+   * L'elenco delle sezioni si legge da `src/app` invece di essere scritto a
+   * mano qui, perche' un elenco scritto a mano dimentica esattamente la
+   * pagina aggiunta domani, che e' quella che tornerebbe a sfuggire.
+   */
+  it("ogni sezione del gestionale e' nell'elenco, comprese quelle aggiunte dopo", () => {
+    // Le pagine pubbliche vivono tutte dentro il gruppo (marketplace).
+    // Fuori resta solo /og, che disegna le immagini delle anteprime dei link:
+    // deve restare raggiungibile, ed e' fatta apposta per essere letta da
+    // fuori.
+    const PUBBLICHE_DI_PROPOSITO = ["og"];
+
+    const sezioni = readdirSync(resolve(process.cwd(), "src/app"), { withFileTypes: true })
+      .filter((voce) => voce.isDirectory())
+      // I gruppi fra parentesi non compaiono nell'indirizzo.
+      .filter((voce) => !voce.name.startsWith("("))
+      .map((voce) => voce.name)
+      .filter((nome) => !PUBBLICHE_DI_PROPOSITO.includes(nome));
+
+    expect(sezioni.length, "nessuna sezione trovata sotto src/app").toBeGreaterThan(10);
+
+    for (const sezione of sezioni) {
+      expect(
+        isPrivateAreaPath(`/${sezione}`),
+        `/${sezione} non e' nell'elenco delle aree private: i motori di ricerca la indicizzerebbero`
+      ).toBe(true);
+    }
   });
 
   it("robots.txt dichiara dove sta la sitemap", () => {
