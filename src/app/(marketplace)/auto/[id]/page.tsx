@@ -26,6 +26,7 @@ import {
   type MarketplaceVehicle,
   normalizeVehicleLabelField,} from "@/lib/public-marketplace";
 import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
+import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
 import { normalizzaModello, ripulisciTitoloVeicolo } from "@/lib/vehicle-label";
 import { JsonLd } from "@/components/marketplace/json-ld";
@@ -94,7 +95,7 @@ async function fetchMarketplaceVehicleDetail(id: string) {
     .select(
       // vehicle_condition serve ai dati strutturati: e' la differenza fra
       // dichiarare a Google un'auto nuova e una usata.
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, video_url, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("published", true)
@@ -277,6 +278,10 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   ];
 
   const descrizione = String(vehicle.description ?? "").trim();
+  // Il riquadro si costruisce solo se il collegamento e' davvero un video
+  // YouTube: la sicurezza del sito apre il riquadro a quel dominio soltanto,
+  // e un indirizzo diverso darebbe un rettangolo bianco.
+  const video = indirizzoDelRiquadro(vehicle.video_url);
 
   /** Le maiuscole del titolo, applicate anche alla scheda tecnica. */
   const etichettaCampo = (value: string | null) => (value ? normalizeVehicleLabelField(value) : null);
@@ -365,6 +370,27 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   <p className="mt-3 min-w-0 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 [overflow-wrap:anywhere]">
                     {descrizione}
                   </p>
+                </div>
+              ) : null}
+
+              {/* Come per la descrizione: senza video il riquadro non si
+                  disegna, invece di lasciare un rettangolo vuoto sotto
+                  un'intestazione. Il riproduttore si carica pigramente e
+                  senza cookie: chi non preme play non viene profilato. */}
+              {video ? (
+                <div className="mt-5 min-w-0 overflow-hidden rounded-2xl bg-white/[0.03] px-5 py-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Video</p>
+                  <div className="mt-3 aspect-video w-full overflow-hidden rounded-xl bg-black">
+                    <iframe
+                      src={video}
+                      title={`Video di ${resolveVehicleLabel(vehicle)}`}
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                      className="h-full w-full border-0"
+                    />
+                  </div>
                 </div>
               ) : null}
 

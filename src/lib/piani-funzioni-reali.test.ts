@@ -104,6 +104,14 @@ const PROVE: Record<string, Prova> = {
     tipo: "software",
     file: ["supabase/migrations/20260727030000_elite_showcase_dealers.sql", "src/lib/showcase-rotation.ts"],
   },
+  "Video dell'automobile sull'annuncio": {
+    tipo: "software",
+    file: [
+      "src/lib/video-annuncio.ts",
+      "supabase/migrations/20260901030000_video_annuncio.sql",
+      "src/app/(marketplace)/auto/[id]/page.tsx",
+    ],
+  },
   "Visibilita sui social ufficiali KeyAuto": {
     tipo: "servizio",
     // Verificato il 01/09/2026: nel sito non c'e' nessun collegamento a un
@@ -175,10 +183,11 @@ describe("le funzioni riservate sono davvero chiuse a chi non le paga", () => {
     }
   });
 
-  it("l'Elite promette le tre cose che lo distinguono dal Pro", () => {
+  it("l'Elite promette le cose che lo distinguono dal Pro", () => {
     const soloElite = getDemoPlan("elite")!.servicesOwn.map((s) => s.title);
     expect(soloElite).toContain("Scheda consegna veicolo");
     expect(soloElite).toContain("Vetrina in evidenza sulla home di KeyAuto");
+    expect(soloElite).toContain("Video dell'automobile sull'annuncio");
     expect(soloElite).toContain("Visibilita sui social ufficiali KeyAuto");
   });
 });

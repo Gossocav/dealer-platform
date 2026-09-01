@@ -40,6 +40,8 @@ export type VehicleImageRow = {
 export type VehicleRow = {
   id: string;
   dealer_id: string | null;
+  /** Il collegamento al video YouTube dell'automobile. Solo Piano Elite. */
+  video_url?: string | null;
   brand: string | null;
   model: string | null;
   version: string | null;

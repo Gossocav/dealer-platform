@@ -170,6 +170,11 @@ const ELITE_SERVICES: DemoPlanService[] = [
       "Una tua vettura in cima alla pagina principale, a rotazione fra le concessionarie Elite: il posto piu visto della piattaforma.",
   },
   {
+    title: "Video dell'automobile sull'annuncio",
+    description:
+      "Incolla il collegamento a un video YouTube della vettura e il compratore lo guarda dentro la scheda, senza uscire dalla pagina: si vede l'automobile muoversi, non solo in fotografia.",
+  },
+  {
     title: "Visibilita sui social ufficiali KeyAuto",
     description:
       "Le tue vetture entrano nella programmazione dei canali social della piattaforma, davanti a un pubblico che non ti sta ancora cercando.",

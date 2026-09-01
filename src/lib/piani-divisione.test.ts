@@ -129,7 +129,10 @@ describe("i piani sono cumulativi: chi paga di piu' non perde niente", () => {
     const capienze: Record<string, string> = { base: "50", pro: "150", elite: "300" };
 
     for (const [code, numero] of Object.entries(capienze)) {
-      const righeAnnunci = getDemoPlan(code)!.includedServices.filter((v) => /annunci/i.test(v));
+      // Si cercano le righe della capienza, non tutte quelle che nominano gli
+      // annunci: "Video dell'automobile sull'annuncio" contiene "annunci"
+      // dentro "annuncio", e finirebbe contato come una seconda capienza.
+      const righeAnnunci = getDemoPlan(code)!.includedServices.filter((v) => /Fino a \d+ annunci/.test(v));
       expect(righeAnnunci.length, `${code} elenca ${righeAnnunci.length} capienze: ${righeAnnunci.join(" | ")}`).toBe(1);
       expect(righeAnnunci[0], `${code} non dichiara la sua capienza`).toContain(`Fino a ${numero} annunci`);
     }

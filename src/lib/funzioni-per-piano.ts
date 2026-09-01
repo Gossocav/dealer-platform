@@ -42,7 +42,9 @@ export type FunzioneDiPiano =
   /** Il foglio da far firmare al cliente alla consegna. */
   | "scheda-consegna"
   /** La vetrina a rotazione sulla home di KeyAuto. */
-  | "vetrina-home";
+  | "vetrina-home"
+  /** Il video dell'automobile sull'annuncio. */
+  | "video-annuncio";
 
 /**
  * Da quale piano in su ogni funzione e' compresa.
@@ -57,6 +59,7 @@ const SOGLIA: Record<FunzioneDiPiano, DealerPlanCode> = {
   giacenza: "pro",
   "scheda-consegna": "elite",
   "vetrina-home": "elite",
+  "video-annuncio": "elite",
 };
 
 /** I piani dal piu' piccolo al piu' grande. Serve a confrontarli. */
@@ -109,6 +112,8 @@ export function spiegazioneFunzioneChiusa(funzione: FunzioneDiPiano): string {
     "scheda-consegna":
       "La scheda consegna e' il documento da stampare e far firmare al cliente quando gli consegni l'automobile.",
     "vetrina-home": "La vetrina mette una tua vettura in cima alla pagina principale di KeyAuto, a rotazione.",
+    "video-annuncio":
+      "Il video dell'automobile sull'annuncio: chi guarda la scheda lo apre senza uscire dalla pagina, e vede la vettura muoversi invece che in fotografia.",
   };
 
   return `${cosaFa[funzione]} E' compresa a partire dal ${minimo}.`;

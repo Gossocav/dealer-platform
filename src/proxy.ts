@@ -26,7 +26,15 @@ const MEASUREMENT_IMG_SRC = MEASUREMENT_CONFIGURED
   ? " https://www.googletagmanager.com https://*.google-analytics.com"
   : "";
 
-const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline' 'unsafe-eval'${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-ancestors 'none';`;
+// Il riquadro del video sull'annuncio, riservato al Piano Elite. Si apre al
+// solo dominio di YouTube senza cookie: e' l'unico contenuto esterno che il
+// sito ospita, e il collegamento viene validato prima di essere salvato
+// (src/lib/video-annuncio.ts) proprio perche' questo permesso vale per quel
+// dominio e per nessun altro. `frame-ancestors 'none'` resta: e' l'opposto --
+// dice che nessuno puo' mettere noi dentro un riquadro suo.
+const VIDEO_FRAME_SRC = "https://www.youtube-nocookie.com";
+
+const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline' 'unsafe-eval'${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-src ${VIDEO_FRAME_SRC}; frame-ancestors 'none';`;
 
 // Standard hardening headers applied to every dynamic response. X-Frame-Options
 // duplicates the CSP frame-ancestors directive for older browsers.

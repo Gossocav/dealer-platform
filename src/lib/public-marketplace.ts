@@ -104,6 +104,8 @@ export type MarketplaceDealer = {
 
 export type MarketplaceVehicle = {
   id: string;
+  /** Il video YouTube dell'automobile, quando la concessionaria lo mette. */
+  video_url?: string | null;
   brand: string | null;
   model: string | null;
   version: string | null;

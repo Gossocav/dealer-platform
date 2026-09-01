@@ -12,6 +12,9 @@ import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { campiImmatricolazioneDaModulo } from "@/lib/vehicles";
 import { puoEssereSegnataVenduta } from "@/lib/auto-da-chiudere";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
+import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { getVehicleModelsForBrand } from "@/lib/vehicle-models";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -63,6 +66,7 @@ type EditorState = {
   transmission: string;
   price: string;
   description: string;
+  videoUrl: string;
   equipment: string[];
   status: string;
 };
@@ -311,6 +315,7 @@ const INITIAL_STATE: EditorState = {
   transmission: "",
   price: "",
   description: "",
+  videoUrl: "",
   equipment: [],
   status: "draft",
 };
@@ -327,6 +332,7 @@ function resolveStatusAction(status: string) {
 
 export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const router = useRouter();
+  const { planCode } = usePianoInVigore();
   const imageInputId = useId();
 
   const [dealerName, setDealerName] = useState("");
@@ -419,7 +425,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, plate, vin, mileage, fuel, transmission, price, description, equipment, status, published"
+          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, plate, vin, mileage, fuel, transmission, price, description, video_url, equipment, status, published"
         )
         .eq("id", vehicleId)
         .eq("dealer_id", currentDealerId)
@@ -504,6 +510,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         transmission: String(data.transmission ?? ""),
         price: data.price === null || data.price === undefined ? "" : String(data.price),
         description: String(data.description ?? ""),
+        videoUrl: String(data.video_url ?? ""),
         equipment: normalizeEquipment((data as Record<string, unknown>).equipment),
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
@@ -651,6 +658,15 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       return;
     }
 
+    // Un collegamento che non e' un video YouTube non si salva in silenzio
+    // come "nessun video": il concessionario crederebbe di averlo messo, e se
+    // ne accorgerebbe solo aprendo l'annuncio -- o non se ne accorgerebbe.
+    if (state.videoUrl.trim() !== "" && !identificativoVideo(state.videoUrl)) {
+      setError(AVVISO_VIDEO_NON_VALIDO);
+      setSaving(false);
+      return;
+    }
+
     if (nextMissing.length > 0) {
       setMissingFields(nextMissing);
       setError(`Compila i campi obbligatori mancanti:\n- ${nextMissing.map((field) => REQUIRED_FIELD_LABELS[field]).join("\n- ")}`);
@@ -775,6 +791,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       fuel: state.fuel.trim() || null,
       transmission: state.transmission.trim() || null,
       price: state.price.trim() ? Number(state.price) : null,
+      // Si salva normalizzato: due forme diverse dello stesso video --
+      // "youtu.be/ID" e "watch?v=ID" -- diventano la stessa riga. Un
+      // collegamento che non e' YouTube non arriva qui: il salvataggio si
+      // ferma prima e lo dice.
+      video_url: indirizzoDaSalvare(state.videoUrl),
       description: state.description.trim() || null,
       equipment: state.equipment,
       status: state.status,
@@ -1488,6 +1509,34 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-300"
               />
             </label>
+
+            {/* Il video sta accanto alla descrizione perche' sono le due cose
+                che raccontano l'automobile a chi la guarda. Compare solo a chi
+                ha il piano che lo comprende: a chi non ce l'ha non si mostra
+                un campo che poi non si vedrebbe sull'annuncio. */}
+            {pianoComprende(planCode, "video-annuncio") ? (
+              <label className="mt-3 block space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Video YouTube <span className="font-normal normal-case tracking-normal text-slate-400">(facoltativo)</span>
+                </span>
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={state.videoUrl}
+                  onChange={(event) => updateField("videoUrl", event.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-300"
+                />
+                {state.videoUrl.trim() !== "" && !identificativoVideo(state.videoUrl) ? (
+                  <span className="block text-xs font-medium text-amber-700">{AVVISO_VIDEO_NON_VALIDO}</span>
+                ) : (
+                  <span className="block text-xs text-slate-500">
+                    Il video compare sulla scheda dell&apos;automobile, sotto le fotografie. Copia l&apos;indirizzo dalla
+                    barra del browser o usa Condividi sull&apos;app.
+                  </span>
+                )}
+              </label>
+            ) : null}
 
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Dotazioni</p>
