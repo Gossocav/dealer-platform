@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DealerInfoRequestForm from "../dealer-info-request-form";
+import { InvitoAllaProva } from "@/components/marketplace/invito-alla-prova";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import { formattaPrezzoPiano, getDemoPlan } from "@/lib/demo-plan-catalog";
 
@@ -77,24 +78,7 @@ export default function RegistrazioneProPage() {
           </Link>
         </section>
 
-        <section className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">
-          <h2 className="text-2xl font-semibold text-white">Registrazione diretta disattivata</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base">
-            L&apos;accesso al piano Pro passa dalla richiesta Demo e dalla successiva attivazione assistita.
-          </p>
-          <Link
-            href="/demo?piano=pro"
-            className="mt-5 inline-flex items-center justify-center rounded-full border border-cyan-300/40 bg-cyan-400/10 px-6 py-3 text-sm font-bold text-cyan-200 shadow-[0_12px_30px_-12px_rgba(55,224,232,0.55)] transition hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
-          >
-            Richiedi Demo
-          </Link>
-          <Link
-            href="#richiedi-informazioni"
-            className="mt-5 ml-0 inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:ml-3"
-          >
-            Richiedi informazioni
-          </Link>
-        </section>
+        <InvitoAllaProva planCode="pro" planName="Pro" />
 
         {/* La demo era l'unica strada offerta in fondo alla pagina: chi non
             era ancora pronto a provarla, e voleva soltanto una risposta, non

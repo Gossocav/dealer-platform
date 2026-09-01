@@ -31,13 +31,17 @@ describe("da ogni pagina di piano si possono chiedere informazioni", () => {
   });
 
   it("il bottone porta al modulo che sta nella stessa pagina", () => {
+    // Il bottone vive nell'invito condiviso dal 01/09/2026; l'ancora a cui
+    // punta deve pero' stare su **ogni** pagina, altrimenti il collegamento
+    // non fa niente e sembra un bottone rotto.
+    const invito = read("src/components/marketplace/invito-alla-prova.tsx");
+    expect(invito).toContain("Richiedi informazioni");
+    expect(invito).toContain('href="#richiedi-informazioni"');
+
     for (const { codice } of PIANI) {
       const sorgente = read(`src/app/(marketplace)/registrazione/${codice}/page.tsx`);
-      expect(sorgente, codice).toContain("Richiedi informazioni");
-      expect(sorgente, codice).toContain('href="#richiedi-informazioni"');
-      // L'ancora deve esistere davvero: un collegamento a un punto che non c'e'
-      // non fa niente, e sembra un bottone rotto.
-      expect(sorgente, codice).toContain('id="richiedi-informazioni"');
+      expect(sorgente, `${codice} non ha l'ancora a cui il bottone punta`).toContain('id="richiedi-informazioni"');
+      expect(sorgente, codice).toContain("<InvitoAllaProva");
     }
   });
 
@@ -50,10 +54,16 @@ describe("da ogni pagina di piano si possono chiedere informazioni", () => {
   });
 
   it("la strada della demo resta: il modulo si aggiunge, non sostituisce", () => {
+    // Il pulsante si chiama "Richiedi la prova gratuita" dal 01/09/2026:
+    // prima diceva "Richiedi Demo", che e' il nome che diamo noi alla cosa,
+    // non quello che il concessionario ci vede dentro.
+    const invito = read("src/components/marketplace/invito-alla-prova.tsx");
+    expect(invito).toContain("Richiedi la prova gratuita");
+    expect(invito).toContain("`/demo?piano=${planCode}`");
+
     for (const { codice } of PIANI) {
       const sorgente = read(`src/app/(marketplace)/registrazione/${codice}/page.tsx`);
-      expect(sorgente, codice).toContain("Richiedi Demo");
-      expect(sorgente, codice).toContain(`href="/demo?piano=${codice}"`);
+      expect(sorgente, codice).toContain(`<InvitoAllaProva planCode="${codice}"`);
     }
   });
 });
