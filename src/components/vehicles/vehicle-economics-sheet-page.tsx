@@ -6,6 +6,9 @@ import { Loader2, Printer } from "lucide-react";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
+import { PaginaFunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
 import { formatRegistrationLabel, formatVehicleStatus } from "@/lib/vehicles";
 import {
@@ -64,6 +67,7 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
   const [concessionaria, setConcessionaria] = useState<ConcessionariaLetta | null>(null);
   const [caricamento, setCaricamento] = useState(true);
   const [errore, setErrore] = useState<string | null>(null);
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
 
   useEffect(() => {
     let vivo = true;
@@ -133,11 +137,24 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
     };
   }, [vehicleId]);
 
-  if (caricamento) {
+  if (caricamento || caricamentoPiano) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-200 text-sm text-slate-600">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparo il conto...
       </main>
+    );
+  }
+
+  // Il piano si controlla anche qui: la stampa si apre da un indirizzo suo, e
+  // chi ci arriva a mano non deve trovare un foglio che non gli spetta.
+  if (!pianoComprende(planCode, "conto-economico")) {
+    return (
+      <PaginaFunzioneNonCompresa
+        funzione="conto-economico"
+        titolo="Conto economico del veicolo"
+        tornaA={`/veicoli/${vehicleId}`}
+        etichettaRitorno="Torna al veicolo"
+      />
     );
   }
 

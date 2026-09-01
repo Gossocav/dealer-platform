@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CalendarDays, Car, Inbox, Loader2, PencilLine, Rocket, Tag, TrendingUp, Users, Wallet } from "lucide-react";
+import { FunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
 import { MarginSummary } from "@/components/dashboard/margin-summary";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { formattaEuroTondo, formattaNumero, quotaPercentuale } from "@/lib/cifre";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
 import { supabase } from "@/lib/supabaseClient";
 import { formatRegistrationLabel } from "@/lib/vehicles";
@@ -113,6 +116,7 @@ export default function StatistichePage() {
   // consente 300, quindi il tetto non li tocca -- e servono comunque interi
   // per il prezzo medio.
   const [totals, setTotals] = useState({ leads: 0, customers: 0, appointments: 0 });
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
 
   useEffect(() => {
     let attivo = true;
@@ -376,7 +380,15 @@ export default function StatistichePage() {
         </div>
       </section>
 
-      <MarginSummary dealerId={dealerIdCorrente} />
+      {/* I conteggi di attivita' -- quante auto, quante richieste -- sono di
+          tutti i piani. I margini no: sono conto economico, e si aprono dal
+          Pro. Chi non ce l'ha legge cosa si sta perdendo invece di trovare
+          un buco nella pagina. */}
+      {caricamentoPiano ? null : pianoComprende(planCode, "conto-economico") ? (
+        <MarginSummary dealerId={dealerIdCorrente} />
+      ) : (
+        <FunzioneNonCompresa funzione="conto-economico" titolo="Il conto del mese" />
+      )}
 
       {/* ============ GLI ULTIMI ARRIVATI ============ */}
       <div className="grid gap-5 xl:grid-cols-2">

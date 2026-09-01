@@ -20,11 +20,15 @@ import {
   Users,
 } from "lucide-react";
 import { DEMO_FULL_VERSION_MESSAGE } from "@/lib/demo-access";
+import { pianoComprende, type FunzioneDiPiano } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 
 type SidebarItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Se c'e', la voce compare solo a chi ha un piano che apre la funzione. */
+  funzione?: FunzioneDiPiano;
 };
 
 const sidebarItems: SidebarItem[] = [
@@ -42,10 +46,10 @@ const sidebarItems: SidebarItem[] = [
   // Le vendite stanno accanto alle statistiche e non dentro: si aprono
   // apposta, non di passaggio, e sono la pagina su cui il titolare fa i
   // conti a fine mese.
-  { label: "Vendite", href: "/vendite", icon: Receipt },
+  { label: "Vendite", href: "/vendite", icon: Receipt, funzione: "vendite" },
   // La giacenza sta dopo le vendite perche' e' la stessa domanda vista
   // dall'altra parte: li' cosa e' uscito, qui cosa non esce.
-  { label: "Giacenza", href: "/giacenza", icon: Hourglass },
+  { label: "Giacenza", href: "/giacenza", icon: Hourglass, funzione: "giacenza" },
   { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
@@ -82,7 +86,15 @@ type DealerSidebarProps = {
 
 export function DealerSidebar({ isOpen, onClose, isDemo = false }: DealerSidebarProps) {
   const pathname = usePathname();
-  const visibleItems = isDemo ? demoEnabledItems : sidebarItems;
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
+
+  // Finche' il piano non e' noto la voce non compare. Mostrarla e poi
+  // toglierla farebbe lampeggiare un menu che si accorcia sotto il dito, ed e'
+  // il difetto peggiore dei due: chi ha il piano vede comparire la voce un
+  // istante dopo, e non se ne accorge nemmeno.
+  const visibleItems = (isDemo ? demoEnabledItems : sidebarItems).filter(
+    (item) => !item.funzione || (!caricamentoPiano && pianoComprende(planCode, item.funzione))
+  );
 
   return (
     <>

@@ -12,6 +12,8 @@ import { formattaImporto, leggiImporto } from "@/lib/conto-economico";
 import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 import { aspettaUnaRisposta, giorniDiAttesa, type VeicoloDaChiudere } from "@/lib/auto-da-chiudere";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 
 /**
  * Le automobili sparite dal sito della concessionaria, da chiudere.
@@ -39,6 +41,12 @@ export function VehiclesToClosePage() {
   const [righe, setRighe] = useState<Riga[]>([]);
   const [caricamento, setCaricamento] = useState(true);
   const [errore, setErrore] = useState<string | null>(null);
+  const { planCode } = usePianoInVigore();
+  // Prezzo e data di vendita si scrivono nel conto economico. A chi non lo ha
+  // non si chiedono: farglieli compilare vorrebbe dire farlo scrivere in un
+  // archivio che non puo' aprire, ed e' il modo piu' sicuro di far nascere la
+  // domanda "dove sono finiti i miei numeri". La vettura si chiude lo stesso.
+  const conConti = pianoComprende(planCode, "conto-economico");
   const [contiDaCreare, setContiDaCreare] = useState(false);
 
   useEffect(() => {
@@ -158,7 +166,7 @@ export function VehiclesToClosePage() {
     // Prima il conto economico, poi lo stato del veicolo: se il primo
     // fallisce l'auto resta da chiudere e si riprova, mentre l'ordine opposto
     // lascerebbe una vettura segnata venduta senza il prezzo che la spiega.
-    if (come === "venduta" && (prezzo !== null || riga.dataVendita)) {
+    if (conConti && come === "venduta" && (prezzo !== null || riga.dataVendita)) {
       const { error: erroreConto } = await supabase.from("vehicle_economics").upsert(
         { vehicle_id: riga.id, dealer_id: dealerId, sale_price: prezzo, sale_date: riga.dataVendita || null },
         { onConflict: "vehicle_id" }
@@ -286,26 +294,30 @@ export function VehiclesToClosePage() {
               </label>
             </div>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Venduta a <span className="font-normal text-slate-400">(facoltativo)</span></span>
-                <input
-                  inputMode="decimal"
-                  value={riga.prezzoVendita}
-                  onChange={(evento) => aggiorna(riga.id, { prezzoVendita: evento.target.value, esito: "aperta" })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm tabular-nums text-slate-900 outline-none focus:border-slate-900"
-                />
-              </label>
+            <div className={`mt-3 grid gap-3 sm:items-end ${conConti ? "sm:grid-cols-[1fr_1fr_auto_auto]" : "sm:grid-cols-[auto_auto]"}`}>
+              {conConti ? (
+                <>
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Venduta a <span className="font-normal text-slate-400">(facoltativo)</span></span>
+                    <input
+                      inputMode="decimal"
+                      value={riga.prezzoVendita}
+                      onChange={(evento) => aggiorna(riga.id, { prezzoVendita: evento.target.value, esito: "aperta" })}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm tabular-nums text-slate-900 outline-none focus:border-slate-900"
+                    />
+                  </label>
 
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Il giorno <span className="font-normal text-slate-400">(facoltativo)</span></span>
-                <input
-                  type="date"
-                  value={riga.dataVendita}
-                  onChange={(evento) => aggiorna(riga.id, { dataVendita: evento.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                />
-              </label>
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Il giorno <span className="font-normal text-slate-400">(facoltativo)</span></span>
+                    <input
+                      type="date"
+                      value={riga.dataVendita}
+                      onChange={(evento) => aggiorna(riga.id, { dataVendita: evento.target.value })}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    />
+                  </label>
+                </>
+              ) : null}
 
               <button
                 type="button"
