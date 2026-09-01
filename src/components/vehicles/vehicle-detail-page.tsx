@@ -9,6 +9,8 @@ import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog"
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { VehicleEconomicsCard } from "@/components/vehicles/vehicle-economics-card";
+import { FunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { pianoIncludeSchedaConsegna } from "@/lib/scheda-consegna";
 import { supabase } from "@/lib/supabaseClient";
@@ -97,7 +99,7 @@ function getHealthLevelPill(level: "eccellente" | "buono" | "incompleto" | "crit
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const router = useRouter();
-  const { planCode } = usePianoInVigore();
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
   const [dealerName, setDealerName] = useState("");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
@@ -364,12 +366,14 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   parabrezza, il conto economico no. Il prezzo di acquisto
                   sul vetro di un'auto in vendita e' l'unica cosa che non
                   deve succedere mai. */}
-              <Link
-                href={`/veicoli/${vehicle.id}/conto`}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Printer className="h-4 w-4" /> Stampa conto
-              </Link>
+              {pianoComprende(planCode, "conto-economico") ? (
+                <Link
+                  href={`/veicoli/${vehicle.id}/conto`}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Printer className="h-4 w-4" /> Stampa conto
+                </Link>
+              ) : null}
               {/* Servizio del solo Piano Elite: a chi non ce l'ha il bottone
                   non compare, e chi arrivasse all'indirizzo a mano trova la
                   pagina che glielo spiega. */}
@@ -564,7 +568,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               dato di un'altra natura, che vive in un'altra tabella e non deve
               mai uscire sul marketplace. Tenerlo separato anche a schermo
               rende evidente che e' cosa d'ufficio, non dell'annuncio. */}
-          <VehicleEconomicsCard vehicleId={vehicleId} dealerId={currentDealerId} />
+          {caricamentoPiano ? null : pianoComprende(planCode, "conto-economico") ? (
+            <VehicleEconomicsCard vehicleId={vehicleId} dealerId={currentDealerId} />
+          ) : (
+            <FunzioneNonCompresa funzione="conto-economico" titolo="Conto economico" />
+          )}
 
           <SendToClientDialog
             open={sendDialogOpen}

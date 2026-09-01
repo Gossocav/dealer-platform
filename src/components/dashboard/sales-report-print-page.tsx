@@ -5,6 +5,9 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, Printer } from "lucide-react";
 import { useVenditeDellaConcessionaria } from "@/components/dashboard/vendite-della-concessionaria";
+import { PaginaFunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { formattaImporto } from "@/lib/conto-economico";
 import {
   anniConVendite,
@@ -35,6 +38,7 @@ import {
 export function SalesReportPrintPage() {
   const searchParams = useSearchParams();
   const { vendite, dealerName, caricamento, errore } = useVenditeDellaConcessionaria();
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
 
   const anno = useMemo(() => {
     const chiesto = String(searchParams.get("anno") ?? "").trim();
@@ -57,12 +61,16 @@ export function SalesReportPrintPage() {
     [vendite, anno]
   );
 
-  if (caricamento) {
+  if (caricamento || caricamentoPiano) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-200 text-sm text-slate-600">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparo il conto...
       </main>
     );
+  }
+
+  if (!pianoComprende(planCode, "vendite")) {
+    return <PaginaFunzioneNonCompresa funzione="vendite" titolo="Conto economico dell'anno" tornaA="/dashboard" etichettaRitorno="Torna al pannello" />;
   }
 
   if (errore) {

@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { FunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
@@ -72,6 +75,7 @@ export function StockAgePage() {
   const [errore, setErrore] = useState<string | null>(null);
   const [fasciaPiazzale, setFasciaPiazzale] = useState<FasciaId | null>(null);
   const [fasciaVenduto, setFasciaVenduto] = useState<FasciaId | null>(null);
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
 
   useEffect(() => {
     let vivo = true;
@@ -143,6 +147,15 @@ export function StockAgePage() {
   const oggi = useMemo(() => oggiIso(), []);
   const piazzale = useMemo(() => quadroDelPiazzale(vetture, oggi), [vetture, oggi]);
   const venduto = useMemo(() => quadroDelVenduto(vetture), [vetture]);
+
+  // Come per Vendite: il controllo sta nella pagina, non solo nel menu.
+  if (!caricamentoPiano && !pianoComprende(planCode, "giacenza")) {
+    return (
+      <DealerDashboardShell title="Giacenza">
+        <FunzioneNonCompresa funzione="giacenza" titolo="Giacenza" tornaA="/dashboard" etichettaRitorno="Torna al pannello" />
+      </DealerDashboardShell>
+    );
+  }
 
   return (
     <DealerDashboardShell title="Giacenza">

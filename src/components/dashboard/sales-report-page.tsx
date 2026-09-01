@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Loader2, Printer } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { FunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
+import { pianoComprende } from "@/lib/funzioni-per-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { useVenditeDellaConcessionaria, type Vendita } from "@/components/dashboard/vendite-della-concessionaria";
 import { formattaImporto } from "@/lib/conto-economico";
 import {
@@ -30,6 +33,7 @@ import {
 
 export function SalesReportPage() {
   const { vendite, dealerName, caricamento, errore } = useVenditeDellaConcessionaria();
+  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
   const [annoScelto, setAnnoScelto] = useState<string | null>(null);
   const [meseScelto, setMeseScelto] = useState<string | null>(null);
 
@@ -48,6 +52,17 @@ export function SalesReportPage() {
     const filtrate = meseScelto ? dellAnno.filter((v) => meseDi(v.saleDate) === meseScelto) : dellAnno;
     return [...filtrate].sort((a, b) => String(b.saleDate ?? "").localeCompare(String(a.saleDate ?? "")));
   }, [vendite, anno, meseScelto]);
+
+  // Il controllo sta qui e non solo nel menu: chi arriva all'indirizzo a mano
+  // -- un segnalibro, un link ricevuto -- deve leggere perche' non entra,
+  // invece di trovare i numeri che il suo piano non comprende.
+  if (!caricamentoPiano && !pianoComprende(planCode, "vendite")) {
+    return (
+      <DealerDashboardShell title="Vendite">
+        <FunzioneNonCompresa funzione="vendite" titolo="Vendite" tornaA="/dashboard" etichettaRitorno="Torna al pannello" />
+      </DealerDashboardShell>
+    );
+  }
 
   return (
     <DealerDashboardShell title="Vendite" dealerName={dealerName}>
