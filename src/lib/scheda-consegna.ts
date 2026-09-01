@@ -11,23 +11,23 @@
  * database.
  */
 
-import { DEALER_PLAN_CODES, type DealerPlanCode } from "@/lib/dealer-plan";
+import type { DealerPlanCode } from "@/lib/dealer-plan";
+import { pianoComprende, pianoMinimoPer } from "@/lib/funzioni-per-piano";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 
-/** I piani che comprendono la scheda di consegna. Oggi soltanto l'Elite. */
-export const PIANI_CON_SCHEDA_CONSEGNA: readonly DealerPlanCode[] = ["elite"];
+/**
+ * I piani che comprendono la scheda di consegna. Oggi soltanto l'Elite.
+ *
+ * La soglia sta in `funzioni-per-piano.ts` insieme a quelle di tutte le altre
+ * funzioni riservate: qui resta il nome storico, che due componenti e un test
+ * usano gia'. Due elenchi separati sarebbero divergiti al primo cambio di
+ * piano, ed e' il genere di differenza che regala una funzione a chi non l'ha
+ * pagata senza che nessuno se ne accorga.
+ */
+export const PIANI_CON_SCHEDA_CONSEGNA: readonly DealerPlanCode[] = [pianoMinimoPer("scheda-consegna")];
 
 export function pianoIncludeSchedaConsegna(planCode: string | null | undefined) {
-  const normalizzato = String(planCode ?? "").trim().toLowerCase();
-
-  // Un codice che non riconosciamo non apre la porta: meglio negare una
-  // funzione a chi ne ha diritto -- se ne accorge e lo dice -- che regalarla
-  // a chi non l'ha pagata, che non lo dira' mai.
-  if (!(DEALER_PLAN_CODES as readonly string[]).includes(normalizzato)) {
-    return false;
-  }
-
-  return PIANI_CON_SCHEDA_CONSEGNA.includes(normalizzato as DealerPlanCode);
+  return pianoComprende(planCode, "scheda-consegna");
 }
 
 /**
