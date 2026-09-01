@@ -255,10 +255,16 @@ function QuadroSezione({
   spiegazioneSenzaData,
 }: QuadroSezioneProps) {
   const massimo = Math.max(1, ...quadro.fasce.map((fascia) => fascia.vetture.length));
+  // Anche la tabella ha un tetto: senza fascia scelta elencherebbe tutto il
+  // parco, e con duecentocinquanta vetture la pagina diventa un rotolo.
+  const [tutteLeRighe, setTutteLeRighe] = useState(false);
   const elencate = useMemo(() => {
     const scelte = fasciaScelta ? quadro.fasce.filter((f) => f.id === fasciaScelta) : quadro.fasce;
     return scelte.flatMap((fascia) => fascia.vetture).sort((a, b) => b.giorni - a.giorni);
   }, [quadro, fasciaScelta]);
+
+  const righeMostrate = tutteLeRighe ? elencate : elencate.slice(0, RIGHE_IN_TABELLA);
+  const righeRestanti = elencate.length - righeMostrate.length;
 
   return (
     <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
@@ -331,7 +337,7 @@ function QuadroSezione({
                 </tr>
               </thead>
               <tbody>
-                {elencate.map((vettura) => (
+                {righeMostrate.map((vettura) => (
                   <tr key={vettura.vehicleId} className="border-b border-slate-100">
                     <td className="py-2.5 pr-4">
                       <Link
@@ -355,6 +361,16 @@ function QuadroSezione({
               </tbody>
             </table>
           </div>
+
+          {righeRestanti > 0 ? (
+            <button
+              type="button"
+              onClick={() => setTutteLeRighe(true)}
+              className="mt-3 text-sm font-semibold text-slate-700 underline"
+            >
+              Vedi tutte le altre {righeRestanti}
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -389,19 +405,52 @@ function QuadroSezione({
   );
 }
 
+/** Quante righe si mostrano prima di chiedere "vedi tutte". */
+const RIGHE_PRIMA_DI_CHIEDERE = 10;
+
+/** Lo stesso tetto per la tabella, che e' il contenuto principale. */
+const RIGHE_IN_TABELLA = 25;
+
+/**
+ * Un elenco che non si allunga oltre misura.
+ *
+ * Il difetto che questo impedisce, trovato in revisione: il riquadro delle
+ * vetture senza data di acquisto elencava **ogni** vettura che ne era priva.
+ * Il primo giorno, che e' quello in cui nessuna ce l'ha, sarebbero state
+ * duecentocinquanta righe una sotto l'altra -- proprio quando la pagina si
+ * apre per la prima volta e deve far capire cosa fare, non spaventare.
+ */
 function ElencoSemplice({ vetture }: { vetture: VetturaGiacenza[] }) {
+  const [tutte, setTutte] = useState(false);
+  const mostrate = tutte ? vetture : vetture.slice(0, RIGHE_PRIMA_DI_CHIEDERE);
+  const restanti = vetture.length - mostrate.length;
+
   return (
-    <ul className="mt-3 space-y-1.5">
-      {vetture.map((vettura) => (
-        <li key={vettura.vehicleId} className="flex flex-wrap items-baseline gap-x-3 text-sm">
-          <Link href={`/veicoli/${vettura.vehicleId}`} className="font-medium text-slate-900 underline-offset-2 hover:underline">
-            {vettura.etichetta}
-          </Link>
-          <span className="uppercase tracking-wide text-slate-500">{vettura.targa ?? "senza targa"}</span>
-          <span className="text-slate-500">{etichettaStato(vettura.stato)}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="mt-3 space-y-1.5">
+        {mostrate.map((vettura) => (
+          <li key={vettura.vehicleId} className="flex flex-wrap items-baseline gap-x-3 text-sm">
+            <Link href={`/veicoli/${vettura.vehicleId}`} className="font-medium text-slate-900 underline-offset-2 hover:underline">
+              {vettura.etichetta}
+            </Link>
+            <span className="uppercase tracking-wide text-slate-500">{vettura.targa ?? "senza targa"}</span>
+            <span className="text-slate-500">{etichettaStato(vettura.stato)}</span>
+          </li>
+        ))}
+      </ul>
+
+      {restanti > 0 ? (
+        <button type="button" onClick={() => setTutte(true)} className="mt-3 text-sm font-semibold underline">
+          Vedi tutte le altre {restanti}
+        </button>
+      ) : null}
+
+      {tutte && vetture.length > RIGHE_PRIMA_DI_CHIEDERE ? (
+        <button type="button" onClick={() => setTutte(false)} className="mt-3 text-sm font-semibold underline">
+          Mostrane solo {RIGHE_PRIMA_DI_CHIEDERE}
+        </button>
+      ) : null}
+    </>
   );
 }
 

@@ -241,3 +241,32 @@ describe("la data di acquisto resta un dato riservato", () => {
     expect(pagina).toContain('.eq("dealer_id", dealerId)');
   });
 });
+
+/**
+ * Il difetto trovato in revisione: la pagina disegnava **ogni** riga. Il primo
+ * giorno -- quello in cui nessuna vettura ha ancora la data di acquisto --
+ * sarebbero state duecentocinquanta righe una sotto l'altra, proprio quando la
+ * pagina si apre per la prima volta e deve far capire cosa fare.
+ */
+describe("gli elenchi della giacenza hanno un tetto", () => {
+  const pagina = readFileSync(resolve(process.cwd(), "src/components/dashboard/stock-age-page.tsx"), "utf8");
+
+  it("il riquadro delle vetture senza data ne mostra dieci, poi chiede", () => {
+    expect(pagina).toContain("const RIGHE_PRIMA_DI_CHIEDERE = 10");
+    expect(pagina).toContain("vetture.slice(0, RIGHE_PRIMA_DI_CHIEDERE)");
+    expect(pagina).toContain("Vedi tutte le altre");
+  });
+
+  it("anche la tabella, che senza fascia scelta elencherebbe tutto il parco", () => {
+    expect(pagina).toContain("const RIGHE_IN_TABELLA = 25");
+    expect(pagina).toContain("elencate.slice(0, RIGHE_IN_TABELLA)");
+  });
+
+  // Il tetto nasconde righe, non le butta: il numero accanto al titolo resta
+  // quello vero, altrimenti la pagina direbbe di avere meno auto di quante ne
+  // ha -- ed e' esattamente il difetto dei conteggi troncati a mille.
+  it("il conteggio mostrato resta quello intero", () => {
+    expect(pagina).toContain("{elencate.length}</span>");
+    expect(pagina).toContain("righeRestanti = elencate.length - righeMostrate.length");
+  });
+});
