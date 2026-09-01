@@ -188,9 +188,25 @@ describe("il conto economico non e' roba da marketplace", () => {
   });
 
   it("ogni politica guarda la concessionaria di chi chiede", () => {
-    const politiche = sql.match(/create policy vehicle_economics_\w+/g) ?? [];
-    expect(politiche.length).toBe(4);
-    expect(sql.match(/dealer_id = public\.current_dealer_id\(\)/g)?.length).toBeGreaterThanOrEqual(4);
+    // Le politiche si rifanno da capo a ogni migration che le tocca -- il
+    // 01/09/2026 per aggiungere la condizione sul piano -- quindi non se ne
+    // contano quattro: si guarda che **ognuna**, ovunque sia definita, dica la
+    // concessionaria. Una che se ne dimenticasse aprirebbe i conti di tutti.
+    const blocchi = sql.split("create policy vehicle_economics_").slice(1);
+    expect(blocchi.length, "nessuna politica trovata").toBeGreaterThanOrEqual(4);
+
+    for (const blocco of blocchi) {
+      const politica = blocco.slice(0, blocco.indexOf(";"));
+      const nome = politica.slice(0, politica.indexOf("\n"));
+      expect(politica, `la politica ${nome} non dichiara la concessionaria`).toContain(
+        "dealer_id = public.current_dealer_id()"
+      );
+    }
+
+    // E le quattro operazioni sono coperte tutte, nell'ultima versione.
+    for (const operazione of ["select", "insert", "update", "delete"]) {
+      expect(sql, `manca la politica di ${operazione}`).toContain(`vehicle_economics_${operazione}_own`);
+    }
   });
 
   it("la concessionaria la mette il database, non chi scrive", () => {
