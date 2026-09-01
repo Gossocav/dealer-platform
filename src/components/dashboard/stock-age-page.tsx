@@ -149,7 +149,22 @@ export function StockAgePage() {
   const venduto = useMemo(() => quadroDelVenduto(vetture), [vetture]);
 
   // Come per Vendite: il controllo sta nella pagina, non solo nel menu.
-  if (!caricamentoPiano && !pianoComprende(planCode, "giacenza")) {
+  // Finche' il piano non e' noto la pagina non si disegna. Prima il controllo
+  // aspettava la risposta e **poi** sostituiva quello che aveva gia' mostrato:
+  // per un istante un piano Base vedeva l'elenco che non gli spetta. Vale la
+  // stessa regola del menu, dove una voce riservata non compare finche' non si
+  // sa se spetta.
+  if (caricamentoPiano) {
+    return (
+      <DealerDashboardShell title="Giacenza">
+        <section className="rounded-3xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">
+          <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> Un momento...
+        </section>
+      </DealerDashboardShell>
+    );
+  }
+
+  if (!pianoComprende(planCode, "giacenza")) {
     return (
       <DealerDashboardShell title="Giacenza">
         <FunzioneNonCompresa funzione="giacenza" titolo="Giacenza" tornaA="/dashboard" etichettaRitorno="Torna al pannello" />
