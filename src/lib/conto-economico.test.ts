@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,17 +13,56 @@ import {
 
 /**
  * Lo schema del conto economico e' la **somma** delle sue migration: la prima
- * lo crea, la seconda aggiunge carrozzeria e officina rifacendo le colonne
- * calcolate. Leggerne una sola direbbe una verita' vecchia.
+ * lo crea, le altre aggiungono voci rifacendo le colonne calcolate. Leggerne
+ * una sola direbbe una verita' vecchia.
+ *
+ * L'elenco si ricava dalla cartella e non si scrive a mano: un elenco scritto
+ * a mano dimentica la migration aggiunta domani, che e' esattamente quella su
+ * cui il controllo servirebbe. E' lo stesso errore gia' pagato il 01/09/2026
+ * con l'elenco delle sezioni fuori dai motori di ricerca.
  */
 const MIGRATION = "supabase/migrations/20260831010000_conto_economico_veicolo.sql";
-const MIGRATIONS = [
-  MIGRATION,
-  "supabase/migrations/20260831030000_spese_carrozzeria_e_officina.sql",
-  "supabase/migrations/20260831040000_margine_solo_con_prezzo_acquisto.sql",
-  "supabase/migrations/20260831050000_voce_gommista.sql",
-];
+const MIGRATIONS = readdirSync(resolve(process.cwd(), "supabase/migrations"))
+  .filter((nome) => nome.endsWith(".sql"))
+  .sort()
+  .map((nome) => `supabase/migrations/${nome}`)
+  .filter((percorso) => readFileSync(resolve(process.cwd(), percorso), "utf8").includes("vehicle_economics"));
 const sql = MIGRATIONS.map((percorso) => readFileSync(resolve(process.cwd(), percorso), "utf8")).join("\n");
+
+/**
+ * Le colonne che la tabella ha davvero, dopo tutte le migration in ordine.
+ *
+ * Il difetto che questo calcolo permette di cogliere, e che ha morso il
+ * 01/09/2026: il foglio del conto da stampare chiedeva `cost_other_note`, una
+ * colonna tolta dalla migration del gommista. Il database rifiuta la lettura
+ * intera, e il foglio stampava "nessun conto compilato" per **ogni** vettura,
+ * anche quelle con il conto pieno.
+ */
+function colonneVive(): Set<string> {
+  const vive = new Set<string>();
+
+  for (const percorso of MIGRATIONS) {
+    const testo = readFileSync(resolve(process.cwd(), percorso), "utf8");
+
+    const creazione = /create table if not exists public\.vehicle_economics \(([\s\S]*?)\n\);/.exec(testo);
+    if (creazione) {
+      for (const riga of creazione[1].split("\n")) {
+        const colonna = /^\s{2}([a-z_]+)\s+[a-z]/.exec(riga);
+        if (colonna) vive.add(colonna[1]);
+      }
+    }
+
+    // In ordine di apparizione, non prima tutte le aggiunte e poi tutte le
+    // rimozioni: dentro una stessa migration le colonne calcolate si tolgono
+    // e si rimettono, e invertire l'ordine le farebbe risultare inesistenti.
+    for (const passo of testo.matchAll(/(add|drop) column (?:if not exists |if exists )?([a-z_]+)/g)) {
+      if (passo[1] === "add") vive.add(passo[2]);
+      else vive.delete(passo[2]);
+    }
+  }
+
+  return vive;
+}
 
 // Il caso provato su Postgres vero il 31/08/2026, con gli stessi numeri.
 const AUTO = {
@@ -214,9 +253,11 @@ describe("la finestra fra il codice e la tabella si spiega, non si nasconde", ()
  */
 describe("carrozzeria e officina sono voci a se'", () => {
   it("compaiono fra le voci di costo, nell'ordine in cui le spese arrivano", () => {
-    // Trasporto, carrozzeria, officina, preparazione: la vettura si porta a
-    // casa, si raddrizza, si mette a posto meccanicamente, si prepara.
+    // Minivoltura, trasporto, carrozzeria, officina, preparazione: la vettura
+    // si voltura, si porta a casa, si raddrizza, si mette a posto
+    // meccanicamente, si prepara.
     expect(VOCI_DI_COSTO.map((v) => v.campo)).toEqual([
+      "cost_minivoltura",
       "cost_transport",
       "cost_bodywork",
       "cost_workshop",
@@ -344,18 +385,23 @@ describe("i costi stanno in griglia, non in colonna", () => {
 
   it("le voci di costo si affiancano", () => {
     const blocco = carta.slice(carta.indexOf('<Gruppo titolo="Costi">'), carta.indexOf("</Gruppo>", carta.indexOf('<Gruppo titolo="Costi">')));
-    expect(blocco).toContain("sm:grid-cols-2 lg:grid-cols-4");
+    // Tre colonne dal 01/09/2026: con la minivoltura le voci sono nove, e in
+    // quattro colonne l'ultima riga ne avrebbe una sola, spaiata.
+    expect(blocco).toContain("sm:grid-cols-2 lg:grid-cols-3");
   });
 
   it("acquisto e vendita stanno affiancati fra loro", () => {
     // Sono i due capi del conto, tre campi per uno: in tre colonne insieme ai
     // costi lasciavano a questi ultimi uno spazio troppo stretto.
-    expect(carta).toContain('<div className="mt-6 grid gap-6 lg:grid-cols-2">');
-    expect(carta).not.toContain("lg:grid-cols-3");
+    const acquistoEVendita = carta.slice(carta.indexOf("{/* Acquisto e vendita affiancati"), carta.indexOf('<Gruppo titolo="Costi">'));
+    expect(acquistoEVendita).toContain('<div className="mt-6 grid gap-6 lg:grid-cols-2">');
+    // Solo il blocco di acquisto e vendita: la griglia dei costi ha tre
+    // colonne di suo, ed e' un'altra cosa.
+    expect(acquistoEVendita).not.toContain("lg:grid-cols-3");
   });
 
-  it("le otto voci riempiono esattamente due righe da quattro", () => {
-    expect(VOCI_DI_COSTO).toHaveLength(8);
+  it("le nove voci riempiono esattamente tre righe da tre", () => {
+    expect(VOCI_DI_COSTO).toHaveLength(9);
   });
 });
 
@@ -442,4 +488,102 @@ describe("la sincronizzazione notturna non tocca i conti", () => {
       expect(payload, `la sincronizzazione riscrive ${campo}`).not.toContain(campo);
     }
   });
+});
+
+/**
+ * La minivoltura, chiesta dal titolare il 01/09/2026.
+ *
+ * E' il passaggio di proprieta' che il concessionario fa quando ritira la
+ * vettura: una spesa che c'e' su **ogni** automobile che entra in piazzale.
+ * Finiva dentro "Altro" insieme a tutto il resto, oppure fuori dal conto -- e
+ * nel secondo caso il margine risultava piu' alto del vero su tutte le
+ * vetture, perche' una spesa che c'e' sempre restava fuori sempre.
+ *
+ * I numeri di questi test sono quelli provati su un Postgres vero prima di
+ * spedire la migration: acquisto 10.000, vendita 13.000, trasporto 200,
+ * minivoltura 150, costo 10.350, margine 2.650.
+ */
+describe("la minivoltura e' una voce di costo", () => {
+  it("sta per prima: viene con l'acquisto, prima che l'auto si muova", () => {
+    expect(VOCI_DI_COSTO[0]).toEqual({ campo: "cost_minivoltura", etichetta: "Minivoltura" });
+  });
+
+  it("entra nel costo totale e abbassa il margine", () => {
+    const base = { purchase_price: 10000, sale_price: 13000, cost_transport: 200 };
+    expect(costoTotale(base)).toBe(10200);
+    expect(margine(base)).toBe(2800);
+    expect(costoTotale({ ...base, cost_minivoltura: 150 })).toBe(10350);
+    expect(margine({ ...base, cost_minivoltura: 150 })).toBe(2650);
+  });
+
+  // Non scritta vale zero, e qui e' corretto: il database mette zero di suo
+  // su ogni voce di costo, e nessuna riga esistente cambia valore.
+  it("non scritta non toglie niente al margine", () => {
+    expect(costoTotale({ purchase_price: 10000 })).toBe(10000);
+  });
+
+  it("il database la somma in tutte e due le formule", () => {
+    const totale = sql.slice(sql.lastIndexOf("add column total_cost"), sql.indexOf(") stored", sql.lastIndexOf("add column total_cost")));
+    const marg = sql.slice(sql.lastIndexOf("add column margin"), sql.indexOf(") stored", sql.lastIndexOf("add column margin")));
+    for (const formula of [totale, marg]) expect(formula).toContain("cost_minivoltura");
+  });
+
+  it("il database rifiuta una minivoltura negativa", () => {
+    const vincolo = sql.slice(sql.lastIndexOf("vehicle_economics_importi_non_negativi"));
+    expect(vincolo).toContain("cost_minivoltura >= 0");
+  });
+});
+
+/**
+ * Il difetto che questo test impedisce, e che e' costato una funzione intera:
+ * il foglio del conto da stampare, spedito il 01/09/2026, chiedeva la colonna
+ * `cost_other_note` -- tolta dal database dalla migration del gommista il
+ * giorno prima. PostgREST rifiuta la lettura **intera** quando una sola
+ * colonna non esiste, quindi il foglio stampava "per questa vettura non e'
+ * stato ancora compilato nessun conto" per ogni automobile, comprese quelle
+ * con il conto pieno. Nessun errore a schermo: sembrava solo che i conti non
+ * ci fossero.
+ */
+describe("nessuna schermata chiede colonne che il database non ha", () => {
+  const VIVE = colonneVive();
+
+  const schermate = [
+    "src/components/vehicles/vehicle-economics-card.tsx",
+    "src/components/vehicles/vehicle-economics-sheet-page.tsx",
+    "src/components/dashboard/margin-summary.tsx",
+    "src/components/dashboard/vendite-della-concessionaria.tsx",
+  ];
+
+  it("la tabella ha le colonne che ci aspettiamo, e non quella tolta", () => {
+    expect(VIVE.has("cost_minivoltura")).toBe(true);
+    expect(VIVE.has("total_cost")).toBe(true);
+    expect(VIVE.has("cost_other_note")).toBe(false);
+  });
+
+  for (const percorso of schermate) {
+    it(`${percorso} chiede solo colonne che esistono`, () => {
+      const sorgente = readFileSync(resolve(process.cwd(), percorso), "utf8");
+
+      // Le letture del conto economico: o `.from("vehicle_economics").select(...)`,
+      // o la relazione agganciata al veicolo, `vehicle_economics(...)`.
+      const elenchi: string[] = [];
+      for (const trovata of sorgente.matchAll(/vehicle_economics\(([^)]*)\)/g)) elenchi.push(trovata[1]);
+      if (sorgente.includes('.from("vehicle_economics")')) {
+        const dopo = sorgente.slice(sorgente.indexOf('.from("vehicle_economics")'));
+        const select = /\.select\(\s*"([^"]+)"/.exec(dopo);
+        if (select) elenchi.push(select[1]);
+      }
+
+      expect(elenchi.length, "nessuna lettura del conto economico trovata").toBeGreaterThan(0);
+
+      for (const elenco of elenchi) {
+        for (const colonna of elenco.split(",").map((c) => c.trim()).filter((c) => /^[a-z_]+$/.test(c))) {
+          // Le colonne di altre tabelle agganciate nella stessa lettura
+          // (per esempio `vehicles(brand)`) non riguardano questo controllo.
+          if (["vehicles", "brand", "model", "version", "id"].includes(colonna)) continue;
+          expect(VIVE.has(colonna), `${percorso} chiede "${colonna}", che la tabella non ha`).toBe(true);
+        }
+      }
+    });
+  }
 });
