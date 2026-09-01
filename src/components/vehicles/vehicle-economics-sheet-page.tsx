@@ -7,7 +7,7 @@ import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
-import { formatVehicleStatus } from "@/lib/vehicles";
+import { formatRegistrationLabel, formatVehicleStatus } from "@/lib/vehicles";
 import {
   VOCI_DI_COSTO,
   costoTotale,
@@ -199,15 +199,44 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
         <div className="sheet-block mt-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Conto economico</p>
           <h1 className="mt-1 text-3xl font-bold leading-tight">{titolo}</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {[
-              testo(veicolo.plate) ? `Targa ${testo(veicolo.plate)}` : null,
-              testo(veicolo.vin) ? `Telaio ${testo(veicolo.vin)}` : null,
-              typeof veicolo.mileage === "number" ? `${new Intl.NumberFormat("it-IT").format(veicolo.mileage)} km` : null,
-            ]
-              .filter(Boolean)
-              .join("  ·  ") || "Nessun identificativo registrato"}
-          </p>
+        </div>
+
+        {/* Marca, modello e allestimento non identificano niente: al
+            31/08/2026 in produzione c'erano cinque "Peugeot 2008 Allure
+            PureTech 100 S&S" identiche in tutto. Su un foglio che finisce in
+            un fascicolo, e che a distanza di mesi deve dire **quale**
+            automobile, targa e telaio sono la sola cosa che lo dice -- quindi
+            stanno in una sezione propria, grandi, non in una riga sotto al
+            titolo. */}
+        <div className="sheet-block mt-6 border-2 border-slate-900 p-4">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600">Identificazione del veicolo</h2>
+
+          <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-3">
+            <Identificativo etichetta="Targa" valore={testo(veicolo.plate)} grande />
+            <Identificativo etichetta="Numero di telaio" valore={testo(veicolo.vin)} grande />
+            <Identificativo
+              etichetta="Immatricolazione"
+              valore={formatRegistrationLabel(veicolo as never)}
+            />
+            <Identificativo
+              etichetta="Chilometri"
+              valore={
+                typeof veicolo.mileage === "number" && Number.isFinite(veicolo.mileage)
+                  ? `${new Intl.NumberFormat("it-IT").format(veicolo.mileage)} km`
+                  : null
+              }
+            />
+          </div>
+
+          {/* Senza nessuno dei due il foglio non identifica la vettura, e
+              tacerlo lo renderebbe inutile senza che chi lo stampa se ne
+              accorga. */}
+          {!testo(veicolo.plate) && !testo(veicolo.vin) ? (
+            <p className="mt-3 border-t border-slate-300 pt-2 text-xs font-semibold text-slate-700">
+              Questa vettura non ha ne&apos; targa ne&apos; numero di telaio: il foglio non dice quale automobile sia.
+              Scrivili nella scheda del veicolo e ristampa.
+            </p>
+          ) : null}
         </div>
 
         {/* Senza nessun conto salvato il foglio non finge zeri: dice che non
@@ -277,6 +306,17 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
         </footer>
       </article>
     </main>
+  );
+}
+
+function Identificativo({ etichetta, valore, grande = false }: { etichetta: string; valore: string | null; grande?: boolean }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{etichetta}</p>
+      <p className={`mt-0.5 uppercase tracking-wide ${grande ? "text-xl font-bold" : "text-sm font-medium"}`}>
+        {valore ?? "—"}
+      </p>
+    </div>
   );
 }
 

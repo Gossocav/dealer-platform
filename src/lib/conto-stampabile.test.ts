@@ -55,6 +55,36 @@ describe("il conto economico non finisce sulla scheda da parabrezza", () => {
   });
 });
 
+/**
+ * Il difetto che questo impedisce: un foglio che dice "Peugeot 2008 Allure
+ * PureTech 100 S&S" e basta. Al 31/08/2026 in produzione ce n'erano cinque
+ * identiche in tutto: in un fascicolo, a mesi di distanza, quel foglio non
+ * dice **quale** automobile, e il conto non e' piu' attribuibile.
+ */
+describe("il conto dice di quale automobile parla", () => {
+  it("targa e telaio hanno una sezione propria, non una riga sotto al titolo", () => {
+    expect(foglioVeicolo).toContain("Identificazione del veicolo");
+    expect(foglioVeicolo).toContain('etichetta="Targa"');
+    expect(foglioVeicolo).toContain('etichetta="Numero di telaio"');
+  });
+
+  it("accanto ci sono immatricolazione e chilometri, che distinguono due gemelle", () => {
+    expect(foglioVeicolo).toContain("formatRegistrationLabel");
+    expect(foglioVeicolo).toContain("veicolo.mileage");
+  });
+
+  // Tacerlo renderebbe il foglio inutile senza che chi lo stampa se ne
+  // accorga: meglio che sia il foglio stesso a dirlo.
+  it("senza ne' targa ne' telaio il foglio lo dichiara", () => {
+    expect(foglioVeicolo).toContain("il foglio non dice quale automobile sia");
+  });
+
+  it("l'elenco dell'anno porta lo stesso identificativo su ogni riga", () => {
+    expect(foglioAnno).toContain("Targa o telaio");
+    expect(foglioAnno).toContain("vendita.targa");
+  });
+});
+
 describe("il conto della singola vettura riporta tutto quello che il modulo scrive", () => {
   // Se domani nasce una voce di costo nuova, il foglio deve stamparla: un
   // conto che ne dimentica una dice un totale che non torna con le sue righe.
