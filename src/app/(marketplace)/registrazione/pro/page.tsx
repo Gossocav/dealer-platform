@@ -2,68 +2,27 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import DealerInfoRequestForm from "../dealer-info-request-form";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
+import { formattaPrezzoPiano, getDemoPlan } from "@/lib/demo-plan-catalog";
 
 export const metadata: Metadata = {
   title: "Piano Pro",
   description:
-    "Il piano Pro di KeyAuto: fino a 150 annunci attivi, CRM lead avanzato, statistiche e supporto prioritario.",
+    "Il piano Pro di KeyAuto: fino a 150 annunci attivi, il conto economico di ogni vettura, vendite, giacenza e supporto prioritario.",
   alternates: { canonical: toAbsoluteUrl("/registrazione/pro") },
   openGraph: {
     title: "Piano Pro | KeyAuto",
-    description: "Il piano Pro di KeyAuto: fino a 150 annunci attivi, CRM lead avanzato, statistiche e supporto prioritario.",
+    description: "Il piano Pro di KeyAuto: fino a 150 annunci attivi, il conto economico di ogni vettura, vendite, giacenza e supporto prioritario.",
     url: toAbsoluteUrl("/registrazione/pro"),
     type: "website",
     images: ["/opengraph-image"],
   },
 };
 
-const proFeatures = [
-  {
-    title: "Fino a 150 annunci veicolo attivi",
-    description:
-      "Gestisci volumi elevati di stock mantenendo sempre ampia disponibilita online, con spazio sufficiente per intercettare piu richieste.",
-  },
-  {
-    title: "Gestione completa delle schede veicolo",
-    description:
-      "Standardizza la qualita delle schede su tutto il parco auto, con dati completi e presentazioni professionali per ogni veicolo pubblicato.",
-  },
-  {
-    title: "Ricezione e gestione dei lead",
-    description:
-      "Centralizza i contatti in ingresso, assegna priorita alle opportunita migliori e migliora il tasso di conversione commerciale.",
-  },
-  {
-    title: "Dashboard concessionario avanzata",
-    description:
-      "Monitora KPI operativi e commerciali in un ambiente evoluto, utile per prendere decisioni rapide su stock e strategie di vendita.",
-  },
-  {
-    title: "CRM Lead avanzato",
-    description:
-      "Traccia lo storico di ogni trattativa, organizza follow-up e coordina il team commerciale con un flusso strutturato e replicabile.",
-  },
-  {
-    title: "Statistiche e KPI dettagliati",
-    description:
-      "Analizza performance di annunci, sorgenti lead e risultati commerciali per ottimizzare campagne e investimenti con dati concreti.",
-  },
-  {
-    title: "Esportazione dati",
-    description:
-      "Esporta informazioni strategiche per condivisione interna, reportistica e integrazione con processi amministrativi o strumenti esterni.",
-  },
-  {
-    title: "Supporto prioritario",
-    description:
-      "Accedi a un canale di assistenza con priorita alta per ridurre tempi di attesa e mantenere continuita nelle attivita quotidiane.",
-  },
-  {
-    title: "Maggiore visibilita sulla piattaforma",
-    description:
-      "Aumenta la presenza dei tuoi veicoli nel marketplace e migliora le possibilita di essere scelto dai clienti nelle fasi di ricerca.",
-  },
-];
+// L'elenco delle funzioni e il prezzo stanno nel catalogo, non qui: fino
+// al 01/09/2026 erano scritti a mano in cinque pagine e avevano gia'
+// divaricato, promettendo funzioni che non esistono.
+const piano = getDemoPlan("pro");
+const proFeatures = piano?.services ?? [];
 
 export default function RegistrazioneProPage() {
   return (
@@ -80,7 +39,7 @@ export default function RegistrazioneProPage() {
           <p className="relative mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             Il piano avanzato per concessionarie che vogliono scalare, gestire piu annunci e lavorare con strumenti professionali.
           </p>
-          <p className="relative mt-4 text-2xl font-semibold text-white">€399/mese</p>
+          <p className="relative mt-4 text-2xl font-semibold text-white">{piano ? formattaPrezzoPiano(piano) : ""}</p>
 
           <div className="relative mt-8 space-y-6">
             <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">

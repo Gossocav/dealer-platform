@@ -7,6 +7,7 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { resolveDemoAccessContext } from "@/lib/demo-access";
+import { getDemoPlan } from "@/lib/demo-plan-catalog";
 import { supabase } from "@/lib/supabaseClient";
 
 type PlanId = "base" | "pro" | "elite";
@@ -23,70 +24,44 @@ type Plan = {
   detailsLabel: string;
 };
 
-const plans: Plan[] = [
-  {
-    id: "base",
-    name: "Piano Base",
-    price: "€149",
+// Prezzi ed elenchi vengono dal catalogo dei piani: e' la sorgente unica, e
+// finche' erano scritti a mano qui e nelle pagine di vendita promettevano
+// funzioni che non esistono.
+function daCatalogo(code: "base" | "pro" | "elite", extra: Omit<Plan, "name" | "price" | "period" | "features">): Plan {
+  const piano = getDemoPlan(code);
+  return {
+    ...extra,
+    name: `Piano ${code.charAt(0).toUpperCase()}${code.slice(1)}`,
+    price: `€${piano?.priceMonthly ?? ""}`,
     period: "/mese",
+    features: piano?.includedServices ?? [],
+  };
+}
+
+const plans: Plan[] = [
+  daCatalogo("base", {
+    id: "base",
     ctaLabel: "Scegli Base",
     detailsHref: "/abbonamento/base",
     detailsLabel: "Scopri dettagli Base",
-    features: [
-      "Fino a 50 annunci veicolo attivi",
-      "Gestione completa delle schede veicolo",
-      "Ricezione e gestione dei lead",
-      "Dashboard concessionario",
-      "Supporto via e-mail",
-    ],
-  },
-  {
+  }),
+  daCatalogo("pro", {
     id: "pro",
-    name: "Piano Pro",
-    price: "€399",
-    period: "/mese",
     ctaLabel: "Scegli Pro",
     detailsHref: "/abbonamento/pro",
     detailsLabel: "Scopri dettagli Pro",
     recommended: true,
-    features: [
-      "Fino a 150 annunci veicolo attivi",
-      "Gestione completa delle schede veicolo",
-      "Ricezione e gestione dei lead",
-      "Dashboard concessionario avanzata",
-      "CRM Lead avanzato",
-      "Statistiche e KPI dettagliati",
-      "Esportazione dati",
-      "Supporto prioritario",
-      "Maggiore visibilità sulla piattaforma",
-    ],
-  },
+  }),
 ];
 
 const demoPlans: Plan[] = [
   ...plans,
-  {
+  daCatalogo("elite", {
     id: "elite",
-    name: "Piano Elite",
-    price: "€699",
-    period: "/mese",
     ctaLabel: "Richiedi Elite",
     detailsHref: "/registrazione/elite",
     detailsLabel: "Scopri dettagli Elite",
-    features: [
-      "Fino a 300 annunci veicolo attivi",
-      "Gestione completa delle schede veicolo",
-      "Ricezione e gestione dei lead",
-      "Dashboard concessionario avanzata",
-      "CRM Lead avanzato",
-      "Scheda consegna veicolo",
-      "Statistiche e KPI dettagliati",
-      "Esportazione dati",
-      "Supporto prioritario",
-      "Maggiore visibilità sulla piattaforma",
-      "Visibilità sui social ufficiali KeyAuto",
-    ],
-  },
+  }),
 ];
 
 const PLAN_NAME_BY_ID: Record<PlanId, string> = {

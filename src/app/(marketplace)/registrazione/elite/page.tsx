@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import DealerInfoRequestForm from "../dealer-info-request-form";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
+import { formattaPrezzoPiano, getDemoPlan } from "@/lib/demo-plan-catalog";
 
 export const metadata: Metadata = {
   title: "Piano Elite",
@@ -17,63 +18,11 @@ export const metadata: Metadata = {
   },
 };
 
-const eliteFeatures = [
-  {
-    title: "Fino a 300 annunci veicolo attivi",
-    description:
-      "Gestisci l'intero parco auto mantenendo sempre ampia disponibilità online, con spazio sufficiente per intercettare più richieste.",
-  },
-  {
-    title: "Gestione completa delle schede veicolo",
-    description:
-      "Standardizza la qualità delle schede su tutto il parco auto, con dati completi e presentazioni professionali per ogni veicolo pubblicato.",
-  },
-  {
-    title: "Ricezione e gestione dei lead",
-    description:
-      "Centralizza i contatti in ingresso, assegna priorità alle opportunità migliori e migliora il tasso di conversione commerciale.",
-  },
-  {
-    title: "Dashboard concessionario avanzata",
-    description:
-      "Monitora KPI operativi e commerciali in un ambiente evoluto, utile per prendere decisioni rapide su stock e strategie di vendita.",
-  },
-  {
-    title: "CRM Lead avanzato",
-    description:
-      "Traccia lo storico di ogni trattativa, organizza follow-up e coordina il team commerciale con un flusso strutturato e replicabile.",
-  },
-  {
-    title: "Scheda consegna veicolo",
-    description:
-      "Un documento pronto da stampare con i dati del veicolo, i chilometri, le dotazioni e la garanzia: si firma al momento della consegna e resta al cliente, senza compilarlo a mano ogni volta.",
-  },
-  {
-    title: "Statistiche e KPI dettagliati",
-    description:
-      "Analizza performance di annunci, sorgenti lead e risultati commerciali per ottimizzare campagne e investimenti con dati concreti.",
-  },
-  {
-    title: "Esportazione dati",
-    description:
-      "Esporta informazioni strategiche per condivisione interna, reportistica e integrazione con processi amministrativi o strumenti esterni.",
-  },
-  {
-    title: "Supporto prioritario",
-    description:
-      "Accedi a un canale di assistenza con priorità alta per ridurre tempi di attesa e mantenere continuità nelle attività quotidiane.",
-  },
-  {
-    title: "Maggiore visibilità sulla piattaforma",
-    description:
-      "Aumenta la presenza dei tuoi veicoli nel marketplace e migliora le possibilita di essere scelto dai clienti nelle fasi di ricerca.",
-  },
-  {
-    title: "Visibilità sui social ufficiali KeyAuto",
-    description:
-      "I tuoi veicoli e la tua concessionaria vengono promossi sui canali social ufficiali di KeyAuto, ampliando la copertura oltre il marketplace.",
-  },
-];
+// L'elenco delle funzioni e il prezzo stanno nel catalogo, non qui: fino
+// al 01/09/2026 erano scritti a mano in cinque pagine e avevano gia'
+// divaricato, promettendo funzioni che non esistono.
+const piano = getDemoPlan("elite");
+const eliteFeatures = piano?.services ?? [];
 
 export default function RegistrazioneElitePage() {
   return (
@@ -90,7 +39,7 @@ export default function RegistrazioneElitePage() {
           <p className="relative mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             Tutte le funzionalità del Piano Pro, con in più il doppio degli annunci pubblicabili, la promozione sui canali social ufficiali e la scheda consegna da dare al cliente.
           </p>
-          <p className="relative mt-4 text-2xl font-semibold text-white">€699/mese</p>
+          <p className="relative mt-4 text-2xl font-semibold text-white">{piano ? formattaPrezzoPiano(piano) : ""}</p>
 
           <div className="relative mt-8 space-y-6">
             <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">

@@ -1,17 +1,10 @@
 import { Check, ArrowLeft } from "lucide-react";
+import { getDemoPlan } from "@/lib/demo-plan-catalog";
 import Link from "next/link";
 
-const proFeatures = [
-  "Fino a 150 annunci veicolo attivi",
-  "Gestione completa delle schede veicolo",
-  "Ricezione e gestione dei lead",
-  "Dashboard concessionario avanzata",
-  "CRM Lead avanzato",
-  "Statistiche e KPI dettagliati",
-  "Esportazione dati",
-  "Supporto prioritario",
-  "Maggiore visibilità sulla piattaforma",
-];
+// Elenco e prezzo dal catalogo dei piani: e' la sorgente unica.
+const piano = getDemoPlan("pro");
+const proFeatures = piano?.includedServices ?? [];
 
 export default function AbbonamentoProPage() {
   return (
@@ -21,7 +14,7 @@ export default function AbbonamentoProPage() {
         <h2 className="mt-3 text-3xl font-semibold text-slate-900 sm:text-4xl">Piano Pro</h2>
 
         <div className="mt-4 flex items-end gap-1">
-          <p className="text-3xl font-semibold text-slate-900">€399</p>
+          <p className="text-3xl font-semibold text-slate-900">€{piano?.priceMonthly ?? ""}</p>
           <p className="pb-1 text-sm font-medium text-slate-500">/mese</p>
         </div>
 

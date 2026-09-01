@@ -8,34 +8,18 @@ function read(path: string) {
 }
 
 /**
- * Il contenuto del Piano Elite e' scritto in tre posti: il catalogo dei piani,
- * la pagina pubblica del piano e la pagina abbonamento del gestionale.
+ * Il contenuto del Piano Elite era scritto in tre posti: il catalogo dei
+ * piani, la pagina pubblica del piano e la pagina abbonamento del gestionale.
  *
- * Tre copie della stessa promessa commerciale. Se una si aggiorna e le altre
- * no, il piano si racconta in modo diverso a seconda di dove lo si guarda --
- * e la differenza la scopre il cliente, non noi. E' successo con le foto dei
- * veicoli, dove la stessa regola scritta due volte aveva smesso di combaciare.
+ * Tre copie della stessa promessa commerciale, e si erano gia' divaricate: al
+ * 01/09/2026 due delle tre promettevano "Esportazione dati", che non esiste.
+ * Dal 01/09/2026 la sorgente e' una sola -- il catalogo -- e le pagine la
+ * leggono. Questi test non confrontano piu' tre copie: verificano che le copie
+ * non possano tornare.
  */
 
 const paginaPubblica = read("src/app/(marketplace)/registrazione/elite/page.tsx");
 const paginaAbbonamento = read("src/app/abbonamento/page.tsx");
-
-/** I titoli delle voci elencate nella pagina pubblica del piano. */
-function vociPaginaPubblica() {
-  const blocco = paginaPubblica.slice(
-    paginaPubblica.indexOf("const eliteFeatures = ["),
-    paginaPubblica.indexOf("export default function")
-  );
-  return Array.from(blocco.matchAll(/title: "([^"]+)"/g)).map((match) => match[1]);
-}
-
-/** Le voci del riquadro Elite nella pagina abbonamento. */
-function vociPaginaAbbonamento() {
-  const inizioElite = paginaAbbonamento.indexOf('name: "Piano Elite"');
-  const inizioElenco = paginaAbbonamento.indexOf("features: [", inizioElite);
-  const blocco = paginaAbbonamento.slice(inizioElenco, paginaAbbonamento.indexOf("]", inizioElenco));
-  return Array.from(blocco.matchAll(/"([^"]+)"/g)).map((match) => match[1]);
-}
 
 describe("il Piano Elite si racconta allo stesso modo ovunque", () => {
   const catalogo = getDemoPlan("elite")?.includedServices ?? [];
@@ -44,19 +28,24 @@ describe("il Piano Elite si racconta allo stesso modo ovunque", () => {
     expect(catalogo.length).toBeGreaterThan(5);
   });
 
-  it("la pagina pubblica del piano elenca le stesse voci del catalogo", () => {
-    expect(vociPaginaPubblica()).toEqual(catalogo);
+  it("le due pagine leggono l'elenco dal catalogo invece di riscriverlo", () => {
+    for (const [nome, sorgente] of [
+      ["pagina pubblica", paginaPubblica],
+      ["pagina abbonamento", paginaAbbonamento],
+    ] as const) {
+      expect(sorgente, nome).toContain("getDemoPlan");
+    }
   });
 
-  it("la pagina abbonamento elenca le stesse voci del catalogo", () => {
-    expect(vociPaginaAbbonamento()).toEqual(catalogo);
+  // Il difetto che questo impedisce: qualcuno rimette un elenco a mano dentro
+  // una pagina "solo per aggiungere una riga", e da li' in poi le due
+  // versioni ricominciano a divergere.
+  it("nessuna delle due pagine tiene piu' un elenco suo", () => {
+    expect(paginaPubblica).not.toMatch(/const eliteFeatures = \[\s*\{/);
+    expect(paginaAbbonamento).not.toMatch(/features: \[\s*"/);
   });
 });
 
-// Tolte su richiesta del titolare il 24/08/2026: il piano non comprende piu'
-// la gestione della pubblicita' online ne' il rendiconto mensile. Restano
-// scritte qui perche' un ritorno silenzioso sarebbe una promessa commerciale
-// riaccesa senza che nessuno l'abbia decisa.
 describe("cio' che il Piano Elite non comprende piu'", () => {
   it("nessuna pagina promette la gestione delle campagne pubblicitarie", () => {
     for (const [nome, sorgente] of [
@@ -76,10 +65,12 @@ describe("cio' che il Piano Elite non comprende piu'", () => {
 });
 
 describe("cio' che il Piano Elite comprende adesso", () => {
-  it("la scheda consegna veicolo e' elencata dappertutto", () => {
+  it("la scheda consegna veicolo e' elencata, e solo nell'Elite", () => {
     expect(getDemoPlan("elite")?.includedServices).toContain("Scheda consegna veicolo");
-    expect(vociPaginaPubblica()).toContain("Scheda consegna veicolo");
-    expect(vociPaginaAbbonamento()).toContain("Scheda consegna veicolo");
+    // Resta il servizio che distingue l'Elite: spostarla in un piano
+    // inferiore lascerebbe l'Elite senza uno dei suoi tre argomenti.
+    expect(getDemoPlan("pro")?.includedServices).not.toContain("Scheda consegna veicolo");
+    expect(getDemoPlan("base")?.includedServices).not.toContain("Scheda consegna veicolo");
   });
 
   // Il numero non e' un dettaglio: e' il motivo per cui si sceglie l'Elite
@@ -87,5 +78,7 @@ describe("cio' che il Piano Elite comprende adesso", () => {
   it("la capienza dichiarata resta quella del piano, 300 annunci", () => {
     expect(getDemoPlan("elite")?.includedServices).toContain("Fino a 300 annunci veicolo attivi");
     expect(paginaPubblica).toContain("fino a 300");
+    // E il Pro non la promette: sono 150.
+    expect(getDemoPlan("pro")?.includedServices).toContain("Fino a 150 annunci veicolo attivi");
   });
 });

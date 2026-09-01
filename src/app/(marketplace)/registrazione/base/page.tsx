@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import DealerInfoRequestForm from "../dealer-info-request-form";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
+import { formattaPrezzoPiano, getDemoPlan } from "@/lib/demo-plan-catalog";
 
 export const metadata: Metadata = {
   title: "Piano Base",
@@ -17,33 +18,11 @@ export const metadata: Metadata = {
   },
 };
 
-const baseFeatures = [
-  {
-    title: "Fino a 50 annunci veicolo attivi",
-    description:
-      "Pubblica uno stock selezionato e sempre aggiornato, dando priorita ai veicoli con maggiore potenziale commerciale senza sovraccaricare la gestione quotidiana.",
-  },
-  {
-    title: "Gestione completa delle schede veicolo",
-    description:
-      "Organizza foto, dati tecnici, optional e descrizioni in modo uniforme, migliorando la qualita degli annunci e la fiducia dei clienti interessati.",
-  },
-  {
-    title: "Ricezione e gestione dei lead",
-    description:
-      "Raccogli richieste da clienti interessati e gestiscile con ordine, riducendo tempi di risposta e aumentando le opportunita di appuntamento.",
-  },
-  {
-    title: "Dashboard concessionario",
-    description:
-      "Visualizza da un unico pannello le attivita principali della concessionaria, con una panoramica chiara su stock, contatti e operazioni in corso.",
-  },
-  {
-    title: "Supporto via e-mail",
-    description:
-      "Ricevi assistenza operativa per dubbi e configurazioni, cosi da lavorare con continuita e risolvere rapidamente eventuali blocchi.",
-  },
-];
+// L'elenco delle funzioni e il prezzo stanno nel catalogo, non qui: fino
+// al 01/09/2026 erano scritti a mano in cinque pagine e avevano gia'
+// divaricato, promettendo funzioni che non esistono.
+const piano = getDemoPlan("base");
+const baseFeatures = piano?.services ?? [];
 
 export default function RegistrazioneBasePage() {
   return (
@@ -60,7 +39,7 @@ export default function RegistrazioneBasePage() {
           <p className="relative mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             La soluzione essenziale per portare la tua concessionaria online in modo semplice e professionale.
           </p>
-          <p className="relative mt-4 text-2xl font-semibold text-white">€149/mese</p>
+          <p className="relative mt-4 text-2xl font-semibold text-white">{piano ? formattaPrezzoPiano(piano) : ""}</p>
 
           <div className="relative mt-8 space-y-6">
             <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
