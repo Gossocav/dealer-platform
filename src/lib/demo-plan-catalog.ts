@@ -38,6 +38,17 @@ export type DemoPlanCode = "base" | "pro" | "elite";
 export type DemoPlanService = {
   title: string;
   description: string;
+  /**
+   * Alcune voci **sostituiscono** quella del piano sotto invece di
+   * aggiungersi: la capienza e il livello di supporto. Un piano ha una
+   * capienza sola, e "Fino a 150 annunci" non convive con "Fino a 50".
+   *
+   * Il difetto che questo campo chiude, visto dal titolare il 01/09/2026 sulle
+   * pagine vere: il Pro elencava sia 50 sia 150 annunci, l'Elite tutti e tre,
+   * e "Supporto via e-mail" restava accanto a "Supporto prioritario". Chi
+   * legge si ferma alla prima riga, e la prima riga diceva 50.
+   */
+  slot?: "capienza" | "supporto";
 };
 
 export type DemoPlan = {
@@ -58,6 +69,7 @@ export type DemoPlan = {
 
 const BASE_SERVICES: DemoPlanService[] = [
   {
+    slot: "capienza",
     title: "Fino a 50 annunci veicolo attivi",
     description:
       "Pubblica uno stock selezionato e sempre aggiornato, dando priorita ai veicoli con maggiore potenziale commerciale senza sovraccaricare la gestione quotidiana.",
@@ -93,6 +105,7 @@ const BASE_SERVICES: DemoPlanService[] = [
       "Vedi da un unico pannello le attivita principali della concessionaria: quante vetture hai, quante richieste sono arrivate, cosa c'e' in agenda.",
   },
   {
+    slot: "supporto",
     title: "Supporto via e-mail",
     description:
       "Ricevi assistenza operativa per dubbi e configurazioni, cosi da lavorare con continuita e risolvere rapidamente eventuali blocchi.",
@@ -101,6 +114,7 @@ const BASE_SERVICES: DemoPlanService[] = [
 
 const PRO_SERVICES: DemoPlanService[] = [
   {
+    slot: "capienza",
     title: "Fino a 150 annunci veicolo attivi",
     description:
       "Il triplo della capienza del Base, per tenere online tutto il piazzale senza dover scegliere quali vetture lasciare fuori.",
@@ -131,6 +145,7 @@ const PRO_SERVICES: DemoPlanService[] = [
       "Il conto del mese dentro le statistiche: margine, marginalita e le vetture che hanno reso di piu e di meno.",
   },
   {
+    slot: "supporto",
     title: "Supporto prioritario",
     description:
       "Le tue richieste passano davanti, con tempi di risposta piu brevi su configurazioni e problemi operativi.",
@@ -139,6 +154,7 @@ const PRO_SERVICES: DemoPlanService[] = [
 
 const ELITE_SERVICES: DemoPlanService[] = [
   {
+    slot: "capienza",
     title: "Fino a 300 annunci veicolo attivi",
     description:
       "La capienza massima della piattaforma, per le concessionarie che tengono online l'intero parco senza limiti pratici.",
@@ -169,7 +185,15 @@ function componi(
   inherits: DemoPlanCode | null,
   ereditati: DemoPlanService[]
 ): DemoPlan {
-  const services = [...ereditati, ...servicesOwn];
+  // Le voci con uno slot prendono il posto di quella ereditata con lo stesso
+  // slot, invece di accodarsi: cosi' il Pro dice "fino a 150" e basta, dove
+  // prima diceva "fino a 50" e poi, otto righe sotto, "fino a 150".
+  const services = [...ereditati];
+  for (const servizio of servicesOwn) {
+    const posto = servizio.slot ? services.findIndex((v) => v.slot === servizio.slot) : -1;
+    if (posto >= 0) services[posto] = servizio;
+    else services.push(servizio);
+  }
   return {
     code,
     name,

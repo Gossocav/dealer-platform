@@ -97,18 +97,52 @@ describe("la divisione dei piani segue il criterio deciso", () => {
 
 describe("i piani sono cumulativi: chi paga di piu' non perde niente", () => {
   it("tutto quello del Base sta nel Pro, e tutto quello del Pro sta nell'Elite", () => {
-    const base = getDemoPlan("base")!.includedServices;
-    const pro = getDemoPlan("pro")!.includedServices;
-    const elite = getDemoPlan("elite")!.includedServices;
+    // Le voci con uno "slot" -- capienza e supporto -- prendono il posto di
+    // quella del piano sotto invece di aggiungersi: un piano ha una capienza
+    // sola e un livello di supporto solo. Si confronta quindi lo slot, non il
+    // testo: il Pro non "perde" il supporto via e-mail, lo sostituisce con
+    // uno migliore.
+    const senzaSlot = (code: "base" | "pro" | "elite") =>
+      getDemoPlan(code)!.services.filter((s) => !s.slot).map((s) => s.title);
 
-    // Salvo la capienza, che sostituisce quella del piano sotto invece di
-    // aggiungersi: "fino a 150" non convive con "fino a 50".
-    for (const voce of base.filter((v) => !/annunci/i.test(v))) {
-      expect(pro, `il Pro perde "${voce}"`).toContain(voce);
+    for (const voce of senzaSlot("base")) {
+      expect(senzaSlot("pro"), `il Pro perde "${voce}"`).toContain(voce);
     }
-    for (const voce of pro.filter((v) => !/annunci/i.test(v))) {
-      expect(elite, `l'Elite perde "${voce}"`).toContain(voce);
+    for (const voce of senzaSlot("pro")) {
+      expect(senzaSlot("elite"), `l'Elite perde "${voce}"`).toContain(voce);
     }
+
+    // E ogni slot resta riempito una volta sola.
+    for (const code of ["base", "pro", "elite"] as const) {
+      const slot = getDemoPlan(code)!.services.filter((s) => s.slot).map((s) => s.slot);
+      expect(new Set(slot).size, `${code} riempie uno slot due volte`).toBe(slot.length);
+    }
+  });
+
+  /**
+   * Il difetto che questo test impedisce, segnalato dal titolare guardando le
+   * pagine vere: **tutte e tre dicevano "fino a 50 annunci attivi"**. Le voci
+   * si accodavano invece di sostituirsi, quindi il Pro elencava sia 50 sia
+   * 150 e l'Elite tutti e tre -- e chi legge si ferma alla prima riga.
+   */
+  it("ogni piano dichiara una capienza sola, ed e' la sua", () => {
+    const capienze: Record<string, string> = { base: "50", pro: "150", elite: "300" };
+
+    for (const [code, numero] of Object.entries(capienze)) {
+      const righeAnnunci = getDemoPlan(code)!.includedServices.filter((v) => /annunci/i.test(v));
+      expect(righeAnnunci.length, `${code} elenca ${righeAnnunci.length} capienze: ${righeAnnunci.join(" | ")}`).toBe(1);
+      expect(righeAnnunci[0], `${code} non dichiara la sua capienza`).toContain(`Fino a ${numero} annunci`);
+    }
+  });
+
+  it("e un livello di supporto solo", () => {
+    for (const code of ["base", "pro", "elite"] as const) {
+      const righe = getDemoPlan(code)!.includedServices.filter((v) => /^Supporto/.test(v));
+      expect(righe.length, `${code} elenca ${righe.length} livelli di supporto`).toBe(1);
+    }
+    expect(getDemoPlan("base")!.includedServices).toContain("Supporto via e-mail");
+    expect(getDemoPlan("pro")!.includedServices).toContain("Supporto prioritario");
+    expect(getDemoPlan("elite")!.includedServices).toContain("Supporto prioritario");
   });
 
   // Ogni voce dice cosa fa: un elenco di titoli senza spiegazione si legge
