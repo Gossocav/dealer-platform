@@ -60,9 +60,14 @@ describe("la registrazione fa ancora le stesse cose", () => {
   });
 
   it("ogni piano manda alla demo con il piano di interesse", () => {
+    // Il collegamento sta nell'invito condiviso dal 01/09/2026: ogni pagina
+    // gli passa il proprio piano, e l'invito costruisce l'indirizzo.
     for (const plan of ["base", "pro", "elite"]) {
-      expect(read(`src/app/(marketplace)/registrazione/${plan}/page.tsx`)).toContain(`href="/demo?piano=${plan}"`);
+      expect(read(`src/app/(marketplace)/registrazione/${plan}/page.tsx`)).toContain(
+        `<InvitoAllaProva planCode="${plan}"`
+      );
     }
+    expect(read("src/components/marketplace/invito-alla-prova.tsx")).toContain("`/demo?piano=${planCode}`");
   });
 
   it("il modulo informazioni conserva campi, trappola anti-bot e invio", () => {

@@ -66,8 +66,16 @@ describe("the demo form asks for the plan", () => {
 });
 
 describe("plan pages carry the choice into the form", () => {
-  it.each(PLAN_PAGES)("the %s page links to the prefilled form", (plan, path) => {
-    expect(read(path)).toContain(`href="/demo?piano=${plan}"`);
+  // Dal 01/09/2026 l'invito a provare e' un componente solo, condiviso dalle
+  // tre pagine: il collegamento con il piano gia' scelto sta li'. La regola
+  // non cambia -- da ogni pagina si arriva al modulo precompilato -- cambia
+  // dove e' scritta, e adesso in un posto solo.
+  it.each(PLAN_PAGES)("the %s page passes its plan to the shared invitation", (plan, path) => {
+    expect(read(path)).toContain(`<InvitoAllaProva planCode="${plan}"`);
+  });
+
+  it("the shared invitation builds the prefilled link", () => {
+    expect(read("src/components/marketplace/invito-alla-prova.tsx")).toContain("`/demo?piano=${planCode}`");
   });
 
   it("leaves the generic entry page without a plan", () => {
