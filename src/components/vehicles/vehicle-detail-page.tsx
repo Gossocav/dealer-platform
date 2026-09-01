@@ -152,7 +152,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, plate, vin, equipment, created_at, updated_at"
+            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, video_url, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, plate, vin, equipment, created_at, updated_at"
           )
           .eq("id", vehicleId)
           .eq("dealer_id", dealerId)
@@ -481,6 +481,25 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                   {safeText(vehicle.description)}
                 </p>
               </div>
+
+              {/* Il video non si stampa sulla scheda da parabrezza -- un
+                  indirizzo YouTube su carta non si segue -- ma qui il
+                  concessionario deve vederlo, altrimenti non sa se l'ha
+                  messo. Il collegamento si apre per controllarlo. */}
+              {vehicle.video_url ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Video</p>
+                  <a
+                    href={String(vehicle.video_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 block break-all text-sm font-medium text-slate-900 underline-offset-2 hover:underline"
+                  >
+                    {String(vehicle.video_url)}
+                  </a>
+                  <p className="mt-1 text-xs text-slate-500">Compare sull&apos;annuncio pubblico, sotto le fotografie.</p>
+                </div>
+              ) : null}
 
               {equipmentList.length > 0 ? (
                 <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-4">

@@ -14,7 +14,11 @@ const styles = read("src/app/globals.css");
 // Columns the creation form writes that are not data about the car: the tenant
 // it belongs to and its publication state. Everything else the dealer types in
 // has to reach the printed sheet.
-const NON_PRINTABLE_COLUMNS = new Set(["dealer_id", "status", "published"]);
+// `video_url` non si stampa di proposito: un indirizzo YouTube scritto su un
+// foglio da parabrezza non si puo' seguire, e la scheda porta gia' il codice
+// QR dell'annuncio -- dove il video c'e' e si guarda. Resta invece dovuto
+// sulla pagina del veicolo nel gestionale, e un test qui sotto lo pretende.
+const NON_PRINTABLE_COLUMNS = new Set(["dealer_id", "status", "published", "video_url"]);
 
 function creationColumns() {
   const start = editor.indexOf("const vehiclePayload = {");
@@ -152,6 +156,15 @@ describe("the sheet carries the whole record", () => {
         new RegExp(`vehicle\\??\\.${column}\\b`),
       );
     }
+  });
+
+  it("il video non finisce sul foglio, ma la scheda a schermo lo mostra", () => {
+    // L'unica colonna esclusa dalla stampa che il modulo scrive: sul
+    // parabrezza un indirizzo YouTube non si segue, e il codice QR porta gia'
+    // all'annuncio dove il video si guarda. A schermo pero' il concessionario
+    // deve vedere che c'e', altrimenti non sa se l'ha messo.
+    expect(sheet).not.toContain("video_url");
+    expect(detail).toContain("video_url");
   });
 
   it("prints the equipment list in both shapes it can be stored in", () => {
