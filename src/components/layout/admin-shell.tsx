@@ -21,6 +21,9 @@ const SEZIONI = [
   { href: "/admin/dealer-approval", label: "Approvazioni" },
   { href: "/admin/dealers", label: "Concessionarie" },
   { href: "/admin/demo-requests", label: "Richieste demo" },
+  // Sta accanto alle richieste perche' e' la stessa cosa vista dall'altro
+  // lato: li' si attiva chi ha chiesto la prova, qui chi non la vuole.
+  { href: "/admin/attivazione-diretta", label: "Attivazione diretta" },
   { href: "/admin/info-requests", label: "Richieste info" },
   { href: "/admin/users", label: "Account" },
 ] as const;
