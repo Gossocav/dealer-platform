@@ -27,6 +27,7 @@ import {
   normalizeVehicleLabelField,} from "@/lib/public-marketplace";
 import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
 import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
+import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
 import { normalizzaModello, ripulisciTitoloVeicolo } from "@/lib/vehicle-label";
 import { JsonLd } from "@/components/marketplace/json-ld";
@@ -281,7 +282,24 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   // Il riquadro si costruisce solo se il collegamento e' davvero un video
   // YouTube: la sicurezza del sito apre il riquadro a quel dominio soltanto,
   // e un indirizzo diverso darebbe un rettangolo bianco.
-  const video = indirizzoDelRiquadro(vehicle.video_url);
+  const collegamentoVideo = indirizzoDelRiquadro(vehicle.video_url);
+
+  // **E solo se la concessionaria ha ancora il piano che lo comprende.** Il
+  // campo si nasconde nel gestionale a chi scende di piano, ma il video gia'
+  // salvato restava sull'annuncio: continuava a godere di un servizio che non
+  // paga piu', e non poteva nemmeno toglierlo. Il piano si chiede solo quando
+  // un video c'e' davvero, per non aggiungere un'interrogazione a ogni
+  // scheda. Stessa regola della vetrina in home: vale il piano pagato, non la
+  // prova che gira sul profilo Elite.
+  const dealerIdVeicolo = String(vehicle.dealer_id ?? "");
+  const video =
+    collegamentoVideo && dealerIdVeicolo
+      ? (await caricaConcessionarieElite(publicSupabase, (contesto, errore) =>
+          logMarketplaceQueryError(`vehicle:${contesto}`, errore)
+        )).has(dealerIdVeicolo)
+        ? collegamentoVideo
+        : null
+      : null;
 
   /** Le maiuscole del titolo, applicate anche alla scheda tecnica. */
   const etichettaCampo = (value: string | null) => (value ? normalizeVehicleLabelField(value) : null);

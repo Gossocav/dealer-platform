@@ -46,6 +46,31 @@ describe("solo un video YouTube, e detto mentre si incolla", () => {
     expect(paginaPubblica).toContain("indirizzoDelRiquadro(vehicle.video_url)");
     expect(paginaPubblica).toContain("{video ? (");
   });
+
+  /**
+   * Il difetto trovato in revisione: il campo si nasconde nel gestionale a chi
+   * scende di piano, ma il video gia' salvato restava sull'annuncio. La
+   * concessionaria continuava a godere di un servizio che non paga piu', e non
+   * poteva nemmeno toglierlo -- il campo per cancellarlo era sparito.
+   */
+  it("e solo se la concessionaria ha ancora il piano che lo comprende", () => {
+    expect(paginaPubblica).toContain("caricaConcessionarieElite");
+    expect(paginaPubblica).toContain("has(dealerIdVeicolo)");
+  });
+
+  // Il piano si chiede solo quando un video c'e': altrimenti ogni scheda
+  // veicolo pagherebbe un'interrogazione in piu' per niente.
+  it("il piano si chiede solo quando serve", () => {
+    expect(paginaPubblica).toContain("collegamentoVideo && dealerIdVeicolo");
+  });
+
+  // La lettura di chi e' Elite era scritta dentro la home; servendo in un
+  // secondo posto, due copie sarebbero divergite.
+  it("chi e' Elite si legge da un posto solo", () => {
+    const home = leggi("src/app/(marketplace)/page.tsx");
+    expect(home).toContain("caricaConcessionarieElite");
+    expect(home).not.toContain('rpc("elite_showcase_dealer_ids")');
+  });
 });
 
 describe("la sicurezza del sito si apre a quel dominio e a nessun altro", () => {
