@@ -20,6 +20,7 @@ type VehiclesToolbarProps = {
     fuelTypes: string[];
     transmissionTypes: string[];
   };
+  conditionOptions: ReadonlyArray<{ value: string; label: string }>;
   statusOptions: ReadonlyArray<{ value: string; label: string }>;
   priceBandOptions: ReadonlyArray<{ value: string; label: string }>;
   viewMode: ViewMode;
@@ -63,6 +64,7 @@ export function VehiclesToolbar({
   filters,
   onFiltersChange,
   options,
+  conditionOptions,
   statusOptions,
   priceBandOptions,
   viewMode,
@@ -155,6 +157,17 @@ export function VehiclesToolbar({
             ...options.transmissionTypes.map((item) => ({ value: item, label: item })),
           ]}
           onChange={(next) => onFiltersChange({ ...filters, transmission: next })}
+        />
+
+        {/* La condizione sta accanto ad alimentazione e cambio, che sono le
+            altre due caratteristiche della vettura. "Stato" invece riguarda
+            l'annuncio -- pubblicato, bozza, venduto -- ed e' un'altra
+            famiglia: tenerle vicine le farebbe confondere. */}
+        <SelectField
+          label="Condizione"
+          value={filters.condition}
+          options={[...conditionOptions]}
+          onChange={(next) => onFiltersChange({ ...filters, condition: next })}
         />
 
         <SelectField

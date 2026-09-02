@@ -40,6 +40,7 @@ describe("conteggio dei filtri attivi nei veicoli", () => {
       model: "Golf",
       fuel: "Diesel",
       transmission: "Manuale",
+      condition: "Usato",
       status: "published",
       priceBand: "10000-20000",
     };
