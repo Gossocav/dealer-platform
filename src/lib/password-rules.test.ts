@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readFileSync as leggiFile } from "node:fs";
 import {
   GIORNI_VALIDITA_PASSWORD,
   REGOLE_PASSWORD,
@@ -50,6 +51,38 @@ describe("che password si puo' scegliere", () => {
     expect(passwordAccettabile("Password 1!")).toBe(true);
   });
 
+  /**
+   * Il difetto trovato il 02/09/2026, poche ore dopo aver scritto questa
+   * regola: contava come speciale qualunque cosa non fosse lettera, cifra o
+   * spazio -- il simbolo dell'euro compreso, che era pure fra gli esempi
+   * mostrati a schermo. Ma l'elenco dei simboli lo decide Supabase, e l'euro
+   * non c'e': la spunta diventava verde e il salvataggio falliva lo stesso,
+   * con un messaggio in inglese. I due elenchi devono coincidere.
+   */
+  it("valgono solo i simboli che accetta anche il server", () => {
+    for (const simbolo of "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~") {
+      expect(passwordAccettabile(`Password1${simbolo}`), `${simbolo} dovrebbe valere`).toBe(true);
+    }
+
+    for (const fuoriElenco of ["\u20ac", "\u00a3", "\u00a7", "\u00b0"]) {
+      expect(passwordAccettabile(`Password1${fuoriElenco}`), `${fuoriElenco} non deve valere`).toBe(false);
+    }
+  });
+
+  // Gli esempi scritti a schermo devono stare dentro l'elenco: suggerirne uno
+  // fuori elenco e' il modo piu' diretto per far fallire un salvataggio dopo
+  // aver mostrato tutte le spunte verdi.
+  it("gli esempi mostrati a schermo sono tutti accettati davvero", () => {
+    const regola = REGOLE_PASSWORD.find((r) => r.chiave === "speciale");
+    const esempi = (regola?.etichetta.match(/\(([^)]*)\)/)?.[1] ?? "").split(/\s+/).filter(Boolean);
+
+    expect(esempi.length, "l'etichetta non mostra nessun esempio").toBeGreaterThan(2);
+
+    for (const esempio of esempi) {
+      expect(passwordAccettabile(`Password1${esempio}`), `l'esempio ${esempio} non e' accettato`).toBe(true);
+    }
+  });
+
   // Le lettere accentate sono lettere, non caratteri speciali: contarle
   // aprirebbe la porta a "Perquè123", che di speciale non ha niente.
   it("una lettera accentata resta una lettera", () => {
@@ -67,6 +100,37 @@ describe("che password si puo' scegliere", () => {
 /**
  * La scadenza dei tre mesi, chiesta dal titolare il 02/09/2026.
  */
+/**
+ * Il difetto che questo test impedisce: fermare l'attivazione di una
+ * concessionaria per colpa di una password che non usera' nessuno.
+ *
+ * Quando la piattaforma crea l'account ne inventa una provvisoria -- non la
+ * conosce nessuno, non viene mai spedita, e il concessionario ne sceglie
+ * subito una sua dal link dell'email. Ma il server le regole le applica a
+ * tutte, e un identificativo casuale e' tutto in minuscolo: dal 02/09/2026,
+ * con maiuscole e simboli diventati obbligatori su Supabase, una password
+ * cosi' verrebbe rifiutata e l'attivazione si fermerebbe prima ancora di
+ * creare la concessionaria.
+ */
+describe("la password provvisoria rispetta le stesse regole", () => {
+  it("quella che l'attivazione costruisce sarebbe accettata", () => {
+    const attivazione = leggiFile(resolve(process.cwd(), "src/app/api/admin/demo-requests/route.ts"), "utf8");
+    const riga = attivazione.slice(attivazione.indexOf("const generatedPassword ="));
+    const modello = riga.slice(riga.indexOf("`") + 1, riga.indexOf("`", riga.indexOf("`") + 1));
+
+    // Si ricostruisce quello che il codice produrrebbe davvero, sostituendo i
+    // pezzi variabili con un identificativo vero: provare il modello com'e'
+    // scritto direbbe soltanto che il testo non e' cambiato.
+    const generata = modello
+      .replace("${crypto.randomUUID()}", crypto.randomUUID())
+      .replace("${crypto.randomUUID().toUpperCase()}", crypto.randomUUID().toUpperCase())
+      .replace("${Date.now()}", String(Date.now()));
+
+    expect(generata).not.toContain("${");
+    expect(passwordAccettabile(generata), `la password provvisoria non passa: ${generata}`).toBe(true);
+  });
+});
+
 describe("quando una password va rifatta", () => {
   const ADESSO = new Date("2026-09-02T12:00:00.000Z");
   const giorniFa = (n: number) => new Date(ADESSO.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
