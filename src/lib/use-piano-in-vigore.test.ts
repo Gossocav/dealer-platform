@@ -80,6 +80,48 @@ describe("il piano si chiede una volta sola e si divide", () => {
     expect(await modulo.pianoPerProva("token-1")).toBe("pro");
     expect(tentativo).toBe(2);
   });
+
+  /**
+   * Il difetto trovato in revisione il 02/09/2026: la risposta restava valida
+   * per tutta la vita del token, e il token non cambia quando cambia il piano.
+   * Convertendo una concessionaria da Base a Elite mentre il titolare era
+   * dentro, lui continuava a vedere le funzioni chiuse finche' non usciva e
+   * rientrava -- e sembrava che la conversione non fosse andata a buon fine.
+   */
+  it("dopo un minuto il piano si richiede: una conversione non aspetta il logout", async () => {
+    let corrente = "base";
+    let chiamate = 0;
+    vi.stubGlobal("fetch", async () => {
+      chiamate += 1;
+      return { ok: true, json: async () => ({ effectivePlanCode: corrente }) };
+    });
+
+    vi.resetModules();
+    const modulo = await import("@/lib/use-piano-in-vigore");
+    modulo.dimenticaIlPianoInVigore();
+
+    const adesso = Date.now();
+    const orologio = vi.spyOn(Date, "now").mockReturnValue(adesso);
+
+    try {
+      expect(await modulo.pianoPerProva("token-1")).toBe("base");
+
+      // Mezzo minuto dopo la risposta vale ancora: e' il caso vero per cui la
+      // cache esiste, cioe' le schermate che si aprono insieme.
+      orologio.mockReturnValue(adesso + 30_000);
+      expect(await modulo.pianoPerProva("token-1")).toBe("base");
+      expect(chiamate).toBe(1);
+
+      // Nel frattempo l'amministratore ha convertito la concessionaria.
+      corrente = "elite";
+
+      orologio.mockReturnValue(adesso + 61_000);
+      expect(await modulo.pianoPerProva("token-1")).toBe("elite");
+      expect(chiamate).toBe(2);
+    } finally {
+      orologio.mockRestore();
+    }
+  });
 });
 
 describe("le schermate continuano a leggerlo dallo stesso aggancio", () => {
