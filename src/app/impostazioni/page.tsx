@@ -292,6 +292,19 @@ export default function ImpostazioniPage() {
     setSaving(false);
 
     if (updateError) {
+      // Il database non permette a due concessionarie di avere la stessa
+      // email (20260902100000). Senza questa traduzione il concessionario
+      // leggerebbe "duplicate key value violates unique constraint
+      // dealers_email_unica_idx", che non gli dice ne' cosa ha sbagliato ne'
+      // cosa fare -- e il campo colpevole e' uno solo fra i venti del modulo.
+      if (updateError.code === "23505" && String(updateError.message ?? "").includes("dealers_email_unica_idx")) {
+        setStatusMessage(
+          "Questa email commerciale e gia usata da un'altra concessionaria. Scegline una diversa: serve anche a riconoscere il tuo account."
+        );
+        setStatusType("error");
+        return;
+      }
+
       const details = [updateError.message, updateError.details, updateError.hint].filter(Boolean).join(" | ");
       setStatusMessage(details || "Errore nel salvataggio dei dati concessionaria.");
       setStatusType("error");
