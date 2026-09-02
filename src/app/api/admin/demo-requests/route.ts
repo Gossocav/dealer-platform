@@ -644,7 +644,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: dealerUpsert.error.message || "Errore creazione dealer demo." }, { status: 500 });
     }
 
-    const generatedPassword = `${crypto.randomUUID()}-${Date.now()}`;
+    // La password provvisoria dell'account appena creato. Non la conosce
+    // nessuno e non viene mai spedita: il concessionario ne sceglie una sua dal
+    // link dell'email, e questa serve solo perche' l'account possa nascere.
+    //
+    // **Deve comunque rispettare le regole della piattaforma.** Dal 02/09/2026
+    // Supabase pretende maiuscole, minuscole, numeri e simboli, e un
+    // identificativo casuale e' tutto in minuscolo: senza la parte iniziale il
+    // server potrebbe rifiutarla, e l'attivazione si fermerebbe prima ancora di
+    // creare la concessionaria -- per una password che non usera' nessuno.
+    const generatedPassword = `Ka1!${crypto.randomUUID()}-${crypto.randomUUID().toUpperCase()}-${Date.now()}`;
     const createdUser = await context.supabaseAdmin.auth.admin.createUser({
       email: targetRequest.email,
       password: generatedPassword,

@@ -15,6 +15,22 @@
  * verdi e si prende un rifiuto scritto in inglese.
  */
 
+/**
+ * I simboli che contano come "carattere speciale".
+ *
+ * **Non e' un elenco scelto da noi: e' quello di Supabase**, letto dal
+ * messaggio che il server manda quando rifiuta una password
+ * (`!@#$%^&*()_+-=[]{};'\:"|<>?,./` piu' apice inverso e tilde). Accettarne
+ * di piu' sarebbe la trappola peggiore: il concessionario vedrebbe tutte le
+ * spunte verdi e si prenderebbe comunque un rifiuto scritto in inglese.
+ *
+ * Il simbolo dell'euro, per dirne uno, **non** e' nell'elenco -- ed era finito
+ * negli esempi mostrati a schermo il 02/09/2026, prima che questa verifica
+ * esistesse. Lo spazio nemmeno: una password con dentro uno spazio sembrerebbe
+ * a posto per sbaglio, e chi l'ha scritta non saprebbe di averlo messo.
+ */
+const CARATTERI_SPECIALI = /[!@#$%^&*()_+\-=[\]{};'\\:"|<>?,./`~]/;
+
 export type RegolaPassword = {
   chiave: string;
   etichetta: string;
@@ -29,12 +45,12 @@ export const REGOLE_PASSWORD: readonly RegolaPassword[] = [
   {
     chiave: "speciale",
     // Si dice quali, con degli esempi: "carattere speciale" da solo lascia
-    // dubbi, e chi non sa cosa mettere ci rinuncia.
-    etichetta: "Un carattere speciale (! ? @ # € - _)",
-    // Va bene qualunque cosa non sia una lettera o una cifra, ma lo spazio non
-    // conta: una password con dentro uno spazio sembrerebbe a posto per
-    // sbaglio, e chi l'ha scritta non saprebbe di averlo messo.
-    verifica: (v) => /[^\p{L}\p{N}\s]/u.test(v),
+    // dubbi, e chi non sa cosa mettere ci rinuncia. Gli esempi sono scelti
+    // dentro l'elenco qui sotto: suggerirne uno fuori elenco sarebbe la
+    // trappola peggiore, perche' la spunta diventerebbe verde e il salvataggio
+    // fallirebbe lo stesso.
+    etichetta: "Un carattere speciale (! ? @ # - _)",
+    verifica: (v) => CARATTERI_SPECIALI.test(v),
   },
 ] as const;
 
