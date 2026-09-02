@@ -1,3 +1,5 @@
+import { escapeHtml } from "@/lib/escape-html";
+
 type DealerEmailKind = "request_received" | "approved" | "rejected" | "suspended" | "reactivated";
 
 type SendDealerEmailInput = {
@@ -71,7 +73,7 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
           <h2 style="margin: 0 0 12px;">Richiesta ricevuta</h2>
           <p style="margin: 0 0 12px;">Ciao,</p>
           <p style="margin: 0 0 12px;">
-            abbiamo ricevuto la richiesta di registrazione per la concessionaria <strong>${dealerName}</strong>.
+            abbiamo ricevuto la richiesta di registrazione per la concessionaria <strong>${escapeHtml(dealerName)}</strong>.
           </p>
           <p style="margin: 0 0 12px;">
             Il tuo account e attualmente in verifica. I tempi stimati di approvazione sono di <strong>1-2 giorni lavorativi</strong>.
@@ -91,7 +93,7 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
           <h2 style="margin: 0 0 12px;">Account approvato</h2>
           <p style="margin: 0 0 12px;">Ciao,</p>
           <p style="margin: 0 0 12px;">
-            la richiesta per la concessionaria <strong>${dealerName}</strong> e stata approvata.
+            la richiesta per la concessionaria <strong>${escapeHtml(dealerName)}</strong> e stata approvata.
           </p>
           <p style="margin: 0 0 12px;">
             Da questo momento puoi accedere alla piattaforma e utilizzare tutte le funzioni operative abilitate.
@@ -108,7 +110,7 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
       subject: "Il tuo account KeyAuto e stato sospeso",
       html: `
         <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
-          <p style="margin: 0 0 12px;">Gentile <strong>${dealerName}</strong>,</p>
+          <p style="margin: 0 0 12px;">Gentile <strong>${escapeHtml(dealerName)}</strong>,</p>
           <p style="margin: 0 0 12px;">
             ti informiamo che il tuo account su KeyAuto e stato temporaneamente sospeso.
           </p>
@@ -129,7 +131,7 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
       subject: "Il tuo account KeyAuto e stato riattivato",
       html: `
         <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
-          <p style="margin: 0 0 12px;">Gentile <strong>${dealerName}</strong>,</p>
+          <p style="margin: 0 0 12px;">Gentile <strong>${escapeHtml(dealerName)}</strong>,</p>
           <p style="margin: 0 0 12px;">
             ti informiamo che il tuo account su KeyAuto e stato riattivato.
           </p>
@@ -150,7 +152,7 @@ function buildEmailContent(input: { kind: DealerEmailKind; dealerName: string })
         <h2 style="margin: 0 0 12px;">Registrazione non approvata</h2>
         <p style="margin: 0 0 12px;">Ciao,</p>
         <p style="margin: 0 0 12px;">
-          la richiesta di registrazione per la concessionaria <strong>${dealerName}</strong> non e stata approvata.
+          la richiesta di registrazione per la concessionaria <strong>${escapeHtml(dealerName)}</strong> non e stata approvata.
         </p>
         <p style="margin: 0;">
           Per ulteriori informazioni o per richiedere supporto puoi contattare il team di assistenza.
