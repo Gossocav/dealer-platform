@@ -123,3 +123,39 @@ describe("si trova nel pannello", () => {
     expect(pagina).not.toMatch(/€\s*\d+/);
   });
 });
+
+/**
+ * Il difetto trovato in revisione: un clic creava l'account **e mandava
+ * l'email**, senza nessuna conferma. Un'email non si richiama indietro, e un
+ * indirizzo sbagliato manda le credenziali a un estraneo.
+ */
+describe("prima di creare un account si chiede conferma", () => {
+  it("il primo pulsante non attiva niente: apre la conferma", () => {
+    expect(pagina).toContain("onClick={() => setConferma(true)}");
+  });
+
+  it("solo il secondo fa partire l'attivazione", () => {
+    const riquadro = pagina.slice(pagina.indexOf("{conferma ? ("), pagina.indexOf("Torna a correggere"));
+    expect(riquadro).toContain("onClick={() => void attiva()}");
+    expect(riquadro).toContain("Conferma e attiva");
+  });
+
+  // Le due cose che dopo non si correggono: dove va l'email, e quale piano.
+  it("la conferma rilegge l'indirizzo e il piano", () => {
+    const riquadro = pagina.slice(pagina.indexOf("{conferma ? ("), pagina.indexOf("Torna a correggere"));
+    expect(riquadro).toContain("modulo.email");
+    expect(riquadro).toContain("modulo.planCode");
+    expect(riquadro).toContain("Non si puo&apos; richiamare");
+  });
+
+  it("si puo' tornare indietro a correggere", () => {
+    expect(pagina).toContain("onClick={() => setConferma(false)}");
+  });
+
+  // Cambiare un dato dopo aver aperto la conferma la annulla: quella che si
+  // stava per dare riguardava un'email che adesso e' un'altra.
+  it("modificare un campo annulla la conferma in sospeso", () => {
+    const aggiorna = pagina.slice(pagina.indexOf("const aggiorna ="), pagina.indexOf("const attiva ="));
+    expect(aggiorna).toContain("setConferma(false)");
+  });
+});

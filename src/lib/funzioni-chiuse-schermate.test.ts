@@ -57,6 +57,30 @@ describe("le pagine intere si difendono da sole, non solo dal menu", () => {
     });
   }
 
+  /**
+   * Il difetto trovato in revisione: Vendite e Giacenza si disegnavano mentre
+   * il piano era ancora ignoto, e **poi** venivano sostituite dalla
+   * spiegazione. Per un istante un piano Base vedeva l'elenco che non gli
+   * spetta. Le Statistiche facevano gia' la cosa giusta: era un'incoerenza fra
+   * tre pagine sorelle.
+   */
+  it("finche' il piano non e' noto non si disegna niente", () => {
+    for (const percorso of [
+      "src/components/dashboard/sales-report-page.tsx",
+      "src/components/dashboard/stock-age-page.tsx",
+    ]) {
+      const sorgente = leggi(percorso);
+      expect(sorgente, `${percorso} decide prima di sapere`).toContain("if (caricamentoPiano) {");
+      // E il controllo vero non deve piu' dipendere dal caricamento: se ci
+      // dipendesse, il caso "ancora non so" tornerebbe a mostrare la pagina.
+      expect(sorgente, percorso).not.toContain("!caricamentoPiano && !pianoComprende");
+    }
+  });
+
+  it("le Statistiche continuano a fare lo stesso", () => {
+    expect(leggi("src/app/statistiche/page.tsx")).toContain("caricamentoPiano ? null :");
+  });
+
   it("il menu nasconde le voci che il piano non apre", () => {
     const menu = leggi("src/components/layout/dealer-sidebar.tsx");
     expect(menu).toContain('funzione: "vendite"');

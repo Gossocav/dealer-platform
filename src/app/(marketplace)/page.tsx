@@ -35,6 +35,7 @@ import { DISTANCE_OPTIONS } from "@/lib/search-distance";
 import { pickShowcaseVehicleId, romeDayIndex } from "@/lib/showcase-rotation";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { formatRegistrationLabel } from "@/lib/vehicles";
+import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
 
 // La home si ricalcola a ogni richiesta, e non e' una scelta di comodo.
 //
@@ -588,16 +589,10 @@ async function buildVehicleCard(vehicle: MarketplaceVehicle) {
  * that would silently never get a turn.
  */
 async function resolveEliteShowcaseVehicle(): Promise<MarketplaceVehicle | null> {
-  const { data: eliteRows, error: eliteError } = await publicSupabase.rpc("elite_showcase_dealer_ids");
-
-  if (eliteError) {
-    logMarketplaceQueryError("home:elite-dealers", eliteError);
-    return null;
-  }
-
-  const eliteDealerIds = (eliteRows ?? [])
-    .map((row: unknown) => (typeof row === "string" ? row : (row as { elite_showcase_dealer_ids?: string })?.elite_showcase_dealer_ids))
-    .filter((value: unknown): value is string => typeof value === "string" && value.length > 0);
+  const elite = await caricaConcessionarieElite(publicSupabase, (contesto, errore) =>
+    logMarketplaceQueryError(`home:${contesto}`, errore)
+  );
+  const eliteDealerIds = [...elite];
 
   if (eliteDealerIds.length === 0) {
     return null;
