@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendAdminNotificationEmail, sendDemoLifecycleEmail } from "@/lib/admin-notification-email";
 import { hitRateLimit } from "@/lib/api-rate-limit";
+import { escapeHtml } from "@/lib/escape-html";
 
 type DemoRequestBody = {
   companyName?: string;
@@ -116,15 +117,6 @@ function resolveDocumentMime(file: File) {
   }
 
   return null;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function getClientIp(request: Request) {

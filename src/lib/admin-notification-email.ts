@@ -1,3 +1,5 @@
+import { escapeHtml } from "@/lib/escape-html";
+
 type ResendApiPayload = {
   id?: string;
   error?: {
@@ -22,15 +24,6 @@ function normalizeEmail(value: unknown) {
   }
 
   return text;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function resolveFromHeader() {

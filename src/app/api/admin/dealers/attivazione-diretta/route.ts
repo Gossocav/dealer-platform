@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { normalizeDemoPlanCode } from "@/lib/demo-plan-catalog";
+import { NOTA_ATTIVAZIONE_DIRETTA } from "@/lib/attivazione-diretta";
 import { nomeDellaColonnaMancante } from "@/lib/tabella-mancante";
 
 /**
@@ -189,10 +190,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const nota = [
-    "Attivazione diretta dal pannello amministrativo: la concessionaria non ha chiesto la prova.",
-    notes,
-  ]
+  // La nota non e' solo per chi legge: da qui l'attivazione riconosce che il
+  // concessionario non ha chiesto nessuna prova, e gli manda una sola email --
+  // quella per impostare la password -- invece delle due della demo.
+  const nota = [NOTA_ATTIVAZIONE_DIRETTA, notes]
     .filter(Boolean)
     .join(" ");
 

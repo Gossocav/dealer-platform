@@ -5,6 +5,7 @@ import { sendAdminNotificationEmail } from "../../../../lib/admin-notification-e
 import { resolveDealerIdFromTenantSources } from "../../../../lib/dealer-id-resolution";
 import { getDemoPlan, normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
 import { resolveActivePlanCode } from "../../../../lib/dealer-plan";
+import { escapeHtml } from "@/lib/escape-html";
 
 const PLAN_REQUEST_RATE_LIMIT = {
   windowMs: 60_000,
@@ -233,7 +234,7 @@ export async function POST(request: Request) {
     html: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Richiesta piano dalla demo</h2>
-        <p style="margin:0 0 12px;">Concessionaria: <strong>${dealer.data?.name ?? "-"}</strong></p>
+        <p style="margin:0 0 12px;">Concessionaria: <strong>${escapeHtml(dealer.data?.name ?? "-")}</strong></p>
         <p style="margin:0 0 12px;">Piano richiesto: <strong>${plan?.name ?? planCode}</strong></p>
         <p style="margin:0 0 12px;">Vai su /admin/demo-requests per attivarlo.</p>
       </div>

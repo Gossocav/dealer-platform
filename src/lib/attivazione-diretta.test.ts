@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { NOTA_ATTIVAZIONE_DIRETTA, eAttivazioneDiretta } from "@/lib/attivazione-diretta";
 
 function leggi(percorso: string) {
   return readFileSync(resolve(process.cwd(), percorso), "utf8");
@@ -8,6 +9,7 @@ function leggi(percorso: string) {
 
 const endpoint = leggi("src/app/api/admin/dealers/attivazione-diretta/route.ts");
 const pagina = leggi("src/app/admin/attivazione-diretta/page.tsx");
+const attivazione = leggi("src/app/api/admin/demo-requests/route.ts");
 
 /**
  * Attivare una concessionaria direttamente su un piano a pagamento.
@@ -34,7 +36,8 @@ describe("l'attivazione diretta riusa la macchina che esiste", () => {
   });
 
   it("la richiesta nasce segnata come diretta, cosi' si distingue dalle altre", () => {
-    expect(endpoint).toContain("Attivazione diretta dal pannello amministrativo");
+    expect(endpoint).toContain("NOTA_ATTIVAZIONE_DIRETTA");
+    expect(NOTA_ATTIVAZIONE_DIRETTA).toContain("Attivazione diretta dal pannello amministrativo");
   });
 
   it("il piano scelto viaggia fino alla conversione", () => {
@@ -238,5 +241,56 @@ describe("un doppio clic non crea due concessionarie", () => {
     for (const pezzo of corpo.split("setPasso(\"fermo\")").slice(1)) {
       expect(pezzo.slice(0, 120), "un fallimento lascia la conferma aperta").toContain("setConferma(false)");
     }
+  });
+});
+
+/**
+ * Il difetto segnalato dal titolare il 02/09/2026, alla prima attivazione
+ * diretta vera (Ponginibbi, piano Base): al concessionario sono arrivate
+ * **due email nello stesso momento**, prima ancora che avesse impostato la
+ * password. La prima raccontava una demo di sette giorni con un tetto di
+ * dieci veicoli -- una prova che non ha mai chiesto, e limiti che il piano
+ * che paga smentisce -- la seconda diceva che l'account era stato "attivato
+ * definitivamente". Deve riceverne una sola: quella per entrare.
+ */
+describe("chi e' attivato direttamente riceve una sola email", () => {
+  it("la richiesta si riconosce dalla nota che le ha scritto dentro il pannello", () => {
+    expect(eAttivazioneDiretta(NOTA_ATTIVAZIONE_DIRETTA)).toBe(true);
+    expect(eAttivazioneDiretta(`${NOTA_ATTIVAZIONE_DIRETTA} Chiamato il 2 settembre.`)).toBe(true);
+  });
+
+  // Una richiesta di prova vera continua a comportarsi come prima: le sue due
+  // email raccontano fatti che sono successi davvero.
+  it("una richiesta di prova normale non si confonde con una diretta", () => {
+    expect(eAttivazioneDiretta("Vorrei provare la piattaforma per due settimane.")).toBe(false);
+    expect(eAttivazioneDiretta(null)).toBe(false);
+    expect(eAttivazioneDiretta("")).toBe(false);
+  });
+
+  /**
+   * Il contrassegno si legge dalla richiesta, non da un campo passato dal
+   * pannello: se la conversione fallisce e viene ripresa a mano il giorno dopo
+   * dalle Richieste demo, deve valere lo stesso.
+   */
+  it("l'attivazione lo legge dalla richiesta, non da chi preme il pulsante", () => {
+    expect(attivazione).toContain("eAttivazioneDiretta(targetRequest.message)");
+  });
+
+  it("l'email dell'accesso non gli racconta una prova che non ha chiesto", () => {
+    expect(attivazione).toContain('attivazioneDiretta ? "Il tuo account KeyAuto e attivo" : "Demo KeyAuto attivata"');
+
+    // Il testo della demo -- sette giorni, dieci veicoli -- resta solo nel
+    // ramo di chi la prova l'ha chiesta davvero.
+    const suo = attivazione.slice(attivazione.indexOf("html: attivazioneDiretta"), attivazione.indexOf('<h2 style="margin:0 0 12px;">Demo attivata</h2>'));
+    expect(suo).toContain("Imposta la password e accedi");
+    expect(suo).not.toContain("7 giorni");
+    expect(suo).not.toContain("max 10 veicoli");
+  });
+
+  // "Il tuo account e stato attivato definitivamente" arrivava nello stesso
+  // minuto dell'email di accesso: due email per un solo fatto.
+  it("e la conversione al piano non ne manda una seconda", () => {
+    const conversione = attivazione.slice(attivazione.indexOf('kind: "converted"') - 400, attivazione.indexOf('kind: "converted"'));
+    expect(conversione).toContain("if (!attivazioneDiretta)");
   });
 });

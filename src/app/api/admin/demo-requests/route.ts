@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { hitRateLimit } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
+import { eAttivazioneDiretta } from "@/lib/attivazione-diretta";
+import { escapeHtml } from "@/lib/escape-html";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
 import { normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
@@ -552,6 +554,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Richiesta demo gia attivata. Usa Revoca Demo." }, { status: 409 });
   }
 
+  // Chi e' stato attivato direttamente su un piano a pagamento non ha mai
+  // chiesto una prova: le email che la raccontano non lo riguardano. Il
+  // contrassegno si legge dalla richiesta e non dal pannello, cosi' vale anche
+  // se la conversione viene finita a mano il giorno dopo.
+  const attivazioneDiretta = eAttivazioneDiretta(targetRequest.message);
+
   // Il link per impostare la password vive solo dentro il ramo di attivazione:
   // lo si porta qui per poterlo restituire al pannello, cosi' l'admin puo'
   // inoltrarlo a mano quando l'email non arriva.
@@ -875,15 +883,33 @@ export async function POST(request: Request) {
     // nulla. Oltre a confondere chi le riceve, raddoppiava il consumo della
     // quota di invio, che su un dominio in warm-up e' bassa: esaurirla
     // significa lasciare i concessionari successivi senza il link di accesso.
+    //
+    // **Chi e' stato attivato direttamente su un piano legge un'altra cosa.**
+    // Non ha chiesto nessuna prova: raccontargli sette giorni di scadenza e un
+    // tetto di dieci veicoli sarebbe falso, e il piano che sta pagando li
+    // smentisce entrambi. Gli serve una cosa sola, la password.
     await sendPlatformEmail({
       toEmail: targetRequest.email,
-      subject: "Demo KeyAuto attivata",
-      html: `
+      subject: attivazioneDiretta ? "Il tuo account KeyAuto e attivo" : "Demo KeyAuto attivata",
+      html: attivazioneDiretta
+        ? `
+        <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
+          <h2 style="margin:0 0 12px;">Il tuo account e attivo</h2>
+          <p style="margin:0 0 12px;">L'account KeyAuto di <strong>${escapeHtml(targetRequest.dealership_name)}</strong> e pronto.</p>
+          <p style="margin:0 0 12px;">Imposta la password e accedi:</p>
+          ${passwordSetupLink
+            ? `<p style="margin:0 0 12px;"><a href="${passwordSetupLink}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Imposta la password e accedi</a></p>`
+            : `<p style="margin:0 0 12px;">Vai su <a href="${resolveAppBaseUrl()}/forgot-password">${resolveAppBaseUrl()}/forgot-password</a> e richiedi il recupero password con questo indirizzo email.</p>`
+          }
+          <p style="margin:0 0 12px;font-size:13px;color:#475569;">Se il pulsante non funziona, vai su <a href="${resolveAppBaseUrl()}/login">${resolveAppBaseUrl()}/login</a> e usa &ldquo;Password dimenticata&rdquo; con questo indirizzo email.</p>
+        </div>
+      `.trim()
+        : `
         <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
           <h2 style="margin:0 0 12px;">Demo attivata</h2>
           <p style="margin:0 0 12px;">La tua demo KeyAuto e stata attivata per 7 giorni.</p>
-          <p style="margin:0 0 12px;">Concessionaria: <strong>${targetRequest.dealership_name}</strong></p>
-          <p style="margin:0 0 12px;">Scadenza: <strong>${expiresAt}</strong></p>
+          <p style="margin:0 0 12px;">Concessionaria: <strong>${escapeHtml(targetRequest.dealership_name)}</strong></p>
+          <p style="margin:0 0 12px;">Scadenza: <strong>${escapeHtml(expiresAt)}</strong></p>
           <p style="margin:0 0 12px;">Limiti: max 10 veicoli, 20 lead, nessuna esportazione/importazione di massa.</p>
           ${passwordSetupLink
             ? `<p style="margin:0 0 12px;"><a href="${passwordSetupLink}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Imposta la password e accedi</a></p>`
@@ -1027,11 +1053,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Conversione demo non consentita nello stato corrente." }, { status: toHttpStatusFromOutcome(convertOutcome) });
     }
 
-    await sendDemoLifecycleEmail({
-      toEmail: targetRequest.email,
-      kind: "converted",
-      dealerName: targetRequest.dealership_name,
-    });
+    // "Il tuo account e stato attivato definitivamente" ha senso per chi
+    // stava provando la piattaforma e ha deciso di restare. A chi e' stato
+    // attivato direttamente su un piano arrivava invece nello stesso minuto
+    // dell'email di accesso, prima ancora che avesse impostato la password:
+    // due email per un solo fatto, e una parlava di una prova mai chiesta.
+    if (!attivazioneDiretta) {
+      await sendDemoLifecycleEmail({
+        toEmail: targetRequest.email,
+        kind: "converted",
+        dealerName: targetRequest.dealership_name,
+      });
+    }
 
     const convertRequest = convertPayload.request ?? {};
     const convertDealer = convertPayload.dealer ?? {};
