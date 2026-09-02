@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
+import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { DEMO_PLAN_CATALOG, formattaPrezzoPiano, type DemoPlanCode } from "@/lib/demo-plan-catalog";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -20,6 +21,12 @@ import { supabase } from "@/lib/supabaseClient";
  * stata riscritta nessuna delle due azioni finali: sono in produzione da mesi
  * e sanno gia' rimettere le cose a posto quando qualcosa va storto.
  *
+ * L'accesso e' quello di tutte le altre schermate del pannello: si controlla
+ * il ruolo qui, oltre che nell'endpoint. Senza questo controllo la pagina si
+ * apriva a chiunque avesse una sessione -- i dati non uscivano, perche'
+ * l'endpoint risponde 403 comunque, ma un concessionario che digitava
+ * l'indirizzo si trovava davanti il modulo e il listino dei piani.
+ *
  * Se il terzo passo fallisce, la concessionaria **esiste ed e' operativa**,
  * solo in prova invece che sul piano scelto: la pagina lo dice per esteso e
  * indica dove finire il lavoro, invece di lasciare un errore generico su un
@@ -27,6 +34,8 @@ import { supabase } from "@/lib/supabaseClient";
  */
 
 type Passo = "fermo" | "creo" | "attivo" | "converto" | "fatto";
+
+type Accesso = "controllo" | "consentito" | "negato";
 
 type Modulo = {
   dealershipName: string;
@@ -68,6 +77,45 @@ export default function AttivazioneDirettaPage() {
   // indietro: un indirizzo sbagliato manda le credenziali a un estraneo. La
   // conferma ripete a schermo le due cose che non si possono correggere dopo.
   const [conferma, setConferma] = useState(false);
+  const [accesso, setAccesso] = useState<Accesso>("controllo");
+  // Il pulsante si disabilita solo al disegno successivo, e fra il clic e la
+  // lettura della sessione resta premibile: due clic rapidi facevano partire
+  // due catene complete, cioe' due concessionarie con la stessa email e due
+  // email di accesso gia' spedite. Questa serratura chiude nello stesso
+  // istante del clic, prima di qualunque attesa.
+  const inEsecuzione = useRef(false);
+
+  useEffect(() => {
+    let attivo = true;
+
+    const controlla = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      const utente = data?.user;
+
+      if (!attivo) return;
+
+      if (error || !utente) {
+        setAccesso("negato");
+        return;
+      }
+
+      let ammesso = isPlatformAdminRole(resolveUserRoleFromMetadata(utente));
+
+      if (!ammesso) {
+        const profilo = await supabase.from("profiles").select("role").eq("id", utente.id).maybeSingle<{ role: string | null }>();
+        if (!profilo.error) ammesso = isPlatformAdminRole(profilo.data?.role);
+      }
+
+      if (!attivo) return;
+      setAccesso(ammesso ? "consentito" : "negato");
+    };
+
+    void controlla();
+
+    return () => {
+      attivo = false;
+    };
+  }, []);
 
   const aggiorna = (campo: keyof Modulo, valore: string) => {
     setModulo((precedente) => ({ ...precedente, [campo]: valore }));
@@ -78,6 +126,17 @@ export default function AttivazioneDirettaPage() {
   };
 
   const attiva = async () => {
+    if (inEsecuzione.current) return;
+    inEsecuzione.current = true;
+    setPasso("creo");
+    try {
+      await eseguiAttivazione();
+    } finally {
+      inEsecuzione.current = false;
+    }
+  };
+
+  const eseguiAttivazione = async () => {
     setErrore(null);
     setAvviso(null);
     setEsito(null);
@@ -93,7 +152,6 @@ export default function AttivazioneDirettaPage() {
     const intestazioni = { "content-type": "application/json", authorization: `Bearer ${token}` };
 
     // --- 1. la richiesta, segnata come diretta ---
-    setPasso("creo");
     const creazione = await fetch("/api/admin/dealers/attivazione-diretta", {
       method: "POST",
       headers: intestazioni,
@@ -123,6 +181,7 @@ export default function AttivazioneDirettaPage() {
 
     if (!attivazione?.ok) {
       setPasso("fermo");
+      setConferma(false);
       setErrore(
         `${attivata?.error ?? "L'attivazione non e riuscita."} La scheda e stata preparata: la trovi fra le Richieste demo e puoi riprovare da li'.`
       );
@@ -144,6 +203,7 @@ export default function AttivazioneDirettaPage() {
       // evita che il titolare creda di dover ricominciare da capo -- e che
       // ricreandola si ritrovi due concessionarie con la stessa email.
       setPasso("fermo");
+      setConferma(false);
       setAvviso(
         `La concessionaria e stata creata e ha gia ricevuto l'email di accesso, ma e rimasta in prova: ${
           convertita?.error ?? "il passaggio al piano non e riuscito"
@@ -159,6 +219,26 @@ export default function AttivazioneDirettaPage() {
   };
 
   const inCorso = passo === "creo" || passo === "attivo" || passo === "converto";
+
+  if (accesso === "controllo") {
+    return (
+      <AdminShell title="Attivazione diretta">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
+          Controllo dell&apos;accesso in corso...
+        </div>
+      </AdminShell>
+    );
+  }
+
+  if (accesso === "negato") {
+    return (
+      <AdminShell title="Accesso negato">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
+          Questa sezione e riservata agli account amministrativi.
+        </div>
+      </AdminShell>
+    );
+  }
 
   return (
     <AdminShell

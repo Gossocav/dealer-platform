@@ -32,6 +32,7 @@ import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
 import { normalizzaModello, ripulisciTitoloVeicolo } from "@/lib/vehicle-label";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { WhatsAppContactButton } from "@/components/marketplace/whatsapp-contact-button";
+import { VideoAnnuncioRiquadro } from "@/components/marketplace/video-annuncio-riquadro";
 import { buildBreadcrumbJsonLd, buildVehicleJsonLd } from "@/lib/structured-data";
 import RequestInformationForm from "./request-information-form";
 import VehicleGallery from "./vehicle-gallery";
@@ -393,21 +394,14 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
 
               {/* Come per la descrizione: senza video il riquadro non si
                   disegna, invece di lasciare un rettangolo vuoto sotto
-                  un'intestazione. Il riproduttore si carica pigramente e
-                  senza cookie: chi non preme play non viene profilato. */}
+                  un'intestazione. Il riproduttore non si carica da solo: fino
+                  al clic c'e' un rettangolo disegnato da noi, e a Google non
+                  arriva nessuna richiesta. */}
               {video ? (
                 <div className="mt-5 min-w-0 overflow-hidden rounded-2xl bg-white/[0.03] px-5 py-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Video</p>
                   <div className="mt-3 aspect-video w-full overflow-hidden rounded-xl bg-black">
-                    <iframe
-                      src={video}
-                      title={`Video di ${resolveVehicleLabel(vehicle)}`}
-                      loading="lazy"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      referrerPolicy="strict-origin-when-cross-origin"
-                      allowFullScreen
-                      className="h-full w-full border-0"
-                    />
+                    <VideoAnnuncioRiquadro indirizzo={video} titolo={`Video di ${resolveVehicleLabel(vehicle)}`} />
                   </div>
                 </div>
               ) : null}

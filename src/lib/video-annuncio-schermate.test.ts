@@ -73,6 +73,39 @@ describe("solo un video YouTube, e detto mentre si incolla", () => {
   });
 });
 
+/**
+ * Il difetto trovato in revisione il 02/09/2026: il riquadro era un `iframe`
+ * disegnato insieme alla pagina, quindi la richiesta a Google partiva
+ * all'apertura dell'annuncio, prima di qualunque scelta sui cookie. Il
+ * dominio senza cookie non profila chi non preme play, ma l'indirizzo IP del
+ * visitatore e la pagina che sta guardando arrivavano lo stesso -- e la nostra
+ * informativa non nomina YouTube.
+ */
+describe("a YouTube non si parla finche' il visitatore non apre il video", () => {
+  const riquadro = leggi("src/components/marketplace/video-annuncio-riquadro.tsx");
+
+  it("la pagina non contiene nessun iframe: c'e' solo il riquadro nostro", () => {
+    expect(paginaPubblica).toContain("VideoAnnuncioRiquadro");
+    expect(paginaPubblica).not.toContain("<iframe");
+  });
+
+  it("l'iframe nasce solo dopo il clic", () => {
+    expect(riquadro).toContain("const [aperto, setAperto] = useState(false)");
+    expect(riquadro).toContain("onClick={() => setAperto(true)}");
+    // Se `aperto` e' falso si torna un pulsante, non un riproduttore: l'iframe
+    // sta dentro il ramo che si raggiunge solo dopo.
+    expect(riquadro.indexOf("if (aperto)")).toBeLessThan(riquadro.indexOf("<iframe"));
+  });
+
+  // L'anteprima del video sta sui server di Google: chiederla rifarebbe
+  // esattamente la richiesta che stiamo evitando. Il rettangolo lo disegniamo
+  // noi, senza immagini prese da fuori.
+  it("e nemmeno l'anteprima si chiede a Google", () => {
+    expect(riquadro).not.toContain("img.youtube.com");
+    expect(riquadro).not.toContain("ytimg.com");
+  });
+});
+
 describe("la sicurezza del sito si apre a quel dominio e a nessun altro", () => {
   it("la policy nomina il dominio senza cookie", () => {
     expect(proxy).toContain('const VIDEO_FRAME_SRC = "https://www.youtube-nocookie.com"');

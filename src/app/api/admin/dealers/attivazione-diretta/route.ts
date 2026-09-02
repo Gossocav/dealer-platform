@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { normalizeDemoPlanCode } from "@/lib/demo-plan-catalog";
+import { nomeDellaColonnaMancante } from "@/lib/tabella-mancante";
 
 /**
  * Attivare una concessionaria direttamente su un piano a pagamento, senza
@@ -96,6 +97,10 @@ async function contestoAmministratore(request: Request) {
  * esistere altrove. Invece di far fallire l'attivazione per una colonna
  * accessoria, si toglie quella e si riprova -- e' lo stesso accorgimento del
  * modulo pubblico di richiesta prova.
+ *
+ * Il nome della colonna lo riconosce `nomeDellaColonnaMancante`, che sa
+ * leggere entrambi i messaggi: qui era scritto a mano e ne riconosceva uno
+ * solo, quello che il database vero non manda quasi mai.
  */
 async function inserisciRichiesta(admin: SupabaseClient, payload: Record<string, unknown>) {
   const corrente = { ...payload };
@@ -105,8 +110,7 @@ async function inserisciRichiesta(admin: SupabaseClient, payload: Record<string,
 
     if (!esito.error) return { id: esito.data?.id ?? null, error: null };
 
-    const colonnaMancante = /column "([a-z_]+)" of relation "demo_requests" does not exist/i.exec(esito.error.message ?? "");
-    const nome = colonnaMancante?.[1];
+    const nome = nomeDellaColonnaMancante(esito.error.message);
 
     if (!nome || !(nome in corrente)) return { id: null, error: esito.error };
 

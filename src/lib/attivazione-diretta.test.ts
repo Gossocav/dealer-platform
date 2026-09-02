@@ -90,8 +90,20 @@ describe("i dati si controllano prima di scrivere", () => {
  */
 describe("una colonna mancante non fa cadere l'attivazione", () => {
   it("si toglie la colonna e si riprova", () => {
-    expect(endpoint).toContain('does not exist');
+    expect(endpoint).toContain("nomeDellaColonnaMancante(esito.error.message)");
     expect(endpoint).toContain("delete corrente[nome]");
+  });
+
+  /**
+   * Il difetto trovato in revisione il 02/09/2026: il nome della colonna si
+   * cercava qui, a mano, in un messaggio che il database vero non manda quasi
+   * mai -- PostgREST ne usa un altro. Il ripiego non e' mai entrato in
+   * funzione. Le due forme le riconosce ora un solo posto, provato per
+   * davvero in `tabella-mancante.test.ts`.
+   */
+  it("i due messaggi possibili li riconosce l'aggancio comune, non una regola scritta qui", () => {
+    expect(endpoint).toContain('from "@/lib/tabella-mancante"');
+    expect(endpoint, "il messaggio di Postgres e' di nuovo cercato a mano qui").not.toContain("does not exist");
   });
 });
 
@@ -157,5 +169,74 @@ describe("prima di creare un account si chiede conferma", () => {
   it("modificare un campo annulla la conferma in sospeso", () => {
     const aggiorna = pagina.slice(pagina.indexOf("const aggiorna ="), pagina.indexOf("const attiva ="));
     expect(aggiorna).toContain("setConferma(false)");
+  });
+});
+
+/**
+ * Il difetto trovato in revisione il 02/09/2026: era l'unica pagina sotto
+ * `/admin` senza controllo del ruolo, e non esiste un layout che lo faccia al
+ * posto suo. I dati non uscivano -- l'endpoint risponde 403 comunque -- ma un
+ * concessionario che digitava l'indirizzo si trovava davanti il modulo e il
+ * listino dei piani.
+ */
+describe("la pagina si apre solo a un amministratore", () => {
+  it("controlla il ruolo come tutte le altre schermate del pannello", () => {
+    expect(pagina).toContain("isPlatformAdminRole");
+    expect(pagina).toContain("resolveUserRoleFromMetadata");
+  });
+
+  it("e a chi non lo e' non mostra il modulo, ma il rifiuto", () => {
+    expect(pagina).toContain('Questa sezione e riservata agli account amministrativi.');
+    expect(pagina.indexOf('accesso === "negato"')).toBeLessThan(pagina.indexOf("Nome della concessionaria"));
+  });
+
+  // Ogni pagina di /admin fa il suo controllo: se un giorno nascesse un
+  // layout comune, questo test non varrebbe piu' e andrebbe riscritto li'.
+  it("nessuna pagina del pannello e' rimasta senza", () => {
+    const pagine = [
+      "src/app/admin/attivazione-diretta/page.tsx",
+      "src/app/admin/dealer-approval/page.tsx",
+      "src/app/admin/dealers/page.tsx",
+      "src/app/admin/demo-requests/page.tsx",
+      "src/app/admin/info-requests/page.tsx",
+      "src/app/admin/users/page.tsx",
+      "src/app/admin/page.tsx",
+    ];
+
+    for (const percorso of pagine) {
+      expect(leggi(percorso), `${percorso} non controlla il ruolo`).toContain("isPlatformAdminRole");
+    }
+  });
+});
+
+/**
+ * Il difetto trovato in revisione il 02/09/2026: il pulsante si disabilita
+ * solo al disegno successivo, e fra il clic e la lettura della sessione resta
+ * premibile. Due clic rapidi facevano partire due catene complete: due
+ * concessionarie con la stessa email, e due email di accesso gia' spedite --
+ * cioe' proprio l'esito che il riquadro di conferma dice di voler evitare.
+ */
+describe("un doppio clic non crea due concessionarie", () => {
+  it("la serratura chiude nello stesso istante del clic, prima di ogni attesa", () => {
+    expect(pagina).toContain("const inEsecuzione = useRef(false)");
+
+    const avvio = pagina.slice(pagina.indexOf("const attiva = async"), pagina.indexOf("const eseguiAttivazione"));
+    expect(avvio).toContain("if (inEsecuzione.current) return;");
+    expect(avvio).toContain("inEsecuzione.current = true;");
+    // Nessun `await` prima della serratura: e' li' che si infilava il secondo clic.
+    expect(avvio.slice(0, avvio.indexOf("inEsecuzione.current = true;"))).not.toContain("await");
+    expect(avvio).toContain("inEsecuzione.current = false;");
+  });
+
+  /**
+   * Se l'attivazione si ferma dopo aver creato la richiesta, ripremere
+   * Conferma ne creerebbe una seconda. Il riquadro si chiude e il messaggio
+   * dice dove riprendere.
+   */
+  it("dopo un passo fallito il riquadro di conferma si chiude", () => {
+    const corpo = pagina.slice(pagina.indexOf("const eseguiAttivazione"), pagina.indexOf("const inCorso ="));
+    for (const pezzo of corpo.split("setPasso(\"fermo\")").slice(1)) {
+      expect(pezzo.slice(0, 120), "un fallimento lascia la conferma aperta").toContain("setConferma(false)");
+    }
   });
 });

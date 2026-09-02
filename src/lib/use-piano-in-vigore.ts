@@ -22,7 +22,18 @@ import { supabase } from "@/lib/supabaseClient";
  * ogni apertura di pagina, e con cinquanta concessionarie sarebbero state
  * rumore inutile sul server. Ora la prima chiamata mette da parte la promessa
  * e le altre si attaccano a quella.
+ *
+ * **La risposta messa da parte scade dopo un minuto.** Un piano cambia mentre
+ * la sessione e' aperta -- l'amministratore converte una concessionaria da
+ * Base a Elite, oppure una prova arriva a scadenza -- e il token non cambia
+ * per questo: tenendola per sempre, chi era gia' dentro continuava a vedere le
+ * funzioni vecchie fino a uscire e rientrare. Un minuto lascia intatto il
+ * motivo per cui la cache esiste (le schermate che si aprono insieme chiedono
+ * a millisecondi di distanza) e chiude la finestra in cui il pannello mente.
  */
+
+/** Quanto vale una risposta gia' avuta, in millisecondi. */
+const DURATA_RISPOSTA_MS = 60_000;
 
 /**
  * La risposta in corso o gia' arrivata, tenuta per token di sessione.
@@ -32,7 +43,7 @@ import { supabase } from "@/lib/supabaseClient";
  * viene riusata. Un piano preso in prestito da un'altra sessione aprirebbe
  * funzioni che non spettano, ed e' l'errore piu' caro fra quelli possibili qui.
  */
-let promessaInCorso: { token: string; risposta: Promise<string | null> } | null = null;
+let promessaInCorso: { token: string; risposta: Promise<string | null>; chiestaAlle: number } | null = null;
 
 /**
  * Chiede il piano al server. **Solleva** se la richiesta non riesce, invece di
@@ -55,7 +66,11 @@ async function chiediIlPiano(token: string): Promise<string | null> {
 }
 
 function piano(token: string): Promise<string | null> {
-  if (promessaInCorso?.token === token) return promessaInCorso.risposta;
+  const messaDaParte = promessaInCorso;
+
+  if (messaDaParte?.token === token && Date.now() - messaDaParte.chiestaAlle < DURATA_RISPOSTA_MS) {
+    return messaDaParte.risposta;
+  }
 
   const risposta = chiediIlPiano(token).catch(() => {
     // Una richiesta fallita non resta in cache: al prossimo montaggio si
@@ -65,14 +80,14 @@ function piano(token: string): Promise<string | null> {
     return null;
   });
 
-  promessaInCorso = { token, risposta };
+  promessaInCorso = { token, risposta, chiestaAlle: Date.now() };
   return risposta;
 }
 
 /**
  * Da chiamare quando la sessione cambia o si esce: butta la risposta messa da
- * parte. Non serve alle schermate -- il token nella chiave basta -- ma esiste
- * perche' i test possano ripartire puliti.
+ * parte. Non serve alle schermate -- il token nella chiave e il minuto di
+ * scadenza bastano -- ma esiste perche' i test possano ripartire puliti.
  */
 export function dimenticaIlPianoInVigore() {
   promessaInCorso = null;
