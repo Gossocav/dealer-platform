@@ -46,7 +46,7 @@ describe("l'elenco veicoli ricorda dove si era", () => {
   });
 
   it("scrive nell'indirizzo filtri, pagina, ordine e vista", () => {
-    for (const chiave of ["cerca", "marca", "modello", "alimentazione", "cambio", "stato", "prezzo", "pagina", "vista", "ordine"]) {
+    for (const chiave of ["cerca", "marca", "modello", "alimentazione", "cambio", "condizione", "stato", "prezzo", "pagina", "vista", "ordine"]) {
       expect(elenco, `manca "${chiave}"`).toContain(`"${chiave}"`);
     }
   });

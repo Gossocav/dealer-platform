@@ -5,6 +5,7 @@ import {
   type VehicleLifecycleState,
   type VehiclePermission,
 } from "@/lib/vehicle-state-machine";
+import { VEHICLE_CONDITION_LABELS, VEHICLE_CONDITION_VALUES } from "@/lib/vehicle-conditions";
 
 export type VehicleStatus = VehicleLifecycleState | string;
 
@@ -99,6 +100,8 @@ export type VehicleFilters = {
   model: string;
   fuel: string;
   transmission: string;
+  /** Nuova, usata, chilometri zero, aziendale. */
+  condition: string;
   status: string;
   priceBand: string;
 };
@@ -184,6 +187,7 @@ export const defaultVehicleFilters: VehicleFilters = {
   model: "all",
   fuel: "all",
   transmission: "all",
+  condition: "all",
   status: "all",
   priceBand: "all",
 };
@@ -200,6 +204,16 @@ export function countActiveVehicleFilters(filters: VehicleFilters): number {
     return valore !== defaultVehicleFilters[campo];
   }).length;
 }
+
+/**
+ * Le voci della tendina "Condizione", ricavate dall'elenco unico e non
+ * riscritte: un valore scritto a mano qui e diverso da quello nel database
+ * darebbe un filtro che non trova mai niente, e sembrerebbe un parco vuoto.
+ */
+export const conditionOptions = [
+  { value: "all", label: "Tutte le condizioni" },
+  ...VEHICLE_CONDITION_VALUES.map((valore) => ({ value: valore, label: VEHICLE_CONDITION_LABELS[valore] })),
+] as const;
 
 export const statusOptions = [
   { value: "all", label: "Tutti gli stati" },

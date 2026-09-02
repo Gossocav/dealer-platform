@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { VEHICLE_BODY_TYPES, type VehicleBodyType } from "@/lib/vehicle-body-types";
+import { VEHICLE_CONDITION_VALUES as CONDIZIONI } from "@/lib/vehicle-conditions";
 import {
   normalizeVehicleTraction,
   VEHICLE_FUEL_OPTIONS,
@@ -554,11 +555,15 @@ function canonicalizeFromAliases(value: string, table: Record<string, string>, a
   return table[key] ?? null;
 }
 
-export const VEHICLE_CONDITION_VALUES = ["Nuovo", "Usato", "Aziendale", "Km/0"] as const;
+// L'elenco vive in `vehicle-conditions.ts`: serve anche ai filtri del
+// gestionale, e questo file non e' importabile da `vehicles.ts` senza creare
+// una dipendenza circolare. Si riespone con il nome di sempre perche' mezzo
+// progetto lo chiama cosi'.
+export { VEHICLE_CONDITION_VALUES } from "@/lib/vehicle-conditions";
 export const VEHICLE_CATEGORY_VALUES = ["Auto", "Veicolo commerciale"] as const;
 
 export function canonicalizeVehicleCondition(value: string) {
-  return canonicalizeFromAliases(value, CONDITION_BY_ALIAS, VEHICLE_CONDITION_VALUES);
+  return canonicalizeFromAliases(value, CONDITION_BY_ALIAS, CONDIZIONI);
 }
 
 export function canonicalizeVehicleCategory(value: string) {
@@ -667,7 +672,7 @@ export type VehicleImportDefaultField = (typeof VEHICLE_IMPORT_DEFAULT_FIELDS)[n
 export type VehicleImportDefaults = Partial<Record<VehicleImportDefaultField, string>>;
 
 const DEFAULT_FIELD_OPTIONS: Record<VehicleImportDefaultField, readonly string[]> = {
-  vehicleCondition: VEHICLE_CONDITION_VALUES,
+  vehicleCondition: CONDIZIONI,
   vehicleCategory: VEHICLE_CATEGORY_VALUES,
   bodyType: VEHICLE_BODY_TYPES,
   fuel: VEHICLE_FUEL_OPTIONS,

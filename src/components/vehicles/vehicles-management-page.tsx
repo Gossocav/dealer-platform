@@ -28,6 +28,7 @@ import {
   vehicleSortToValue,
   normalizeVehicleStatus,
   priceBandOptions,
+  conditionOptions,
   safeText,
   statusOptions,
   type VehicleFilters,
@@ -76,6 +77,7 @@ function statoDaIndirizzo(params: URLSearchParams) {
     model: testo("modello", defaultVehicleFilters.model),
     fuel: testo("alimentazione", defaultVehicleFilters.fuel),
     transmission: testo("cambio", defaultVehicleFilters.transmission),
+    condition: testo("condizione", defaultVehicleFilters.condition),
     status: testo("stato", defaultVehicleFilters.status),
     priceBand: testo("prezzo", defaultVehicleFilters.priceBand),
   };
@@ -100,6 +102,7 @@ function indirizzoDaStato(filters: VehicleFilters, page: number, viewMode: ViewM
   aggiungi("modello", filters.model, defaultVehicleFilters.model);
   aggiungi("alimentazione", filters.fuel, defaultVehicleFilters.fuel);
   aggiungi("cambio", filters.transmission, defaultVehicleFilters.transmission);
+  aggiungi("condizione", filters.condition, defaultVehicleFilters.condition);
   aggiungi("stato", filters.status, defaultVehicleFilters.status);
   aggiungi("prezzo", filters.priceBand, defaultVehicleFilters.priceBand);
 
@@ -384,6 +387,11 @@ export function VehiclesManagementPage() {
       if (filters.model !== "all") query = query.eq("model", filters.model);
       if (filters.fuel !== "all") query = query.eq("fuel", filters.fuel);
       if (filters.transmission !== "all") query = query.eq("transmission", filters.transmission);
+      // Confronto esatto: nel database la condizione e' sempre una delle
+      // quattro scritte in `vehicle-conditions.ts`, perche' tutte e tre le
+      // strade che scrivono una vettura -- modulo, importazione da file e
+      // sincronizzazione dal sito -- passano di li'.
+      if (filters.condition !== "all") query = query.eq("vehicle_condition", filters.condition);
 
       if (filters.status === "published") {
         query = query.or("status.eq.published,published.eq.true");
@@ -1047,6 +1055,7 @@ export function VehiclesManagementPage() {
         filters={filters}
         onFiltersChange={updateFilters}
         options={{ ...options, models: filteredModelOptions, fuelTypes: filteredFuelOptions }}
+        conditionOptions={conditionOptions}
         statusOptions={statusOptions}
         priceBandOptions={priceBandOptions}
         viewMode={viewMode}
