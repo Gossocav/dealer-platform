@@ -7,6 +7,7 @@ import { DealerTopbar } from "@/components/layout/dealer-topbar";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { resolveDemoAccessContext } from "@/lib/demo-access";
+import { GIORNI_DI_PREAVVISO_PASSWORD, giorniAllaScadenzaPassword } from "@/lib/password-rules";
 import { supabase } from "@/lib/supabaseClient";
 
 type DealerDashboardShellProps = {
@@ -44,6 +45,15 @@ function toInitials(name: string) {
     .join("");
 }
 
+/**
+ * Quanto manca alla scadenza della password di chi sta guardando.
+ *
+ * `null` finche' non si sa: prima che la risposta arrivi non si blocca
+ * niente, altrimenti il gestionale sbatterebbe in faccia un avviso a ogni
+ * apertura di pagina per il decimo di secondo in cui la risposta e' in volo.
+ */
+type ShellPassword = { giorniRimasti: number } | null;
+
 type ShellDemoBanner = {
   isDemo: boolean;
   demoStatus: string | null;
@@ -75,6 +85,7 @@ export function DealerDashboardShell({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [demoBanner, setDemoBanner] = useState<ShellDemoBanner | null>(null);
   const [resolvedDealerName, setResolvedDealerName] = useState<string | null>(null);
+  const [password, setPassword] = useState<ShellPassword>(null);
 
   useEffect(() => {
     let active = true;
@@ -89,6 +100,36 @@ export function DealerDashboardShell({
         if (error || !user?.id) {
           if (active) setDemoBanner(null);
           return;
+        }
+
+        // La password scade dopo tre mesi, e la data dell'ultimo cambio la
+        // tiene il server dentro l'account: qui si legge soltanto. Un account
+        // nato prima di questa regola non ce l'ha, e allora la si fa scrivere
+        // adesso -- i tre mesi partono dal primo ingresso, invece di buttare
+        // fuori tutti quanti il giorno in cui la regola entra in vigore.
+        try {
+          const metadati = (user.app_metadata ?? {}) as Record<string, unknown>;
+          let cambiataIl = typeof metadati.password_changed_at === "string" ? metadati.password_changed_at : null;
+
+          if (!cambiataIl) {
+            const { data: sessione } = await supabase.auth.getSession();
+            const token = sessione.session?.access_token;
+
+            if (token) {
+              const risposta = await fetch("/api/account/password-aggiornata", {
+                method: "POST",
+                headers: { authorization: `Bearer ${token}` },
+              });
+              const esito = (await risposta.json().catch(() => ({}))) as { passwordChangedAt?: string };
+              cambiataIl = esito.passwordChangedAt ?? null;
+            }
+          }
+
+          const giorni = giorniAllaScadenzaPassword(cambiataIl);
+          if (active && giorni !== null) setPassword({ giorniRimasti: giorni });
+        } catch {
+          // Non sapere quando scade non deve chiudere il gestionale: si
+          // riprova alla prossima apertura di pagina.
         }
 
         const dealerId = await resolveDealerIdFromTenantSources(supabase, user.id, {
@@ -143,6 +184,10 @@ export function DealerDashboardShell({
   // il nome nuovo prima che il guscio possa rileggerlo dal database.
   const nomeMostrato = dealerName?.trim() || resolvedDealerName || "Concessionaria";
 
+  const passwordScaduta = password !== null && password.giorniRimasti <= 0;
+  const passwordInScadenza =
+    password !== null && password.giorniRimasti > 0 && password.giorniRimasti <= GIORNI_DI_PREAVVISO_PASSWORD;
+
   return (
     <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] pb-8">
       <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} />
@@ -183,7 +228,45 @@ export function DealerDashboardShell({
             </section>
           ) : null}
 
-          {children}
+          {/* Password scaduta: si tiene il guscio -- barra, menu, nome della
+              concessionaria -- e si sostituisce solo il contenuto. Una pagina
+              bianca con un errore sembra un guasto; cosi' invece si vede dove
+              si e' e cosa manca per rientrare. */}
+          {passwordScaduta ? (
+            <section className="rounded-3xl border border-amber-200 bg-white px-6 py-8 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Password scaduta</p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">E&apos; ora di cambiare la password</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                Per sicurezza la password si rinnova ogni tre mesi. Sceglila di nuovo e torni subito dentro: i tuoi
+                dati, i veicoli e i clienti restano dove sono.
+              </p>
+              <Link
+                href="/reset-password"
+                className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Cambia la password
+              </Link>
+            </section>
+          ) : (
+            <>
+              {passwordInScadenza ? (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <p className="font-semibold">
+                    La password scade fra {password?.giorniRimasti} {password?.giorniRimasti === 1 ? "giorno" : "giorni"}.
+                  </p>
+                  <p className="mt-1">
+                    Puoi cambiarla adesso da{" "}
+                    <Link href="/reset-password" className="font-semibold underline">
+                      questa pagina
+                    </Link>
+                    , senza aspettare che scada.
+                  </p>
+                </section>
+              ) : null}
+
+              {children}
+            </>
+          )}
         </main>
 
         <footer className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
