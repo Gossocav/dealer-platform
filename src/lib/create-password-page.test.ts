@@ -31,11 +31,17 @@ describe("create-password page", () => {
 
   it("shows the password rules while typing", () => {
     // Scoprirli da un errore dopo l'invio e' il modo piu' rapido per far
-    // rinunciare qualcuno al primo accesso.
-    expect(resetPage).toMatch(/Almeno 8 caratteri/);
-    expect(resetPage).toMatch(/Una lettera maiuscola/);
-    expect(resetPage).toMatch(/Una lettera minuscola/);
-    expect(resetPage).toMatch(/Un numero/);
+    // rinunciare qualcuno al primo accesso. Le regole non sono piu' scritte
+    // dentro la pagina: le legge dall'elenco condiviso, lo stesso che il
+    // guscio del gestionale usa per la scadenza.
+    expect(resetPage).toContain("REGOLE_PASSWORD");
+    expect(resetPage).toContain("rule.verifica(password)");
+    expect(resetPage).toContain("{rule.etichetta}");
+
+    const regole = read("src/lib/password-rules.ts");
+    for (const etichetta of ["Almeno 8 caratteri", "Una lettera maiuscola", "Una lettera minuscola", "Un numero"]) {
+      expect(regole, `manca la regola "${etichetta}"`).toContain(etichetta);
+    }
   });
 
   it("explains an expired link instead of failing on submit", () => {

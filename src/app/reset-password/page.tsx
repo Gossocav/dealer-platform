@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { REGOLE_PASSWORD } from "@/lib/password-rules";
 import { supabase } from "@/lib/supabaseClient";
 
 /**
@@ -12,12 +13,10 @@ import { supabase } from "@/lib/supabaseClient";
 
 type LinkState = "checking" | "valid" | "missing";
 
-const RULES = [
-  { key: "length", label: "Almeno 8 caratteri", test: (value: string) => value.length >= 8 },
-  { key: "upper", label: "Una lettera maiuscola", test: (value: string) => /[A-Z]/.test(value) },
-  { key: "lower", label: "Una lettera minuscola", test: (value: string) => /[a-z]/.test(value) },
-  { key: "number", label: "Un numero", test: (value: string) => /\d/.test(value) },
-] as const;
+// Le regole non si riscrivono qui: le stesse le legge il guscio del
+// gestionale per sapere quando la password e' scaduta, e due elenchi diversi
+// vorrebbero dire una password buona da una parte e no dall'altra.
+const RULES = REGOLE_PASSWORD;
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -52,7 +51,7 @@ export default function ResetPasswordPage() {
     };
   }, []);
 
-  const checks = useMemo(() => RULES.map((rule) => ({ ...rule, ok: rule.test(password) })), [password]);
+  const checks = useMemo(() => RULES.map((rule) => ({ ...rule, ok: rule.verifica(password) })), [password]);
   const allRulesOk = checks.every((rule) => rule.ok);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -82,6 +81,24 @@ export default function ResetPasswordPage() {
       setMessage(error.message || "Impossibile salvare la password.");
       setMessageType("error");
       return;
+    }
+
+    // La data del cambio serve alla scadenza dei tre mesi, e la scrive il
+    // server: qui si chiede soltanto di timbrarla. Se non riesce non si dice
+    // niente a chi sta entrando -- la password **e' stata cambiata**, e
+    // fermarlo adesso vorrebbe dire raccontargli un guasto che non c'e'.
+    try {
+      const { data: sessione } = await supabase.auth.getSession();
+      const token = sessione.session?.access_token;
+
+      if (token) {
+        await fetch("/api/account/password-aggiornata", {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // registrata al prossimo ingresso, dal guscio del gestionale
     }
 
     setDone(true);
@@ -219,7 +236,7 @@ export default function ResetPasswordPage() {
                 <ul className="grid gap-2 rounded-3xl bg-slate-50 px-4 py-3 sm:grid-cols-2">
                   {checks.map((rule) => (
                     <li
-                      key={rule.key}
+                      key={rule.chiave}
                       className={`flex items-center gap-2 text-sm ${rule.ok ? "text-emerald-700" : "text-slate-500"}`}
                     >
                       <span
@@ -230,7 +247,7 @@ export default function ResetPasswordPage() {
                       >
                         {rule.ok ? "✓" : ""}
                       </span>
-                      {rule.label}
+                      {rule.etichetta}
                     </li>
                   ))}
                 </ul>
