@@ -22,6 +22,7 @@ export const PRIVATE_AREA_PREFIXES = [
   "/vendite",
   "/giacenza",
   "/perizie",
+  "/documenti",
   "/impostazioni",
   "/agenda",
   "/appuntamenti",

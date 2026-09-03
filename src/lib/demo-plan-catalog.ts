@@ -100,6 +100,11 @@ const BASE_SERVICES: DemoPlanService[] = [
       "Carica il parco auto da un file Excel o CSV, oppure lascialo leggere dal sito della concessionaria: le vetture entrano gia' compilate.",
   },
   {
+    title: "Archivio documenti delle vetture",
+    description:
+      "Libretto, contratti, preventivi e fatture archiviati sulla scheda di ogni vettura, con la ricerca per targa, tipo e periodo. Restano anche dopo che l'auto e' stata venduta.",
+  },
+  {
     title: "Dashboard concessionario",
     description:
       "Vedi da un unico pannello le attivita principali della concessionaria: quante vetture hai, quante richieste sono arrivate, cosa c'e' in agenda.",

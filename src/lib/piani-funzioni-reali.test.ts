@@ -49,6 +49,15 @@ const PROVE: Record<string, Prova> = {
     tipo: "software",
     file: ["src/app/veicoli/importa/page.tsx", "src/lib/dealer-site-import.ts"],
   },
+  "Archivio documenti delle vetture": {
+    tipo: "software",
+    file: [
+      "supabase/migrations/20260903100000_archivio_documenti_veicolo.sql",
+      "src/lib/archivio-documenti.ts",
+      "src/app/documenti/page.tsx",
+      "src/components/documenti/archivio-documenti-page.tsx",
+    ],
+  },
   "Dashboard concessionario": {
     tipo: "software",
     file: ["src/app/dashboard/page.tsx"],

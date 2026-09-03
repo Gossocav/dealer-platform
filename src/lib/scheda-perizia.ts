@@ -385,12 +385,7 @@ export function ricercaInCorso(filtri: FiltriPerizia) {
 }
 
 /**
- * Quello che si scrive dentro un `ilike` di Postgres.
- *
- * I caratteri jolly di chi cerca vanno spenti: un modello che contiene "%"
- * cercherebbe qualunque cosa, e "_" qualunque carattere singolo -- due
- * risultati che nessuno si aspetta scrivendo il nome di un'auto.
+ * Riesportata perche' la ricerca delle perizie la usa: la funzione vive in
+ * `src/lib/ricerca-testo.ts`, dove la trova anche l'archivio documenti.
  */
-export function perRicercaParziale(testo: string) {
-  return `%${testo.replace(/[\\%_]/g, (carattere) => `\\${carattere}`)}%`;
-}
+export { perRicercaParziale } from "@/lib/ricerca-testo";

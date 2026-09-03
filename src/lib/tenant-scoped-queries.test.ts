@@ -30,6 +30,7 @@ const CARTELLE = [
   "src/app/vendite",
   "src/app/giacenza",
   "src/app/perizie",
+  "src/app/documenti",
   "src/app/email",
   "src/app/impostazioni",
   "src/app/account",
@@ -38,6 +39,7 @@ const CARTELLE = [
   // regola di tutto il resto del gestionale.
   "src/components/dashboard",
   "src/components/perizie",
+  "src/components/documenti",
 ];
 
 function tuttiIFile(cartella: string): string[] {
