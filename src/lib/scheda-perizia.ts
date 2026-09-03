@@ -322,3 +322,75 @@ export function titoloPerizia(perizia: { brand?: string | null; model?: string |
   if (targa) return targa;
   return "Perizia senza vettura";
 }
+
+/**
+ * I filtri della ricerca, ripuliti prima di diventare un'interrogazione.
+ *
+ * Chiesta dal titolare il 03/09/2026: cerca per periodo, nome di chi vende,
+ * marca e modello. Vive qui e non dentro la schermata perche' la ripulitura
+ * ha due regole che vale la pena provare senza aprire una pagina.
+ */
+export type FiltriPerizia = {
+  dal?: string;
+  al?: string;
+  cliente?: string;
+  marca?: string;
+  modello?: string;
+};
+
+function testoPulito(valore: string | null | undefined) {
+  const pulito = String(valore ?? "").trim();
+  return pulito.length > 0 ? pulito : undefined;
+}
+
+/**
+ * Ripulisce quello che e' stato scritto nei campi di ricerca.
+ *
+ * Due regole, tutte e due nate da come si compila davvero un modulo:
+ *
+ * 1. **Un campo vuoto non e' un filtro.** Uno spazio battuto per sbaglio
+ *    restringerebbe la ricerca a niente, e chi cerca vedrebbe un elenco vuoto
+ *    senza capire perche'.
+ * 2. **Le date al contrario si raddrizzano.** Scrivere il "dal" piu' avanti
+ *    dell'"al" e' un errore di battitura frequente, e la risposta onesta a un
+ *    intervallo impossibile sarebbe zero risultati: qui invece si scambiano,
+ *    perche' quello che l'utente intendeva e' evidente.
+ */
+export function normalizzaFiltriPerizia(grezzi: {
+  dal?: string | null;
+  al?: string | null;
+  cliente?: string | null;
+  marca?: string | null;
+  modello?: string | null;
+}): FiltriPerizia {
+  let dal = testoPulito(grezzi.dal);
+  let al = testoPulito(grezzi.al);
+
+  if (dal && al && dal > al) {
+    [dal, al] = [al, dal];
+  }
+
+  return {
+    dal,
+    al,
+    cliente: testoPulito(grezzi.cliente),
+    marca: testoPulito(grezzi.marca),
+    modello: testoPulito(grezzi.modello),
+  };
+}
+
+/** Vero se e' stato scritto almeno un filtro: serve a distinguere "non hai ancora fatto perizie" da "nessun risultato". */
+export function ricercaInCorso(filtri: FiltriPerizia) {
+  return Object.values(filtri).some((valore) => valore !== undefined);
+}
+
+/**
+ * Quello che si scrive dentro un `ilike` di Postgres.
+ *
+ * I caratteri jolly di chi cerca vanno spenti: un modello che contiene "%"
+ * cercherebbe qualunque cosa, e "_" qualunque carattere singolo -- due
+ * risultati che nessuno si aspetta scrivendo il nome di un'auto.
+ */
+export function perRicercaParziale(testo: string) {
+  return `%${testo.replace(/[\\%_]/g, (carattere) => `\\${carattere}`)}%`;
+}

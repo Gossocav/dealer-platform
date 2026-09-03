@@ -6,6 +6,9 @@ import {
   RUOTE,
   SEZIONI_PERIZIA,
   leggiRilievo,
+  normalizzaFiltriPerizia,
+  perRicercaParziale,
+  ricercaInCorso,
   riepilogoPerizia,
   titoloPerizia,
 } from "@/lib/scheda-perizia";
@@ -245,5 +248,114 @@ describe("quello che esce dalla stampante non e' il modulo", () => {
     const chrome = guscio.slice(guscio.indexOf("<DealerSidebar"), guscio.indexOf("</main>"));
     expect(guscio).toContain('<div className="no-print">');
     expect(chrome).toContain("no-print");
+  });
+});
+
+/**
+ * La ricerca fra le perizie, chiesta dal titolare il 03/09/2026: periodo, nome
+ * di chi vende, marca e modello.
+ */
+describe("i filtri della ricerca", () => {
+  it("un campo vuoto non diventa un filtro", () => {
+    // Uno spazio battuto per sbaglio restringerebbe la ricerca a niente, e chi
+    // cerca vedrebbe un elenco vuoto senza capire perche'.
+    expect(normalizzaFiltriPerizia({ cliente: "   ", marca: "", modello: null })).toEqual({
+      dal: undefined,
+      al: undefined,
+      cliente: undefined,
+      marca: undefined,
+      modello: undefined,
+    });
+  });
+
+  it("gli spazi ai lati si tolgono", () => {
+    expect(normalizzaFiltriPerizia({ marca: "  Fiat " }).marca).toBe("Fiat");
+  });
+
+  /**
+   * Scrivere il "dal" piu' avanti dell'"al" e' un errore di battitura
+   * frequente, e la risposta onesta a un intervallo impossibile sarebbe zero
+   * risultati. Qui si raddrizza, perche' quello che l'utente intendeva e'
+   * evidente.
+   */
+  it("le date al contrario si raddrizzano invece di non trovare niente", () => {
+    const filtri = normalizzaFiltriPerizia({ dal: "2026-09-30", al: "2026-09-01" });
+    expect(filtri.dal).toBe("2026-09-01");
+    expect(filtri.al).toBe("2026-09-30");
+  });
+
+  it("una data sola resta com'e'", () => {
+    expect(normalizzaFiltriPerizia({ dal: "2026-09-01" })).toMatchObject({ dal: "2026-09-01", al: undefined });
+  });
+
+  it("sa dire se si sta cercando o no", () => {
+    expect(ricercaInCorso(normalizzaFiltriPerizia({}))).toBe(false);
+    expect(ricercaInCorso(normalizzaFiltriPerizia({ marca: "Fiat" }))).toBe(true);
+  });
+
+  /**
+   * Il difetto che questo test impedisce: chi scrive "%" nel campo modello
+   * cercherebbe qualunque cosa, e "_" qualunque carattere singolo. Sono i
+   * caratteri jolly di Postgres, e nessuno se li aspetta scrivendo il nome di
+   * un'automobile.
+   */
+  it("i caratteri jolly di chi cerca vengono spenti", () => {
+    expect(perRicercaParziale("Panda")).toBe("%Panda%");
+    expect(perRicercaParziale("100%")).toBe("%100\\%%");
+    expect(perRicercaParziale("A_3")).toBe("%A\\_3%");
+  });
+});
+
+/**
+ * La ricerca deve interrogare il database, non setacciare righe gia'
+ * scaricate: ogni perizia si porta dietro il suo rilievo, cioe' la parte piu'
+ * pesante, e scaricarle tutte per poi buttarne via il 90% e' proprio quello
+ * che una ricerca dovrebbe evitare.
+ */
+describe("la ricerca si fa nel database", () => {
+  const elenco = leggi("src/components/perizie/perizie-list-page.tsx");
+
+  it("i filtri diventano condizioni dell'interrogazione", () => {
+    expect(elenco).toContain('interrogazione.gte("appraised_on", filtri.dal)');
+    expect(elenco).toContain('interrogazione.lte("appraised_on", filtri.al)');
+    expect(elenco).toContain('interrogazione.ilike("owner_name", perRicercaParziale(filtri.cliente))');
+    expect(elenco).toContain('interrogazione.ilike("brand", perRicercaParziale(filtri.marca))');
+    expect(elenco).toContain('interrogazione.ilike("model", perRicercaParziale(filtri.modello))');
+  });
+
+  // La concessionaria si dichiara comunque, anche con i filtri addosso: e' la
+  // regola che in questo progetto non si infrange mai.
+  it("la concessionaria resta dichiarata anche quando si cerca", () => {
+    const lettura = elenco.slice(elenco.indexOf("const elenco = await caricaTutto"), elenco.indexOf("if (elenco.error)"));
+    expect(lettura).toContain('.eq("dealer_id", dealerId)');
+  });
+
+  /**
+   * Il difetto che questo test impedisce: interrogare il database a ogni
+   * tasto. Sarebbe una richiesta per lettera, e un elenco che si rimescola
+   * sotto le dita mentre si scrive.
+   */
+  it("si cerca quando si preme Cerca, non mentre si scrive", () => {
+    expect(elenco).toContain("const [modulo, setModulo] = useState<ModuloRicerca>(MODULO_VUOTO)");
+    expect(elenco).toContain("const [filtri, setFiltri] = useState<FiltriPerizia>({})");
+    expect(elenco).toContain("setFiltri(normalizzaFiltriPerizia(modulo))");
+    expect(elenco).toContain("}, [filtri]);");
+  });
+
+  /**
+   * Chi ha appena cercato non deve leggere "non hai ancora fatto perizie": ne
+   * ha fatte, e quella frase gli farebbe temere di averle perse.
+   */
+  it("l'elenco vuoto dice se e' la ricerca a non trovare niente", () => {
+    expect(elenco).toContain("Nessuna perizia con questi filtri");
+    expect(elenco).toContain("Nessuna perizia, per ora");
+    expect(elenco).toContain("ricercaInCorso(filtri)");
+  });
+
+  // Si cerca per un dato che nell'elenco non compariva: chi cerca "Rossi" deve
+  // poter vedere che la riga trovata e' davvero di Rossi.
+  it("chi vende compare anche nella colonna", () => {
+    expect(elenco).toContain('<th className="py-3 pr-4 font-semibold">Chi vende</th>');
+    expect(elenco).toContain("perizia.owner_name?.trim()");
   });
 });
