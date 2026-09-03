@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { supabase } from "@/lib/supabaseClient";
+import { RichiamoLead } from "@/components/promemoria/richiamo-lead";
 
 type Lead = {
   id: string;
@@ -223,7 +224,11 @@ export default function LeadDetailPage() {
 
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
+        {/* Quando richiamarlo sta in cima, prima dei dati: e' la sola cosa
+            che si decide guardando questa pagina, il resto si legge e basta. */}
+        <RichiamoLead leadId={lead.id} dealerId={dealerId} />
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.8fr]">
 
           <section className="space-y-6">
 
