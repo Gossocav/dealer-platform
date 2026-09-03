@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FolderOpen, FileSignature, Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { RiquadroCompratore } from "@/components/vehicles/riquadro-compratore";
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -326,6 +327,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
 
       {!loading && vehicle ? (
         <>
+          {/* Chi l'ha comprata. Compare solo a vettura venduta, e se non si sa
+              a chi lo dice invece di tacere: e' cosi' che la domanda si puo'
+              rimandare senza venire dimenticata. */}
+          <RiquadroCompratore vehicleId={vehicle.id} dealerId={currentDealerId} status={vehicle.status} />
+
           <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Scheda completa</p>
             <h2 className="mt-1 text-2xl font-semibold text-slate-900">
