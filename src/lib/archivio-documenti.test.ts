@@ -10,7 +10,9 @@ import {
   normalizzaFiltriDocumenti,
   percorsoDocumento,
   pesoLeggibile,
+  raggruppaPerVettura,
   ricercaDocumentiInCorso,
+  type DocumentoRaggruppabile,
 } from "@/lib/archivio-documenti";
 
 function leggi(percorso: string) {
@@ -216,5 +218,140 @@ describe("il database tiene i documenti anche quando la vettura non c'e' piu'", 
     expect(migration).toContain("false,");
     expect(migration).toContain("split_part(name, '/', 1) = public.current_dealer_id()::text");
     expect(migration).toContain("revoke all on public.vehicle_documents from anon");
+  });
+});
+
+/**
+ * L'archivio si sfoglia per automobile e non per documento: chiesto dal
+ * titolare il 03/09/2026 dopo aver visto la prima versione, che mostrava un
+ * elenco piatto di tutti i documenti. Ed e' come si cerca davvero -- "i
+ * documenti della Panda targata AB123CD", non "tutti i contratti che ho".
+ */
+describe("l'archivio si sfoglia per vettura", () => {
+  const doc = (p: Partial<DocumentoRaggruppabile>): DocumentoRaggruppabile => ({
+    vehicle_id: null,
+    vehicle_plate: null,
+    vehicle_label: null,
+    doc_type: "altro",
+    document_date: null,
+    created_at: "2026-09-01T10:00:00Z",
+    ...p,
+  });
+
+  it("i documenti della stessa vettura fanno una riga sola", () => {
+    const gruppi = raggruppaPerVettura([
+      doc({ vehicle_id: "v1", vehicle_plate: "AB123CD", vehicle_label: "Fiat Panda", doc_type: "libretto" }),
+      doc({ vehicle_id: "v1", vehicle_plate: "AB123CD", doc_type: "contratto_vendita" }),
+      doc({ vehicle_id: "v2", vehicle_plate: "ZZ999ZZ", doc_type: "libretto" }),
+    ]);
+
+    expect(gruppi).toHaveLength(2);
+    const panda = gruppi.find((g) => g.vehicleId === "v1");
+    expect(panda?.quanti).toBe(2);
+    expect(panda?.etichetta).toBe("Fiat Panda");
+    expect(panda?.tipi.sort()).toEqual(["contratto_vendita", "libretto"]);
+  });
+
+  /**
+   * Il difetto che questo test impedisce: quando una vettura viene cancellata
+   * i suoi documenti perdono l'identificativo. Raggruppandoli per quello,
+   * finirebbero tutti in un mucchio unico insieme a quelli di ogni altra
+   * vettura cancellata -- e la targa, che e' l'unica cosa rimasta, non
+   * servirebbe piu' a niente.
+   */
+  it("due vetture cancellate restano due righe distinte", () => {
+    const gruppi = raggruppaPerVettura([
+      doc({ vehicle_id: null, vehicle_plate: "AB123CD" }),
+      doc({ vehicle_id: null, vehicle_plate: "AB123CD" }),
+      doc({ vehicle_id: null, vehicle_plate: "ZZ999ZZ" }),
+    ]);
+
+    expect(gruppi).toHaveLength(2);
+    expect(gruppi.every((g) => g.vehicleId === null)).toBe(true);
+    expect(gruppi.map((g) => g.quanti).sort()).toEqual([1, 2]);
+  });
+
+  it("i documenti senza nessuna vettura stanno insieme, in fondo alla loro riga", () => {
+    const gruppi = raggruppaPerVettura([doc({}), doc({})]);
+    expect(gruppi).toHaveLength(1);
+    expect(gruppi[0].chiave).toBe("senza-vettura");
+    expect(gruppi[0].quanti).toBe(2);
+  });
+
+  // In cima la vettura su cui si e' archiviato per ultimo: e' quella su cui si
+  // sta lavorando adesso.
+  it("in cima c'e' la vettura toccata piu' di recente", () => {
+    const gruppi = raggruppaPerVettura([
+      doc({ vehicle_id: "vecchia", vehicle_plate: "AA111AA", created_at: "2026-01-01T10:00:00Z" }),
+      doc({ vehicle_id: "recente", vehicle_plate: "BB222BB", created_at: "2026-09-03T10:00:00Z" }),
+    ]);
+
+    expect(gruppi[0].vehicleId).toBe("recente");
+  });
+
+  // La targa si confronta senza distinzione fra maiuscole e spazi: due
+  // documenti della stessa auto non devono diventare due vetture.
+  it("la stessa targa scritta in due modi resta una vettura sola", () => {
+    const gruppi = raggruppaPerVettura([
+      doc({ vehicle_plate: "ab123cd" }),
+      doc({ vehicle_plate: " AB123CD " }),
+    ]);
+
+    expect(gruppi).toHaveLength(1);
+    expect(gruppi[0].targa).toBe("AB123CD");
+  });
+});
+
+/**
+ * Le due schermate dell'archivio, dopo la correzione del 03/09/2026: quella
+ * generale elenca le **vetture**, quella della vettura elenca i suoi
+ * **documenti** ed e' l'unica da cui si carica.
+ */
+describe("le due schermate fanno due mestieri diversi", () => {
+  const archivio = leggi("src/components/documenti/vetture-con-documenti-page.tsx");
+  const vettura = leggi("src/components/documenti/archivio-documenti-page.tsx");
+
+  it("l'archivio generale raggruppa per vettura", () => {
+    expect(archivio).toContain("raggruppaPerVettura(documenti)");
+    expect(archivio).toContain("Le vetture con documenti archiviati");
+  });
+
+  /**
+   * Il difetto che questo test impedisce: rimettere il caricamento
+   * nell'archivio generale. Un documento riguarda sempre un'automobile, e
+   * chiedere "di quale vettura?" dopo aver scelto il file sarebbe una domanda
+   * in piu' a ogni caricamento -- oltre a produrre documenti senza vettura,
+   * che nell'archivio finiscono tutti in un mucchio unico.
+   */
+  it("si carica solo dalla vettura, non dall'archivio generale", () => {
+    expect(vettura).toContain('type="file"');
+    expect(archivio).not.toContain('type="file"');
+    expect(archivio).not.toContain("supabase.storage");
+  });
+
+  // Cercare "contratto di vendita" deve mostrare le automobili che ne hanno
+  // uno, non quelle il cui nome contiene quella parola: la ricerca lavora sui
+  // documenti, il raggruppamento viene dopo.
+  it("la ricerca lavora sui documenti e il raggruppamento viene dopo", () => {
+    expect(archivio.indexOf('from("vehicle_documents")')).toBeLessThan(archivio.indexOf("raggruppaPerVettura(documenti)"));
+    expect(archivio).toContain('interrogazione.eq("doc_type", filtri.tipo)');
+  });
+
+  /**
+   * Una vettura cancellata non ha una scheda da aprire. I suoi documenti si
+   * aprono sotto la riga, invece di portare a una pagina che non esiste.
+   */
+  it("la vettura cancellata apre i documenti li' dove sta", () => {
+    expect(archivio).toContain("vettura.vehicleId ? (");
+    expect(archivio).toContain("setApertoSenzaScheda");
+    expect(archivio).toContain("vettura non piu&apos; in archivio");
+  });
+
+  // La concessionaria si dichiara in tutte e due, anche se il database la
+  // impone comunque.
+  it("tutte e due dichiarano la concessionaria", () => {
+    expect(archivio).toContain('.eq("dealer_id", dealerId)');
+    expect(vettura).toContain('.eq("dealer_id", idConcessionaria)');
+    expect(vettura).toContain('.eq("vehicle_id", vehicleId)');
   });
 });

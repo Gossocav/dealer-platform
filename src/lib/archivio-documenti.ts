@@ -171,3 +171,71 @@ export function pesoLeggibile(byte: number | null | undefined) {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
+
+export type DocumentoRaggruppabile = {
+  vehicle_id: string | null;
+  vehicle_plate: string | null;
+  vehicle_label: string | null;
+  doc_type: string | null;
+  document_date: string | null;
+  created_at: string;
+};
+
+export type VetturaConDocumenti = {
+  /** La chiave con cui si raggruppa: l'identificativo se c'e', altrimenti la targa. */
+  chiave: string;
+  vehicleId: string | null;
+  targa: string | null;
+  etichetta: string | null;
+  quanti: number;
+  /** L'ultima volta che e' stato archiviato qualcosa su questa vettura. */
+  ultimoCaricamento: string;
+  /** I tipi presenti, per far vedere a colpo d'occhio cosa c'e' e cosa manca. */
+  tipi: string[];
+};
+
+/**
+ * Raggruppa i documenti per vettura.
+ *
+ * L'archivio si sfoglia per automobile e non per documento: chiesto dal
+ * titolare il 03/09/2026, dopo aver visto la prima versione. Ed e' come si
+ * cerca davvero -- "i documenti della Panda targata AB123CD", non "tutti i
+ * contratti che ho".
+ *
+ * **La chiave e' l'identificativo del veicolo se c'e', altrimenti la targa.**
+ * Quando una vettura viene cancellata i suoi documenti restano ma perdono
+ * l'identificativo: raggrupparli per quello li butterebbe tutti in un mucchio
+ * unico insieme a quelli di ogni altra vettura cancellata. La targa li tiene
+ * distinti, ed e' l'unica cosa che resta.
+ */
+export function raggruppaPerVettura(documenti: readonly DocumentoRaggruppabile[]): VetturaConDocumenti[] {
+  const gruppi = new Map<string, VetturaConDocumenti>();
+
+  for (const documento of documenti) {
+    const targa = String(documento.vehicle_plate ?? "").trim().toUpperCase() || null;
+    const chiave = documento.vehicle_id ?? (targa ? `targa:${targa}` : "senza-vettura");
+
+    const gruppo = gruppi.get(chiave) ?? {
+      chiave,
+      vehicleId: documento.vehicle_id,
+      targa,
+      etichetta: documento.vehicle_label?.trim() || null,
+      quanti: 0,
+      ultimoCaricamento: documento.created_at,
+      tipi: [],
+    };
+
+    gruppo.quanti += 1;
+    if (documento.created_at > gruppo.ultimoCaricamento) gruppo.ultimoCaricamento = documento.created_at;
+    if (!gruppo.etichetta && documento.vehicle_label?.trim()) gruppo.etichetta = documento.vehicle_label.trim();
+
+    const tipo = String(documento.doc_type ?? "altro");
+    if (!gruppo.tipi.includes(tipo)) gruppo.tipi.push(tipo);
+
+    gruppi.set(chiave, gruppo);
+  }
+
+  // In cima la vettura su cui si e' archiviato per ultimo: e' quella su cui si
+  // sta lavorando adesso, ed e' quasi sempre quella che si sta cercando.
+  return [...gruppi.values()].sort((a, b) => b.ultimoCaricamento.localeCompare(a.ultimoCaricamento));
+}
