@@ -168,8 +168,32 @@ describe("il database chiude la porta, non solo la schermata", () => {
 
     for (const politica of politiche) {
       expect(politica).toContain("dealer_id = public.current_dealer_id()");
-      expect(politica).toContain("public.dealer_has_perizie(dealer_id)");
+      expect(politica).toContain("public.current_dealer_has_perizie()");
     }
+  });
+
+  /**
+   * Il difetto che questo test impedisce, e che questa migration nella sua
+   * prima stesura commetteva davvero: chiedere il piano **di qualcun altro**.
+   *
+   * Il 01/09/2026 il progetto ha gia' pagato questo errore con il conto
+   * economico (20260901040000): la funzione che accettava un identificativo
+   * era eseguibile da chiunque avesse fatto login, per qualunque
+   * concessionaria, e una Base ha chiesto il piano di un'altra ottenendo
+   * "elite". Gli identificativi delle concessionarie sono pubblici -- il
+   * marketplace li legge -- quindi bastava una sessione per farsi il listino
+   * dei concorrenti. Provato su un Postgres vero il 03/09/2026: prima della
+   * correzione rispondeva "true" sull'altra concessionaria, dopo la funzione
+   * con l'identificativo non esiste piu'.
+   */
+  it("la funzione che apre la porta non risponde su nessun altro", () => {
+    expect(migration).toContain("create or replace function public.current_dealer_has_perizie()");
+    expect(migration).toContain("public.dealer_plan_in_force(public.current_dealer_id())");
+
+    // Nessuna funzione che accetti un identificativo e sia concessa a chi ha
+    // solo una sessione: e' esattamente la forma del difetto.
+    expect(migration).not.toMatch(/function public\.dealer_has_perizie\s*\(/);
+    expect(migration).not.toMatch(/grant execute on function public\.dealer_plan_in_force[^;]*authenticated/);
   });
 
   // Le perizie contengono nome e telefono di un privato: la tabella non deve
