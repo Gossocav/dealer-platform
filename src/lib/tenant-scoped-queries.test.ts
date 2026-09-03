@@ -31,6 +31,7 @@ const CARTELLE = [
   "src/app/giacenza",
   "src/app/perizie",
   "src/app/documenti",
+  "src/app/promemoria",
   "src/app/email",
   "src/app/impostazioni",
   "src/app/account",
@@ -40,6 +41,7 @@ const CARTELLE = [
   "src/components/dashboard",
   "src/components/perizie",
   "src/components/documenti",
+  "src/components/promemoria",
 ];
 
 function tuttiIFile(cartella: string): string[] {

@@ -59,6 +59,15 @@ const PROVE: Record<string, Prova> = {
       "src/components/documenti/vetture-con-documenti-page.tsx",
     ],
   },
+  "Promemoria e scadenze": {
+    tipo: "software",
+    file: [
+      "supabase/migrations/20260903130000_promemoria.sql",
+      "src/lib/promemoria.ts",
+      "src/app/promemoria/page.tsx",
+      "src/components/vehicles/riquadro-scadenze.tsx",
+    ],
+  },
   "Dashboard concessionario": {
     tipo: "software",
     file: ["src/app/dashboard/page.tsx"],

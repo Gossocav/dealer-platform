@@ -105,6 +105,11 @@ const BASE_SERVICES: DemoPlanService[] = [
       "Libretto, contratti, preventivi e fatture archiviati sulla scheda di ogni vettura, con la ricerca per targa, tipo e periodo. Restano anche dopo che l'auto e' stata venduta.",
   },
   {
+    title: "Promemoria e scadenze",
+    description:
+      "Revisione, assicurazione, tagliando e garanzia di ogni vettura, piu' le cose da fare che ti segni: raccolte in un elenco che mette in cima quello che e' gia' scaduto.",
+  },
+  {
     title: "Dashboard concessionario",
     description:
       "Vedi da un unico pannello le attivita principali della concessionaria: quante vetture hai, quante richieste sono arrivate, cosa c'e' in agenda.",

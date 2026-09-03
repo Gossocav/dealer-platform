@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { FolderOpen, FileSignature, Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { RiquadroCompratore } from "@/components/vehicles/riquadro-compratore";
+import { RiquadroScadenze } from "@/components/vehicles/riquadro-scadenze";
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -331,6 +332,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               a chi lo dice invece di tacere: e' cosi' che la domanda si puo'
               rimandare senza venire dimenticata. */}
           <RiquadroCompratore vehicleId={vehicle.id} dealerId={currentDealerId} status={vehicle.status} />
+
+          {/* Le scadenze della vettura si scrivono qui, dove si sa gia' di
+              quale automobile si parla: altrove vorrebbe dire cercarla in una
+              tendina di trecento voci, ogni volta. */}
+          <RiquadroScadenze vehicleId={vehicle.id} dealerId={currentDealerId} />
 
           <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Scheda completa</p>

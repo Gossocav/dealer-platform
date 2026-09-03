@@ -23,6 +23,7 @@ export const PRIVATE_AREA_PREFIXES = [
   "/giacenza",
   "/perizie",
   "/documenti",
+  "/promemoria",
   "/impostazioni",
   "/agenda",
   "/appuntamenti",
