@@ -74,6 +74,15 @@ const PROVE: Record<string, Prova> = {
     tipo: "software",
     file: ["src/app/vendite/page.tsx", "src/components/dashboard/sales-report-page.tsx"],
   },
+  "Perizia della vettura prima di comprarla": {
+    tipo: "software",
+    file: [
+      "supabase/migrations/20260902110000_perizia_veicolo.sql",
+      "src/lib/scheda-perizia.ts",
+      "src/app/perizie/page.tsx",
+      "src/components/perizie/perizia-page.tsx",
+    ],
+  },
   "Giorni di giacenza del parco": {
     tipo: "software",
     file: ["src/app/giacenza/page.tsx", "src/lib/giacenza.ts"],

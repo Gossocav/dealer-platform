@@ -44,7 +44,9 @@ export type FunzioneDiPiano =
   /** La vetrina a rotazione sulla home di KeyAuto. */
   | "vetrina-home"
   /** Il video dell'automobile sull'annuncio. */
-  | "video-annuncio";
+  | "video-annuncio"
+  /** La perizia di una vettura che si sta comprando. */
+  | "perizia";
 
 /**
  * Da quale piano in su ogni funzione e' compresa.
@@ -60,6 +62,7 @@ const SOGLIA: Record<FunzioneDiPiano, DealerPlanCode> = {
   "scheda-consegna": "elite",
   "vetrina-home": "elite",
   "video-annuncio": "elite",
+  perizia: "pro",
 };
 
 /** I piani dal piu' piccolo al piu' grande. Serve a confrontarli. */
@@ -114,6 +117,8 @@ export function spiegazioneFunzioneChiusa(funzione: FunzioneDiPiano): string {
     "vetrina-home": "La vetrina mette una tua vettura in cima alla pagina principale di KeyAuto, a rotazione.",
     "video-annuncio":
       "Il video dell'automobile sull'annuncio: chi guarda la scheda lo apre senza uscire dalla pagina, e vede la vettura muoversi invece che in fotografia.",
+    perizia:
+      "La perizia e' la scheda con cui controlli una vettura prima di comprarla: carrozzeria pannello per pannello, gomme, meccanica e interni, con il conto di quanto costa rimetterla a posto. Resta salvata, e si ristampa il giorno che il venditore contesta.",
   };
 
   return `${cosaFa[funzione]} E' compresa a partire dal ${minimo}.`;

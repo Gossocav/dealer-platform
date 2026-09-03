@@ -190,17 +190,23 @@ export function DealerDashboardShell({
 
   return (
     <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top_right,#dbeafe_0%,#f8fafc_42%,#f8fafc_100%)] pb-8">
-      <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} />
+      {/* Il menu, la barra e il pie' di pagina sono comandi: su carta non
+          servono, e mangerebbero mezzo foglio a ogni stampa. */}
+      <div className="no-print">
+        <DealerSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemo={Boolean(demoBanner?.isDemo)} />
+      </div>
 
-      <div className="px-4 pt-4 sm:px-6 lg:ml-[17rem] lg:px-8 lg:pt-6">
-        <DealerTopbar
-          title={title}
-          dealerName={nomeMostrato}
-          avatarInitials={avatarInitials ?? toInitials(nomeMostrato)}
-          onOpenSidebar={() => setIsSidebarOpen(true)}
-        />
+      <div className="px-4 pt-4 sm:px-6 lg:ml-[17rem] lg:px-8 lg:pt-6 print:ml-0 print:p-0">
+        <div className="no-print">
+          <DealerTopbar
+            title={title}
+            dealerName={nomeMostrato}
+            avatarInitials={avatarInitials ?? toInitials(nomeMostrato)}
+            onOpenSidebar={() => setIsSidebarOpen(true)}
+          />
+        </div>
 
-        <main className="mt-5 space-y-5">
+        <main className="mt-5 space-y-5 print:mt-0">
           {demoBanner?.isDemo ? (
             <section
               className={`rounded-2xl border px-4 py-3 text-sm ${
@@ -269,7 +275,7 @@ export function DealerDashboardShell({
           )}
         </main>
 
-        <footer className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
+        <footer className="no-print mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
           <Link href="/privacy" className="transition hover:text-slate-700">Informativa sulla privacy</Link>
           <span className="mx-2 text-slate-300">·</span>
           <Link href="/termini-concessionari" className="transition hover:text-slate-700">Condizioni Generali concessionari</Link>
