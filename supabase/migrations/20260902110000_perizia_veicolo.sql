@@ -175,27 +175,44 @@ create trigger trg_enforce_vehicle_appraisal_dealer_id
 -- ============================================================
 -- Chi ha diritto alle perizie
 -- ============================================================
--- Dal Piano Pro in su, deciso dal titolare il 02/09/2026. Stessa forma di
--- `dealer_has_conto_economico` (20260901020000): il piano in vigore lo dice
--- `dealer_plan_in_force`, che gia' applica la precedenza giusta e non si fida
--- di `dealers.subscription_plan`.
+-- Dal Piano Pro in su, deciso dal titolare il 02/09/2026.
 --
--- Una funzione separata e non quella del conto economico, benche' oggi la
--- soglia sia la stessa: se un domani una delle due cambia piano, l'altra non
--- deve seguirla per sbaglio.
+-- **La domanda non si fa su qualcun altro.** La funzione non accetta un
+-- identificativo e risponde solo su chi sta chiedendo, ricavandolo da
+-- `current_dealer_id()`. E' la forma che il progetto ha gia' adottato per il
+-- conto economico (20260901040000) dopo un difetto vero: la versione con
+-- l'identificativo era eseguibile da chiunque avesse fatto login, per
+-- qualunque concessionaria, e una Base ha chiesto il piano di un'altra
+-- ottenendo "elite". Gli identificativi delle concessionarie sono pubblici --
+-- il marketplace li legge -- quindi bastava una sessione per farsi il listino
+-- dei concorrenti.
+--
+-- Questa migration, nella sua prima stesura, quel difetto lo rifaceva
+-- identico: `dealer_has_perizie(uuid)` concessa a `authenticated`. Provato su
+-- un Postgres vero il 03/09/2026, rispondeva "true" sul piano di un'altra
+-- concessionaria.
+--
+-- Una funzione separata da quella del conto economico, benche' oggi la soglia
+-- sia la stessa: se un domani una delle due cambia piano, l'altra non deve
+-- seguirla per sbaglio.
+--
+-- `security definer` perche' dentro deve leggere gli abbonamenti, riservati al
+-- servizio: la chiamata annidata a `dealer_plan_in_force` avviene con i
+-- privilegi del proprietario, quindi chi la invoca non ha bisogno di nessun
+-- permesso su quella.
 
-create or replace function public.dealer_has_perizie(p_dealer_id uuid)
+create or replace function public.current_dealer_has_perizie()
 returns boolean
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.dealer_plan_in_force(p_dealer_id) in ('pro', 'elite'), false);
+  select coalesce(public.dealer_plan_in_force(public.current_dealer_id()) in ('pro', 'elite'), false);
 $$;
 
-revoke all on function public.dealer_has_perizie(uuid) from public;
-grant execute on function public.dealer_has_perizie(uuid) to authenticated, service_role;
+revoke all on function public.current_dealer_has_perizie() from public;
+grant execute on function public.current_dealer_has_perizie() to authenticated, service_role;
 
 -- ============================================================
 -- Chi le vede
@@ -218,7 +235,7 @@ for select
 to authenticated
 using (
   dealer_id = public.current_dealer_id()
-  and public.dealer_has_perizie(dealer_id)
+  and public.current_dealer_has_perizie()
 );
 
 create policy vehicle_appraisals_insert_own
@@ -227,7 +244,7 @@ for insert
 to authenticated
 with check (
   dealer_id = public.current_dealer_id()
-  and public.dealer_has_perizie(dealer_id)
+  and public.current_dealer_has_perizie()
 );
 
 create policy vehicle_appraisals_update_own
@@ -236,11 +253,11 @@ for update
 to authenticated
 using (
   dealer_id = public.current_dealer_id()
-  and public.dealer_has_perizie(dealer_id)
+  and public.current_dealer_has_perizie()
 )
 with check (
   dealer_id = public.current_dealer_id()
-  and public.dealer_has_perizie(dealer_id)
+  and public.current_dealer_has_perizie()
 );
 
 create policy vehicle_appraisals_delete_own
@@ -249,7 +266,7 @@ for delete
 to authenticated
 using (
   dealer_id = public.current_dealer_id()
-  and public.dealer_has_perizie(dealer_id)
+  and public.current_dealer_has_perizie()
 );
 
 -- La cintura oltre alle bretelle: su Supabase una tabella nuova nello schema
