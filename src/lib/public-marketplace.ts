@@ -97,6 +97,11 @@ export type MarketplaceDealer = {
   whatsapp_phone: string | null;
   vat_number: string | null;
   website: string | null;
+  /** La pagina noleggi della concessionaria, mostrata come pulsante sulla sua pagina. */
+  rental_url?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  linkedin_url?: string | null;
   description: string | null;
   opening_hours: string | null;
   social_links: string | null;

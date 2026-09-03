@@ -6,6 +6,7 @@ import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-sea
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
+import { CollegamentiConcessionaria } from "@/components/marketplace/collegamenti-concessionaria";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 import { resolveClickableWebsite } from "@/lib/website-url";
 
@@ -39,7 +40,7 @@ async function resolveDealerBySlug(slug: string) {
     // I recapiti servono ai dati strutturati: sono quelli che permettono a
     // Google di riconoscere la concessionaria come un'azienda con una sede,
     // invece che come una pagina qualsiasi.
-    .select("id, name, logo_url, legal_name, city, province, address, phone, email, website")
+    .select("id, name, logo_url, legal_name, city, province, address, phone, email, website, rental_url, facebook_url, instagram_url, linkedin_url")
     // Gli stessi stati con cui il marketplace pubblica i veicoli, non il solo
     // "approved" che c'era qui: le due condizioni devono coincidere, altrimenti
     // una concessionaria in stato "active" avrebbe le sue auto in vetrina e la
@@ -236,6 +237,17 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             </Link>
           </div>
         </section>
+
+        {/* I collegamenti stanno fra la scheda della concessionaria e le sue
+            auto: chi arriva qui guarda prima chi e', poi cosa offre altrove,
+            e infine le vetture. */}
+        <CollegamentiConcessionaria
+          rentalUrl={matchedDealer.rental_url ?? null}
+          website={matchedDealer.website ?? null}
+          facebook={matchedDealer.facebook_url ?? null}
+          instagram={matchedDealer.instagram_url ?? null}
+          linkedin={matchedDealer.linkedin_url ?? null}
+        />
 
         <DealerVehicleSearch vehicles={searchFacets}>
           {dealerVehicles.map((vehicle) => (
