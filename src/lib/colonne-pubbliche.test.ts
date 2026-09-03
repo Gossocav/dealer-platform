@@ -6,8 +6,35 @@ function leggi(percorso: string) {
   return readFileSync(resolve(process.cwd(), percorso), "utf8");
 }
 
-const MIGRATION = "supabase/migrations/20260831000000_colonne_riservate_non_pubbliche.sql";
-const sql = leggi(MIGRATION);
+/**
+ * Il permesso pubblico non sta in un file solo: ogni volta che una colonna
+ * nuova deve diventare pubblica, l'elenco si revoca e si riscrive per intero
+ * -- e' successo per il video dell'annuncio (20260901030000) e per la pagina
+ * noleggi (20260903140000). Vale l'ultimo, come nel database.
+ *
+ * Questo test guardava soltanto il primo, quello del 31/08: bastava aggiungere
+ * una colonna pubblica in una migration successiva per farlo fallire senza che
+ * ci fosse niente di sbagliato.
+ */
+function ultimaMigrationCheConcede(tabella: string) {
+  const cartella = "supabase/migrations";
+  const file = readdirSync(resolve(process.cwd(), cartella))
+    .filter((nome) => nome.endsWith(".sql"))
+    .sort();
+
+  let ultima: { percorso: string; sql: string } | null = null;
+
+  for (const nome of file) {
+    const percorso = `${cartella}/${nome}`;
+    const contenuto = leggi(percorso);
+    if (contenuto.includes(`revoke select on public.${tabella} from anon`)) {
+      ultima = { percorso, sql: contenuto };
+    }
+  }
+
+  expect(ultima, `nessuna migration concede colonne pubbliche su ${tabella}`).not.toBeNull();
+  return ultima as { percorso: string; sql: string };
+}
 
 /**
  * Le colonne che il pubblico non deve leggere, e la ragione di ciascuna.
@@ -48,6 +75,7 @@ const RISERVATE: Record<string, Record<string, string>> = {
 
 /** Le colonne concesse al pubblico dalla migration, tabella per tabella. */
 function concesse(tabella: string): string[] {
+  const { sql } = ultimaMigrationCheConcede(tabella);
   const inizio = sql.indexOf(`grant select (`, sql.indexOf(`revoke select on public.${tabella}`));
   const fine = sql.indexOf(`on public.${tabella} to anon;`, inizio);
   expect(inizio, `nessun grant per ${tabella}`).toBeGreaterThan(-1);
@@ -172,7 +200,7 @@ describe("il pubblico legge solo quello che deve", () => {
       // una colonna chiesta e non concessa fa fallire l'intera query.
       const pubbliche = new Set(concesse(tabella));
       for (const colonna of lette[tabella]) {
-        expect(pubbliche.has(colonna), `${tabella}.${colonna} e' chiesta dal marketplace ma non concessa in ${MIGRATION}`).toBe(true);
+        expect(pubbliche.has(colonna), `${tabella}.${colonna} e' chiesta dal marketplace ma non concessa in ${ultimaMigrationCheConcede(tabella).percorso}`).toBe(true);
       }
     });
   }
