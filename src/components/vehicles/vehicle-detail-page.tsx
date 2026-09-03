@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { FileSignature, Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
+import { FolderOpen, FileSignature, Loader2, PencilLine, Printer, Rocket, Send } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { SendToClientDialog } from "@/components/vehicles/send-to-client-dialog";
 import { getActiveDealerId } from "@/lib/active-tenant";
@@ -361,6 +361,16 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 <Printer className="h-4 w-4" /> Stampa scheda
+              </Link>
+              {/* L'archivio documenti non ha soglia di piano e non dipende
+                  dallo stato della vettura: il libretto si archivia il giorno
+                  che l'auto arriva, il contratto il giorno che esce, e tutti e
+                  due restano dopo. */}
+              <Link
+                href={`/veicoli/${vehicle.id}/documenti`}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <FolderOpen className="h-4 w-4" /> Documenti
               </Link>
               {/* Due fogli separati e non uno: la scheda finisce sul
                   parabrezza, il conto economico no. Il prezzo di acquisto

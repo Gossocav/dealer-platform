@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   ClipboardCheck,
+  FolderOpen,
   BarChart3,
   CalendarDays,
   Car,
@@ -55,6 +56,8 @@ const sidebarItems: SidebarItem[] = [
   // riguardano un'auto che non e' ancora sua, e cercarle dentro "Veicoli"
   // vorrebbe dire cercarle dove non ci sono.
   { label: "Perizie", href: "/perizie", icon: ClipboardCheck, funzione: "perizia" },
+  // L'archivio documenti non ha soglia di piano: e' di tutti, Base compreso.
+  { label: "Documenti", href: "/documenti", icon: FolderOpen },
   { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
