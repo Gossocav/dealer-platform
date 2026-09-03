@@ -13,6 +13,7 @@ import { resolveVehicleLabel } from "@/lib/public-marketplace";
 import { formatRegistrationLabel, formatVehicleStatus } from "@/lib/vehicles";
 import {
   VOCI_DI_COSTO,
+  statoBollo,
   costoTotale,
   formattaImporto,
   margine,
@@ -38,6 +39,7 @@ import {
 
 type ContoLetto = VociConto & {
   purchase_date: string | null;
+  bollo_expires_on: string | null;
   supplier: string | null;
   sale_date: string | null;
   notes: string | null;
@@ -105,7 +107,7 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
           supabase
             .from("vehicle_economics")
             .select(
-              "purchase_price, purchase_date, supplier, cost_minivoltura, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes"
+              "purchase_price, purchase_date, supplier, cost_minivoltura, cost_bollo, bollo_expires_on, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes"
             )
             .eq("vehicle_id", vehicleId)
             .eq("dealer_id", dealerId)
@@ -271,6 +273,10 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
             <h2 className="border-b border-slate-300 pb-1 text-sm font-bold uppercase tracking-[0.14em]">Acquisto</h2>
             <Voce etichetta="Prezzo di acquisto" valore={importo(voci.purchase_price)} forte />
             <Voce etichetta="Data di acquisto" valore={data(conto?.purchase_date)} />
+            {/* La scadenza del bollo sta sul foglio stampato perche' e' il
+                dato che si guarda quando la vettura passa di mano: chi la
+                compra vuole sapere fino a quando e' coperta. */}
+            <Voce etichetta="Scadenza del bollo" valore={statoBollo(conto?.bollo_expires_on)?.etichetta ?? "-"} />
             <Voce etichetta="Fornitore" valore={testo(conto?.supplier) ?? "—"} />
           </section>
 

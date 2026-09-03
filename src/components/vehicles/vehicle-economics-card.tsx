@@ -5,7 +5,9 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 import {
+  GIORNI_DI_PREAVVISO_BOLLO,
   VOCI_DI_COSTO,
+  statoBollo,
   costoTotale,
   formattaImporto,
   leggiImporto,
@@ -29,6 +31,7 @@ import {
 
 type ContoSalvato = VociConto & {
   purchase_date: string | null;
+  bollo_expires_on: string | null;
   supplier: string | null;
   sale_date: string | null;
   notes: string | null;
@@ -36,12 +39,13 @@ type ContoSalvato = VociConto & {
   margin: number | null;
 };
 
-const CAMPI_IMPORTO = ["purchase_price", "cost_minivoltura", "cost_transport", "cost_bodywork", "cost_workshop", "cost_tyres", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
+const CAMPI_IMPORTO = ["purchase_price", "cost_minivoltura", "cost_bollo", "cost_transport", "cost_bodywork", "cost_workshop", "cost_tyres", "cost_preparation", "cost_parts", "cost_commission", "cost_other", "sale_price"] as const;
 
 type CampoImporto = (typeof CAMPI_IMPORTO)[number];
 
 type Modulo = Record<CampoImporto, string> & {
   purchase_date: string;
+  bollo_expires_on: string;
   supplier: string;
   sale_date: string;
   notes: string;
@@ -50,6 +54,7 @@ type Modulo = Record<CampoImporto, string> & {
 const MODULO_VUOTO: Modulo = {
   purchase_price: "",
   cost_minivoltura: "",
+  cost_bollo: "",
   cost_transport: "",
   cost_bodywork: "",
   cost_workshop: "",
@@ -60,6 +65,7 @@ const MODULO_VUOTO: Modulo = {
   cost_other: "",
   sale_price: "",
   purchase_date: "",
+  bollo_expires_on: "",
   supplier: "",
   sale_date: "",
   notes: "",
@@ -92,7 +98,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
       // economico di un'auto non deve poter uscire per quella di un altro.
       const { data, error } = await supabase
         .from("vehicle_economics")
-        .select("purchase_price, purchase_date, supplier, cost_minivoltura, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes, total_cost, margin")
+        .select("purchase_price, purchase_date, supplier, cost_minivoltura, cost_bollo, bollo_expires_on, cost_transport, cost_bodywork, cost_workshop, cost_tyres, cost_preparation, cost_parts, cost_commission, cost_other, sale_price, sale_date, notes, total_cost, margin")
         .eq("vehicle_id", vehicleId)
         .eq("dealer_id", dealerId)
         .maybeSingle<ContoSalvato>();
@@ -119,6 +125,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         setModulo({
           purchase_price: scrivi(data.purchase_price),
           cost_minivoltura: scrivi(data.cost_minivoltura),
+          cost_bollo: scrivi(data.cost_bollo),
           cost_transport: scrivi(data.cost_transport),
           cost_bodywork: scrivi(data.cost_bodywork),
           cost_workshop: scrivi(data.cost_workshop),
@@ -129,6 +136,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
           cost_other: scrivi(data.cost_other),
           sale_price: scrivi(data.sale_price),
           purchase_date: data.purchase_date ?? "",
+          bollo_expires_on: data.bollo_expires_on ?? "",
           supplier: data.supplier ?? "",
           sale_date: data.sale_date ?? "",
           notes: data.notes ?? "",
@@ -155,6 +163,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
   const percentuale = marginePercentuale(conto);
 
   // Un importo scritto storto non si salva in silenzio come zero: si dice.
+  const bollo = statoBollo(modulo.bollo_expires_on);
   const importiIlleggibili = CAMPI_IMPORTO.filter((campo) => modulo[campo].trim() !== "" && leggiImporto(modulo[campo]) === null);
 
   const salva = async () => {
@@ -169,8 +178,10 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
         dealer_id: dealerId,
         purchase_price: leggiImporto(modulo.purchase_price),
         purchase_date: modulo.purchase_date || null,
+        bollo_expires_on: modulo.bollo_expires_on || null,
         supplier: modulo.supplier.trim() || null,
         cost_minivoltura: leggiImporto(modulo.cost_minivoltura) ?? 0,
+        cost_bollo: leggiImporto(modulo.cost_bollo) ?? 0,
         cost_transport: leggiImporto(modulo.cost_transport) ?? 0,
         cost_bodywork: leggiImporto(modulo.cost_bodywork) ?? 0,
         cost_workshop: leggiImporto(modulo.cost_workshop) ?? 0,
@@ -270,7 +281,39 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
             {VOCI_DI_COSTO.map(({ campo, etichetta }) => (
               <Importo key={campo} etichetta={etichetta} valore={modulo[campo]} onChange={(v) => aggiorna(campo, v)} />
             ))}
+
+            {/* Il bollo e' l'unica voce del conto che non si esaurisce quando
+                e' pagata: continua a scadere. La data sta accanto all'importo
+                perche' e' la stessa cosa vista da due lati, e la schermata
+                scrive da se' "Scade il" o "Scaduto il". */}
+            <Data
+              etichetta="Scadenza del bollo"
+              valore={modulo.bollo_expires_on}
+              onChange={(v) => aggiorna("bollo_expires_on", v)}
+            />
           </div>
+
+          {/* Scritto per esteso sotto ai campi, non lasciato alla data: una
+              vettura in piazzale col bollo scaduto non si porta in prova su
+              strada, e leggere "12/03/2026" in una casella non lo dice. Senza
+              data non si scrive niente: non sapere quando scade e' un'altra
+              cosa da "scaduto". */}
+          {bollo ? (
+            <p
+              className={`mt-3 text-sm font-medium ${
+                bollo.scaduto
+                  ? "text-red-700"
+                  : bollo.giorni <= GIORNI_DI_PREAVVISO_BOLLO
+                    ? "text-amber-700"
+                    : "text-slate-600"
+              }`}
+            >
+              Bollo: {bollo.etichetta}
+              {!bollo.scaduto && bollo.giorni > 0 && bollo.giorni <= GIORNI_DI_PREAVVISO_BOLLO
+                ? ` — fra ${bollo.giorni} ${bollo.giorni === 1 ? "giorno" : "giorni"}`
+                : ""}
+            </p>
+          ) : null}
         </Gruppo>
       </div>
 

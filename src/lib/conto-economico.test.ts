@@ -9,6 +9,7 @@ import {
   margine,
   marginePercentuale,
   perche,
+  statoBollo,
 } from "@/lib/conto-economico";
 
 /**
@@ -273,6 +274,9 @@ describe("carrozzeria e officina sono voci a se'", () => {
     // meccanicamente, si prepara.
     expect(VOCI_DI_COSTO.map((v) => v.campo)).toEqual([
       "cost_minivoltura",
+      // Il bollo sta accanto alla minivoltura: e' l'altra spesa di carte che
+      // arriva con la vettura. Chiesto dal titolare il 03/09/2026.
+      "cost_bollo",
       "cost_transport",
       "cost_bodywork",
       "cost_workshop",
@@ -400,8 +404,8 @@ describe("i costi stanno in griglia, non in colonna", () => {
 
   it("le voci di costo si affiancano", () => {
     const blocco = carta.slice(carta.indexOf('<Gruppo titolo="Costi">'), carta.indexOf("</Gruppo>", carta.indexOf('<Gruppo titolo="Costi">')));
-    // Tre colonne dal 01/09/2026: con la minivoltura le voci sono nove, e in
-    // quattro colonne l'ultima riga ne avrebbe una sola, spaiata.
+    // Tre colonne dal 01/09/2026: in quattro colonne l'ultima riga
+    // resterebbe con una casella sola, spaiata.
     expect(blocco).toContain("sm:grid-cols-2 lg:grid-cols-3");
   });
 
@@ -415,8 +419,15 @@ describe("i costi stanno in griglia, non in colonna", () => {
     expect(acquistoEVendita).not.toContain("lg:grid-cols-3");
   });
 
-  it("le nove voci riempiono esattamente tre righe da tre", () => {
-    expect(VOCI_DI_COSTO).toHaveLength(9);
+  /**
+   * Il criterio, non il numero: nella griglia dei costi ci sono le voci piu'
+   * la scadenza del bollo, e l'ultima riga non deve mai restare con una
+   * casella sola in mezzo al vuoto. Contare "nove" invece della regola faceva
+   * fallire il test a ogni voce aggiunta senza dire cosa fosse sbagliato.
+   */
+  it("l'ultima riga non resta con una casella spaiata", () => {
+    const caselle = VOCI_DI_COSTO.length + 1; // + la scadenza del bollo
+    expect(caselle % 3, `con ${caselle} caselle su tre colonne l'ultima riga ne avrebbe una sola`).not.toBe(1);
   });
 });
 
@@ -601,4 +612,86 @@ describe("nessuna schermata chiede colonne che il database non ha", () => {
       }
     });
   }
+});
+
+/**
+ * Il bollo, chiesto dal titolare il 03/09/2026: una voce di costo come le
+ * altre, ma con una data -- perche' e' l'unica del conto che non si esaurisce
+ * quando e' pagata.
+ */
+describe("il bollo e la sua scadenza", () => {
+  const OGGI = new Date(2026, 8, 3); // 3 settembre 2026
+
+  it("e' una voce di costo come le altre e entra nel totale", () => {
+    expect(VOCI_DI_COSTO.map((v) => v.campo)).toContain("cost_bollo");
+    expect(costoTotale({ purchase_price: 10000, cost_bollo: 320, cost_transport: 180 })).toBe(10500);
+  });
+
+  it("una scadenza futura si legge come Scade il", () => {
+    const stato = statoBollo("2026-12-31", OGGI);
+    expect(stato?.scaduto).toBe(false);
+    expect(stato?.etichetta).toContain("Scade il");
+    expect(stato?.giorni).toBeGreaterThan(0);
+  });
+
+  it("una scadenza passata si legge come Scaduto il", () => {
+    const stato = statoBollo("2026-03-12", OGGI);
+    expect(stato?.scaduto).toBe(true);
+    expect(stato?.etichetta).toContain("Scaduto il");
+    expect(stato?.giorni).toBeLessThan(0);
+  });
+
+  // Il giorno stesso il bollo e' ancora valido: scade a fine giornata, non a
+  // mezzanotte del giorno prima.
+  it("il giorno della scadenza non e' ancora scaduto", () => {
+    const stato = statoBollo("2026-09-03", OGGI);
+    expect(stato?.scaduto).toBe(false);
+    expect(stato?.etichetta).toBe("Scade oggi");
+  });
+
+  /**
+   * Il difetto che questo test impedisce: trattare "non lo so" come "scaduto".
+   * Su 275 vetture nessuna ha ancora la data del bollo scritta: segnalarle
+   * tutte come scadute vorrebbe dire un allarme che nessuno guardera' piu'.
+   */
+  it("una scadenza che non si conosce non e' una scadenza passata", () => {
+    expect(statoBollo(null)).toBeNull();
+    expect(statoBollo("")).toBeNull();
+    expect(statoBollo("   ")).toBeNull();
+    expect(statoBollo("non e' una data")).toBeNull();
+  });
+});
+
+/**
+ * **Questi leggono il testo del file SQL.** La prova vera e' stata fatta su un
+ * Postgres 15 in Docker, riapplicando tutta la catena delle voci di costo:
+ * acquisto 10.000 + bollo 320 + trasporto 180 ha dato totale 10.500 e margine
+ * 1.500 su una vendita da 12.000, la scadenza si e' conservata, un bollo
+ * negativo e' stato rifiutato e una vettura senza scadenza nota e' passata.
+ */
+describe("il database somma il bollo come le altre voci", () => {
+  const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903120000_voce_bollo.sql"), "utf8");
+
+  it("la colonna nasce a zero, senza cambiare le righe che ci sono", () => {
+    expect(migration).toContain("add column if not exists cost_bollo numeric(12, 2) not null default 0");
+  });
+
+  // In PostgreSQL la formula di una colonna generata non si altera: si toglie
+  // e si rimette. Dimenticarsene lascerebbe il totale indietro di una voce.
+  it("il totale e il margine vengono rifatti comprendendo il bollo", () => {
+    const dopoIlDrop = migration.slice(migration.indexOf("drop column if exists total_cost"));
+    expect(dopoIlDrop).toContain("+ cost_minivoltura + cost_bollo");
+    expect((dopoIlDrop.match(/cost_bollo/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("un bollo negativo non si scrive", () => {
+    expect(migration).toContain("and cost_bollo >= 0");
+  });
+
+  // La data non ha valore predefinito: riempirla con una data qualunque
+  // sarebbe inventare un dato che nessuno andrebbe a controllare.
+  it("la scadenza nasce vuota e resta vuota finche' non la si scrive", () => {
+    expect(migration).toContain("add column if not exists bollo_expires_on date");
+    expect(migration).not.toMatch(/bollo_expires_on date[^;]*default/);
+  });
 });
