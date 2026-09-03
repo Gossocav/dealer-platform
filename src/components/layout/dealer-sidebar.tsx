@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  BellRing,
   ClipboardCheck,
   FolderOpen,
   BarChart3,
@@ -58,6 +59,9 @@ const sidebarItems: SidebarItem[] = [
   { label: "Perizie", href: "/perizie", icon: ClipboardCheck, funzione: "perizia" },
   // L'archivio documenti non ha soglia di piano: e' di tutti, Base compreso.
   { label: "Documenti", href: "/documenti", icon: FolderOpen },
+  // I promemoria stanno accanto all'agenda nel senso, ma sotto i documenti nel
+  // menu: le scadenze che ricordano nascono quasi tutte da li' e dalle vetture.
+  { label: "Promemoria", href: "/promemoria", icon: BellRing },
   { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
