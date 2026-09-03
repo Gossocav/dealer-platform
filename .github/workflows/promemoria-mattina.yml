@@ -1,0 +1,87 @@
+name: Promemoria del mattino
+
+# Manda a ogni concessionaria una sola email al giorno con quello che scade
+# oggi e quello che e' in ritardo. Se non c'e' niente da ricordare, non parte
+# niente: una email che dice "oggi nulla" e' il modo piu' rapido per farla
+# ignorare anche il giorno in cui invece qualcosa c'e'.
+#
+# Da GitHub e non da Vercel per la stessa ragione della sincronizzazione dello
+# stock: li' la registrazione del lavoro periodico faceva fallire la
+# pubblicazione in produzione, e qui il registro delle esecuzioni si legge
+# dalla scheda Actions senza dipendere dal piano Vercel.
+#
+# Questo lavoro non decide niente: bussa a una porta. Tutto quello che c'e' da
+# decidere -- chi avvisare, cosa scrivere, cosa non mandare -- sta
+# nell'endpoint, dove ci sono i test.
+
+on:
+  schedule:
+    # 5:00 UTC: le 7 in estate, le 6 in inverno. Deve essere gia' li' quando il
+    # concessionario apre il telefono la mattina, non arrivare mentre lavora.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Due esecuzioni insieme manderebbero due email uguali alla stessa
+# concessionaria: il timbro `avvisato_il` le fermerebbe, ma solo dopo che la
+# prima ha finito di scrivere.
+concurrency:
+  group: promemoria-mattina
+  cancel-in-progress: false
+
+jobs:
+  promemoria:
+    name: promemoria
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Senza segreto non si puo' bussare, e allora bisogna dirlo fallendo: un
+      # lavoro verde che non ha fatto niente e' peggio di uno rosso, perche' lo
+      # si crede fatto.
+      - name: Verifica che il segreto ci sia
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Manca il segreto CRON_SECRET: i promemoria non sono stati mandati."
+            {
+              echo "## Promemoria non mandati"
+              echo ""
+              echo "Manca il segreto \`CRON_SECRET\` su GitHub."
+              echo ""
+              echo "Si aggiunge in **Settings -> Secrets and variables -> Actions -> New repository secret**,"
+              echo "e deve valere **esattamente come quello omonimo su Vercel**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Manda i promemoria
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # L'indirizzo pubblico della piattaforma. Sta qui e non in un
+          # segreto perche' non e' riservato: e' il sito.
+          BASE_URL: https://www.keyauto.it
+        run: |
+          echo "## Promemoria del mattino" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          risposta=$(mktemp)
+          stato=$(curl -sS -o "$risposta" -w "%{http_code}" \
+            -X POST "$BASE_URL/api/cron/promemoria" \
+            -H "authorization: Bearer $CRON_SECRET" \
+            --max-time 300) || stato="000"
+
+          echo "Risposta HTTP: $stato" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          head -c 2000 "$risposta" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$stato" != "200" ]; then
+            echo "::error::L'invio dei promemoria ha risposto $stato."
+            exit 1
+          fi
