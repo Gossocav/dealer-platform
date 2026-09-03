@@ -1,5 +1,5 @@
-import { ArchivioDocumentiPage } from "@/components/documenti/archivio-documenti-page";
+import { VettureConDocumentiPage } from "@/components/documenti/vetture-con-documenti-page";
 
 export default function DocumentiRoute() {
-  return <ArchivioDocumentiPage />;
+  return <VettureConDocumentiPage />;
 }

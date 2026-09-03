@@ -56,6 +56,7 @@ const PROVE: Record<string, Prova> = {
       "src/lib/archivio-documenti.ts",
       "src/app/documenti/page.tsx",
       "src/components/documenti/archivio-documenti-page.tsx",
+      "src/components/documenti/vetture-con-documenti-page.tsx",
     ],
   },
   "Dashboard concessionario": {
