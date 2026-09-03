@@ -130,6 +130,11 @@ const PRO_SERVICES: DemoPlanService[] = [
       "L'anno intero in una tabella: quanto hai venduto, quanto ti e' costato e quanto ci hai guadagnato, mese per mese, con l'elenco di ogni vettura venduta.",
   },
   {
+    title: "Perizia della vettura prima di comprarla",
+    description:
+      "La scheda con cui controlli un'auto in permuta o dal privato: carrozzeria pannello per pannello, gomme misurate, meccanica, interni e documenti, con il conto di quanto costa rimetterla a posto. Resta salvata e si ristampa il giorno che il venditore contesta.",
+  },
+  {
     title: "Giorni di giacenza del parco",
     description:
       "Da quanto e' ferma ogni automobile, raccolte in fasce da 30 a oltre 150 giorni: si vede a colpo d'occhio su quali intervenire e quanto capitale e' fermo.",

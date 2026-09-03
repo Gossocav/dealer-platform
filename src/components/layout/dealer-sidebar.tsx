@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  ClipboardCheck,
   BarChart3,
   CalendarDays,
   Car,
@@ -50,6 +51,10 @@ const sidebarItems: SidebarItem[] = [
   // La giacenza sta dopo le vendite perche' e' la stessa domanda vista
   // dall'altra parte: li' cosa e' uscito, qui cosa non esce.
   { label: "Giacenza", href: "/giacenza", icon: Hourglass, funzione: "giacenza" },
+  // Le perizie stanno fuori dal parco auto di proposito: quasi sempre
+  // riguardano un'auto che non e' ancora sua, e cercarle dentro "Veicoli"
+  // vorrebbe dire cercarle dove non ci sono.
+  { label: "Perizie", href: "/perizie", icon: ClipboardCheck, funzione: "perizia" },
   { label: "Il mio piano", href: "/abbonamento", icon: ShieldCheck },
   { label: "Impostazioni", href: "/impostazioni", icon: Settings },
   { label: "Logout", href: "/login", icon: LogOut },
