@@ -12,6 +12,7 @@
 export type VociConto = {
   purchase_price?: number | null;
   cost_minivoltura?: number | null;
+  cost_bollo?: number | null;
   cost_transport?: number | null;
   cost_bodywork?: number | null;
   cost_workshop?: number | null;
@@ -27,6 +28,11 @@ export type VociConto = {
  * Le voci che compongono il costo, nell'ordine in cui le spese arrivano
  * davvero: la vettura si voltura, si trasporta, si raddrizza, si mette a
  * posto meccanicamente, si prepara, e infine si vende.
+ *
+ * Il bollo sta accanto alla minivoltura perche' e' l'altra spesa di carte che
+ * arriva con la vettura, e perche' e' l'unica voce del conto che **non si
+ * esaurisce quando e' pagata**: continua a scadere. Per questo, sola fra
+ * tutte, si porta dietro una data -- vedi `statoBollo`.
  *
  * La minivoltura sta per prima perche' viene con l'acquisto, prima ancora che
  * l'automobile si muova. Chiesta dal titolare il 01/09/2026: e' una spesa che
@@ -50,6 +56,7 @@ export type VociConto = {
  */
 export const VOCI_DI_COSTO = [
   { campo: "cost_minivoltura", etichetta: "Minivoltura" },
+  { campo: "cost_bollo", etichetta: "Bollo" },
   { campo: "cost_transport", etichetta: "Trasporto" },
   { campo: "cost_bodywork", etichetta: "Carrozzeria" },
   { campo: "cost_workshop", etichetta: "Officina" },
@@ -69,6 +76,7 @@ export function costoTotale(voci: VociConto): number {
   return (
     numero(voci.purchase_price) +
     numero(voci.cost_minivoltura) +
+    numero(voci.cost_bollo) +
     numero(voci.cost_transport) +
     numero(voci.cost_bodywork) +
     numero(voci.cost_workshop) +
@@ -147,3 +155,44 @@ export function formattaImporto(valore: number | null | undefined): string {
   if (typeof valore !== "number" || !Number.isFinite(valore)) return "—";
   return `${new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valore)} €`;
 }
+
+/**
+ * Come sta il bollo di una vettura: valido, in scadenza, o gia' scaduto.
+ *
+ * Chiesto dal titolare il 03/09/2026 insieme alla voce di costo. E' l'unica
+ * cifra del conto economico che continua a vivere dopo essere stata pagata:
+ * una vettura in piazzale col bollo scaduto non si porta in prova su strada, e
+ * quando si vende il compratore se ne accorge subito.
+ *
+ * **Una scadenza che non si conosce non e' una scadenza passata.** Senza data
+ * questa funzione non risponde niente, e la schermata non scrive niente: e'
+ * un'altra cosa da "scaduto", e confonderle vorrebbe dire allarmare il
+ * concessionario per ogni vettura di cui non ha ancora scritto il bollo.
+ */
+export type StatoBollo = {
+  scaduto: boolean;
+  /** Quanti giorni mancano. Negativo se e' gia' passata. */
+  giorni: number;
+  etichetta: string;
+};
+
+export function statoBollo(scadenza: string | null | undefined, oggi: Date = new Date()): StatoBollo | null {
+  const testo = String(scadenza ?? "").trim();
+  if (!testo) return null;
+
+  const data = new Date(`${testo.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(data.getTime())) return null;
+
+  const giornata = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate());
+  const giorni = Math.round((data.getTime() - giornata.getTime()) / (24 * 60 * 60 * 1000));
+
+  const quando = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" }).format(data);
+
+  if (giorni < 0) return { scaduto: true, giorni, etichetta: `Scaduto il ${quando}` };
+  if (giorni === 0) return { scaduto: false, giorni, etichetta: "Scade oggi" };
+
+  return { scaduto: false, giorni, etichetta: `Scade il ${quando}` };
+}
+
+/** Da quanti giorni prima si comincia ad avvisare che il bollo sta per scadere. */
+export const GIORNI_DI_PREAVVISO_BOLLO = 30;
