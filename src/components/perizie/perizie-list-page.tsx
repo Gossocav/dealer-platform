@@ -3,14 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ClipboardCheck, Loader2, Plus } from "lucide-react";
+import { ClipboardCheck, Loader2, Plus, Search, X } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { FunzioneNonCompresa } from "@/components/dashboard/funzione-non-compresa";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
-import { leggiRilievo, riepilogoPerizia, titoloPerizia } from "@/lib/scheda-perizia";
+import {
+  leggiRilievo,
+  normalizzaFiltriPerizia,
+  perRicercaParziale,
+  ricercaInCorso,
+  riepilogoPerizia,
+  titoloPerizia,
+  type FiltriPerizia,
+} from "@/lib/scheda-perizia";
 import { supabase } from "@/lib/supabaseClient";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 
@@ -20,6 +28,7 @@ type RigaPerizia = {
   model: string | null;
   plate: string | null;
   mileage: number | null;
+  owner_name: string | null;
   appraised_on: string | null;
   status: string | null;
   offered_price: number | string | null;
@@ -27,7 +36,12 @@ type RigaPerizia = {
   conditions: unknown;
 };
 
-const COLONNE = "id, brand, model, plate, mileage, appraised_on, status, offered_price, reconditioning_total, conditions";
+const COLONNE =
+  "id, brand, model, plate, mileage, owner_name, appraised_on, status, offered_price, reconditioning_total, conditions";
+
+const MODULO_VUOTO = { dal: "", al: "", cliente: "", marca: "", modello: "" };
+
+type ModuloRicerca = typeof MODULO_VUOTO;
 
 /**
  * Quante voci ha l'elenco, contate e non scritte a mano.
@@ -62,6 +76,11 @@ export function PerizieListPage() {
   const [caricamento, setCaricamento] = useState(true);
   const [errore, setErrore] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
+  // Due stati e non uno: quello che si sta scrivendo e quello che e' stato
+  // cercato. Interrogare il database a ogni tasto vorrebbe dire una richiesta
+  // per lettera, e un elenco che si rimescola sotto le dita mentre si scrive.
+  const [modulo, setModulo] = useState<ModuloRicerca>(MODULO_VUOTO);
+  const [filtri, setFiltri] = useState<FiltriPerizia>({});
   const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
 
   useEffect(() => {
@@ -90,16 +109,28 @@ export function PerizieListPage() {
     }
 
     // Letto per intero: il database ne consegna mille per volta e non lo dice.
-    const elenco = await caricaTutto<RigaPerizia>((da, a) =>
-      supabase
+    //
+    // I filtri si applicano **nell'interrogazione** e non dopo: cercare fra
+    // righe gia' scaricate vorrebbe dire scaricarle tutte comunque, e ogni
+    // perizia si porta dietro il suo rilievo, cioe' la parte piu' pesante.
+    const elenco = await caricaTutto<RigaPerizia>((da, a) => {
+      let interrogazione = supabase
         .from("vehicle_appraisals")
         .select(COLONNE)
-        .eq("dealer_id", dealerId)
+        .eq("dealer_id", dealerId);
+
+      if (filtri.dal) interrogazione = interrogazione.gte("appraised_on", filtri.dal);
+      if (filtri.al) interrogazione = interrogazione.lte("appraised_on", filtri.al);
+      if (filtri.cliente) interrogazione = interrogazione.ilike("owner_name", perRicercaParziale(filtri.cliente));
+      if (filtri.marca) interrogazione = interrogazione.ilike("brand", perRicercaParziale(filtri.marca));
+      if (filtri.modello) interrogazione = interrogazione.ilike("model", perRicercaParziale(filtri.modello));
+
+      return interrogazione
         .order("appraised_on", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .range(da, a)
-        .returns<RigaPerizia[]>()
-    );
+        .returns<RigaPerizia[]>();
+    });
 
     if (!vivo) return;
 
@@ -119,7 +150,7 @@ export function PerizieListPage() {
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [filtri]);
 
   const nuova = async () => {
     setCreando(true);
@@ -196,6 +227,47 @@ export function PerizieListPage() {
           </button>
         </div>
 
+        {/* La ricerca sta sopra l'elenco e non dentro un pannello da aprire:
+            una perizia si ricerca quando il venditore richiama, e in quel
+            momento si ha il telefono in mano. */}
+        <form
+          className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-6"
+          onSubmit={(evento) => {
+            evento.preventDefault();
+            setFiltri(normalizzaFiltriPerizia(modulo));
+          }}
+        >
+          <CampoRicerca etichetta="Dal" tipo="date" valore={modulo.dal} onChange={(v) => setModulo((m) => ({ ...m, dal: v }))} />
+          <CampoRicerca etichetta="Al" tipo="date" valore={modulo.al} onChange={(v) => setModulo((m) => ({ ...m, al: v }))} />
+          <CampoRicerca etichetta="Chi vende" valore={modulo.cliente} onChange={(v) => setModulo((m) => ({ ...m, cliente: v }))} />
+          <CampoRicerca etichetta="Marca" valore={modulo.marca} onChange={(v) => setModulo((m) => ({ ...m, marca: v }))} />
+          <CampoRicerca etichetta="Modello" valore={modulo.modello} onChange={(v) => setModulo((m) => ({ ...m, modello: v }))} />
+
+          <div className="flex items-end gap-2">
+            <button
+              type="submit"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <Search className="h-4 w-4" />
+              Cerca
+            </button>
+
+            {ricercaInCorso(filtri) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setModulo(MODULO_VUOTO);
+                  setFiltri({});
+                }}
+                title="Azzera la ricerca"
+                className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-slate-600 transition hover:border-slate-900 hover:text-slate-900"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+        </form>
+
         {errore ? <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{errore}</p> : null}
 
         {caricamento ? (
@@ -205,18 +277,35 @@ export function PerizieListPage() {
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
               <ClipboardCheck className="h-6 w-6" />
             </span>
-            <p className="mt-4 font-semibold text-slate-900">Nessuna perizia, per ora</p>
-            <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">
-              La prossima volta che vai a vedere un&apos;auto, aprine una: {VOCI_DA_GUARDARE} voci da spuntare, le quattro
-              gomme da misurare, e alla fine il conto di quanto costa rimetterla a posto.
-            </p>
+
+            {/* Chi ha appena cercato non deve leggere "non hai ancora fatto
+                perizie": ne ha fatte, e quella frase gli farebbe temere di
+                averle perse. */}
+            {ricercaInCorso(filtri) ? (
+              <>
+                <p className="mt-4 font-semibold text-slate-900">Nessuna perizia con questi filtri</p>
+                <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">
+                  Le perizie che hai fatto sono al loro posto: e&apos; questa ricerca a non trovarne. Prova ad allargare
+                  il periodo, o a scrivere solo una parte del nome.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-4 font-semibold text-slate-900">Nessuna perizia, per ora</p>
+                <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">
+                  La prossima volta che vai a vedere un&apos;auto, aprine una: {VOCI_DA_GUARDARE} voci da spuntare, le
+                  quattro gomme da misurare, e alla fine il conto di quanto costa rimetterla a posto.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[46rem] text-left text-sm">
+            <table className="w-full min-w-[52rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-[0.14em] text-slate-500">
                   <th className="py-3 pr-4 font-semibold">Vettura</th>
+                  <th className="py-3 pr-4 font-semibold">Chi vende</th>
                   <th className="py-3 pr-4 font-semibold">Data</th>
                   <th className="py-3 pr-4 font-semibold">Chilometri</th>
                   <th className="py-3 pr-4 font-semibold">Da sistemare</th>
@@ -239,6 +328,7 @@ export function PerizieListPage() {
                           {riepilogo.vociCompilate} voci compilate su {riepilogo.vociTotali}
                         </span>
                       </td>
+                      <td className="py-3 pr-4 text-slate-600">{perizia.owner_name?.trim() || "-"}</td>
                       <td className="py-3 pr-4 text-slate-600">{data(perizia.appraised_on)}</td>
                       <td className="py-3 pr-4 text-slate-600">
                         {typeof perizia.mileage === "number" ? `${new Intl.NumberFormat("it-IT").format(perizia.mileage)} km` : "-"}
@@ -272,5 +362,29 @@ export function PerizieListPage() {
         )}
       </section>
     </DealerDashboardShell>
+  );
+}
+
+function CampoRicerca({
+  etichetta,
+  valore,
+  onChange,
+  tipo = "text",
+}: {
+  etichetta: string;
+  valore: string;
+  onChange: (valore: string) => void;
+  tipo?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{etichetta}</span>
+      <input
+        type={tipo}
+        value={valore}
+        onChange={(evento) => onChange(evento.target.value)}
+        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+      />
+    </label>
   );
 }
