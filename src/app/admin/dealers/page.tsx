@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { formatPlanLabel } from "@/lib/dealer-plan";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { StatoBadge, etichettaStato } from "@/components/admin/stato-badge";
+import { collegamentiDelDealer } from "@/lib/collegamenti-in-pannello";
 
 type DealerStatus = "pending_review" | "approved" | "rejected" | "suspended" | "cancelled";
 type DealerAction = "approve" | "reject" | "suspend" | "reactivate" | "cancel";
@@ -18,6 +19,10 @@ type DealerAdminRow = {
   contact_person: string | null;
   email: string | null;
   phone: string | null;
+  website: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
   status: string | null;
   subscription_plan: string | null;
   active_plan_code?: string | null;
@@ -37,6 +42,42 @@ const ALL_STATUSES: DealerStatus[] = ["pending_review", "approved", "rejected", 
 function displayText(value: string | null | undefined) {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : "-";
+}
+
+/**
+ * Sito e social della concessionaria, dentro l'elenco del pannello.
+ *
+ * **Sono visibili soltanto qui.** Il concessionario li scrive nelle sue
+ * Impostazioni, le pagine pubbliche non li mostrano piu' -- portare un
+ * visitatore sul sito della concessionaria vuol dire perderlo -- e il
+ * pannello e' privato: chi legge questa tabella e' il titolare della
+ * piattaforma, che sta decidendo chi chiamare.
+ *
+ * Le etichette si aprono in una scheda nuova, cosi' l'elenco non si perde.
+ */
+function CollegamentiDealer({ dealer }: { dealer: DealerAdminRow }) {
+  const collegamenti = collegamentiDelDealer(dealer);
+
+  if (collegamenti.length === 0) {
+    return <span className="text-slate-400">-</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {collegamenti.map((collegamento) => (
+        <a
+          key={collegamento.etichetta}
+          href={collegamento.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={collegamento.leggibile}
+          className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900"
+        >
+          {collegamento.etichetta}
+        </a>
+      ))}
+    </div>
+  );
 }
 
 function formatDate(value: string | null | undefined) {
@@ -327,6 +368,7 @@ export default function AdminDealersPage() {
                   <th className="px-4 py-3">Ragione sociale</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Telefono</th>
+                  <th className="px-4 py-3">Sito e social</th>
                   <th className="px-4 py-3">Piano</th>
                   <th className="px-4 py-3">Stato</th>
                   <th className="px-4 py-3">Data registrazione</th>
@@ -336,7 +378,7 @@ export default function AdminDealersPage() {
               <tbody className="divide-y divide-slate-100">
                 {state.dealers.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={8}>
                       Nessun dealer disponibile.
                     </td>
                   </tr>
@@ -352,6 +394,9 @@ export default function AdminDealersPage() {
                         <td className="px-4 py-3 font-medium text-slate-900">{displayText(label)}</td>
                         <td className="px-4 py-3 text-slate-700">{displayText(dealer.email)}</td>
                         <td className="px-4 py-3 text-slate-700">{displayText(dealer.phone)}</td>
+                        <td className="px-4 py-3">
+                          <CollegamentiDealer dealer={dealer} />
+                        </td>
                         <td className="px-4 py-3 text-slate-700">{formatPlanLabel(dealer.active_plan_code ?? dealer.subscription_plan)}</td>
                         <td className="px-4 py-3">
                           <StatoBadge tipo="concessionaria" valore={status} />
