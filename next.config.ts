@@ -6,46 +6,21 @@ import type { NextConfig } from "next";
 // which previously left two copies of the same policy string to keep in sync.
 const nextConfig: NextConfig = {
   images: {
-    // Next.js 16 ha smesso di ottimizzare le immagini locali il cui indirizzo
-    // porta una parte interrogativa, a meno che non sia dichiarata qui: non
-    // le salta, solleva un errore mentre disegna la pagina.
+    // Le foto non le ridimensiona piu' Vercel, le ridimensioniamo noi.
     //
-    // Le foto importate dai siti delle concessionarie passano tutte da
-    // /api/image-proxy?url=..., che una parte interrogativa ce l'ha per
-    // costruzione. Senza questa dichiarazione la scheda di un veicolo
-    // importato rispondeva 500, e la compilazione del sito falliva sulla
-    // pagina delle concessionarie appena una di quelle auto veniva
-    // pubblicata.
-    localPatterns: [
-      // Il valore di "search" si omette per necessita': l'indirizzo della
-      // foto cambia a ogni veicolo, un valore fisso non esiste. Il controllo
-      // vero non sta qui ma dentro il proxy, che rifiuta gli indirizzi
-      // interni, limita dimensione e reindirizzamenti.
-      { pathname: "/api/image-proxy" },
-      // Dichiarare "localPatterns" ribalta la regola: da "tutto permesso" a
-      // "solo cio' che e' elencato". Questa riga tiene ammesso tutto il resto
-      // delle immagini locali com'era prima, senza parte interrogativa.
-      { pathname: "/**", search: "" },
-    ],
-    // Le foto dei veicoli arrivano dall'archivio Supabase con indirizzi
-    // firmati, e quelle importate da listini esterni passano dal nostro
-    // proxy. Senza dichiarare l'origine qui, next/image le rifiuta e la
-    // scheda resta senza foto.
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/storage/v1/object/**",
-      },
-    ],
-    // Le foto delle concessionarie sono scatti da telefono: senza queste
-    // misure il browser scarica l'originale da diversi megabyte anche per
-    // mostrarlo dentro una scheda larga 300 pixel.
-    formats: ["image/avif", "image/webp"],
-    // Un giorno di validita' sulle versioni ridimensionate. Gli indirizzi
-    // firmati cambiano ogni ora, quindi il guadagno vero e' entro l'ora, ma
-    // tenerle piu' a lungo non costa niente.
-    minimumCacheTTL: 86400,
+    // Il servizio di Vercel e' a consumo: il 04/09/2026 il pacchetto compreso
+    // nel piano si e' esaurito e ogni foto del sito ha smesso di comparire --
+    // "Payment required" al posto dell'immagine, su tutte le pagine
+    // pubbliche. E non era passeggero: una sola visita alla pagina di una
+    // concessionaria con 235 auto consuma centinaia di ridimensionamenti.
+    //
+    // "image-loader.ts" incammina ogni foto su /api/image-proxy, che sta sul
+    // nostro server e non ha nessun tetto da esaurire. Con un caricatore
+    // nostro il ridimensionatore di Next non entra piu' in gioco: per questo
+    // qui non ci sono piu' "localPatterns", "remotePatterns", "formats" e
+    // "minimumCacheTTL", che valevano soltanto per quello.
+    loader: "custom",
+    loaderFile: "./src/lib/image-loader.ts",
   },
 };
 
