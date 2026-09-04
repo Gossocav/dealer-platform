@@ -3,6 +3,7 @@ import sharp from "sharp";
 import {
   accettaWebp,
   larghezzaFotoRichiesta,
+  motivoFotoIntera,
   qualitaFotoRichiesta,
   rimpicciolisciFoto,
 } from "@/lib/foto-misure";
@@ -114,5 +115,43 @@ describe("il ridimensionamento", () => {
    */
   it("su qualcosa che non e' una fotografia solleva un errore, non consegna spazzatura", async () => {
     await expect(rimpicciolisciFoto(Buffer.from("questo non e' un jpeg"), 640, 75, true)).rejects.toThrow();
+  });
+});
+
+/**
+ * Il difetto che questi test impediscono: il 04/09/2026 le foto in produzione
+ * arrivavano intere mentre in locale -- anche nella versione compilata -- si
+ * rimpicciolivano. Le due cause possibili si vedono identiche da fuori (la
+ * foto pesa quanto l'originale) e si curano in modi opposti, e senza un motivo
+ * scritto l'unico modo di distinguerle era indovinare.
+ */
+describe("perche' una foto e' stata consegnata intera", () => {
+  it("riconosce la libreria che manca dove il sito e' pubblicato", () => {
+    expect(motivoFotoIntera(new Error("Cannot find module 'sharp'"))).toBe("modulo-assente");
+    expect(motivoFotoIntera(new Error("Something went wrong installing the sharp module"))).toBe("modulo-assente");
+  });
+
+  it("riconosce il formato che la libreria non sa leggere", () => {
+    expect(motivoFotoIntera(new Error("Input file contains unsupported image format"))).toBe("formato-illeggibile");
+    // L'errore vero della foto HEIC di produzione.
+    expect(motivoFotoIntera(new Error("source: bad seek to 2343896\nheif: Decoder plugin generated an error"))).toBe(
+      "formato-illeggibile",
+    );
+  });
+
+  it("su tutto il resto non inventa una spiegazione", () => {
+    expect(motivoFotoIntera(new Error("qualcosa di mai visto"))).toBe("altro");
+    expect(motivoFotoIntera("nemmeno un errore")).toBe("altro");
+  });
+
+  /**
+   * Un messaggio di errore porta dentro i percorsi del server, e questo valore
+   * finisce in un'intestazione che legge chiunque apra il sito.
+   */
+  it("non lascia uscire il messaggio dell'errore", () => {
+    const motivo = motivoFotoIntera(new Error("Cannot find module '/var/task/node_modules/sharp/lib/index.js'"));
+
+    expect(motivo).toBe("modulo-assente");
+    expect(motivo).not.toContain("/var/task");
   });
 });

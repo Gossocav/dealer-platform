@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as dns from "node:dns/promises";
 import type { LookupAddress } from "node:dns";
-import { accettaWebp, larghezzaFotoRichiesta, qualitaFotoRichiesta, rimpicciolisciFoto } from "@/lib/foto-misure";
+import { accettaWebp, larghezzaFotoRichiesta, motivoFotoIntera, qualitaFotoRichiesta, rimpicciolisciFoto } from "@/lib/foto-misure";
 
 export const runtime = "nodejs";
 
@@ -297,6 +297,10 @@ export async function GET(request: NextRequest) {
 
     let corpo = buffer;
     let tipo = contentType;
+    // Perche' la foto e' stata consegnata cosi'. Si legge dall'esterno con una
+    // richiesta sola: senza, una foto intera e una rimpicciolita si
+    // distinguono solo pesandole, e il motivo si puo' solo indovinare.
+    let esito = larghezza ? "ridimensionata" : "senza-misura-chiesta";
 
     if (larghezza) {
       try {
@@ -304,12 +308,13 @@ export async function GET(request: NextRequest) {
         if (webp) {
           tipo = "image/webp";
         }
-      } catch {
+      } catch (errore) {
         // Un formato che la libreria non sa leggere -- l'HEIC dei telefoni
         // Apple, per esempio -- si consegna come e' arrivato: la foto intera
         // e' comunque meglio di un buco nella pagina.
         corpo = buffer;
         tipo = contentType;
+        esito = `intera:${motivoFotoIntera(errore)}`;
       }
     }
 
@@ -317,15 +322,23 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": tipo,
-        // Un mese sulla rete di consegna: la stessa foto nella stessa misura
-        // non si ricalcola due volte. Gli indirizzi delle foto importate
-        // portano un nome diverso a ogni file, quindi una foto sostituita
-        // arriva con un indirizzo nuovo e non resta impigliata qui.
-        "Cache-Control": "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
+        // Un mese sulla rete di consegna quando il ridimensionamento e'
+        // riuscito: la stessa foto nella stessa misura non si ricalcola due
+        // volte. Gli indirizzi delle foto importate portano un nome diverso a
+        // ogni file, quindi una foto sostituita arriva con un indirizzo nuovo e
+        // non resta impigliata qui.
+        //
+        // Cinque minuti quando invece e' fallito: conservare per un mese una
+        // foto intera vorrebbe dire continuare a servirla intera per un mese
+        // anche dopo aver riparato il guasto.
+        "Cache-Control": esito.startsWith("intera:")
+          ? "public, max-age=300, s-maxage=300"
+          : "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
         // La risposta cambia col formato che il browser dichiara di sapere
         // leggere: senza questo, la rete di consegna servirebbe il webp anche
         // a chi ha chiesto un JPEG.
         Vary: "Accept",
+        "X-Foto-Esito": esito,
       },
     });
   } catch (error) {
