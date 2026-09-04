@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as dns from "node:dns/promises";
 import type { LookupAddress } from "node:dns";
+import { accettaWebp, larghezzaFotoRichiesta, qualitaFotoRichiesta, rimpicciolisciFoto } from "@/lib/foto-misure";
 
 export const runtime = "nodejs";
 
@@ -197,6 +198,8 @@ async function readCapped(response: Response, maxBytes: number): Promise<Buffer 
 
 export async function GET(request: NextRequest) {
   const rawUrl = request.nextUrl.searchParams.get("url")?.trim() ?? "";
+  const larghezza = larghezzaFotoRichiesta(request.nextUrl.searchParams.get("w"));
+  const qualita = qualitaFotoRichiesta(request.nextUrl.searchParams.get("q"));
 
   let target: URL;
   try {
@@ -290,11 +293,39 @@ export async function GET(request: NextRequest) {
       return new NextResponse("Image too large", { status: 413 });
     }
 
-    return new NextResponse(new Uint8Array(buffer), {
+    const webp = accettaWebp(acceptRichiesto);
+
+    let corpo = buffer;
+    let tipo = contentType;
+
+    if (larghezza) {
+      try {
+        corpo = await rimpicciolisciFoto(buffer, larghezza, qualita, webp);
+        if (webp) {
+          tipo = "image/webp";
+        }
+      } catch {
+        // Un formato che la libreria non sa leggere -- l'HEIC dei telefoni
+        // Apple, per esempio -- si consegna come e' arrivato: la foto intera
+        // e' comunque meglio di un buco nella pagina.
+        corpo = buffer;
+        tipo = contentType;
+      }
+    }
+
+    return new NextResponse(new Uint8Array(corpo), {
       status: 200,
       headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400, s-maxage=86400",
+        "Content-Type": tipo,
+        // Un mese sulla rete di consegna: la stessa foto nella stessa misura
+        // non si ricalcola due volte. Gli indirizzi delle foto importate
+        // portano un nome diverso a ogni file, quindi una foto sostituita
+        // arriva con un indirizzo nuovo e non resta impigliata qui.
+        "Cache-Control": "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
+        // La risposta cambia col formato che il browser dichiara di sapere
+        // leggere: senza questo, la rete di consegna servirebbe il webp anche
+        // a chi ha chiesto un JPEG.
+        Vary: "Accept",
       },
     });
   } catch (error) {

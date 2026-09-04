@@ -6,7 +6,7 @@ import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-sea
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
-import { CollegamentiConcessionaria } from "@/components/marketplace/collegamenti-concessionaria";
+import { LinkSitoConcessionaria, PulsanteNoleggio } from "@/components/marketplace/collegamenti-concessionaria";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 import { resolveClickableWebsite } from "@/lib/website-url";
 
@@ -40,7 +40,7 @@ async function resolveDealerBySlug(slug: string) {
     // I recapiti servono ai dati strutturati: sono quelli che permettono a
     // Google di riconoscere la concessionaria come un'azienda con una sede,
     // invece che come una pagina qualsiasi.
-    .select("id, name, logo_url, legal_name, city, province, address, phone, email, website, rental_url, facebook_url, instagram_url, linkedin_url")
+    .select("id, name, logo_url, legal_name, city, province, address, phone, email, website, rental_url")
     // Gli stessi stati con cui il marketplace pubblica i veicoli, non il solo
     // "approved" che c'era qui: le due condizioni devono coincidere, altrimenti
     // una concessionaria in stato "active" avrebbe le sue auto in vetrina e la
@@ -213,6 +213,10 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
           <p className="relative mt-4 text-base leading-7 text-slate-400 sm:text-lg">
             {totalVehicles} veicoli pubblicati{dealerLocality ? ` • ${dealerLocality}` : ""}
           </p>
+          {/* Il sito sta qui, sotto il nome e la citta': e' un'informazione su
+              chi vende, non un pulsante da premere. Prima stava in un riquadro
+              a se' intitolato "Dove trovarci", tolto il 04/09/2026. */}
+          <LinkSitoConcessionaria website={matchedDealer.website ?? null} />
         </section>
 
         <section className="flex flex-col gap-5 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:flex-row sm:items-center sm:justify-between sm:p-8">
@@ -222,32 +226,26 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             </div>
             <h2 className="min-w-0 break-words text-lg font-bold text-white [overflow-wrap:anywhere]">{dealerName}</h2>
           </div>
+          {/* Il noleggio davanti agli altri, ed e' l'unico pieno: e' la cosa
+              che si vende. "Catalogo auto" era pieno anche lui e i due si
+              facevano concorrenza, quindi qui e' tornato un pulsante
+              normale. */}
           <div className="flex flex-none flex-wrap gap-3">
+            <PulsanteNoleggio rentalUrl={matchedDealer.rental_url ?? null} />
+            <Link
+              href="/auto"
+              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              Catalogo auto
+            </Link>
             <Link
               href="/concessionarie"
               className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
             >
               Tutte le concessionarie
             </Link>
-            <Link
-              href="/auto"
-              className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-white via-blue-100 to-blue-500 px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_12px_30px_-10px_rgba(76,130,247,0.7)] transition hover:brightness-105"
-            >
-              Catalogo auto
-            </Link>
           </div>
         </section>
-
-        {/* I collegamenti stanno fra la scheda della concessionaria e le sue
-            auto: chi arriva qui guarda prima chi e', poi cosa offre altrove,
-            e infine le vetture. */}
-        <CollegamentiConcessionaria
-          rentalUrl={matchedDealer.rental_url ?? null}
-          website={matchedDealer.website ?? null}
-          facebook={matchedDealer.facebook_url ?? null}
-          instagram={matchedDealer.instagram_url ?? null}
-          linkedin={matchedDealer.linkedin_url ?? null}
-        />
 
         <DealerVehicleSearch vehicles={searchFacets}>
           {dealerVehicles.map((vehicle) => (

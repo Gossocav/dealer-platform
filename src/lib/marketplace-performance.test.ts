@@ -55,11 +55,17 @@ describe("le foto non arrivano piu' a piena risoluzione", () => {
     }
   });
 
-  it("l'archivio delle foto e' dichiarato, altrimenti verrebbero rifiutate", () => {
+  /**
+   * Le foto le ridimensiona il nostro proxy, non il servizio a consumo di
+   * Vercel: il 04/09/2026 quello ha esaurito il pacchetto compreso nel piano e
+   * tutte le foto del sito sono sparite in una volta, con "Payment required"
+   * al posto dell'immagine. Il comportamento del caricatore e' provato in
+   * src/lib/image-loader.test.ts; qui si fissa che la configurazione lo usi.
+   */
+  it("le foto le ridimensiona il nostro proxy", () => {
     const config = read("next.config.ts");
-    expect(config).toContain("remotePatterns");
-    expect(config).toContain("*.supabase.co");
-    expect(config).toContain("/storage/v1/object/**");
+    expect(config).toContain('loader: "custom"');
+    expect(config).toContain("image-loader");
   });
 
   it("la foto principale della scheda parte subito", () => {

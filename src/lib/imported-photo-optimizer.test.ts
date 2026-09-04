@@ -23,16 +23,18 @@ describe("le foto importate restano ottimizzabili", () => {
     expect(mapVehicleImageUrlForDisplay(storage)).toBe(storage);
   });
 
-  it("la configurazione dichiara il percorso del proxy fra quelli ammessi", () => {
-    expect(nextConfig).toContain("localPatterns");
-    expect(nextConfig).toContain('{ pathname: "/api/image-proxy" }');
-  });
-
-  // Dichiarare "localPatterns" ribalta la regola per tutte le immagini
-  // locali: da "tutto permesso" a "solo cio' che e' elencato". Senza questa
-  // riga, il permesso dato alle foto importate ne toglierebbe a tutte le
-  // altre.
-  it("il resto delle immagini locali resta ammesso", () => {
-    expect(nextConfig).toContain('{ pathname: "/**", search: "" }');
+  /**
+   * "localPatterns" serviva al ridimensionatore di Next, che dal 04/09/2026
+   * non entra piu' in gioco: le foto le ridimensiona /api/image-proxy, perche'
+   * il servizio a consumo di Vercel aveva esaurito il pacchetto compreso nel
+   * piano e tutte le foto del sito erano sparite in una volta.
+   *
+   * Il difetto che questo test impedisce e' il ritorno a quel giorno: basta
+   * togliere il caricatore nostro perche' ogni foto ricominci a chiedere il
+   * servizio a consumo.
+   */
+  it("il ridimensionamento resta nostro, non torna a Vercel", () => {
+    expect(nextConfig).toContain('loader: "custom"');
+    expect(nextConfig).toContain('loaderFile: "./src/lib/image-loader.ts"');
   });
 });
