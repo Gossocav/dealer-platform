@@ -6,9 +6,7 @@ import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-sea
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
-import { BottoneSitoConcessionaria, PulsanteNoleggio } from "@/components/marketplace/collegamenti-concessionaria";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
-import { resolveClickableWebsite } from "@/lib/website-url";
 
 // Cinque minuti: l'elenco delle concessionarie cambia molto piu' di rado del
 // catalogo dei veicoli.
@@ -40,7 +38,7 @@ async function resolveDealerBySlug(slug: string) {
     // I recapiti servono ai dati strutturati: sono quelli che permettono a
     // Google di riconoscere la concessionaria come un'azienda con una sede,
     // invece che come una pagina qualsiasi.
-    .select("id, name, logo_url, legal_name, city, province, address, phone, email, website, rental_url")
+    .select("id, name, logo_url, legal_name, city, province, address, phone, email")
     // Gli stessi stati con cui il marketplace pubblica i veicoli, non il solo
     // "approved" che c'era qui: le due condizioni devono coincidere, altrimenti
     // una concessionaria in stato "active" avrebbe le sue auto in vetrina e la
@@ -182,10 +180,10 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     postalCode: null,
     phone: matchedDealer.phone ?? null,
     email: matchedDealer.email ?? null,
-    // Passa dal controllo in lettura: nel database puo' esserci ancora un
-    // indirizzo che non e' un indirizzo, e consegnarlo a Google come
-    // "stessa azienda altrove" lo renderebbe un dato sbagliato dichiarato.
-    website: resolveClickableWebsite(matchedDealer.website),
+    // Nessun sito nei dati strutturati: dire a Google "questa azienda sta
+    // anche altrove" e' un rimando al sito della concessionaria come gli
+    // altri, e i rimandi verso l'esterno sono stati tolti tutti.
+    website: null,
     vehiclesCount: totalVehicles,
   });
 
@@ -206,11 +204,11 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-40 blur-3xl"
             style={{ background: "radial-gradient(circle, rgba(76,130,247,0.5), transparent 70%)" }}
           />
-          {/* Chi e' la concessionaria a sinistra, cosa offre a destra: i due
-              pulsanti sono le uniche cose da premere in cima, e stanno insieme
-              invece che sparsi sotto il nome. Da telefono si incolonnano sotto
-              il testo, perche' affiancati diventerebbero illeggibili. */}
-          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          {/* Nessun collegamento verso l'esterno: chi arriva qui deve restare
+              qui. I due pulsanti che portavano al sito della concessionaria e
+              alla sua pagina noleggi sono stati tolti il 04/09/2026 -- il
+              perche' sta scritto in fondo a questo file. */}
+          <div className="relative">
             <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-[0.32em] text-cyan-300">Concessionaria pubblica</p>
               <h1 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ textWrap: "balance" }}>
@@ -221,14 +219,6 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
               </p>
             </div>
 
-            {/* Il noleggio davanti: e' quello che la concessionaria vende, il
-                sito e' chi e'. Uguali nell'aspetto perche' cosi' li ha voluti
-                il titolare, diversi nell'ordine perche' l'ordine e' l'unica
-                cosa che resta a dire quale conta di piu'. */}
-            <div className="flex flex-none flex-wrap gap-3 lg:justify-end">
-              <PulsanteNoleggio rentalUrl={matchedDealer.rental_url ?? null} />
-              <BottoneSitoConcessionaria website={matchedDealer.website ?? null} />
-            </div>
           </div>
         </section>
 

@@ -38,28 +38,15 @@ describe("ogni collegamento sta dove serve a chi legge", () => {
   const intestazione = pagina.slice(pagina.indexOf("<h1"), pagina.indexOf("<DealerVehicleSearch"));
   const fondo = pagina.slice(pagina.indexOf("</DealerVehicleSearch>"));
 
-  it("i due pulsanti stanno in alto, accanto al nome", () => {
-    expect(intestazione).toContain("<PulsanteNoleggio");
-    expect(intestazione).toContain("<BottoneSitoConcessionaria");
-  });
-
-  // Il noleggio davanti al sito: uguali nell'aspetto perche' cosi' li ha
-  // voluti il titolare, e allora l'ordine resta l'unica cosa che dice quale
-  // delle due conta di piu' -- quella che la concessionaria vende.
-  it("il noleggio viene prima del sito", () => {
-    expect(intestazione.indexOf("<PulsanteNoleggio")).toBeLessThan(
-      intestazione.indexOf("<BottoneSitoConcessionaria")
-    );
-  });
-
-  // A destra su schermo largo, incolonnati sotto il testo sul telefono: due
-  // pulsanti affiancati su uno schermo stretto diventano illeggibili.
-  it("stanno a destra su schermo largo e sotto sul telefono", () => {
-    // La disposizione sta sul contenitore, che viene prima del titolo: si
-    // guarda il riquadro in cima per intero, non la parte dopo il nome.
-    const riquadroInCima = pagina.slice(pagina.indexOf("<section"), pagina.indexOf("<DealerVehicleSearch"));
-    expect(riquadroInCima).toContain("lg:flex-row");
-    expect(riquadroInCima).toContain("lg:justify-end");
+  /**
+   * I due pulsanti in cima -- il sito della concessionaria e la sua pagina
+   * noleggi -- sono stati tolti il 04/09/2026, su decisione del titolare: chi
+   * arriva sul marketplace deve restarci, e un pulsante che porta al sito del
+   * venditore e' un'uscita messa nel punto piu' visibile della pagina.
+   */
+  it("in cima non c'e' nessuna uscita verso l'esterno", () => {
+    expect(intestazione).not.toContain("PulsanteNoleggio");
+    expect(intestazione).not.toContain("BottoneSitoConcessionaria");
   });
 
   it("catalogo e elenco concessionarie stanno in fondo, dopo le automobili", () => {
@@ -76,6 +63,8 @@ describe("ogni collegamento sta dove serve a chi legge", () => {
     expect(intestazione).not.toContain("Tutte le concessionarie");
   });
 
+  // Restano gli unici due collegamenti della pagina, e portano dentro la
+  // piattaforma, non fuori.
   it("restano collegamenti veri, non testo", () => {
     expect(fondo).toMatch(/<Link\s+href="\/auto"/);
     expect(fondo).toMatch(/<Link\s+href="\/concessionarie"/);

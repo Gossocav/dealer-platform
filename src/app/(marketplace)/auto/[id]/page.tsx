@@ -16,7 +16,6 @@ import {
   resolveDealerDisplayName,
   resolveDealerEmail,
   resolveDealerPhone,
-  resolveDealerWebsite,
   resolveDealerWhatsAppPhone,
   toAbsoluteUrl,
   resolveVehicleImageUrl,
@@ -25,7 +24,6 @@ import {
   resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
   normalizeVehicleLabelField,} from "@/lib/public-marketplace";
-import { formatWebsiteForDisplay, resolveClickableWebsite } from "@/lib/website-url";
 import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
 import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
@@ -97,7 +95,7 @@ async function fetchMarketplaceVehicleDetail(id: string) {
     .select(
       // vehicle_condition serve ai dati strutturati: e' la differenza fra
       // dichiarare a Google un'auto nuova e una usata.
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, video_url, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone, website), vehicle_images(image_url, position, is_cover)"
+      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, video_url, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone), vehicle_images(image_url, position, is_cover)"
     )
     .eq("id", id)
     .eq("published", true)
@@ -192,7 +190,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   const dealerPhone = resolveDealerPhone(vehicle.dealers);
   const dealerWhatsAppPhone = resolveDealerWhatsAppPhone(vehicle.dealers);
   const dealerEmail = resolveDealerEmail(vehicle.dealers);
-  const dealerWebsite = resolveDealerWebsite(vehicle.dealers);
   const dealerCity = [
     Array.isArray(vehicle.dealers) ? vehicle.dealers[0]?.city : vehicle.dealers?.city,
     Array.isArray(vehicle.dealers) ? vehicle.dealers[0]?.province : vehicle.dealers?.province,
@@ -489,7 +486,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <InfoRow label="Telefono" value={formatText(dealerPhone)} />
                 <InfoRow label="WhatsApp" value={formatText(dealerWhatsAppPhone)} />
                 <InfoRow label="Email" value={formatText(dealerEmail)} />
-                <WebsiteRow website={dealerWebsite} />
               </div>
 
               {/* Il nome di chi vende l'auto era testo morto: si leggeva e non
@@ -521,39 +517,6 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
         </div>
       </div>
     </main>
-  );
-}
-
-/**
- * Il sito della concessionaria, cliccabile quando c'e' davvero.
- *
- * Se l'indirizzo salvato non e' valido resta scritto in chiaro, com'era
- * prima: peggio di un link che manca c'e' solo un link che porta altrove.
- *
- * "nofollow" perche' e' un indirizzo che scrive il concessionario: senza,
- * il marketplace regalerebbe peso SEO a qualsiasi cosa venga incollata in
- * quel campo, e il campo diventerebbe un posto interessante da riempire.
- */
-function WebsiteRow({ website }: { website: string | null }) {
-  const href = resolveClickableWebsite(website);
-  const label = formatWebsiteForDisplay(website);
-
-  if (!href || !label) {
-    return <InfoRow label="Sito web" value={formatText(website)} />;
-  }
-
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-4 border-b border-white/5 pb-2.5">
-      <span className="text-sm text-slate-500">Sito web</span>
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer nofollow"
-        className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-cyan-300 underline decoration-cyan-300/40 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-200"
-      >
-        {label}
-      </a>
-    </div>
   );
 }
 
