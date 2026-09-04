@@ -217,33 +217,13 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
               chi vende, non un pulsante da premere. Prima stava in un riquadro
               a se' intitolato "Dove trovarci", tolto il 04/09/2026. */}
           <LinkSitoConcessionaria website={matchedDealer.website ?? null} />
-        </section>
 
-        <section className="flex flex-col gap-5 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:flex-row sm:items-center sm:justify-between sm:p-8">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-gradient-to-br from-white via-blue-100 to-blue-300 text-xl font-extrabold text-slate-950">
-              {dealerName.charAt(0)}
-            </div>
-            <h2 className="min-w-0 break-words text-lg font-bold text-white [overflow-wrap:anywhere]">{dealerName}</h2>
-          </div>
-          {/* Il noleggio davanti agli altri, ed e' l'unico pieno: e' la cosa
-              che si vende. "Catalogo auto" era pieno anche lui e i due si
-              facevano concorrenza, quindi qui e' tornato un pulsante
-              normale. */}
-          <div className="flex flex-none flex-wrap gap-3">
+          {/* Il noleggio sta con il nome e il sito perche' e' della
+              concessionaria: e' quello che vende. Stava in un riquadro sotto
+              -- tolto il 04/09/2026 -- che ripeteva il nome gia' scritto qui
+              sopra e serviva solo a contenere tre pulsanti. */}
+          <div className="relative mt-6">
             <PulsanteNoleggio rentalUrl={matchedDealer.rental_url ?? null} />
-            <Link
-              href="/auto"
-              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-            >
-              Catalogo auto
-            </Link>
-            <Link
-              href="/concessionarie"
-              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-            >
-              Tutte le concessionarie
-            </Link>
           </div>
         </section>
 
@@ -252,6 +232,19 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             <VehicleCard key={vehicle.id} vehicle={vehicle} />
           ))}
         </DealerVehicleSearch>
+
+        {/* Le due strade che portano via da questa concessionaria stanno in
+            fondo, dove si arriva dopo aver guardato le sue automobili. In cima
+            occupavano il posto migliore della pagina per mandare altrove chi
+            era appena arrivato. */}
+        <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-white/10 pt-6 text-sm">
+          <Link href="/auto" className="font-semibold text-slate-400 transition hover:text-white">
+            Catalogo auto
+          </Link>
+          <Link href="/concessionarie" className="font-semibold text-slate-400 transition hover:text-white">
+            Tutte le concessionarie
+          </Link>
+        </nav>
       </div>
     </main>
   );
