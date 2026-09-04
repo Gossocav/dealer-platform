@@ -23,42 +23,65 @@ const impostazioni = leggi("src/app/impostazioni/page.tsx");
 describe("i collegamenti sulla pagina della concessionaria", () => {
   it("il noleggio ha il suo pulsante, con le parole chieste", () => {
     expect(riquadro).toContain("Le nostre offerte di noleggio");
-    expect(pagina).toContain("<CollegamentiConcessionaria");
-  });
-
-  // E' una cosa che si vende, non un recapito: chi guarda le auto e pensa
-  // "forse invece la noleggio" deve vederlo senza cercarlo.
-  it("il noleggio sta davanti agli altri", () => {
-    expect(riquadro.indexOf("Le nostre offerte di noleggio")).toBeLessThan(riquadro.indexOf("formatWebsiteForDisplay(website)"));
-  });
-
-  it("compaiono anche sito web e i tre social", () => {
-    for (const nome of ["Facebook", "Instagram", "LinkedIn"]) {
-      expect(riquadro, `manca ${nome}`).toContain(nome);
-    }
-    expect(riquadro).toContain("resolveClickableWebsite(website)");
+    expect(pagina).toContain("<PulsanteNoleggio");
   });
 
   /**
-   * Il difetto che questo test impedisce: un pulsante che porta su una pagina
-   * morta. I campi sono a testo libero dal 02/07/2026, quindi nel database
-   * puo' esserci qualsiasi cosa, e un pulsante rotto e' peggio di un pulsante
-   * assente.
+   * Il riquadro "Dove trovarci" l'ha fatto togliere il titolare il 04/09/2026:
+   * metteva in una sezione a se' cose che non c'entrano fra loro. Il sito e'
+   * diventato una riga sotto il nome della concessionaria.
+   *
+   * Il difetto che questo test impedisce: rimetterlo senza accorgersene, o
+   * lasciare il sito senza un posto dove stare. Un dato che il concessionario
+   * compila nelle Impostazioni e che poi non compare da nessuna parte e' un
+   * campo che si smette di riempire -- e' proprio quello che era successo a
+   * sito e social fra il 02/07 e il 03/09/2026.
    */
-  it("ogni indirizzo si ricontrolla prima di diventare un pulsante", () => {
-    const controlli = (riquadro.match(/resolveClickableWebsite\(/g) ?? []).length;
-    expect(controlli).toBeGreaterThanOrEqual(5);
+  it('il riquadro "Dove trovarci" non c\'e\' piu\', e il sito sta sotto il nome', () => {
+    // Il nome compare ancora nei commenti, che raccontano perche' e' stato
+    // tolto: qui si cerca il testo disegnato, cioe' dentro un tag.
+    expect(riquadro).not.toMatch(/>Dove trovarci</);
+    expect(pagina).not.toMatch(/>Dove trovarci</);
+    expect(pagina).toContain("<LinkSitoConcessionaria website=");
+
+    const nome = pagina.indexOf("{dealerName}");
+    const sito = pagina.indexOf("<LinkSitoConcessionaria");
+    const auto = pagina.indexOf("<DealerVehicleSearch");
+    expect(nome).toBeLessThan(sito);
+    expect(sito).toBeLessThan(auto);
   });
 
-  // Una sezione vuota sotto un'intestazione sembra un guasto.
-  it("senza nemmeno un indirizzo il riquadro non si disegna", () => {
-    expect(riquadro).toContain("if (!noleggio && !sito && social.length === 0) return null;");
+  // E' una cosa che si vende, non un recapito: chi guarda le auto e pensa
+  // "forse invece la noleggio" deve vederlo senza cercarlo. Per lo stesso
+  // motivo e' l'unico pulsante pieno: "Catalogo auto" lo era anche lui e i due
+  // si facevano concorrenza.
+  it("il noleggio e' l'unico pulsante pieno della pagina", () => {
+    expect(riquadro).toContain("bg-gradient-to-br from-white via-blue-100 to-blue-500");
+
+    const pieni = (pagina.match(/from-white via-blue-100 to-blue-500/g) ?? []).length;
+    expect(pieni).toBe(0);
+  });
+
+  /**
+   * Il difetto che questo test impedisce: un collegamento che porta su una
+   * pagina morta. I campi sono a testo libero dal 02/07/2026, quindi nel
+   * database puo' esserci qualsiasi cosa, e un pulsante rotto e' peggio di un
+   * pulsante assente.
+   */
+  it("ogni indirizzo si ricontrolla prima di diventare un collegamento", () => {
+    expect(riquadro).toContain("resolveClickableWebsite(rentalUrl)");
+    expect(riquadro).toContain("resolveClickableWebsite(website)");
+
+    // Senza indirizzo valido non si disegna niente: un pulsante che non porta
+    // da nessuna parte, o una riga vuota sotto il nome, sembrano un guasto.
+    const rese = (riquadro.match(/if \(!\w+\) return null;/g) ?? []).length;
+    expect(rese).toBe(2);
   });
 
   // Stessa convenzione degli altri collegamenti esterni del marketplace.
   it("i collegamenti si aprono a parte e non passano forza ai motori", () => {
     const aperture = (riquadro.match(/rel="noopener noreferrer nofollow"/g) ?? []).length;
-    expect(aperture).toBeGreaterThanOrEqual(3);
+    expect(aperture).toBe(2);
   });
 });
 
