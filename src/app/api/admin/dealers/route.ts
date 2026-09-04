@@ -24,6 +24,17 @@ type DealerListRow = {
   contact_person: string | null;
   email: string | null;
   phone: string | null;
+  /**
+   * Sito e social: raccolti nelle Impostazioni del concessionario e mostrati
+   * **solo qui**. Le pagine pubbliche non li nominano piu' dal 03/09/2026 --
+   * chi cerca un'automobile deve restare sulla piattaforma -- ma il titolare
+   * ha bisogno di sapere chi ha un sito e chi e' attivo sui social prima di
+   * telefonargli. Vedi `src/lib/collegamenti-in-pannello.ts`.
+   */
+  website: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
   status: string | null;
   subscription_plan: string | null;
   subscription_status: string | null;
@@ -188,7 +199,9 @@ export async function GET(request: Request) {
 
   const dealers = await context.supabaseAdmin
     .from("dealers")
-    .select("id, legal_name, name, vat_number, contact_person, email, phone, status, subscription_plan, subscription_status, created_at")
+    .select(
+      "id, legal_name, name, vat_number, contact_person, email, phone, website, facebook_url, instagram_url, linkedin_url, status, subscription_plan, subscription_status, created_at"
+    )
     .in("status", [...SUPPORTED_DEALER_STATUSES])
     .order("created_at", { ascending: false })
     .returns<DealerListRow[]>();
