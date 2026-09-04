@@ -98,7 +98,6 @@ export type MarketplaceDealer = {
   vat_number: string | null;
   website: string | null;
   /** La pagina noleggi della concessionaria, mostrata come pulsante sulla sua pagina. */
-  rental_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;
   linkedin_url?: string | null;
