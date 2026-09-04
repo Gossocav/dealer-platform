@@ -63,5 +63,5 @@ export async function leggiPagina(url: string, tentativi = TENTATIVI_PER_SCHEDA)
 export async function elencoStock(host: string): Promise<DealerSiteEntry[] | null> {
   const xml = await leggiPagina(`https://www.${host}/${SITEMAP_USATO}`);
   if (!xml) return null;
-  return parseDealerStockSitemap(xml);
+  return parseDealerStockSitemap(xml, host);
 }
