@@ -25,7 +25,7 @@ const SITEMAP = `<?xml version="1.0"?>
 </urlset>`;
 
 describe("dalla sitemap si prendono solo le automobili vere", () => {
-  const voci = parseDealerStockSitemap(SITEMAP);
+  const voci = parseDealerStockSitemap(SITEMAP, "autogepy.it");
 
   it("tiene usate, km 0 e nuove in pronta consegna", () => {
     expect(voci.map((v) => v.condition).sort()).toEqual(["Km/0", "Nuovo", "Usato"]);
@@ -50,6 +50,46 @@ describe("dalla sitemap si prendono solo le automobili vere", () => {
   it("prende l'identificativo dall'indirizzo", () => {
     expect(voci.find((v) => v.condition === "Usato")?.sourceId).toBe("7474578");
     expect(voci.find((v) => v.condition === "Km/0")?.sourceId).toBe("7699913");
+  });
+
+  /**
+   * Ponginibbi, 04/09/2026: tutti e 72 gli indirizzi della sitemap
+   * cominciavano con "https://TBD/", il segnaposto lasciato da chi ha montato
+   * il sito. L'elenco delle 71 vetture si leggeva, e poi non se ne apriva
+   * nessuna: 71 letture fallite di fila e zero automobili importate.
+   */
+  it("ricostruisce l'indirizzo quando la sitemap sbaglia il nome del sito", () => {
+    const rotta = `<?xml version="1.0"?>
+<urlset>
+  <url><loc>https://TBD/auto/usate/piacenza/hyundai/inster/elettrico/49-kwh/9798175/</loc></url>
+</urlset>`;
+
+    const [voce] = parseDealerStockSitemap(rotta, "ponginibbigroup.it");
+
+    expect(voce.url).toBe("https://www.ponginibbigroup.it/auto/usate/piacenza/hyundai/inster/elettrico/49-kwh/9798175/");
+    expect(voce.sourceId).toBe("9798175");
+    expect(voce.condition).toBe("Usato");
+  });
+
+  /**
+   * La stessa ricostruzione chiude una porta: prima il nostro server andava a
+   * leggere l'indirizzo scritto nella sitemap, qualunque fosse. Una sitemap
+   * che puntava a un indirizzo interno faceva chiedere quell'indirizzo al
+   * server, dall'interno della nostra rete.
+   */
+  it("non legge mai un sito diverso da quello della concessionaria", () => {
+    const ostile = `<?xml version="1.0"?>
+<urlset>
+  <url><loc>http://169.254.169.254/auto/usate/x/y/z/1234567/</loc></url>
+  <url><loc>https://sito-di-un-altro.it/auto/km0/x/y/z/7654321/</loc></url>
+</urlset>`;
+
+    const voci = parseDealerStockSitemap(ostile, "autogepy.it");
+
+    expect(voci).toHaveLength(2);
+    for (const voce of voci) {
+      expect(voce.url.startsWith("https://www.autogepy.it/")).toBe(true);
+    }
   });
 
   it("non elenca due volte lo stesso veicolo", () => {

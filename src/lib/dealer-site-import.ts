@@ -93,21 +93,68 @@ const CONDITION_BY_PATH: Array<[string, StockCondition]> = [
 /** L'identificativo e' l'ultimo pezzo dell'indirizzo: .../1-2-turbo-altitude/7699913/ */
 const SOURCE_ID_PATTERN = /\/(\d{5,})\/?$/;
 
-export function parseDealerStockSitemap(xml: string): DealerSiteEntry[] {
+/**
+ * Il percorso di un indirizzo della sitemap, buttando via il nome del sito.
+ *
+ * **Del nome del sito scritto nella sitemap non ci si fida.** Ponginibbi,
+ * 04/09/2026: tutti e 72 gli indirizzi cominciavano con "https://TBD/", il
+ * segnaposto che chi ha montato il sito non ha mai sostituito. L'elenco delle
+ * 71 vetture si leggeva benissimo, e poi non se ne apriva nessuna. Non e' un
+ * caso isolato: e' un errore di configurazione che nessuno nota, perche' il
+ * sito si naviga lo stesso -- se ne accorge solo chi legge la sitemap, cioe'
+ * Google e noi.
+ *
+ * Il nome giusto ce l'abbiamo gia': e' quello che il concessionario ha
+ * scritto nelle sue Impostazioni. Da qui si prende solo il percorso.
+ *
+ * **E questo chiude anche una porta.** Prima il server andava a leggere
+ * l'indirizzo scritto nella sitemap, qualunque fosse -- il commento in
+ * `dealer-site-fetch` diceva gia' "gli indirizzi veri li costruiamo noi", ma
+ * per le schede non era vero. Una sitemap che puntava altrove faceva
+ * chiedere quel "altrove" al nostro server, dall'interno della nostra rete.
+ * Adesso l'unico sito che si puo' leggere e' quello del concessionario.
+ */
+function percorsoDellaScheda(loc: string): string | null {
+  const testo = loc.trim();
+  if (!testo) return null;
+
+  // Un indirizzo relativo e' gia' un percorso: alcune sitemap li scrivono cosi'.
+  if (testo.startsWith("/")) return testo;
+
+  try {
+    // Il nome del sito qui non conta -- lo buttiamo comunque -- ma serve al
+    // costruttore per accettare la stringa.
+    return new URL(testo).pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Le vetture elencate nella sitemap, con l'indirizzo ricostruito sul sito
+ * della concessionaria che stiamo leggendo.
+ */
+export function parseDealerStockSitemap(xml: string, host: string): DealerSiteEntry[] {
   const urls = Array.from(xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)).map((m) => m[1]);
   const entries = new Map<string, DealerSiteEntry>();
 
-  for (const url of urls) {
-    const condition = CONDITION_BY_PATH.find(([segmento]) => url.includes(segmento))?.[1];
+  for (const loc of urls) {
+    const percorso = percorsoDellaScheda(loc);
+    if (!percorso) continue;
+
+    // La condizione e l'identificativo si leggono dal percorso e non
+    // dall'indirizzo intero: cosi' un nome di sito che contenesse per caso
+    // "/auto/usate/" non puo' far passare per vettura una pagina qualsiasi.
+    const condition = CONDITION_BY_PATH.find(([segmento]) => percorso.includes(segmento))?.[1];
     if (!condition) continue;
 
-    const sourceId = url.match(SOURCE_ID_PATTERN)?.[1];
+    const sourceId = percorso.match(SOURCE_ID_PATTERN)?.[1];
     // Senza identificativo e' una pagina di categoria, non una vettura.
     if (!sourceId) continue;
 
     // La sitemap puo' elencare due volte lo stesso veicolo.
     if (!entries.has(sourceId)) {
-      entries.set(sourceId, { url, sourceId, condition });
+      entries.set(sourceId, { url: `https://www.${host}${percorso}`, sourceId, condition });
     }
   }
 
