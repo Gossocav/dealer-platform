@@ -37,29 +37,51 @@ describe("i collegamenti sulla pagina della concessionaria", () => {
    * campo che si smette di riempire -- e' proprio quello che era successo a
    * sito e social fra il 02/07 e il 03/09/2026.
    */
-  it('il riquadro "Dove trovarci" non c\'e\' piu\', e il sito sta sotto il nome', () => {
+  it('il riquadro "Dove trovarci" non c\'e\' piu\', e il sito sta in cima', () => {
     // Il nome compare ancora nei commenti, che raccontano perche' e' stato
     // tolto: qui si cerca il testo disegnato, cioe' dentro un tag.
     expect(riquadro).not.toMatch(/>Dove trovarci</);
     expect(pagina).not.toMatch(/>Dove trovarci</);
-    expect(pagina).toContain("<LinkSitoConcessionaria website=");
+    // Dal 04/09/2026 il sito e' un pulsante gemello del noleggio, non piu' una
+    // riga di testo sotto il nome.
+    expect(pagina).toContain("<BottoneSitoConcessionaria website=");
 
     const nome = pagina.indexOf("{dealerName}");
-    const sito = pagina.indexOf("<LinkSitoConcessionaria");
+    const sito = pagina.indexOf("<BottoneSitoConcessionaria");
     const auto = pagina.indexOf("<DealerVehicleSearch");
     expect(nome).toBeLessThan(sito);
     expect(sito).toBeLessThan(auto);
   });
 
-  // E' una cosa che si vende, non un recapito: chi guarda le auto e pensa
-  // "forse invece la noleggio" deve vederlo senza cercarlo. Per lo stesso
-  // motivo e' l'unico pulsante pieno: "Catalogo auto" lo era anche lui e i due
-  // si facevano concorrenza.
-  it("il noleggio e' l'unico pulsante pieno della pagina", () => {
+  /**
+   * I due pulsanti in cima devono essere identici: il titolare li ha voluti
+   * cosi' il 04/09/2026. Lo stile e' scritto una volta sola in una costante,
+   * perche' due classi copiate divergono al primo ritocco -- e due gemelli
+   * che smettono di somigliarsi si notano subito.
+   */
+  it("il noleggio e il sito sono due pulsanti identici", () => {
+    expect(riquadro).toContain("const PULSANTE_IN_CIMA");
     expect(riquadro).toContain("bg-gradient-to-br from-white via-blue-100 to-blue-500");
 
-    const pieni = (pagina.match(/from-white via-blue-100 to-blue-500/g) ?? []).length;
-    expect(pieni).toBe(0);
+    // Lo stile compare una volta sola: e' la definizione condivisa.
+    const definizioni = (riquadro.match(/from-white via-blue-100 to-blue-500/g) ?? []).length;
+    expect(definizioni, "lo stile e' stato copiato invece che condiviso").toBe(1);
+
+    // E i due lo usano entrambi.
+    const usi = (riquadro.match(/className=\{PULSANTE_IN_CIMA\}/g) ?? []).length;
+    expect(usi).toBe(2);
+
+    // Nessun altro pulsante pieno sulla pagina: erano tre e si facevano
+    // concorrenza, e "Catalogo auto" e' tornato un collegamento in fondo.
+    const pieniInPagina = (pagina.match(/from-white via-blue-100 to-blue-500/g) ?? []).length;
+    expect(pieniInPagina).toBe(0);
+  });
+
+  it("il sito dice cosa succede premendolo, non il proprio indirizzo", () => {
+    // Un indirizzo lungo dentro un pulsante o lo allarga o va troncato, e in
+    // tutti e due i casi i due gemelli smettono di somigliarsi.
+    expect(riquadro).toContain("Visita il nostro sito");
+    expect(riquadro).not.toContain("formatWebsiteForDisplay");
   });
 
   /**

@@ -6,7 +6,7 @@ import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-sea
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
-import { LinkSitoConcessionaria, PulsanteNoleggio } from "@/components/marketplace/collegamenti-concessionaria";
+import { BottoneSitoConcessionaria, PulsanteNoleggio } from "@/components/marketplace/collegamenti-concessionaria";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 import { resolveClickableWebsite } from "@/lib/website-url";
 
@@ -206,24 +206,29 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
             className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-40 blur-3xl"
             style={{ background: "radial-gradient(circle, rgba(76,130,247,0.5), transparent 70%)" }}
           />
-          <p className="relative text-sm font-semibold uppercase tracking-[0.32em] text-cyan-300">Concessionaria pubblica</p>
-          <h1 className="relative mt-4 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ textWrap: "balance" }}>
-            {dealerName}
-          </h1>
-          <p className="relative mt-4 text-base leading-7 text-slate-400 sm:text-lg">
-            {totalVehicles} veicoli pubblicati{dealerLocality ? ` • ${dealerLocality}` : ""}
-          </p>
-          {/* Il sito sta qui, sotto il nome e la citta': e' un'informazione su
-              chi vende, non un pulsante da premere. Prima stava in un riquadro
-              a se' intitolato "Dove trovarci", tolto il 04/09/2026. */}
-          <LinkSitoConcessionaria website={matchedDealer.website ?? null} />
+          {/* Chi e' la concessionaria a sinistra, cosa offre a destra: i due
+              pulsanti sono le uniche cose da premere in cima, e stanno insieme
+              invece che sparsi sotto il nome. Da telefono si incolonnano sotto
+              il testo, perche' affiancati diventerebbero illeggibili. */}
+          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-cyan-300">Concessionaria pubblica</p>
+              <h1 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ textWrap: "balance" }}>
+                {dealerName}
+              </h1>
+              <p className="mt-4 text-base leading-7 text-slate-400 sm:text-lg">
+                {totalVehicles} veicoli pubblicati{dealerLocality ? ` • ${dealerLocality}` : ""}
+              </p>
+            </div>
 
-          {/* Il noleggio sta con il nome e il sito perche' e' della
-              concessionaria: e' quello che vende. Stava in un riquadro sotto
-              -- tolto il 04/09/2026 -- che ripeteva il nome gia' scritto qui
-              sopra e serviva solo a contenere tre pulsanti. */}
-          <div className="relative mt-6">
-            <PulsanteNoleggio rentalUrl={matchedDealer.rental_url ?? null} />
+            {/* Il noleggio davanti: e' quello che la concessionaria vende, il
+                sito e' chi e'. Uguali nell'aspetto perche' cosi' li ha voluti
+                il titolare, diversi nell'ordine perche' l'ordine e' l'unica
+                cosa che resta a dire quale conta di piu'. */}
+            <div className="flex flex-none flex-wrap gap-3 lg:justify-end">
+              <PulsanteNoleggio rentalUrl={matchedDealer.rental_url ?? null} />
+              <BottoneSitoConcessionaria website={matchedDealer.website ?? null} />
+            </div>
           </div>
         </section>
 

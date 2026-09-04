@@ -38,9 +38,28 @@ describe("ogni collegamento sta dove serve a chi legge", () => {
   const intestazione = pagina.slice(pagina.indexOf("<h1"), pagina.indexOf("<DealerVehicleSearch"));
   const fondo = pagina.slice(pagina.indexOf("</DealerVehicleSearch>"));
 
-  it("il noleggio sta in alto, con il nome e il sito", () => {
+  it("i due pulsanti stanno in alto, accanto al nome", () => {
     expect(intestazione).toContain("<PulsanteNoleggio");
-    expect(intestazione).toContain("<LinkSitoConcessionaria");
+    expect(intestazione).toContain("<BottoneSitoConcessionaria");
+  });
+
+  // Il noleggio davanti al sito: uguali nell'aspetto perche' cosi' li ha
+  // voluti il titolare, e allora l'ordine resta l'unica cosa che dice quale
+  // delle due conta di piu' -- quella che la concessionaria vende.
+  it("il noleggio viene prima del sito", () => {
+    expect(intestazione.indexOf("<PulsanteNoleggio")).toBeLessThan(
+      intestazione.indexOf("<BottoneSitoConcessionaria")
+    );
+  });
+
+  // A destra su schermo largo, incolonnati sotto il testo sul telefono: due
+  // pulsanti affiancati su uno schermo stretto diventano illeggibili.
+  it("stanno a destra su schermo largo e sotto sul telefono", () => {
+    // La disposizione sta sul contenitore, che viene prima del titolo: si
+    // guarda il riquadro in cima per intero, non la parte dopo il nome.
+    const riquadroInCima = pagina.slice(pagina.indexOf("<section"), pagina.indexOf("<DealerVehicleSearch"));
+    expect(riquadroInCima).toContain("lg:flex-row");
+    expect(riquadroInCima).toContain("lg:justify-end");
   });
 
   it("catalogo e elenco concessionarie stanno in fondo, dopo le automobili", () => {
