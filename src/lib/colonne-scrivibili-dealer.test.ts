@@ -83,11 +83,29 @@ describe("le Impostazioni possono scrivere tutto quello che compilano", () => {
     }
   });
 
-  // PostgreSQL rifiuta l'intera scrittura se una sola colonna non e'
-  // permessa: non si perde un campo, si perde il salvataggio.
+  /**
+   * PostgreSQL rifiuta l'intera scrittura se una sola colonna non e' permessa:
+   * non si perde un campo, si perde il salvataggio.
+   *
+   * L'esempio era `rental_url`, la colonna che il 04/09/2026 aveva bloccato
+   * tutte le Impostazioni. Il campo della pagina noleggi e' stato tolto dal
+   * modulo lo stesso giorno, insieme ai rimandi ai siti delle concessionarie:
+   * il permesso nel database resta -- una colonna che nessuno scrive non fa
+   * danni -- ma qui l'ancora torna a essere una colonna che il modulo scrive
+   * davvero.
+   */
   it("basta una colonna fuori elenco per far fallire tutto il salvataggio", () => {
-    expect(salvate).toContain("rental_url");
-    expect(colonne).toContain("rental_url");
+    expect(salvate).toContain("website");
+    expect(colonne).toContain("website");
+  });
+
+  // Il campo della pagina noleggi non c'e' piu' nel modulo: se tornasse senza
+  // che nessuno lo abbia deciso, il controllo qui sopra lo prenderebbe
+  // comunque -- ma vale la pena dirlo, perche' e' stato tolto di proposito.
+  it("la pagina noleggi non si chiede piu' nelle Impostazioni", () => {
+    const pagina = leggi("src/app/impostazioni/page.tsx");
+    expect(pagina).not.toContain("rental_url");
+    expect(pagina).not.toContain("Pagina noleggi");
   });
 });
 

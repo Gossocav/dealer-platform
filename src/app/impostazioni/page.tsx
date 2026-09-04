@@ -23,7 +23,6 @@ type DealerProfile = {
   email: string | null;
   vat_number: string | null;
   website: string | null;
-  rental_url: string | null;
   description: string | null;
   opening_hours: string | null;
   facebook_url: string | null;
@@ -32,7 +31,7 @@ type DealerProfile = {
 };
 
 const DEALER_SELECT_COLUMNS =
-  "id, name, legal_name, logo_url, address, city, province, postal_code, phone, whatsapp_phone, email, vat_number, website, rental_url, description, opening_hours, facebook_url, instagram_url, linkedin_url";
+  "id, name, legal_name, logo_url, address, city, province, postal_code, phone, whatsapp_phone, email, vat_number, website, description, opening_hours, facebook_url, instagram_url, linkedin_url";
 
 type DealerFormState = {
   name: string;
@@ -47,7 +46,6 @@ type DealerFormState = {
   email: string;
   vat_number: string;
   website: string;
-  rental: string;
   description: string;
   opening_hours: string;
   facebook: string;
@@ -68,7 +66,6 @@ const EMPTY_DEALER_FORM: DealerFormState = {
   email: "",
   vat_number: "",
   website: "",
-  rental: "",
   description: "",
   opening_hours: "",
   facebook: "",
@@ -90,7 +87,6 @@ function mapDealerToForm(dealer: DealerProfile): DealerFormState {
     email: dealer.email ?? "",
     vat_number: dealer.vat_number ?? "",
     website: dealer.website ?? "",
-    rental: dealer.rental_url ?? "",
     description: dealer.description ?? "",
     opening_hours: dealer.opening_hours ?? "",
     facebook: dealer.facebook_url ?? "",
@@ -235,20 +231,6 @@ export default function ImpostazioniPage() {
       return;
     }
 
-    // Meglio fermare il salvataggio che accettare in silenzio un indirizzo che
-    // non porta da nessuna parte: il campo verrebbe riletto come valido e
-    // l'errore si scoprirebbe solo il giorno in cui qualcuno lo clicca.
-    // Stesso controllo del sito web: un indirizzo che non e' un indirizzo
-    // diventerebbe un pulsante che porta su una pagina morta, e sulla pagina
-    // pubblica lo vedrebbero i clienti prima del concessionario.
-    const noleggio = normalizeWebsiteUrl(form.rental);
-    if (noleggio.error) {
-      setStatusMessage(noleggio.error);
-      setStatusType("error");
-      setSaving(false);
-      return;
-    }
-
     const website = normalizeWebsiteUrl(form.website);
     if (website.error) {
       setStatusMessage(website.error);
@@ -272,7 +254,6 @@ export default function ImpostazioniPage() {
       email: nullable(form.email),
       vat_number: nullable(form.vat_number),
       website: website.url,
-      rental_url: noleggio.url,
       description: nullable(form.description),
       opening_hours: nullable(form.opening_hours),
       facebook_url: nullable(form.facebook),
@@ -413,14 +394,6 @@ export default function ImpostazioniPage() {
                   <Field label="Cellulare / WhatsApp" value={form.whatsapp} onChange={(value) => setForm((s) => ({ ...s, whatsapp: value }))} />
                   <Field label="Email commerciale" type="email" value={form.email} onChange={(value) => setForm((s) => ({ ...s, email: value }))} />
                   <Field label="Sito web" value={form.website} onChange={(value) => setForm((s) => ({ ...s, website: value }))} />
-                  {/* Chiesto dal titolare il 03/09/2026: molte concessionarie
-                      hanno un sito dedicato ai noleggi, e dalla loro pagina su
-                      KeyAuto non era raggiungibile. */}
-                  <Field
-                    label="Pagina noleggi (es. noleggio.tuosito.it)"
-                    value={form.rental}
-                    onChange={(value) => setForm((s) => ({ ...s, rental: value }))}
-                  />
                 </div>
                 <p className="mt-4 text-sm text-slate-600">
                   Il numero &ldquo;Cellulare / WhatsApp&rdquo; è quello usato dal bottone WhatsApp sulla scheda veicolo: se resta vuoto, il
