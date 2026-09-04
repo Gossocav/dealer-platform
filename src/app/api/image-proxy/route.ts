@@ -31,6 +31,26 @@ const BLOCKED_IPV4_CIDRS: Array<[string, number]> = [
   ["240.0.0.0", 4],
 ];
 
+/**
+ * Il messaggio vero del primo fallimento, scritto nei log del server.
+ *
+ * L'intestazione `x-foto-esito` dice la categoria, non il messaggio: e' letta
+ * da chiunque, e un errore per esteso porta dentro i percorsi del server. Ma
+ * senza il messaggio, capire perche' le foto arrivavano intere ha richiesto di
+ * ricostruire il pacchetto pubblicato e provarlo pezzo per pezzo -- il
+ * 04/09/2026 mancava `libvips-cpp.so.8.18.6`, e quel nome sarebbe bastato.
+ *
+ * **Una volta per processo**, non a ogni foto: quando si rompe si rompe per
+ * tutte, e migliaia di righe identiche nascondono il resto invece di aiutare.
+ */
+let giaSegnalato = false;
+
+function segnalaUnaVolta(errore: unknown) {
+  if (giaSegnalato) return;
+  giaSegnalato = true;
+  console.error("image-proxy: la foto e stata consegnata intera.", errore);
+}
+
 class ProxyError extends Error {
   status: number;
   publicMessage: string;
@@ -315,6 +335,7 @@ export async function GET(request: NextRequest) {
         corpo = buffer;
         tipo = contentType;
         esito = `intera:${motivoFotoIntera(errore)}`;
+        segnalaUnaVolta(errore);
       }
     }
 
