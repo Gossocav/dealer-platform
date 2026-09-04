@@ -50,6 +50,35 @@ export function accettaWebp(intestazioneAccept: string | null | undefined) {
 }
 
 /**
+ * Perche' una foto e' stata consegnata come e' arrivata.
+ *
+ * Serve a distinguere due guasti che da fuori si vedono identici -- la foto
+ * pesa quanto l'originale -- e che si curano in modi opposti: la libreria non
+ * c'e' dove il sito e' pubblicato, oppure c'e' ma quella foto non la sa
+ * leggere. Il 04/09/2026 sono state consegnate intere in produzione mentre in
+ * locale, anche nella versione compilata, si rimpicciolivano: senza saperlo,
+ * l'unico modo per capirlo era indovinare.
+ *
+ * Sono categorie, non messaggi: un messaggio di errore porta dentro i percorsi
+ * del server, e questo valore finisce in un'intestazione che leggono tutti.
+ */
+export type MotivoFotoIntera = "modulo-assente" | "formato-illeggibile" | "altro";
+
+export function motivoFotoIntera(errore: unknown): MotivoFotoIntera {
+  const messaggio = errore instanceof Error ? errore.message : String(errore);
+
+  if (/cannot find module|module_not_found|sharp module|no such file/i.test(messaggio)) {
+    return "modulo-assente";
+  }
+
+  if (/unsupported image|image format|input file|bad seek|decoder/i.test(messaggio)) {
+    return "formato-illeggibile";
+  }
+
+  return "altro";
+}
+
+/**
  * Rimpicciolisce la foto prima di consegnarla.
  *
  * Solleva un errore sui formati che la libreria non sa leggere: chi la chiama
