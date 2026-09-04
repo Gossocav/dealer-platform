@@ -13,6 +13,12 @@ import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
+import { caricaTutto } from "@/lib/carica-tutto";
+import {
+  pianoCambioStatoDiGruppo,
+  riassumiLasciateStare,
+  type VersoDelCambio,
+} from "@/lib/cambio-stato-di-gruppo";
 import { supabase } from "@/lib/supabaseClient";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -56,6 +62,16 @@ type VehicleOptionKey = {
 };
 
 const PAGE_SIZE = 9;
+
+/**
+ * Le colonne che servono a disegnare una riga **e** a decidere se e'
+ * pubblicabile. Sono una costante perche' le legge anche il comando di
+ * gruppo: `evaluateVehicleHealth` guarda prezzo, chilometri, dati tecnici e
+ * fotografie, e con un elenco piu' corto direbbe "scheda incompleta" su
+ * vetture che invece sono a posto.
+ */
+const COLONNE_VEICOLO =
+  "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, import_missing_since, vehicle_images(id, image_url, position, is_cover)";
 
 /**
  * Filtri, pagina, ordinamento e vista scritti nell'indirizzo.
@@ -115,6 +131,54 @@ function indirizzoDaStato(filters: VehicleFilters, page: number, viewMode: ViewM
   return params.toString();
 }
 
+/**
+ * I filtri dell'elenco, applicati a una interrogazione qualsiasi.
+ *
+ * Erano scritti dentro l'effetto che carica la pagina. Sono usciti di li'
+ * quando sono arrivati i comandi "pubblica tutte" e "metti tutte in bozza":
+ * quei due devono agire **esattamente** sull'elenco che il concessionario ha
+ * davanti, e due copie degli stessi filtri prima o poi divergono -- il giorno
+ * che divergono, il bottone tocca vetture che non erano nell'elenco.
+ */
+function applicaFiltriVeicoli<
+  Q extends {
+    or(filtro: string): Q;
+    eq(colonna: string, valore: string): Q;
+    gte(colonna: string, valore: number): Q;
+    lte(colonna: string, valore: number): Q;
+  },
+>(query: Q, filters: VehicleFilters, minPrice: number | null, maxPrice: number | null): Q {
+  let q = query;
+
+  if (filters.query.trim().length > 0) {
+    const cercato = filters.query.trim();
+    q = q.or(`brand.ilike.%${cercato}%,model.ilike.%${cercato}%,version.ilike.%${cercato}%`);
+  }
+
+  if (filters.brand !== "all") q = q.eq("brand", filters.brand);
+  if (filters.model !== "all") q = q.eq("model", filters.model);
+  if (filters.fuel !== "all") q = q.eq("fuel", filters.fuel);
+  if (filters.transmission !== "all") q = q.eq("transmission", filters.transmission);
+  // Confronto esatto: nel database la condizione e' sempre una delle quattro
+  // scritte in `vehicle-conditions.ts`, perche' tutte e tre le strade che
+  // scrivono una vettura -- modulo, importazione da file e sincronizzazione
+  // dal sito -- passano di li'.
+  if (filters.condition !== "all") q = q.eq("vehicle_condition", filters.condition);
+
+  if (filters.status === "published") {
+    q = q.or("status.eq.published,published.eq.true");
+  } else if (filters.status === "draft") {
+    q = q.or("status.eq.draft,published.eq.false,status.is.null");
+  } else if (filters.status !== "all") {
+    q = q.eq("status", filters.status);
+  }
+
+  if (typeof minPrice === "number") q = q.gte("price", minPrice);
+  if (typeof maxPrice === "number") q = q.lte("price", maxPrice);
+
+  return q;
+}
+
 export function VehiclesManagementPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -142,6 +206,10 @@ export function VehiclesManagementPage() {
   const [busyVehicleId, setBusyVehicleId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkPublishing, setBulkPublishing] = useState(false);
+  // Il comando su tutto il parco lavora una vettura per volta e puo' durare
+  // un minuto: senza un avanzamento a schermo sembra bloccato, e il
+  // concessionario ricarica la pagina a meta' strada.
+  const [avanzamentoTutti, setAvanzamentoTutti] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -366,10 +434,7 @@ export function VehiclesManagementPage() {
 
       let query = supabase
         .from("vehicles")
-        .select(
-          "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, import_missing_since, vehicle_images(id, image_url, position, is_cover)",
-          { count: "exact" }
-        )
+        .select(COLONNE_VEICOLO, { count: "exact" })
         .eq("dealer_id", currentDealerId)
         .range(from, to)
         // I veicoli senza prezzo o senza chilometri finiscono in fondo in
@@ -378,31 +443,7 @@ export function VehiclesManagementPage() {
         // prezzo aprirebbero l'elenco.
         .order(sort.field, { ascending: sort.direction === "asc", nullsFirst: false });
 
-      if (filters.query.trim().length > 0) {
-        const q = filters.query.trim();
-        query = query.or(`brand.ilike.%${q}%,model.ilike.%${q}%,version.ilike.%${q}%`);
-      }
-
-      if (filters.brand !== "all") query = query.eq("brand", filters.brand);
-      if (filters.model !== "all") query = query.eq("model", filters.model);
-      if (filters.fuel !== "all") query = query.eq("fuel", filters.fuel);
-      if (filters.transmission !== "all") query = query.eq("transmission", filters.transmission);
-      // Confronto esatto: nel database la condizione e' sempre una delle
-      // quattro scritte in `vehicle-conditions.ts`, perche' tutte e tre le
-      // strade che scrivono una vettura -- modulo, importazione da file e
-      // sincronizzazione dal sito -- passano di li'.
-      if (filters.condition !== "all") query = query.eq("vehicle_condition", filters.condition);
-
-      if (filters.status === "published") {
-        query = query.or("status.eq.published,published.eq.true");
-      } else if (filters.status === "draft") {
-        query = query.or("status.eq.draft,published.eq.false,status.is.null");
-      } else if (filters.status !== "all") {
-        query = query.eq("status", filters.status);
-      }
-
-      if (typeof minPrice === "number") query = query.gte("price", minPrice);
-      if (typeof maxPrice === "number") query = query.lte("price", maxPrice);
+      query = applicaFiltriVeicoli(query, filters, minPrice, maxPrice);
 
       const { data, error: vehiclesError, count } = await query;
 
@@ -769,6 +810,183 @@ export function VehiclesManagementPage() {
     await refreshData();
   }, [currentDealerId, ensureDemoWriteAllowed, items, refreshData, selectedVehicleIds]);
 
+  /**
+   * Pubblica, oppure rimette in bozza, **tutte** le vetture dell'elenco che il
+   * concessionario ha davanti -- non solo le nove della pagina.
+   *
+   * Chiesto dal titolare il 04/09/2026: la pagina ne mostra nove per volta, e
+   * con duecento automobili l'azione sui selezionati vuole ventotto passaggi.
+   *
+   * Tre cautele, tutte necessarie:
+   *
+   * 1. **Si tocca solo la sponda giusta.** Chi decide e' il piano puro in
+   *    `cambio-stato-di-gruppo`: pubblicando si toccano le bozze, mettendo in
+   *    bozza le pubblicate. Vendute, prenotate, in trattativa e "da
+   *    controllare" restano dove sono, e si dice quante sono. La macchina a
+   *    stati da sola non lo impedirebbe: consente il passaggio anche da
+   *    "venduta", perche' e' pensata per un comando dato guardando una
+   *    vettura, non per uno che ne tocca duecento alla cieca.
+   * 2. **Il tetto del piano ferma tutto, non salta una riga.** Quando il
+   *    database rifiuta per il limite di annunci, non c'e' piu' posto per
+   *    nessuna delle successive: si smette e lo si scrive.
+   * 3. **Una scheda per volta.** Il tetto e' un controllo che il database fa
+   *    riga per riga: un aggiornamento unico su duecento righe verrebbe
+   *    rifiutato per intero alla cinquantunesima, e non ne pubblicherebbe
+   *    nessuna.
+   */
+  const handleCambiaStatoDiTutti = useCallback(
+    async (verso: VersoDelCambio) => {
+      if (!currentDealerId) {
+        setError("Concessionaria non associata all'utente.");
+        return;
+      }
+
+      setError(null);
+      setNotice(null);
+      setAvanzamentoTutti("Conto le vetture...");
+
+      const { minPrice, maxPrice } = applyPriceBandFilters({ minPrice: null, maxPrice: null }, filters.priceBand);
+
+      // Si rilegge dal database invece di usare `items`: quello e' solo la
+      // pagina corrente, nove vetture. I filtri sono gli stessi dell'elenco.
+      const { righe, error: erroreLettura } = await caricaTutto<VehicleRow>(async (da, a) => {
+        const query = supabase
+          .from("vehicles")
+          .select(COLONNE_VEICOLO)
+          .eq("dealer_id", currentDealerId)
+          .range(da, a)
+          .order(sort.field, { ascending: sort.direction === "asc", nullsFirst: false });
+
+        const { data, error: erroreBlocco } = await applicaFiltriVeicoli(query, filters, minPrice, maxPrice);
+        return { data: (data ?? []) as VehicleRow[], error: erroreBlocco };
+      });
+
+      if (erroreLettura) {
+        setAvanzamentoTutti(null);
+        setError(erroreLettura.message || "Non siamo riusciti a leggere il parco auto.");
+        return;
+      }
+
+      const piano = pianoCambioStatoDiGruppo(righe, verso);
+      const azione = verso === "published" ? "pubblicare" : "mettere in bozza";
+
+      if (piano.daCambiare.length === 0) {
+        setAvanzamentoTutti(null);
+        const lasciate = riassumiLasciateStare(piano.lasciateStare);
+        setNotice(
+          `Nessuna vettura da ${azione}.` +
+            (piano.giaCosi > 0 ? ` ${piano.giaCosi} sono gia' cosi'.` : "") +
+            (lasciate ? ` Restano fuori: ${lasciate}.` : "")
+        );
+        return;
+      }
+
+      const lasciate = riassumiLasciateStare(piano.lasciateStare);
+      const conferma =
+        verso === "published"
+          ? `Vuoi pubblicare ${piano.daCambiare.length} vetture? Compariranno sul marketplace pubblico.`
+          : `Vuoi mettere in bozza ${piano.daCambiare.length} vetture? Spariranno dal marketplace pubblico.`;
+
+      const confermato = globalThis.confirm(
+        conferma + (lasciate ? `\n\nNon vengono toccate: ${lasciate}.` : "")
+      );
+      if (!confermato) {
+        setAvanzamentoTutti(null);
+        return;
+      }
+
+      const demoWrite = await ensureDemoWriteAllowed("integration");
+      if (!demoWrite.allowed) {
+        setAvanzamentoTutti(null);
+        setError(demoWrite.message);
+        return;
+      }
+
+      const { data: authData } = await supabase.auth.getUser();
+      const actorProfileId = authData.user?.id ?? null;
+
+      let fatte = 0;
+      const saltate: string[] = [];
+      let limiteDelPiano: string | null = null;
+
+      for (const [indice, riga] of piano.daCambiare.entries()) {
+        setAvanzamentoTutti(`${indice + 1} di ${piano.daCambiare.length}...`);
+
+        const etichetta = `${riga.brand ?? ""} ${riga.model ?? ""}`.trim() || riga.id;
+
+        if (verso === "published") {
+          const salute = evaluateVehicleHealth({ vehicle: riga });
+          if (!salute.publishable) {
+            saltate.push(`${etichetta}: ${salute.issues[0]?.message ?? "scheda non pubblicabile"}`);
+            continue;
+          }
+        }
+
+        const transizione = validateVehicleStatusTransitionForCrud({
+          fromStatus: riga.status,
+          fromPublished: riga.published,
+          toStatus: verso,
+          toPublished: verso === "published",
+        });
+
+        if (!transizione.allowed) {
+          saltate.push(`${etichetta}: ${transizione.message ?? "passaggio di stato non consentito"}`);
+          continue;
+        }
+
+        const { error: erroreScrittura } = await supabase
+          .from("vehicles")
+          .update({ status: transizione.nextStatus, published: transizione.nextPublished })
+          .eq("id", riga.id)
+          .eq("dealer_id", currentDealerId);
+
+        if (erroreScrittura) {
+          if (erroreScrittura.message.includes("limite di")) {
+            limiteDelPiano = erroreScrittura.message;
+            break;
+          }
+          saltate.push(`${etichetta}: ${erroreScrittura.message}`);
+          continue;
+        }
+
+        fatte += 1;
+
+        if (riga.dealer_id) {
+          await writeVehicleTimelineEvent(supabase, {
+            dealerId: riga.dealer_id,
+            vehicleId: riga.id,
+            action: verso === "published" ? "vehicle.published" : "vehicle.unpublished",
+            actorType: "user",
+            actorProfileId,
+            metadata: { fromStatus: String(riga.status ?? "draft"), toStatus: transizione.nextStatus },
+            before: { status: riga.status, published: riga.published },
+            after: { status: transizione.nextStatus, published: transizione.nextPublished },
+          });
+        }
+      }
+
+      setAvanzamentoTutti(null);
+      setSelectedVehicleIds([]);
+
+      const verbo = verso === "published" ? "Pubblicate" : "Messe in bozza";
+      const riepilogo = [`${verbo} ${fatte} vetture su ${piano.daCambiare.length}.`];
+      if (limiteDelPiano) riepilogo.push(limiteDelPiano);
+      if (lasciate) riepilogo.push(`Non toccate: ${lasciate}.`);
+      if (saltate.length > 0) {
+        riepilogo.push(
+          `Saltate ${saltate.length}: ${saltate.slice(0, 3).join("; ")}${saltate.length > 3 ? "; ..." : ""}`
+        );
+      }
+
+      const messaggio = riepilogo.join(" ");
+      if (limiteDelPiano || saltate.length > 0) setError(messaggio);
+      else setNotice(messaggio);
+
+      await refreshData();
+    },
+    [currentDealerId, ensureDemoWriteAllowed, filters, refreshData, sort]
+  );
+
   const handleDeleteSelected = useCallback(async () => {
     if (!currentDealerId) {
       setError("Concessionaria non associata all'utente.");
@@ -1070,6 +1288,31 @@ export function VehiclesManagementPage() {
             <CarFront className="h-4 w-4 text-blue-600" />
             {totalCount} veicoli totali, {items.length} visualizzati in pagina.
           </span>
+
+          {/* I comandi su tutto il parco stanno qui, e spariscono appena si
+              seleziona qualcosa: due file di bottoni che dicono "pubblica"
+              con portate diverse, una accanto all'altra, sono un errore che
+              aspetta di essere commesso. */}
+          {selectedCount === 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleCambiaStatoDiTutti("published")}
+                disabled={avanzamentoTutti !== null}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {avanzamentoTutti ?? "Pubblica tutte"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCambiaStatoDiTutti("draft")}
+                disabled={avanzamentoTutti !== null}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Metti tutte in bozza
+              </button>
+            </div>
+          ) : null}
 
           {selectedCount > 0 ? (
             <div className="flex flex-wrap items-center gap-2">

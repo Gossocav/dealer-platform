@@ -60,7 +60,10 @@ describe("la tendina offre le quattro condizioni chieste", () => {
 
 describe("il filtro restringe davvero l'elenco", () => {
   it("l'interrogazione confronta la colonna della condizione", () => {
-    expect(pagina).toContain('query.eq("vehicle_condition", filters.condition)');
+    // I filtri sono usciti dall'effetto e vivono in `applicaFiltriVeicoli`,
+    // condivisa con i comandi "pubblica tutte" / "metti tutte in bozza": e'
+    // per questo che qui la variabile si chiama `q` e non piu' `query`.
+    expect(pagina).toContain('q.eq("vehicle_condition", filters.condition)');
   });
 
   it("la tendina sta nella barra dei filtri", () => {
