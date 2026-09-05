@@ -22,6 +22,7 @@ const TIMEOUT_SCHEDA_MS = 15000;
 const PAUSA_FRA_TENTATIVI_MS = 800;
 
 import { parseDealerStockSitemap, type DealerSiteEntry } from "@/lib/dealer-site-import";
+import { fetchWithSsrfProtection, IndirizzoNonAmmesso } from "@/lib/ssrf-protection";
 
 /**
  * Il solo nome del sito, senza percorsi ne' parametri.
@@ -37,16 +38,34 @@ export function normalizzaSitoConcessionaria(value: unknown) {
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host.replace(/^www\./, "") : null;
 }
 
+/**
+ * Legge una pagina, senza mai finire dentro la nostra rete.
+ *
+ * **Perche' non basta `normalizzaSitoConcessionaria`.** Quella accetta il
+ * nome di un sito, e va bene: e' il concessionario che dice qual e' il suo.
+ * Ma un nome pubblico puo' **puntare** a un indirizzo interno, e un sito
+ * pubblico puo' rispondere "vai qui" indicandone uno. Fino al 05/09/2026 qui
+ * si chiamava `fetch` liscio, che i rimbalzi li segue da solo e senza
+ * chiedere niente a nessuno: era l'unico dei tre punti che escono verso
+ * l'esterno a non avere nessuna protezione.
+ *
+ * Ora passa dalla stessa protezione delle importazioni e del proxy delle
+ * fotografie, che guarda **dove porta** ogni indirizzo, a ogni rimbalzo.
+ */
 export async function leggiPagina(url: string, tentativi = TENTATIVI_PER_SCHEDA): Promise<string | null> {
   for (let i = 0; i < tentativi; i += 1) {
     try {
-      const risposta = await fetch(url, {
+      const risposta = await fetchWithSsrfProtection(url, {
         headers: { "User-Agent": "KeyAuto/1.0 (+https://www.keyauto.it)" },
         signal: AbortSignal.timeout(TIMEOUT_SCHEDA_MS),
       });
       if (risposta.ok) return await risposta.text();
-    } catch {
-      // Si ritenta: vedi la nota sulla pausa qui sopra.
+    } catch (errore) {
+      // Un indirizzo rifiutato non si ritenta: la seconda volta e' rifiutato
+      // uguale, e l'attesa fra un tentativo e l'altro moltiplicata per le
+      // centinaia di schede di un sito diventa un fermo lungo per niente.
+      if (errore instanceof IndirizzoNonAmmesso) return null;
+      // Tutto il resto si ritenta: vedi la nota sulla pausa qui sopra.
     }
     if (i + 1 < tentativi) await new Promise((r) => setTimeout(r, PAUSA_FRA_TENTATIVI_MS));
   }
