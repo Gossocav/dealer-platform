@@ -6,11 +6,12 @@
  * in qualunque stato si trovi la vettura, e i documenti restano anche dopo che
  * e' stata venduta **o cancellata**.
  *
- * L'elenco dei tipi vive qui e nel vincolo della tabella
- * (`20260903100000_archivio_documenti_veicolo.sql`). Sono due posti e devono
- * restare uguali: un tipo che la tendina offre e il database rifiuta si
+ * L'elenco dei tipi vive qui e nel vincolo della tabella. Sono due posti e
+ * devono restare uguali: un tipo che la tendina offre e il database rifiuta si
  * scoprirebbe solo al momento di salvare, con il documento gia' caricato.
- * C'e' un test che li confronta riga per riga.
+ * C'e' un test che li confronta riga per riga, e che legge il vincolo
+ * **dall'ultima** migration che lo ridefinisce -- non dalla prima: quella
+ * dice come era l'elenco il giorno che l'archivio e' nato, non com'e' adesso.
  */
 
 import { perRicercaParziale } from "@/lib/ricerca-testo";
@@ -28,6 +29,7 @@ export const TIPI_DOCUMENTO: readonly TipoDocumento[] = [
   { valore: "preventivo", etichetta: "Preventivo" },
   { valore: "fattura", etichetta: "Fattura" },
   { valore: "assicurazione", etichetta: "Assicurazione" },
+  { valore: "bollo", etichetta: "Bollo" },
   { valore: "revisione", etichetta: "Revisione" },
   { valore: "tagliando", etichetta: "Tagliando o manutenzione" },
   { valore: "perizia", etichetta: "Perizia" },
