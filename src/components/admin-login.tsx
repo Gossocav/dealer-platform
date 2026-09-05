@@ -6,6 +6,24 @@ import { useRouter } from "next/navigation";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
+/**
+ * Questo account e' un amministratore della piattaforma?
+ *
+ * Il controllo e' in due tempi -- prima il ruolo scritto nell'account, poi
+ * quello sul profilo -- ed era ripetuto identico in due punti di questo
+ * file. Una regola di accesso scritta due volte e' una regola che prima o
+ * poi diverge, e la copia dimenticata e' quella che sbaglia.
+ */
+async function eAmministratore(
+  authClient: ReturnType<typeof createSupabaseBrowserClient>,
+  user: { id: string; app_metadata?: unknown; user_metadata?: unknown }
+) {
+  if (isPlatformAdminRole(resolveUserRoleFromMetadata(user))) return true;
+
+  const profilo = await authClient.from("profiles").select("role").eq("id", user.id).maybeSingle<{ role: string | null }>();
+  return profilo.error ? false : isPlatformAdminRole(profilo.data?.role);
+}
+
 export function AdminLogin() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -14,6 +32,18 @@ export function AdminLogin() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  /**
+   * Chi e' collegato adesso, quando non e' un amministratore.
+   *
+   * Prima del 05/09/2026 in questo caso la pagina spostava su /dashboard
+   * senza dire niente -- ne' arrivandoci gia' collegati, ne' dopo aver
+   * scritto le credenziali. Il titolare ci ha perso un'ora: dal suo punto di
+   * vista il pannello era rotto, mentre stava semplicemente usando l'account
+   * da concessionario invece di quello da amministratore. Non c'era modo di
+   * capirlo dalla schermata.
+   */
+  const [sessioneNonAmministratore, setSessioneNonAmministratore] = useState<string | null>(null);
+  const [uscitaInCorso, setUscitaInCorso] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -26,22 +56,18 @@ export function AdminLogin() {
 
       if (!mounted || !user) return;
 
-      let isPlatformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
-      if (!isPlatformAdmin) {
-        const profile = await authClient.from("profiles").select("role").eq("id", user.id).maybeSingle<{ role: string | null }>();
-        if (!profile.error) {
-          isPlatformAdmin = isPlatformAdminRole(profile.data?.role);
-        }
-      }
-
-      if (isPlatformAdmin) {
+      if (await eAmministratore(authClient, user)) {
+        if (!mounted) return;
         router.replace("/admin");
         router.refresh();
         return;
       }
 
-      router.replace("/dashboard");
-      router.refresh();
+      if (!mounted) return;
+
+      // Non si sposta piu' nessuno di nascosto: si mostra il modulo, si dice
+      // con quale account e' collegato e si offre il modo di uscirne.
+      setSessioneNonAmministratore(user.email ?? "questo account");
     };
 
     void checkCurrentSession();
@@ -79,25 +105,37 @@ export function AdminLogin() {
       return;
     }
 
-    let isPlatformAdmin = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
-
-    if (!isPlatformAdmin) {
-      const profile = await authClient.from("profiles").select("role").eq("id", user.id).maybeSingle<{ role: string | null }>();
-      if (!profile.error) {
-        isPlatformAdmin = isPlatformAdminRole(profile.data?.role);
-      }
-    }
-
-    if (!isPlatformAdmin) {
+    if (!(await eAmministratore(authClient, user))) {
       setLoading(false);
-      router.replace("/dashboard");
-      router.refresh();
+      setSessioneNonAmministratore(user.email ?? "questo account");
+      setMessage("Questo account non ha accesso al pannello amministrativo. Serve un account con ruolo amministratore.");
       return;
     }
 
+    setSessioneNonAmministratore(null);
     setLoading(false);
     router.replace("/admin");
     router.refresh();
+  };
+
+  /**
+   * Esce dall'account collegato senza lasciare la pagina.
+   *
+   * `signOut` cancella la sessione da entrambe le memorie del browser -- il
+   * magazzino locale e quello della scheda -- perche' `removeStorage` le
+   * pulisce tutte e due: chi era entrato con "Ricordami" e chi senza esce
+   * allo stesso modo.
+   */
+  const esciDallAccount = async () => {
+    setUscitaInCorso(true);
+    setMessage(null);
+
+    await createSupabaseBrowserClient("local").auth.signOut();
+
+    setSessioneNonAmministratore(null);
+    setEmail("");
+    setPassword("");
+    setUscitaInCorso(false);
   };
 
   return (
@@ -132,6 +170,24 @@ export function AdminLogin() {
                 Login dealer
               </Link>
             </div>
+
+            {sessioneNonAmministratore ? (
+              <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                <p className="font-semibold">Sei collegato come {sessioneNonAmministratore}</p>
+                <p className="mt-1 leading-6">
+                  Questo account non ha accesso al pannello amministrativo. Esci e rientra con un account che ha il
+                  ruolo di amministratore.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void esciDallAccount()}
+                  disabled={uscitaInCorso}
+                  className="mt-3 inline-flex items-center justify-center rounded-2xl bg-amber-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {uscitaInCorso ? "Esco..." : "Esci da questo account"}
+                </button>
+              </div>
+            ) : null}
 
             <form className="space-y-5" onSubmit={handleSubmit}>
               <div>
