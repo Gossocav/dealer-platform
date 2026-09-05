@@ -37,6 +37,37 @@ order by tablename, policyname;
 -- =========================================
 -- 2) Helper function: authenticated dealer id
 -- =========================================
+--
+-- ATTENZIONE, e il motivo per cui questa parte e' stata riscritta il
+-- 05/09/2026.
+--
+-- Questo file non ha la data davanti al nome. Ordinato per nome finisce
+-- **ultimo**, dopo ogni migration 2026XXXX: su un database ricostruito da
+-- zero -- un ambiente nuovo, un ripristino dopo un guasto -- e' l'ultima cosa
+-- che gira, e quello che definisce qui vince su tutto.
+--
+-- Fino a oggi definiva `current_dealer_id()` cosi':
+--
+--     select p.dealer_id from public.profiles p where p.id = auth.uid() limit 1
+--
+-- cioe' la versione debole: legge il profilo e basta, senza guardare se
+-- l'appartenenza alla concessionaria e' ancora **attiva**. Con quella
+-- versione in vigore, sospendere una concessionaria non le toglie piu'
+-- l'accesso, perche' il profilo continua a puntare al suo dealer_id. E
+-- `current_dealer_id()` e' il fondamento di quasi ogni regola per riga del
+-- progetto: vehicles, vehicle_images, leads, customers, appointments, le
+-- tabelle email, il conto economico, le perizie, i documenti.
+--
+-- La migration 20260717000016 aveva gia' ripristinato la versione giusta e
+-- annotato il pericolo, ma non poteva risolverlo: sorta prima di questo file,
+-- e su una ricostruzione questo la sovrascriveva di nuovo. Il difetto non era
+-- visibile in produzione -- li' la versione giusta c'e' -- e sarebbe uscito
+-- solo il giorno peggiore, cioe' durante un ripristino.
+--
+-- Qui sotto c'e' ora la stessa identica definizione di 20260717000016. Un
+-- test (src/lib/ricostruzione-database-sicura.test.ts) rilegge le migration
+-- nell'ordine in cui verrebbero riapplicate e fallisce se l'ultima
+-- definizione tornasse a essere quella debole.
 create or replace function public.current_dealer_id()
 returns uuid
 language sql
@@ -44,14 +75,22 @@ stable
 security definer
 set search_path = public
 as $$
-  select p.dealer_id
-  from public.profiles p
-  where p.id = auth.uid()
-  limit 1
+  with active_memberships as (
+    select distinct du.dealer_id
+    from public.dealer_users du
+    where du.profile_id = auth.uid()
+      and du.status = 'active'
+      and du.dealer_id is not null
+  )
+  select case
+    when (select count(*) from active_memberships) = 1 then (select dealer_id from active_memberships limit 1)
+    else null::uuid
+  end
 $$;
 
 revoke all on function public.current_dealer_id() from public;
-grant execute on function public.current_dealer_id() to authenticated;
+revoke all on function public.current_dealer_id() from anon;
+grant execute on function public.current_dealer_id() to authenticated, service_role;
 
 -- ====================================================
 -- 3) Trigger to enforce/fill dealer_id on insert/update

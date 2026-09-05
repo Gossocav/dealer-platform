@@ -33,6 +33,23 @@ create index if not exists vehicles_public_version_trgm_idx on public.vehicles u
 -- which means a fresh project (or a local schema reset) does not have it.
 -- Declaring it here makes photo storage reproducible for any environment,
 -- local or production.
+-- **Privato**, e non pubblico come diceva questa riga fino al 05/09/2026.
+--
+-- In produzione il secchio e' privato, e il codice si comporta di
+-- conseguenza: gli indirizzi delle fotografie li firma il server
+-- (storageSigner in src/lib/public-marketplace.ts). Ma qui era dichiarato
+-- `true`, quindi su un database ricostruito da zero -- un ambiente nuovo, un
+-- ripristino dopo un guasto -- sarebbe nato pubblico. Un secchio pubblico si
+-- scarica per indirizzo, senza firma e senza che nessuna regola lo fermi:
+-- comprese le fotografie dei veicoli **non pubblicati**, che sono quelli su
+-- cui una concessionaria sta ancora lavorando.
+--
+-- `do update` e non piu' `do nothing`: cosi' la riga non si limita a
+-- descrivere l'intenzione, la applica anche a un secchio che esistesse gia'
+-- aperto. Sulla produzione, dove e' gia' privato, non cambia niente.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('vehicle-images', 'vehicle-images', true, 10485760, array['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
-on conflict (id) do nothing;
+values ('vehicle-images', 'vehicle-images', false, 10485760, array['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
