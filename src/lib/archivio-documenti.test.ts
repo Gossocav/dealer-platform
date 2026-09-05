@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -22,6 +22,36 @@ function leggi(percorso: string) {
 const migration = leggi("supabase/migrations/20260903100000_archivio_documenti_veicolo.sql");
 
 /**
+ * Il vincolo sui tipi come lo vede il database **adesso**.
+ *
+ * Non basta leggere la migration che ha creato la tabella: il 05/09/2026 il
+ * bollo e' stato aggiunto con una seconda migration, e un test che guardasse
+ * solo la prima direbbe che la tendina offre un tipo che il database rifiuta
+ * -- il contrario della verita', e proprio l'allarme che questo test esiste
+ * per dare. Si scorrono le migration in ordine di nome, che e' l'ordine in cui
+ * vengono applicate, e vince l'ultima che ridefinisce il vincolo.
+ */
+function vincoloSuiTipiInVigore(): string[] {
+  const cartella = resolve(process.cwd(), "supabase/migrations");
+  const file = readdirSync(cartella)
+    .filter((nome) => nome.endsWith(".sql"))
+    .sort();
+
+  let ultimo: string[] = [];
+
+  for (const nome of file) {
+    const testo = readFileSync(resolve(cartella, nome), "utf8");
+    const inizio = testo.lastIndexOf("vehicle_documents_tipo_valido check");
+    if (inizio < 0) continue;
+
+    const blocco = testo.slice(inizio, testo.indexOf("))", inizio));
+    ultimo = [...blocco.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  }
+
+  return ultimo;
+}
+
+/**
  * L'archivio documenti, chiesto dal titolare il 03/09/2026.
  */
 describe("i tipi di documento", () => {
@@ -31,16 +61,22 @@ describe("i tipi di documento", () => {
    * gia' caricato -- cioe' dopo aver fatto aspettare chi archivia.
    */
   it("quelli della tendina sono esattamente quelli che il database accetta", () => {
-    const vincolo = migration.slice(
-      migration.indexOf("vehicle_documents_tipo_valido"),
-      migration.indexOf("))", migration.indexOf("vehicle_documents_tipo_valido"))
-    );
-
-    const nelDatabase = [...vincolo.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
+    const nelDatabase = vincoloSuiTipiInVigore().sort();
     const nellaTendina = TIPI_DOCUMENTO.map((t) => t.valore).sort();
 
     expect(nelDatabase.length, "il vincolo non e' stato letto").toBeGreaterThan(5);
     expect(nellaTendina).toEqual(nelDatabase);
+  });
+
+  /**
+   * Segnalato dal titolare il 05/09/2026: c'erano assicurazione, revisione e
+   * tagliando, ma non il bollo -- la scadenza che si paga su ogni vettura
+   * ferma in piazzale.
+   */
+  it("il bollo si puo' archiviare", () => {
+    expect(TIPI_DOCUMENTO.map((t) => t.valore)).toContain("bollo");
+    expect(vincoloSuiTipiInVigore()).toContain("bollo");
+    expect(etichettaTipoDocumento("bollo")).toBe("Bollo");
   });
 
   it("ogni tipo ha un nome leggibile", () => {
