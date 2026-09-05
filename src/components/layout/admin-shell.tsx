@@ -20,6 +20,7 @@ const SEZIONI = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/dealer-approval", label: "Approvazioni" },
   { href: "/admin/dealers", label: "Concessionarie" },
+  { href: "/admin/visite", label: "Visite" },
   { href: "/admin/demo-requests", label: "Richieste demo" },
   // Sta accanto alle richieste perche' e' la stessa cosa vista dall'altro
   // lato: li' si attiva chi ha chiesto la prova, qui chi non la vuole.

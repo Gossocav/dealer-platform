@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ShareVehicleButton from "@/components/marketplace/share-vehicle-button";
+import { SegnalaVisita } from "@/components/marketplace/segnala-visita";
 import {
   buildWhatsAppLink,
   formatMileage,
@@ -322,6 +323,9 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
     <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
       <JsonLd data={vehicleJsonLd} />
       <JsonLd data={breadcrumbJsonLd} />
+      {/* Conta la visita dal browser: questa pagina e' in cache, quindi un
+          contatore lato server conterebbe i ricalcoli e non le persone. */}
+      <SegnalaVisita tipo="annuncio" id={vehicle.id} />
       <div className="mx-auto w-full max-w-7xl space-y-6">
         {/* ============ HERO ============ */}
         <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-6 py-8 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)] sm:px-10 sm:py-10">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
+import { SegnalaVisita } from "@/components/marketplace/segnala-visita";
 import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-search";
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
@@ -195,6 +196,7 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   return (
     <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
+      <SegnalaVisita tipo="concessionaria" id={matchedDealer.id} />
       <JsonLd data={dealerJsonLd} />
       <JsonLd data={breadcrumbJsonLd} />
       <div className="mx-auto w-full max-w-7xl space-y-8">
