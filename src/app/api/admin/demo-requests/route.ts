@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { hitRateLimit } from "@/lib/api-rate-limit";
@@ -93,6 +93,53 @@ type DemoRpcPayload = {
 function normalizeText(value: unknown) {
   const text = String(value ?? "").trim();
   return text.length > 0 ? text : null;
+}
+
+/**
+ * Il marchio degli account nati qui dentro, nell'attivazione di una demo.
+ *
+ * Vive in `app_metadata`, che scrive soltanto il server con la chiave di
+ * servizio. In `user_metadata` non servirebbe a niente: quello lo riscrive
+ * l'utente stesso dal browser, e un marchio che chiunque puo' apporsi da solo
+ * non distingue proprio niente.
+ */
+const ORIGINE_ACCOUNT_ATTIVAZIONE = "attivazione-demo";
+
+function accountNatoDallAttivazione(utente: { app_metadata?: unknown } | null | undefined) {
+  const metadati = utente?.app_metadata;
+
+  if (!metadati || typeof metadati !== "object" || Array.isArray(metadati)) {
+    return false;
+  }
+
+  return normalizeText((metadati as Record<string, unknown>).keyauto_origine) === ORIGINE_ACCOUNT_ATTIVAZIONE;
+}
+
+/**
+ * L'account fa gia' parte di questa concessionaria?
+ *
+ * Se si', riagganciarlo non gli concede niente di nuovo: e' la riattivazione
+ * di una demo scaduta o un'attivazione ripetuta, non un aggancio. Le
+ * appartenenze le scrive solo la chiave di servizio, quindi un estraneo non
+ * puo' procurarsene una per farsi passare per cliente.
+ */
+async function accountGiaMembroDellaConcessionaria(
+  supabaseAdmin: SupabaseClient,
+  profileId: string,
+  dealerId: string
+) {
+  const appartenenza = await supabaseAdmin
+    .from("dealer_users")
+    .select("profile_id")
+    .eq("profile_id", profileId)
+    .eq("dealer_id", dealerId)
+    .maybeSingle<{ profile_id: string }>();
+
+  if (appartenenza.error) {
+    throw new Error(appartenenza.error.message || "Errore verifica appartenenza account.");
+  }
+
+  return Boolean(appartenenza.data);
 }
 
 function extractBearerToken(authHeader: string | null) {
@@ -658,6 +705,16 @@ export async function POST(request: Request) {
       email: targetRequest.email,
       password: generatedPassword,
       email_confirm: true,
+      // Il marchio che dice "questo account l'abbiamo creato noi, qui".
+      // Sta in `app_metadata` e non in `user_metadata` perche' il secondo lo
+      // riscrive l'utente stesso con una riga di codice dal browser: un
+      // marchio falsificabile non e' un marchio. Serve piu' sotto, per
+      // distinguere il nostro tentativo interrotto dall'account di un
+      // estraneo.
+      app_metadata: {
+        keyauto_origine: ORIGINE_ACCOUNT_ATTIVAZIONE,
+        keyauto_demo_request_id: requestId,
+      },
       user_metadata: {
         role: "dealer_member",
       },
@@ -678,10 +735,78 @@ export async function POST(request: Request) {
     const passwordSetupLink = recoveryLinkResult.error ? null : (recoveryLinkResult.data?.properties?.action_link ?? null);
     accessLink = passwordSetupLink;
 
-    // A previous, only-partially-completed activation attempt (e.g. interrupted by a
-    // timeout) can leave an auth user behind without finishing the rest of this flow.
-    // Reuse that existing user instead of failing the retry outright.
-    const profileId = userAlreadyExists ? recoveryLinkResult.data?.user?.id : createdUser.data?.user?.id;
+    let profileId = createdUser.data?.user?.id ?? null;
+
+    if (userAlreadyExists) {
+      // ================================================================
+      // Un account con questa email c'e' gia'. Di chi e'?
+      // ================================================================
+      //
+      // Fino al 05/09/2026 lo si riusava e basta, per non far fallire il
+      // secondo tentativo dopo un'attivazione interrotta a meta'. Il motivo
+      // era buono, la conseguenza no: chi si registrava in anticipo con
+      // l'indirizzo di una concessionaria -- gli indirizzi stanno scritti sui
+      // siti delle concessionarie -- si vedeva agganciare quella
+      // concessionaria vera al proprio account nel momento in cui il titolare
+      // attivava la demo. Profilo, dealer_id e appartenenza attiva: veicoli,
+      // clienti, lead e documenti di un'azienda in mano a un estraneo, con una
+      // password che conosceva solo lui.
+      //
+      // Si riusa solo in due casi, e in nessuno dei due l'account puo' essere
+      // di un estraneo:
+      //
+      //   1. porta il nostro marchio, cioe' l'abbiamo creato noi in questa
+      //      stessa procedura -- e' il tentativo interrotto, che era il caso
+      //      da salvare;
+      //   2. e' gia' membro di **questa** concessionaria, quindi riagganciarlo
+      //      non gli da' niente che non avesse gia'. E' la riattivazione di
+      //      una demo scaduta, o un'attivazione ripetuta su un cliente che c'e'
+      //      gia'.
+      //
+      // Fuori da questi due casi non si indovina: si ferma e si chiede al
+      // titolare. Sbagliare in questa direzione costa un messaggio; sbagliare
+      // nell'altra costa un'azienda.
+      const utenteEsistente = recoveryLinkResult.data?.user ?? null;
+      const idEsistente = normalizeText(utenteEsistente?.id);
+
+      if (!idEsistente) {
+        return NextResponse.json({ error: "Utente demo gia esistente ma non recuperabile. Contatta il supporto." }, { status: 500 });
+      }
+
+      const natoDaNoi = accountNatoDallAttivazione(utenteEsistente);
+
+      let giaMembro = false;
+      if (!natoDaNoi) {
+        try {
+          giaMembro = await accountGiaMembroDellaConcessionaria(context.supabaseAdmin, idEsistente, dealerId);
+        } catch (errore) {
+          return NextResponse.json(
+            { error: errore instanceof Error ? errore.message : "Errore verifica appartenenza account." },
+            { status: 500 }
+          );
+        }
+      }
+
+      if (!natoDaNoi && !giaMembro) {
+        console.error("demo-activate:account-preesistente-non-nostro", {
+          requestId,
+          dealerId,
+          esistenteId: idEsistente,
+        });
+
+        return NextResponse.json(
+          {
+            error:
+              "Esiste gia un account con questa email, creato fuori da questa procedura. " +
+              "Per sicurezza non viene collegato alla concessionaria: verifica con il concessionario che sia suo, " +
+              "oppure cancellalo da Utenti e rilancia l'attivazione.",
+          },
+          { status: 409 }
+        );
+      }
+
+      profileId = idEsistente;
+    }
 
     if (!profileId) {
       return NextResponse.json({ error: "Utente demo gia esistente ma non recuperabile. Contatta il supporto." }, { status: 500 });
