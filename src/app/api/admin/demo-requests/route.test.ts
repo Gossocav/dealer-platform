@@ -284,6 +284,14 @@ function makeSupabaseAdminForActivation(user: UserStub, failureMode: "progress" 
   const dealersUpdate = vi.fn(() => ({ eq: dealersUpdateEq }));
 
   const dealerUsersUpsert = vi.fn().mockResolvedValue({ error: null });
+
+  // La lettura che stabilisce se un account preesistente e' gia' di questa
+  // concessionaria: .select().eq(profile_id).eq(dealer_id).maybeSingle().
+  // Vuota di partenza, cioe' "non ne fa parte".
+  const dealerUsersMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  const dealerUsersEqDealer = vi.fn(() => ({ maybeSingle: dealerUsersMaybeSingle }));
+  const dealerUsersEqProfile = vi.fn(() => ({ eq: dealerUsersEqDealer }));
+  const dealerUsersSelect = vi.fn(() => ({ eq: dealerUsersEqProfile }));
   const subscriptionMaybeSingle = vi.fn().mockResolvedValue({
     data: {
       dealer_id: "dealer-1",
@@ -344,6 +352,7 @@ function makeSupabaseAdminForActivation(user: UserStub, failureMode: "progress" 
     if (table === "dealer_users") {
       return {
         upsert: dealerUsersUpsert,
+        select: dealerUsersSelect,
       };
     }
 
@@ -380,6 +389,11 @@ function makeSupabaseAdminForActivation(user: UserStub, failureMode: "progress" 
     dealersMaybeSingle,
     dealersUpsert,
     rpc,
+    profileUpsert,
+    dealerUsersUpsert,
+    dealerUsersMaybeSingle,
+    authAdminCreateUser: supabaseAdmin.auth.admin.createUser,
+    authAdminGenerateLink: supabaseAdmin.auth.admin.generateLink,
   };
 }
 
@@ -600,11 +614,29 @@ describe("admin demo-requests route rate limiting", () => {
       app_metadata: { role: "admin" },
     };
 
-    const { supabaseAdmin, rpc } = makeSupabaseAdminForActivation(user);
+    const { supabaseAdmin, rpc, authAdminGenerateLink } = makeSupabaseAdminForActivation(user);
     supabaseAdmin.auth.admin.createUser = vi.fn().mockResolvedValue({
       data: { user: null },
       error: { message: "A user with this email address has already been registered", code: "email_exists" },
     });
+
+    // Dal 05/09/2026 non basta piu' che l'account esista: deve risultare
+    // nostro. Il tentativo interrotto lo e', perche' l'aveva creato questa
+    // stessa procedura e il marchio in app_metadata glielo aveva messo lei.
+    // Senza marchio la richiesta viene rifiutata di proposito -- e' il caso
+    // coperto da "non consegna una concessionaria a un account nato fuori
+    // dall'attivazione".
+    authAdminGenerateLink.mockResolvedValue({
+      data: {
+        properties: { action_link: "https://www.keyauto.it/reset-password?token=test" },
+        user: {
+          id: "recovered-profile-1",
+          app_metadata: { keyauto_origine: "attivazione-demo", keyauto_demo_request_id: "request-1" },
+        },
+      },
+      error: null,
+    });
+
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
     mocks.hitRateLimitMock.mockReturnValue({
       limited: false,
@@ -1080,6 +1112,169 @@ describe("admin demo-requests route rate limiting", () => {
     expect(payload).toEqual({ error: "Esiste gia un account abbonato con questa email. Attivazione demo non consentita." });
     expect(dealersUpsert).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // ==========================================================================
+  // Un account con la stessa email esisteva gia': di chi e'?
+  // ==========================================================================
+  //
+  // **Quale difetto impediscono.** Trovato il 05/09/2026 in una verifica di
+  // sicurezza. Nella configurazione di allora chiunque poteva creare un
+  // account su keyauto.it con un indirizzo email qualsiasi, senza possederlo
+  // (registrazione autonoma aperta e conferma email spenta). L'attivazione,
+  // davanti a un'email gia' presa, riusava l'account esistente per non far
+  // fallire il secondo tentativo dopo un'attivazione interrotta.
+  //
+  // Messe insieme, le due cose erano un furto d'azienda: ci si registrava in
+  // anticipo con l'indirizzo di una concessionaria -- che sta scritto sul suo
+  // sito -- e nel momento in cui il titolare attivava la demo, quella
+  // concessionaria vera veniva agganciata all'account dell'estraneo. Profilo,
+  // dealer_id, appartenenza attiva: veicoli, clienti, lead e documenti, con
+  // una password che conosceva solo lui.
+
+  it("non consegna una concessionaria a un account nato fuori dall'attivazione", async () => {
+    const user: UserStub = {
+      id: "admin-8",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, authAdminCreateUser, authAdminGenerateLink, profileUpsert, dealerUsersUpsert, rpc } =
+      makeSupabaseAdminForActivation(user);
+
+    // L'email risulta gia' presa.
+    authAdminCreateUser.mockResolvedValue({
+      data: { user: null },
+      error: { code: "email_exists", message: "A user with this email address has already been registered" },
+    });
+
+    // L'account che c'e' non porta il nostro marchio: non l'abbiamo creato noi.
+    authAdminGenerateLink.mockResolvedValue({
+      data: {
+        properties: { action_link: "https://www.keyauto.it/reset-password?token=test" },
+        user: { id: "estraneo-1", app_metadata: {} },
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(409);
+    expect(String(payload.error)).toContain("creato fuori da questa procedura");
+
+    // Il punto non e' il codice di stato: e' che l'account dell'estraneo non
+    // deve ricevere ne' il profilo della concessionaria ne' l'appartenenza.
+    expect(profileUpsert).not.toHaveBeenCalled();
+    expect(dealerUsersUpsert).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("riusa l'account che ha creato lui in un'attivazione interrotta", async () => {
+    const user: UserStub = {
+      id: "admin-9",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, authAdminCreateUser, authAdminGenerateLink, profileUpsert } =
+      makeSupabaseAdminForActivation(user);
+
+    authAdminCreateUser.mockResolvedValue({
+      data: { user: null },
+      error: { code: "email_exists", message: "already registered" },
+    });
+
+    // Il marchio c'e': l'account e' rimasto da un nostro tentativo a meta'.
+    // Era il caso che la riga originale voleva salvare, e continua a valere.
+    authAdminGenerateLink.mockResolvedValue({
+      data: {
+        properties: { action_link: "https://www.keyauto.it/reset-password?token=test" },
+        user: {
+          id: "nostro-1",
+          app_metadata: { keyauto_origine: "attivazione-demo", keyauto_demo_request_id: "request-1" },
+        },
+      },
+      error: null,
+    });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+
+    expect(response.status).toBe(200);
+    expect(profileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "nostro-1", dealer_id: "dealer-1" }),
+      expect.anything()
+    );
+  });
+
+  it("riusa l'account che fa gia' parte della stessa concessionaria", async () => {
+    const user: UserStub = {
+      id: "admin-10",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, authAdminCreateUser, authAdminGenerateLink, dealerUsersMaybeSingle, profileUpsert } =
+      makeSupabaseAdminForActivation(user);
+
+    authAdminCreateUser.mockResolvedValue({
+      data: { user: null },
+      error: { code: "email_exists", message: "already registered" },
+    });
+
+    // Nessun marchio -- l'account e' nato prima che il marchio esistesse --
+    // ma risulta gia' membro di questa concessionaria: e' la riattivazione di
+    // una demo scaduta, non un aggancio. Senza questo secondo criterio, una
+    // riattivazione perfettamente legittima verrebbe rifiutata.
+    authAdminGenerateLink.mockResolvedValue({
+      data: {
+        properties: { action_link: "https://www.keyauto.it/reset-password?token=test" },
+        user: { id: "cliente-storico-1", app_metadata: {} },
+      },
+      error: null,
+    });
+    dealerUsersMaybeSingle.mockResolvedValue({ data: { profile_id: "cliente-storico-1" }, error: null });
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+
+    const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+
+    expect(response.status).toBe(200);
+    expect(profileUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "cliente-storico-1" }),
+      expect.anything()
+    );
+  });
+
+  it("marchia gli account che crea, e lo fa dove l'utente non puo' riscriverlo", async () => {
+    const user: UserStub = {
+      id: "admin-11",
+      app_metadata: { role: "admin" },
+    };
+
+    const { supabaseAdmin, authAdminCreateUser } = makeSupabaseAdminForActivation(user);
+
+    mocks.createClientMock.mockReturnValue(supabaseAdmin);
+    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+
+    await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
+
+    // In app_metadata, non in user_metadata: il secondo lo riscrive l'utente
+    // stesso dal browser con una riga di codice, e un marchio falsificabile
+    // non distingue niente. Se qualcuno lo spostasse, il criterio "l'ho
+    // creato io" tornerebbe a fidarsi di un dato scritto dall'attaccante.
+    expect(authAdminCreateUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app_metadata: expect.objectContaining({
+          keyauto_origine: "attivazione-demo",
+          keyauto_demo_request_id: "request-1",
+        }),
+      })
+    );
   });
 });
 
