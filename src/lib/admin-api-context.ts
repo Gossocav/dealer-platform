@@ -18,6 +18,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { cambiaQualcosa, registraAccessoAmministrativo } from "@/lib/storico-accessi-admin";
 
 type ProfileRoleRow = { role: string | null };
 
@@ -91,12 +92,37 @@ export async function contestoAmministratore(request: Request): Promise<Contesto
     autorizzato = isPlatformAdminRole(profilo.data?.role);
   }
 
+  const percorso = new URL(request.url).pathname;
+
   if (!autorizzato) {
+    // Qualcuno con una sessione valida, che amministratore non e', ha
+    // bussato. E' il segnale che vale la pena avere: prima non ne restava
+    // traccia da nessuna parte. Non si aspetta l'esito -- lo storico non
+    // deve poter cambiare cosa risponde la serratura.
+    void registraAccessoAmministrativo(supabaseAdmin, {
+      azione: "admin.accesso_negato",
+      chiamanteId: user.id,
+      percorso,
+      metodo: request.method,
+      motivo: "ruolo non amministrativo",
+    });
+
     return {
       errore: NextResponse.json({ error: "Accesso negato." }, { status: 403 }),
       supabaseAdmin: null,
       chiamanteId: null,
     };
+  }
+
+  // Le sole letture non si registrano: il pannello ne fa parecchie a ogni
+  // schermata, e lo storico diventerebbe illeggibile.
+  if (cambiaQualcosa(request.method)) {
+    void registraAccessoAmministrativo(supabaseAdmin, {
+      azione: "admin.azione",
+      chiamanteId: user.id,
+      percorso,
+      metodo: request.method,
+    });
   }
 
   return { errore: null, supabaseAdmin, chiamanteId: user.id };
