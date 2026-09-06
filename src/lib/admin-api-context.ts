@@ -22,8 +22,8 @@ import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-
 type ProfileRoleRow = { role: string | null };
 
 export type ContestoAmministratore =
-  | { errore: NextResponse; supabaseAdmin: null }
-  | { errore: null; supabaseAdmin: SupabaseClient };
+  | { errore: NextResponse; supabaseAdmin: null; chiamanteId: null }
+  | { errore: null; supabaseAdmin: SupabaseClient; chiamanteId: string };
 
 function leggiToken(intestazione: string | null): string | null {
   const testo = String(intestazione ?? "").trim();
@@ -41,13 +41,18 @@ export async function contestoAmministratore(request: Request): Promise<Contesto
     return {
       errore: NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 }),
       supabaseAdmin: null,
+      chiamanteId: null,
     };
   }
 
   const token = leggiToken(request.headers.get("authorization"));
 
   if (!token) {
-    return { errore: NextResponse.json({ error: "Sessione non valida." }, { status: 401 }), supabaseAdmin: null };
+    return {
+      errore: NextResponse.json({ error: "Sessione non valida." }, { status: 401 }),
+      supabaseAdmin: null,
+      chiamanteId: null,
+    };
   }
 
   const supabaseAdmin = createClient(indirizzo, chiaveDiServizio, {
@@ -60,7 +65,11 @@ export async function contestoAmministratore(request: Request): Promise<Contesto
   } = await supabaseAdmin.auth.getUser(token);
 
   if (erroreUtente || !user) {
-    return { errore: NextResponse.json({ error: "Utente non autenticato." }, { status: 401 }), supabaseAdmin: null };
+    return {
+      errore: NextResponse.json({ error: "Utente non autenticato." }, { status: 401 }),
+      supabaseAdmin: null,
+      chiamanteId: null,
+    };
   }
 
   let autorizzato = isPlatformAdminRole(resolveUserRoleFromMetadata(user));
@@ -75,6 +84,7 @@ export async function contestoAmministratore(request: Request): Promise<Contesto
           { status: 500 }
         ),
         supabaseAdmin: null,
+        chiamanteId: null,
       };
     }
 
@@ -82,8 +92,12 @@ export async function contestoAmministratore(request: Request): Promise<Contesto
   }
 
   if (!autorizzato) {
-    return { errore: NextResponse.json({ error: "Accesso negato." }, { status: 403 }), supabaseAdmin: null };
+    return {
+      errore: NextResponse.json({ error: "Accesso negato." }, { status: 403 }),
+      supabaseAdmin: null,
+      chiamanteId: null,
+    };
   }
 
-  return { errore: null, supabaseAdmin };
+  return { errore: null, supabaseAdmin, chiamanteId: user.id };
 }

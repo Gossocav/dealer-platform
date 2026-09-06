@@ -11,10 +11,16 @@ const page = read("src/app/admin/users/page.tsx");
 const dashboard = read("src/app/admin/page.tsx");
 
 describe("admin accounts API", () => {
+  // Dal 06/09/2026 la verifica non e' piu' scritta qui dentro: sta in
+  // src/lib/admin-api-context.ts, unico posto per tutti gli endpoint del
+  // pannello. Cercare qui il controllo del ruolo pretenderebbe che questo
+  // endpoint se lo riscriva. Che la serratura rifiuti davvero lo provano per
+  // comportamento le 11 prove di src/lib/admin-api-context.test.ts.
   it("refuses anyone who is not a platform admin", () => {
-    expect(route).toContain("isPlatformAdminRole");
-    expect(route).toMatch(/status: 403/);
-    expect(route).toMatch(/status: 401/);
+    expect(route).toContain('from "@/lib/admin-api-context"');
+    expect(route).toContain("await contestoAmministratore(request)");
+    // Il rifiuto va restituito, non ignorato.
+    expect(route).toMatch(/if \(contesto\.errore\)/);
   });
 
   // Both guards exist because both lockouts actually happened while setting

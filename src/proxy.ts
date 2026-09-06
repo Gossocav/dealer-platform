@@ -34,7 +34,23 @@ const MEASUREMENT_IMG_SRC = MEASUREMENT_CONFIGURED
 // dice che nessuno puo' mettere noi dentro un riquadro suo.
 const VIDEO_FRAME_SRC = "https://www.youtube-nocookie.com";
 
-const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline' 'unsafe-eval'${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-src ${VIDEO_FRAME_SRC}; frame-ancestors 'none';`;
+// `unsafe-eval` dice al browser: "va bene eseguire codice costruito al volo da
+// una stringa". E' il permesso che trasforma un difetto qualsiasi in
+// esecuzione di codice, quindi la difesa principale contro il codice iniettato
+// consiste proprio nel non concederlo.
+//
+// Fino al 06/09/2026 era concesso sempre, produzione compresa. Verificato che
+// non serve: nei 75 file compilati di una build di produzione, **zero**
+// contengono `eval(` o `new Function(`.
+//
+// In sviluppo invece serve davvero -- Turbopack ricarica i moduli a caldo
+// valutandoli da stringa -- e toglierlo li' romperebbe il ricaricamento
+// automatico senza proteggere nessun visitatore, perche' quel codice non
+// esce mai dal computer di chi sviluppa. Stesso criterio di
+// DEV_ONLY_CONNECT_SRC qui sopra.
+const DEV_ONLY_SCRIPT_SRC = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
+
+const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline'${DEV_ONLY_SCRIPT_SRC}${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-src ${VIDEO_FRAME_SRC}; frame-ancestors 'none';`;
 
 // Standard hardening headers applied to every dynamic response. X-Frame-Options
 // duplicates the CSP frame-ancestors directive for older browsers.

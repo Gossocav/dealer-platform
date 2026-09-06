@@ -47,13 +47,32 @@ describe("l'attivazione diretta riusa la macchina che esiste", () => {
 });
 
 describe("chi puo' usarla", () => {
-  it("solo un amministratore della piattaforma", () => {
-    expect(endpoint).toContain("isPlatformAdminRole");
-    expect(endpoint).toContain('status: 403');
+  /**
+   * Fino al 06/09/2026 queste due prove cercavano la verifica del ruolo
+   * **scritta dentro questo file**, perche' li' stava: l'endpoint aveva una
+   * copia sua della serratura, per giunta chiamata come il modulo comune e
+   * quindi facile da scambiare per una delega. Non lo era, e leggeva il token
+   * diversamente dalle altre sei copie.
+   *
+   * Ora la verifica sta in un posto solo. Cercare qui `isPlatformAdminRole`
+   * significherebbe pretendere che l'endpoint se la riscriva, cioe' proprio il
+   * difetto che si voleva togliere: la prova giusta e' che ci si appoggi.
+   *
+   * Che quella serratura rifiuti davvero -- niente token, token inventato,
+   * concessionario vero non amministratore, errore in lettura del ruolo -- lo
+   * provano per comportamento le 11 prove di
+   * src/lib/admin-api-context.test.ts. Che nessun endpoint del pannello se ne
+   * riscriva una propria lo tiene fermo src/app/api/admin/serratura-unica.test.ts.
+   */
+  it("si appoggia alla serratura unica del pannello, invece di riscriverla", () => {
+    expect(endpoint).toContain('from "@/lib/admin-api-context"');
+    expect(endpoint).toContain("await contestoAmministratore(request)");
   });
 
-  it("senza sessione non si entra", () => {
-    expect(endpoint).toContain('{ error: "Sessione non valida." }, { status: 401 }');
+  it("e quando quella rifiuta, l'endpoint si ferma li'", () => {
+    // Il rifiuto va restituito, non ignorato: un `if` che non esce
+    // lascerebbe proseguire la scrittura di una concessionaria nuova.
+    expect(endpoint).toContain("if (errore || !admin) return errore ??");
   });
 });
 
