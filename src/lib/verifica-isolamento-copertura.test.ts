@@ -79,25 +79,20 @@ describe("il controllo dell'isolamento non lascia tabelle fuori", () => {
   });
 
   /**
-   * Sette tabelle esistono in **produzione** ma non le crea nessuna
-   * migration. Verificato il 06/09/2026 interrogandole con la chiave di
-   * servizio: rispondono tutte, e `lead_activities` ha dei dati dentro.
+   * Le tabelle che esistono in produzione ma che nessuna migration crea.
    *
-   * E' la deriva gia' nota fra lo schema di produzione e le migration
-   * (AGENTS.md, "Lo schema di produzione e' andato alla deriva"). Non si
-   * corregge qui: scrivere le migration mancanti e' un lavoro suo, e
-   * nasconderlo dentro una modifica che parlava d'altro sarebbe il modo
-   * peggiore di trattarlo.
+   * **L'elenco e' vuoto, ed e' una buona notizia.** Il 06/09/2026 conteneva
+   * sette nomi -- `import_runs`, `import_items`, `import_errors`,
+   * `import_sources`, `import_profiles`, `import_dedup_keys`,
+   * `lead_activities` -- create a mano in produzione senza lasciare il file
+   * corrispondente. La migration `20260906180000` le ha scritte, leggendole
+   * dalla produzione e riconfrontandole riga per riga.
    *
-   * Stanno scritte qui perche' il controllo qui sotto serva ancora a
-   * qualcosa: un nome rimasto nello script dopo che la tabella e' sparita
-   * farebbe stampare "protetta" per una cosa che non esiste, cioe' un verde
-   * che non significa niente.
+   * Se un giorno tornasse a riempirsi, vuol dire che qualcuno ha creato una
+   * tabella a mano invece di scrivere una migration: il controllo qui sotto
+   * lo dira'.
    */
-  const SENZA_MIGRATION = [
-    "import_runs", "import_items", "import_errors", "import_sources",
-    "import_profiles", "import_dedup_keys", "lead_activities",
-  ];
+  const SENZA_MIGRATION: string[] = [];
 
   it("lo script non nomina tabelle che non esistono da nessuna parte", () => {
     const fantasmi = [...nominateNelloScript()]
