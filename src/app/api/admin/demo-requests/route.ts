@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { hitRateLimit } from "@/lib/api-rate-limit";
+import { consumaFreno } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { eAttivazioneDiretta } from "@/lib/attivazione-diretta";
 import { escapeHtml } from "@/lib/escape-html";
@@ -404,7 +404,7 @@ export async function POST(request: Request) {
 
   const clientIp = resolveClientIp(request);
   const rateLimitKey = `admin-mutate:demo-requests:${action}:${context.userId}:${clientIp}`;
-  const rateLimit = hitRateLimit(rateLimitKey, ADMIN_DEMO_REQUESTS_RATE_LIMIT);
+  const rateLimit = await consumaFreno(rateLimitKey, ADMIN_DEMO_REQUESTS_RATE_LIMIT);
   if (rateLimit.limited) {
     return NextResponse.json(
       { error: "Troppi tentativi. Riprova tra poco." },

@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendAdminNotificationEmail, sendDemoLifecycleEmail } from "@/lib/admin-notification-email";
-import { hitRateLimit } from "@/lib/api-rate-limit";
+import { consumaFreno } from "@/lib/api-rate-limit";
 import { escapeHtml } from "@/lib/escape-html";
 
 type DemoRequestBody = {
@@ -404,7 +404,7 @@ export async function POST(request: Request) {
     }
 
     const clientIp = getClientIp(request) ?? "unknown";
-    const rateLimit = hitRateLimit(`demo-request:${clientIp}`, DEMO_REQUEST_RATE_LIMIT);
+    const rateLimit = await consumaFreno(`demo-request:${clientIp}`, DEMO_REQUEST_RATE_LIMIT);
     if (rateLimit.limited) {
       return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
     }

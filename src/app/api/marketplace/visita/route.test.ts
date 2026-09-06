@@ -103,7 +103,12 @@ describe("POST /api/marketplace/visita", () => {
       await POST(richiesta({ tipo: "annuncio", id: UN_VEICOLO }, BROWSER_VERO, rete));
     }
 
-    expect(mocks.rpcMock.mock.calls.length).toBeGreaterThan(0);
-    expect(mocks.rpcMock.mock.calls.length).toBeLessThan(12);
+    // Dal 06/09/2026 anche il freno passa dal database, quindi fra queste
+    // chiamate ci sono le sue: si contano solo quelle che registrano una
+    // visita, che sono cio' che il freno deve impedire.
+    const visite = mocks.rpcMock.mock.calls.filter(([nome]) => String(nome).startsWith("registra_visita"));
+
+    expect(visite.length).toBeGreaterThan(0);
+    expect(visite.length).toBeLessThan(12);
   });
 });

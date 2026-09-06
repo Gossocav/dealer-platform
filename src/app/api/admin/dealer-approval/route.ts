@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hitRateLimit } from "@/lib/api-rate-limit";
+import { consumaFreno } from "@/lib/api-rate-limit";
 import { sendDealerLifecycleEmail } from "@/lib/dealer-account-emails";
 import { contestoAmministratore } from "@/lib/admin-api-context";
 
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
 
   const clientIp = resolveClientIp(request);
   const rateLimitKey = `admin-mutate:dealer-approval:${action}:${context.userId}:${clientIp}`;
-  const rateLimit = hitRateLimit(rateLimitKey, ADMIN_DEALER_APPROVAL_RATE_LIMIT);
+  const rateLimit = await consumaFreno(rateLimitKey, ADMIN_DEALER_APPROVAL_RATE_LIMIT);
   if (rateLimit.limited) {
     return NextResponse.json(
       { error: "Troppi tentativi. Riprova tra poco." },

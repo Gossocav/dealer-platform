@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { hitRateLimit } from "@/lib/api-rate-limit";
+import { consumaFreno } from "@/lib/api-rate-limit";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
     const clientIp = getClientIp(request);
     const rateLimitKey = `marketplace-lead:${clientIp || "unknown"}:${vehicleId || "unknown"}`;
-    const rateLimit = hitRateLimit(rateLimitKey, MARKETPLACE_LEAD_RATE_LIMIT);
+    const rateLimit = await consumaFreno(rateLimitKey, MARKETPLACE_LEAD_RATE_LIMIT);
 
     if (rateLimit.limited) {
       return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });

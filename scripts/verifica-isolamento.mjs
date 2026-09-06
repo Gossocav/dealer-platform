@@ -40,6 +40,10 @@ const RISERVATE = [
   // Le prime quattro sono le piu' delicate del gestionale.
   "vehicle_appraisals", "vehicle_documents", "vehicle_economics", "vehicle_sales",
   "promemoria", "marketplace_views", "platform_email_templates",
+  // Il freno alle richieste (06/09/2026): contiene gli indirizzi di rete di
+  // chi ha compilato i moduli, e chi la sapesse svuotare disattiverebbe il
+  // freno per tutti.
+  "rate_limits",
 ];
 
 /**
