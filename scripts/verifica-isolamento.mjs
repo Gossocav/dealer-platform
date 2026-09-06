@@ -22,7 +22,13 @@ if (!url || !chiave) {
   process.exit(2);
 }
 
-/** Tabelle che un visitatore non deve poter leggere, per nessun motivo. */
+/**
+ * Tabelle che un visitatore non deve poter leggere, per nessun motivo.
+ *
+ * src/lib/verifica-isolamento-copertura.test.ts controlla che copra **tutte** le tabelle create dalle migration: fino al
+ * 06/09/2026 ne guardava 23 su 33, e le dieci scoperte comprendevano perizie,
+ * documenti, conto economico e vendite. Nessuno le aveva mai provate.
+ */
 const RISERVATE = [
   "leads", "customers", "appointments", "notifications", "lead_activities",
   "email_messages", "email_threads", "email_attachments", "email_delivery_events",
@@ -30,6 +36,10 @@ const RISERVATE = [
   "import_runs", "import_items", "import_errors", "import_sources",
   "import_profiles", "import_dedup_keys", "audit_logs", "dealer_demo_subscriptions",
   "demo_requests", "dealer_info_requests",
+  // Aggiunte il 06/09/2026: c'erano da mesi, il controllo non le guardava.
+  // Le prime quattro sono le piu' delicate del gestionale.
+  "vehicle_appraisals", "vehicle_documents", "vehicle_economics", "vehicle_sales",
+  "promemoria", "marketplace_views", "platform_email_templates",
 ];
 
 /**
@@ -41,6 +51,20 @@ const VETRINA = {
   vehicles: { filtro: "published=eq.false", descrizione: "veicoli non pubblicati" },
   dealers: { filtro: "status=neq.approved&status=neq.active", descrizione: "concessionarie non attive" },
 };
+
+/**
+ * `vehicle_images` e' l'unica tabella che si apre davvero alla chiave
+ * pubblica: la vetrina deve mostrare le fotografie. Contare le righe non dice
+ * niente -- devono esserci. La domanda giusta e' un'altra: **di quali veicoli
+ * sono?**
+ *
+ * Una fotografia di un veicolo non pubblicato e' un veicolo su cui la
+ * concessionaria sta ancora lavorando, prezzo compreso. Il controllo si fa
+ * tutto dal lato di un estraneo, senza chiavi speciali: si prendono i veicoli
+ * che l'estraneo vede, si prendono le fotografie che l'estraneo vede, e ogni
+ * fotografia deve appartenere a un veicolo di quell'elenco.
+ */
+const IMMAGINI = "vehicle_images";
 
 async function leggi(percorso) {
   const risposta = await fetch(`${url}/rest/v1/${percorso}`, {
@@ -79,6 +103,37 @@ for (const [tabella, { filtro, descrizione }] of Object.entries(VETRINA)) {
   }
   aperte += 1;
   console.log(`  ${tabella.padEnd(28)} APERTA — ${righe.length}+ ${descrizione}`);
+}
+
+console.log("\nFotografie: di quali veicoli sono quelle che si vedono\n");
+
+{
+  // Tutto con la sola chiave pubblica: e' quello che vede un estraneo.
+  const veicoli = (await leggi("vehicles?select=id&limit=2000")) ?? [];
+  const foto = (await leggi(`${IMMAGINI}?select=id,vehicle_id&limit=2000`)) ?? [];
+  const visibili = new Set(veicoli.map((v) => v.id));
+  const orfane = foto.filter((f) => !visibili.has(f.vehicle_id));
+
+  // Il database consegna mille righe per richiesta e non lo dice. Se
+  // l'elenco dei veicoli e' troncato, le fotografie oltre il taglio
+  // sembrerebbero orfane senza esserlo: sarebbe un allarme falso, e un
+  // allarme falso ripetuto e' il modo in cui si smette di guardare gli
+  // allarmi. Meglio dire che non si sa.
+  if (veicoli.length >= 1000 || foto.length >= 1000) {
+    console.log(`  ${IMMAGINI.padEnd(28)} PARZIALE — il database ne consegna 1000 per volta:`);
+    console.log(`  ${"".padEnd(28)} veicoli letti ${veicoli.length}, fotografie lette ${foto.length}.`);
+    console.log(`  ${"".padEnd(28)} il confronto qui sotto vale solo su queste.`);
+  }
+
+  if (foto.length === 0) {
+    console.log(`  ${IMMAGINI.padEnd(28)} nessuna fotografia leggibile`);
+  } else if (orfane.length === 0) {
+    console.log(`  ${IMMAGINI.padEnd(28)} ok — tutte e ${foto.length} appartengono a veicoli in vetrina`);
+  } else {
+    aperte += 1;
+    console.log(`  ${IMMAGINI.padEnd(28)} APERTA — ${orfane.length} fotografie di veicoli che l'estraneo non dovrebbe vedere`);
+    console.log(`  ${"".padEnd(28)} esempio: veicolo ${orfane[0].vehicle_id}`);
+  }
 }
 
 console.log("");
