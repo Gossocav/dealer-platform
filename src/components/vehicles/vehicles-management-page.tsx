@@ -20,7 +20,7 @@ import {
   type VersoDelCambio,
 } from "@/lib/cambio-stato-di-gruppo";
 import { supabase } from "@/lib/supabaseClient";
-import { filtroRicercaVeicolo } from "@/lib/ricerca-veicoli";
+import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -144,6 +144,7 @@ function indirizzoDaStato(filters: VehicleFilters, page: number, viewMode: ViewM
 function applicaFiltriVeicoli<
   Q extends {
     or(filtro: string): Q;
+    ilike(colonna: string, modello: string): Q;
     eq(colonna: string, valore: string): Q;
     gte(colonna: string, valore: number): Q;
     lte(colonna: string, valore: number): Q;
@@ -151,9 +152,8 @@ function applicaFiltriVeicoli<
 >(query: Q, filters: VehicleFilters, minPrice: number | null, maxPrice: number | null): Q {
   let q = query;
 
-  const filtroTesto = filtroRicercaVeicolo(filters.query);
-  if (filtroTesto) {
-    q = q.or(filtroTesto);
+  for (const parola of paroleRicercaVeicolo(filters.query)) {
+    q = q.ilike(COLONNA_RICERCA, modelloIlike(parola));
   }
 
   if (filters.brand !== "all") q = q.eq("brand", filters.brand);
