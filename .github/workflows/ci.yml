@@ -32,6 +32,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Il 06/09/2026 c'erano sette avvisi aperti, quattro di gravita' alta,
+      # rimasti li' per settimane. Nessuno era sfruttabile da fuori -- stavano
+      # tutti nella catena di compilazione -- ma nessuno se n'era accorto,
+      # perche' niente li guardava. Lo zero raggiunto quel giorno torna a
+      # salire da solo se non c'e' un controllo.
+      #
+      # Blocca solo cio' che finisce **in produzione**, e solo da gravita'
+      # alta in su: sono le dipendenze che raggiungono davvero chi visita il
+      # sito, e per quelle una correzione c'e' quasi sempre. Un blocco su
+      # tutto l'albero fermerebbe ogni modifica il giorno che esce un avviso
+      # su un attrezzo di compilazione senza correzione disponibile -- e un
+      # controllo che blocca il lavoro senza dare una via d'uscita e' un
+      # controllo che qualcuno disattiva.
+      - name: Dipendenze di produzione senza vulnerabilita' alte
+        run: npm audit --omit=dev --audit-level=high
+
+      # Il resto dell'albero si guarda comunque, ma non ferma nessuno: serve a
+      # far comparire nel registro cio' che va sistemato quando esce la
+      # correzione, invece di scoprirlo fra sei mesi.
+      - name: Avvisi sugli attrezzi di compilazione (non bloccante)
+        continue-on-error: true
+        run: npm audit
+
       - name: Type check
         run: npx tsc --noEmit
 
