@@ -63,3 +63,45 @@ describe("la regola sugli script non regala 'unsafe-eval' ai visitatori", () => 
     expect(await leggiCsp("development")).toContain("'unsafe-eval'");
   });
 });
+
+/**
+ * Le direttive che non ripiegano su `default-src`.
+ *
+ * **Quale difetto impedisce.** Trovato il 06/09/2026: la regola servita da
+ * www.keyauto.it non nominava `base-uri` ne' `form-action`. Chi legge una
+ * riga che comincia con `default-src 'self'` da' per scontato che quel
+ * "self" valga per tutto -- e per quasi tutto vale. Non per queste due: la
+ * specifica dice che **non ripiegano**, quindi finche' non si nominano non
+ * c'e' nessun limite. Non erano allentate, erano assenti, ed e' il tipo di
+ * buco che non si vede leggendo.
+ *
+ * Cosa aprivano, con `'unsafe-inline'` ancora concesso agli script:
+ * un tag <base> iniettato riscrive tutti gli indirizzi relativi della pagina;
+ * un modulo iniettato spedisce altrove quello che l'utente ci scrive dentro,
+ * da una schermata che sta sul dominio vero.
+ */
+describe("le direttive che non ripiegano su default-src ci sono", () => {
+  const csp = proxy(new NextRequest("https://local/")).headers.get("Content-Security-Policy") ?? "";
+
+  it("base-uri e' limitato al nostro dominio", () => {
+    expect(csp, "senza base-uri un tag <base> iniettato riscrive tutta la pagina").toContain("base-uri 'self'");
+  });
+
+  it("i moduli non possono spedire fuori", () => {
+    expect(csp, "senza form-action un modulo iniettato manda altrove cio' che si scrive").toContain(
+      "form-action 'self'"
+    );
+  });
+
+  it("nessun oggetto incorporato", () => {
+    expect(csp).toContain("object-src 'none'");
+  });
+
+  it("e quelle che c'erano prima non sono sparite", () => {
+    // Il difetto che questa prova impedisce: riscrivere la riga per
+    // aggiungere qualcosa e perdere per strada qualcos'altro.
+    for (const pezzo of ["default-src 'self'", "frame-ancestors 'none'", "script-src 'self'", "connect-src 'self'"]) {
+      expect(csp, `manca ${pezzo}`).toContain(pezzo);
+    }
+  });
+});
