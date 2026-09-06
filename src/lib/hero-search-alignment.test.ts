@@ -6,7 +6,7 @@ function read(path: string) {
   return readFileSync(resolve(process.cwd(), path), "utf8");
 }
 
-const heroFields = read("src/components/marketplace/hero-brand-model-fields.tsx");
+const tendine = read("src/components/marketplace/tendine-marca-modello.tsx");
 const homePage = read("src/app/(marketplace)/page.tsx");
 
 // Da mobile la griglia del form di ricerca collassa a una colonna: i tre
@@ -15,15 +15,19 @@ const homePage = read("src/app/(marketplace)/page.tsx");
 // mezzo riquadro vuoto a destra. Da sm in su le colonne tornano strette e
 // l'allineamento a sinistra e' quello giusto.
 describe("form di ricerca in home", () => {
+  // Dal 06/09/2026 Marca e Modello condividono una classe sola: le due
+  // tendine sono lo stesso componente, usato anche dalla ricerca avanzata
+  // (`variante`), e la classe della barra sta nell'elenco degli stili.
   const selects = [
-    ...heroFields.matchAll(/className="(mt-0\.5 w-full appearance-none[^"]*)"/g),
+    ...tendine.matchAll(/campo:\s*"(mt-0\.5 w-full appearance-none[^"]*)"/g),
     ...homePage.matchAll(/className="(mt-0\.5 w-full appearance-none[^"]*)"/g),
   ].map((match) => match[1]);
 
   it("copre tutte le tendine della barra", () => {
-    // Marca e Modello stanno nel componente, Prezzo max e Distanza nella home:
-    // se un giorno se ne aggiunge una senza allinearla, il conteggio lo segnala.
-    expect(selects).toHaveLength(4);
+    // Una classe per Marca e Modello insieme, piu' Prezzo max e Distanza che
+    // stanno nella home: tre in tutto. Se un giorno se ne aggiunge una senza
+    // allinearla, il conteggio lo segnala.
+    expect(selects).toHaveLength(3);
   });
 
   it("centra da mobile anche il campo scrivibile", () => {

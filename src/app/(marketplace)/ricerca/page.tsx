@@ -13,6 +13,7 @@ import {
 } from "@/lib/geo-search";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
+import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
 
 export const dynamic = "force-dynamic";
 
@@ -247,10 +248,17 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const optionData = Array.isArray(optionRows) ? optionRows : [];
   const brandOptions = uniqueValues(optionData.map((row) => (row as { brand?: string | null }).brand));
-  const modelSource = filters.brand
-    ? optionData.filter((row) => formatText((row as { brand?: string | null }).brand).toLowerCase() === filters.brand.toLowerCase())
-    : optionData;
-  const modelOptions = uniqueValues(modelSource.map((row) => (row as { model?: string | null }).model));
+  // La tendina dei modelli si lega alla marca nel browser, senza ricaricare:
+  // serve la mappa completa, non il solo elenco filtrato lato server.
+  const modelOptionsTutti = uniqueValues(optionData.map((row) => (row as { model?: string | null }).model));
+  const brandModelMap: Record<string, string[]> = {};
+  for (const brand of brandOptions) {
+    brandModelMap[brand] = uniqueValues(
+      optionData
+        .filter((row) => formatText((row as { brand?: string | null }).brand) === brand)
+        .map((row) => (row as { model?: string | null }).model)
+    );
+  }
   const fuelOptions = uniqueValues(optionData.map((row) => (row as { fuel?: string | null }).fuel));
   const transmissionOptions = uniqueValues(optionData.map((row) => (row as { transmission?: string | null }).transmission));
   // Elenco anni derivato dalle date di immatricolazione realmente presenti,
@@ -293,8 +301,14 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
             <SearchSelect label="Tipo veicolo" name="vehicleCategory" defaultValue={filters.vehicleCategory} options={[...VEHICLE_CATEGORY_OPTIONS]} />
             <SearchSelect label="Condizioni" name="vehicleCondition" defaultValue={filters.vehicleCondition} options={[...VEHICLE_CONDITION_OPTIONS]} />
             <SearchSelect label="Carrozzeria" name="bodyType" defaultValue={filters.bodyType} options={[...BODY_TYPE_OPTIONS]} />
-            <SearchSelect label="Marca" name="brand" defaultValue={filters.brand} options={brandOptions} />
-            <SearchSelect label="Modello" name="model" defaultValue={filters.model} options={modelOptions} />
+            <TendineMarcaModello
+              variante="ricerca"
+              brands={brandOptions}
+              brandModelMap={brandModelMap}
+              allModels={modelOptionsTutti}
+              marcaIniziale={filters.brand}
+              modelloIniziale={filters.model}
+            />
             <SearchSelect label="Alimentazione" name="fuel" defaultValue={filters.fuel} options={fuelOptions} />
             <SearchSelect label="Cambio" name="transmission" defaultValue={filters.transmission} options={transmissionOptions} />
             <SearchSelect label="Anno da" name="yearFrom" defaultValue={filters.yearFrom} options={yearOptions} />
