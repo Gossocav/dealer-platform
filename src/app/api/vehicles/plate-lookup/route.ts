@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { segnalaErrore } from "@/lib/segnala-errore";
 
 type PlateLookupBody = {
   licensePlate?: string;
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ vehicle: normalizedVehicle }, { status: 200 });
   } catch (error) {
-    console.error("Plate lookup unexpected error", error);
+    segnalaErrore("vehicles/plate-lookup", error, { errorType: "unexpected" });
     return NextResponse.json({ error: "Errore interno durante la ricerca veicolo da targa." }, { status: 500 });
   }
 }

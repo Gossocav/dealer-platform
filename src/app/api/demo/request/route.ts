@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendAdminNotificationEmail, sendDemoLifecycleEmail } from "@/lib/admin-notification-email";
+import { segnalaErrore } from "@/lib/segnala-errore";
 import { consumaFreno } from "@/lib/api-rate-limit";
 import { escapeHtml } from "@/lib/escape-html";
 
@@ -691,11 +692,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Richiesta Demo inviata" }, { status: 200 });
   } catch (error) {
-    console.error("demo-request:unexpected-error", {
-      requestId,
-      phase: "handler.unhandled_exception",
-      error,
-    });
+    segnalaErrore("demo/request", error, { requestId, phase: "handler.unhandled_exception" });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

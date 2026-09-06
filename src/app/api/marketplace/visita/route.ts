@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { consumaFreno } from "@/lib/api-rate-limit";
+import { segnalaErrore } from "@/lib/segnala-errore";
 import {
   FRENO_COMPLESSIVO,
   FRENO_PER_PAGINA,
@@ -87,10 +88,7 @@ export async function POST(request: Request) {
 
     return vuota;
   } catch (errore) {
-    console.error("visita: errore imprevisto", {
-      errorType: "unexpected",
-      message: errore instanceof Error ? errore.message : String(errore),
-    });
+    segnalaErrore("visita", errore, { errorType: "unexpected" });
     return NextResponse.json({ error: "Errore imprevisto." }, { status: 500 });
   }
 }
