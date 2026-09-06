@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { hitRateLimit } from "@/lib/api-rate-limit";
+import { consumaFreno } from "@/lib/api-rate-limit";
 import {
   FRENO_COMPLESSIVO,
   FRENO_PER_PAGINA,
@@ -56,8 +56,8 @@ export async function POST(request: Request) {
     }
 
     const rete = indirizzoDiRete(request) || "sconosciuto";
-    if (hitRateLimit(`visita:${rete}:${richiesta.id}`, FRENO_PER_PAGINA).limited) return vuota;
-    if (hitRateLimit(`visita:${rete}`, FRENO_COMPLESSIVO).limited) return vuota;
+    if ((await consumaFreno(`visita:${rete}:${richiesta.id}`, FRENO_PER_PAGINA)).limited) return vuota;
+    if ((await consumaFreno(`visita:${rete}`, FRENO_COMPLESSIVO)).limited) return vuota;
 
     const indirizzoSupabase = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const chiaveDiServizio = process.env.SUPABASE_SERVICE_ROLE_KEY;

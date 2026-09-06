@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const createClientMock = vi.fn();
-  const hitRateLimitMock = vi.fn();
+  const consumaFrenoMock = vi.fn();
   const createDemoAccessAuditEntryMock = vi.fn().mockResolvedValue(undefined);
   const sendPlatformEmailMock = vi.fn().mockResolvedValue({ ok: true });
   const sendDemoLifecycleEmailMock = vi.fn().mockResolvedValue({ ok: true });
 
   return {
     createClientMock,
-    hitRateLimitMock,
+    consumaFrenoMock,
     createDemoAccessAuditEntryMock,
     sendPlatformEmailMock,
     sendDemoLifecycleEmailMock,
@@ -30,7 +30,7 @@ vi.mock("@/lib/account-approval", () => ({
 }));
 
 vi.mock("@/lib/api-rate-limit", () => ({
-  hitRateLimit: mocks.hitRateLimitMock,
+  consumaFreno: mocks.consumaFrenoMock,
 }));
 
 vi.mock("@/lib/demo-audit", () => ({
@@ -412,7 +412,7 @@ describe("admin demo-requests route rate limiting", () => {
     const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq, dealersUpdateEq, rpc } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -452,7 +452,7 @@ describe("admin demo-requests route rate limiting", () => {
       demoExpiresAt: null,
       linkedDealerId: "dealer-1",
     });
-    expect(mocks.hitRateLimitMock).toHaveBeenCalledWith(
+    expect(mocks.consumaFrenoMock).toHaveBeenCalledWith(
       "admin-mutate:demo-requests:reject:admin-1:203.0.113.9",
       { windowMs: 60_000, maxRequests: 10 }
     );
@@ -479,7 +479,7 @@ describe("admin demo-requests route rate limiting", () => {
     const { supabaseAdmin, demoRequestTargetMaybeSingle, demoRequestsUpdateEq, authAdminCreateUser, createSignedUrl } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: true,
       remaining: 0,
       resetAt: Date.now() + 2_200,
@@ -518,7 +518,7 @@ describe("admin demo-requests route rate limiting", () => {
 
     expect(response.status).toBe(403);
     expect(payload).toEqual({ error: "Accesso negato." });
-    expect(mocks.hitRateLimitMock).not.toHaveBeenCalled();
+    expect(mocks.consumaFrenoMock).not.toHaveBeenCalled();
     expect(demoRequestsUpdateEq).not.toHaveBeenCalled();
   });
 
@@ -530,7 +530,7 @@ describe("admin demo-requests route rate limiting", () => {
 
     const { supabaseAdmin, rpc } = makeSupabaseAdminForActivation(user);
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -589,7 +589,7 @@ describe("admin demo-requests route rate limiting", () => {
 
     const { supabaseAdmin } = makeSupabaseAdminForActivation(user);
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -638,7 +638,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -676,7 +676,7 @@ describe("admin demo-requests route rate limiting", () => {
 
     const { supabaseAdmin, demoRequestsUpdateEq, rpc } = makeSupabaseAdminForActivation(user, "progress");
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -713,7 +713,7 @@ describe("admin demo-requests route rate limiting", () => {
     dealersMaybeSingle.mockResolvedValue({ data: null, error: null });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -764,7 +764,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -843,7 +843,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -888,7 +888,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -931,7 +931,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -975,7 +975,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -1055,7 +1055,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -1099,7 +1099,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -1157,7 +1157,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+    mocks.consumaFrenoMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
 
     const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
     const payload = (await response.json()) as Record<string, unknown>;
@@ -1200,7 +1200,7 @@ describe("admin demo-requests route rate limiting", () => {
     });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+    mocks.consumaFrenoMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
 
     const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
 
@@ -1239,7 +1239,7 @@ describe("admin demo-requests route rate limiting", () => {
     dealerUsersMaybeSingle.mockResolvedValue({ data: { profile_id: "cliente-storico-1" }, error: null });
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+    mocks.consumaFrenoMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
 
     const response = await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
 
@@ -1259,7 +1259,7 @@ describe("admin demo-requests route rate limiting", () => {
     const { supabaseAdmin, authAdminCreateUser } = makeSupabaseAdminForActivation(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
+    mocks.consumaFrenoMock.mockReturnValue({ limited: false, remaining: 9, resetAt: Date.now() + 60_000 });
 
     await POST(makeRequest({ requestId: "request-1", action: "activate_demo" }));
 

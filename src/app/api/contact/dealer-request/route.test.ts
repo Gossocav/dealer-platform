@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   sendAdminNotificationEmailMock: vi.fn(),
-  hitRateLimitMock: vi.fn(),
+  consumaFrenoMock: vi.fn(),
   createClientMock: vi.fn(),
   insertMock: vi.fn(),
 }));
@@ -12,7 +12,7 @@ vi.mock("@/lib/admin-notification-email", () => ({
 }));
 
 vi.mock("@/lib/api-rate-limit", () => ({
-  hitRateLimit: mocks.hitRateLimitMock,
+  consumaFreno: mocks.consumaFrenoMock,
 }));
 
 vi.mock("@supabase/supabase-js", () => ({
@@ -42,7 +42,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
 
-  mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 4, resetAt: Date.now() + 1000 });
+  mocks.consumaFrenoMock.mockReturnValue({ limited: false, remaining: 4, resetAt: Date.now() + 1000 });
   mocks.sendAdminNotificationEmailMock.mockResolvedValue({ ok: true, id: "email-1" });
 
   mocks.insertMock.mockResolvedValue({ error: null });
@@ -114,7 +114,7 @@ describe("dealer info request route", () => {
   });
 
   it("returns 429 when rate limited", async () => {
-    mocks.hitRateLimitMock.mockReturnValue({ limited: true, remaining: 0, resetAt: Date.now() + 1000 });
+    mocks.consumaFrenoMock.mockReturnValue({ limited: true, remaining: 0, resetAt: Date.now() + 1000 });
 
     const response = await POST(makeRequest(validBody));
 

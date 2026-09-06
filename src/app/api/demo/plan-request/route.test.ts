@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const createClientMock = vi.fn();
-  const hitRateLimitMock = vi.fn();
+  const consumaFrenoMock = vi.fn();
   const sendAdminNotificationEmailMock = vi.fn().mockResolvedValue({ ok: true });
   const resolveDealerIdFromTenantSourcesMock = vi.fn();
 
   return {
     createClientMock,
-    hitRateLimitMock,
+    consumaFrenoMock,
     sendAdminNotificationEmailMock,
     resolveDealerIdFromTenantSourcesMock,
   };
@@ -19,7 +19,7 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 vi.mock("../../../../lib/api-rate-limit", () => ({
-  hitRateLimit: mocks.hitRateLimitMock,
+  consumaFreno: mocks.consumaFrenoMock,
 }));
 
 vi.mock("../../../../lib/admin-notification-email", () => ({
@@ -96,7 +96,7 @@ describe("demo plan-request route", () => {
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
-    mocks.hitRateLimitMock.mockReturnValue({ limited: false, remaining: 4, resetAt: Date.now() + 60_000 });
+    mocks.consumaFrenoMock.mockReturnValue({ limited: false, remaining: 4, resetAt: Date.now() + 60_000 });
   });
 
   it("rejects requests with no bearer token", async () => {

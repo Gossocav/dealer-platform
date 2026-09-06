@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { hitRateLimit } from "../../../../lib/api-rate-limit";
+import { consumaFreno } from "../../../../lib/api-rate-limit";
 import { sendAdminNotificationEmail } from "../../../../lib/admin-notification-email";
 import { resolveDealerIdFromTenantSources } from "../../../../lib/dealer-id-resolution";
 import { getDemoPlan, normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
     return context.error;
   }
 
-  const rateLimit = hitRateLimit(`demo-plan-request:${context.userId}`, PLAN_REQUEST_RATE_LIMIT);
+  const rateLimit = await consumaFreno(`demo-plan-request:${context.userId}`, PLAN_REQUEST_RATE_LIMIT);
 
   if (rateLimit.limited) {
     return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { hitRateLimit } from "@/lib/api-rate-limit";
+import { consumaFreno } from "@/lib/api-rate-limit";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { escapeHtml } from "@/lib/escape-html";
 
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     }
 
     const clientIp = getClientIp(request) ?? "unknown";
-    const rateLimit = hitRateLimit(`dealer-info-request:${clientIp}`, DEALER_INFO_REQUEST_RATE_LIMIT);
+    const rateLimit = await consumaFreno(`dealer-info-request:${clientIp}`, DEALER_INFO_REQUEST_RATE_LIMIT);
     if (rateLimit.limited) {
       return NextResponse.json({ error: "Troppi tentativi. Riprova tra poco." }, { status: 429 });
     }

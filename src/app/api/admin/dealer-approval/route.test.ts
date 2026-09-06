@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const createClientMock = vi.fn();
-  const hitRateLimitMock = vi.fn();
+  const consumaFrenoMock = vi.fn();
   const sendDealerLifecycleEmailMock = vi.fn().mockResolvedValue({ ok: true });
 
   return {
     createClientMock,
-    hitRateLimitMock,
+    consumaFrenoMock,
     sendDealerLifecycleEmailMock,
   };
 });
@@ -26,7 +26,7 @@ vi.mock("@/lib/account-approval", () => ({
 }));
 
 vi.mock("@/lib/api-rate-limit", () => ({
-  hitRateLimit: mocks.hitRateLimitMock,
+  consumaFreno: mocks.consumaFrenoMock,
 }));
 
 vi.mock("@/lib/dealer-account-emails", () => ({
@@ -149,7 +149,7 @@ describe("admin dealer-approval route rate limiting", () => {
     const { supabaseAdmin, dealersSelectMaybeSingle, dealersUpdateEq, dealerUsersUpdateEq } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: false,
       remaining: 9,
       resetAt: Date.now() + 60_000,
@@ -170,7 +170,7 @@ describe("admin dealer-approval route rate limiting", () => {
       dealerStatus: "approved",
       membershipStatus: "active",
     });
-    expect(mocks.hitRateLimitMock).toHaveBeenCalledWith(
+    expect(mocks.consumaFrenoMock).toHaveBeenCalledWith(
       "admin-mutate:dealer-approval:approve:admin-1:203.0.113.7",
       { windowMs: 60_000, maxRequests: 10 }
     );
@@ -187,7 +187,7 @@ describe("admin dealer-approval route rate limiting", () => {
     const { supabaseAdmin, dealersSelectMaybeSingle, dealersUpdateEq, dealerUsersUpdateEq } = makeSupabaseAdmin(user);
 
     mocks.createClientMock.mockReturnValue(supabaseAdmin);
-    mocks.hitRateLimitMock.mockReturnValue({
+    mocks.consumaFrenoMock.mockReturnValue({
       limited: true,
       remaining: 0,
       resetAt: Date.now() + 2_100,
@@ -223,7 +223,7 @@ describe("admin dealer-approval route rate limiting", () => {
 
     expect(response.status).toBe(403);
     expect(payload).toEqual({ error: "Accesso negato." });
-    expect(mocks.hitRateLimitMock).not.toHaveBeenCalled();
+    expect(mocks.consumaFrenoMock).not.toHaveBeenCalled();
     expect(dealersUpdateEq).not.toHaveBeenCalled();
     expect(dealerUsersUpdateEq).not.toHaveBeenCalled();
   });
