@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
+import { valoriDistinti } from "@/lib/valori-distinti";
 import { MarqueeDealers, type MarqueeDealer } from "@/components/marketplace/marquee-dealers";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/structured-data";
@@ -215,11 +216,11 @@ export default async function MarketplaceHomePage() {
   // c'era davvero non riusciva a sceglierla -- un'Audi A3 in vetrina non
   // compariva fra i modelli Audi. E' la stessa correzione gia' fatta per le
   // categorie, per le marche piu' presenti e per le concessionarie partner.
-  const brands = uniqueValues(publishedRows.map((row) => row.brand));
-  const allModels = uniqueValues(publishedRows.map((row) => row.model));
+  const brands = valoriDistinti(publishedRows.map((row) => row.brand));
+  const allModels = valoriDistinti(publishedRows.map((row) => row.model));
   const brandModelMap: Record<string, string[]> = {};
   for (const brand of brands) {
-    brandModelMap[brand] = uniqueValues(
+    brandModelMap[brand] = valoriDistinti(
       publishedRows.filter((row) => formatText(row.brand) === brand).map((row) => row.model)
     );
   }
@@ -913,12 +914,6 @@ function CheckIcon({ className }: { className?: string }) {
    Data helpers (unchanged logic from the previous home page)
    ============================================================ */
 
-
-function uniqueValues(values: Array<string | number | null | undefined>) {
-  return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) =>
-    a.localeCompare(b, "it-IT")
-  );
-}
 
 function byNewest(a: MarketplaceVehicle, b: MarketplaceVehicle) {
   return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();

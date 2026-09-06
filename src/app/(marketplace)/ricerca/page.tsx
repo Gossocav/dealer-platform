@@ -14,6 +14,7 @@ import {
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
+import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
 
 export const dynamic = "force-dynamic";
 
@@ -119,8 +120,11 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   if (filters.vehicleCategory) query = query.eq("vehicle_category", filters.vehicleCategory);
   if (filters.vehicleCondition) query = query.eq("vehicle_condition", filters.vehicleCondition);
   if (filters.bodyType) query = query.eq("body_type", filters.bodyType);
-  if (filters.brand) query = query.eq("brand", filters.brand);
-  if (filters.model) query = query.eq("model", filters.model);
+  // Confronto senza maiuscole: nei dati la stessa auto e' scritta in due modi
+  // ("C3" x11 e "c3" x2), e con un confronto esatto chi sceglieva una delle
+  // due voci perdeva le altre.
+  if (filters.brand) query = query.ilike("brand", perConfrontoSenzaMaiuscole(filters.brand));
+  if (filters.model) query = query.ilike("model", perConfrontoSenzaMaiuscole(filters.model));
   if (filters.fuel) query = query.eq("fuel", filters.fuel);
   if (filters.transmission) query = query.eq("transmission", filters.transmission);
 
@@ -247,20 +251,20 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
   const totalPages = Math.max(1, Math.ceil(totalCount / MARKETPLACE_SEARCH_PAGE_SIZE));
 
   const optionData = Array.isArray(optionRows) ? optionRows : [];
-  const brandOptions = uniqueValues(optionData.map((row) => (row as { brand?: string | null }).brand));
+  const brandOptions = valoriDistinti(optionData.map((row) => (row as { brand?: string | null }).brand));
   // La tendina dei modelli si lega alla marca nel browser, senza ricaricare:
   // serve la mappa completa, non il solo elenco filtrato lato server.
-  const modelOptionsTutti = uniqueValues(optionData.map((row) => (row as { model?: string | null }).model));
+  const modelOptionsTutti = valoriDistinti(optionData.map((row) => (row as { model?: string | null }).model));
   const brandModelMap: Record<string, string[]> = {};
   for (const brand of brandOptions) {
-    brandModelMap[brand] = uniqueValues(
+    brandModelMap[brand] = valoriDistinti(
       optionData
         .filter((row) => formatText((row as { brand?: string | null }).brand) === brand)
         .map((row) => (row as { model?: string | null }).model)
     );
   }
-  const fuelOptions = uniqueValues(optionData.map((row) => (row as { fuel?: string | null }).fuel));
-  const transmissionOptions = uniqueValues(optionData.map((row) => (row as { transmission?: string | null }).transmission));
+  const fuelOptions = valoriDistinti(optionData.map((row) => (row as { fuel?: string | null }).fuel));
+  const transmissionOptions = valoriDistinti(optionData.map((row) => (row as { transmission?: string | null }).transmission));
   // Elenco anni derivato dalle date di immatricolazione realmente presenti,
   // cosi' come marca/alimentazione/cambio: nessun anno "vuoto" in elenco.
   const yearOptions = Array.from(
@@ -573,10 +577,6 @@ function parseSearchYear(value: string) {
   }
 
   return yearValue;
-}
-
-function uniqueValues(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.map((value) => formatText(value)).filter((value) => value !== "-"))).sort((a, b) => a.localeCompare(b, "it-IT"));
 }
 
 function asValue(value: string | string[] | undefined) {
