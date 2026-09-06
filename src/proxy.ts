@@ -50,7 +50,29 @@ const VIDEO_FRAME_SRC = "https://www.youtube-nocookie.com";
 // DEV_ONLY_CONNECT_SRC qui sopra.
 const DEV_ONLY_SCRIPT_SRC = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
 
-const CONTENT_SECURITY_POLICY = `default-src 'self'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline'${DEV_ONLY_SCRIPT_SRC}${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-src ${VIDEO_FRAME_SRC}; frame-ancestors 'none';`;
+// Tre direttive che mancavano fino al 06/09/2026.
+//
+// `base-uri` e `form-action` **non ripiegano su `default-src`**: e' scritto
+// cosi' nella specifica, e vuol dire che finche' non si nominano non c'e'
+// nessun limite. Non erano allentate: erano assenti.
+//
+// - `base-uri 'self'`   un tag <base> iniettato riscrive tutti gli indirizzi
+//                       relativi della pagina verso il server di chi attacca.
+//                       E' il modo classico per aggirare `script-src`.
+// - `form-action 'self'` senza, un modulo iniettato puo' spedire altrove cio'
+//                       che l'utente ci scrive dentro: una finta schermata di
+//                       accesso, sul nostro dominio vero, che manda la
+//                       password a un estraneo. Verificato che nessun modulo
+//                       del sito punta fuori: i due che dichiarano un
+//                       indirizzo vanno a /ricerca e /auto.
+// - `object-src 'none'`  questo ripiegava su `default-src 'self'`, quindi non
+//                       era scoperto; 'none' e' comunque piu' stretto e non
+//                       serve nessun oggetto incorporato.
+//
+// Non c'e' `upgrade-insecure-requests`: la Strict-Transport-Security qui
+// sotto obbliga gia' tutto il dominio a viaggiare cifrato, e aggiungerla
+// darebbe una riga in piu' senza cambiare niente.
+const CONTENT_SECURITY_POLICY = `default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; img-src 'self' data: blob: https://upload.wikimedia.org https://*.supabase.co${MEASUREMENT_IMG_SRC}; script-src 'self' 'unsafe-inline'${DEV_ONLY_SCRIPT_SRC}${MEASUREMENT_SCRIPT_SRC}; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co${MEASUREMENT_CONNECT_SRC}${DEV_ONLY_CONNECT_SRC}; font-src 'self' data:; frame-src ${VIDEO_FRAME_SRC}; frame-ancestors 'none';`;
 
 // Standard hardening headers applied to every dynamic response. X-Frame-Options
 // duplicates the CSP frame-ancestors directive for older browsers.
