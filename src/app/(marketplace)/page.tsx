@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
-import { HeroBrandModelFields } from "@/components/marketplace/hero-brand-model-fields";
+import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
 import { MarqueeDealers, type MarqueeDealer } from "@/components/marketplace/marquee-dealers";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/structured-data";
@@ -61,6 +61,7 @@ type PublishedRow = {
   dealer_id: string | null;
   body_type: string | null;
   brand: string | null;
+  model: string | null;
   dealers: { status: string | null; name: string | null; legal_name: string | null; city: string | null } | null;
 };
 
@@ -129,7 +130,7 @@ export default async function MarketplaceHomePage() {
     caricaTutto<PublishedRow>((da, a) =>
       publicSupabase
         .from("vehicles")
-        .select("dealer_id, body_type, brand, dealers!inner(status, name, legal_name, city)")
+        .select("dealer_id, body_type, brand, model, dealers!inner(status, name, legal_name, city)")
         .eq("published", true)
         .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
         .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
@@ -208,12 +209,18 @@ export default async function MarketplaceHomePage() {
   // "Concessionarie partner" poco sopra diceva 2. Stessa correzione gia' fatta
   // per le categorie e per le marche piu' presenti.
   const partnerDealers = raggruppaConcessionariePartner(publishedRows).slice(0, 4);
-  const brands = uniqueValues(vehicles.map((vehicle) => vehicle.brand));
-  const allModels = uniqueValues(vehicles.map((vehicle) => vehicle.model));
+  // Marca e modello nascono da publishedRows, che copre tutto il pubblicato.
+  // Nascevano dai 24 veicoli delle "ultime arrivate": su 296 pubblicati la
+  // tendina ne mostrava 12 marche e 18 modelli, e chi cercava un'auto che
+  // c'era davvero non riusciva a sceglierla -- un'Audi A3 in vetrina non
+  // compariva fra i modelli Audi. E' la stessa correzione gia' fatta per le
+  // categorie, per le marche piu' presenti e per le concessionarie partner.
+  const brands = uniqueValues(publishedRows.map((row) => row.brand));
+  const allModels = uniqueValues(publishedRows.map((row) => row.model));
   const brandModelMap: Record<string, string[]> = {};
   for (const brand of brands) {
     brandModelMap[brand] = uniqueValues(
-      vehicles.filter((vehicle) => formatText(vehicle.brand) === brand).map((vehicle) => vehicle.model)
+      publishedRows.filter((row) => formatText(row.brand) === brand).map((row) => row.model)
     );
   }
 
@@ -316,7 +323,7 @@ export default async function MarketplaceHomePage() {
                 pulsante affiancati ognuno restava largo un centinaio di pixel,
                 e "Citta' o CAP" ha bisogno di spazio per essere scritto. */}
             <div className="grid gap-1 sm:grid-cols-3">
-              <HeroBrandModelFields brands={brands} brandModelMap={brandModelMap} allModels={allModels} />
+              <TendineMarcaModello variante="home" brands={brands} brandModelMap={brandModelMap} allModels={allModels} />
               <HeroField
                 label="Prezzo max"
                 name="maxPrice"

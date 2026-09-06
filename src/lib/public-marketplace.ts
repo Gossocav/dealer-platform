@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { formatRegistrationLabel } from "@/lib/vehicles";
-import { cache } from "react";
-import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
 import { normalizzaModello, ripulisciTitoloVeicolo, stripLeadingRepeat } from "@/lib/vehicle-label";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
