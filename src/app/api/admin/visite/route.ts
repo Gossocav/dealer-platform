@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { contestoAmministratore } from "@/lib/admin-api-context";
+import { segnalaErrore } from "@/lib/segnala-errore";
 import { caricaTutto } from "@/lib/carica-tutto";
 import {
   andamentoGiornaliero,
@@ -146,10 +147,7 @@ export async function GET(request: Request) {
       { status: 200 }
     );
   } catch (errore) {
-    console.error("admin/visite: errore imprevisto", {
-      errorType: "unexpected",
-      message: errore instanceof Error ? errore.message : String(errore),
-    });
+    segnalaErrore("admin/visite", errore, { errorType: "unexpected" });
     return NextResponse.json({ error: "Errore imprevisto." }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { consumaFreno } from "@/lib/api-rate-limit";
+import { segnalaErrore } from "@/lib/segnala-errore";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { escapeHtml } from "@/lib/escape-html";
 
@@ -181,9 +182,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Richiesta inviata. Ti risponderemo al piu presto." }, { status: 200 });
   } catch (error) {
-    console.error("dealer-info-request:unexpected-error", {
-      errorType: error instanceof Error ? error.name : "unknown_error",
-    });
+    segnalaErrore("contact/dealer-request", error, { errorType: "unexpected" });
 
     return NextResponse.json({ error: "Errore interno durante l'invio della richiesta." }, { status: 500 });
   }

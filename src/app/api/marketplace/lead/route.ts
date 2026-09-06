@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { consumaFreno } from "@/lib/api-rate-limit";
+import { segnalaErrore } from "@/lib/segnala-errore";
 import { sendAdminNotificationEmail } from "@/lib/admin-notification-email";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -290,14 +291,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Richiesta inviata correttamente." }, { status: 200 });
   } catch (error) {
-    console.error("Marketplace lead API unexpected error", {
-      errorType: error instanceof Error ? error.name : "unknown_error",
-    });
-    if (error instanceof Error) {
-      console.error("Marketplace lead API unexpected error details", {
-        errorType: error.name,
-      });
-    }
+    segnalaErrore("marketplace/lead", error, { errorType: "unexpected" });
     return NextResponse.json({ error: "Errore interno durante l'invio della richiesta." }, { status: 500 });
   }
 }
