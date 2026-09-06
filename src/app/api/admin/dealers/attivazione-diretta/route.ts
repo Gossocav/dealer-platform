@@ -1,6 +1,6 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
+import { contestoAmministratore } from "@/lib/admin-api-context";
 import { normalizeDemoPlanCode } from "@/lib/demo-plan-catalog";
 import { NOTA_ATTIVAZIONE_DIRETTA } from "@/lib/attivazione-diretta";
 import { nomeDellaColonnaMancante } from "@/lib/tabella-mancante";
@@ -45,49 +45,23 @@ function testo(valore: unknown): string {
   return String(valore ?? "").trim();
 }
 
-function estraiToken(authHeader: string | null) {
-  if (!authHeader) return null;
-  const [schema, token] = authHeader.split(" ");
-  return schema?.toLowerCase() === "bearer" && token ? token : null;
-}
+// Chi sta chiamando e' un amministratore? La risposta si decide in un posto
+// solo: src/lib/admin-api-context.ts.
+//
+// Qui viveva una settima copia della stessa verifica -- e per giunta chiamata
+// come il modulo comune, quindi cercando "contestoAmministratore" sembrava
+// gia' a posto. Non lo era, e non era nemmeno identica alle altre sei: leggeva
+// il token con `authHeader.split(" ")` invece di ritagliare il prefisso, cioe'
+// la stessa serratura con una chiave diversa. E' esattamente il modo in cui
+// sei copie smettono di essere sei copie uguali.
+async function serraturaLocale(request: Request) {
+  const contesto = await contestoAmministratore(request);
 
-async function contestoAmministratore(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return { errore: NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 }), admin: null } as const;
+  if (contesto.errore) {
+    return { errore: contesto.errore, admin: null } as const;
   }
 
-  const token = estraiToken(request.headers.get("authorization"));
-  if (!token) {
-    return { errore: NextResponse.json({ error: "Sessione non valida." }, { status: 401 }), admin: null } as const;
-  }
-
-  const admin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-
-  const { data, error } = await admin.auth.getUser(token);
-  if (error || !data.user) {
-    return { errore: NextResponse.json({ error: "Utente non autenticato." }, { status: 401 }), admin: null } as const;
-  }
-
-  let autorizzato = isPlatformAdminRole(resolveUserRoleFromMetadata(data.user));
-
-  if (!autorizzato) {
-    const profilo = await admin.from("profiles").select("role").eq("id", data.user.id).maybeSingle<{ role: string | null }>();
-    if (profilo.error) {
-      return { errore: NextResponse.json({ error: "Errore verifica autorizzazioni." }, { status: 500 }), admin: null } as const;
-    }
-    autorizzato = isPlatformAdminRole(profilo.data?.role);
-  }
-
-  if (!autorizzato) {
-    return { errore: NextResponse.json({ error: "Non autorizzato." }, { status: 403 }), admin: null } as const;
-  }
-
-  return { errore: null, admin } as const;
+  return { errore: null, admin: contesto.supabaseAdmin } as const;
 }
 
 /**
@@ -122,7 +96,7 @@ async function inserisciRichiesta(admin: SupabaseClient, payload: Record<string,
 }
 
 export async function POST(request: Request) {
-  const { errore, admin } = await contestoAmministratore(request);
+  const { errore, admin } = await serraturaLocale(request);
   if (errore || !admin) return errore ?? NextResponse.json({ error: "Non autorizzato." }, { status: 403 });
 
   let corpo: CorpoRichiesta;
