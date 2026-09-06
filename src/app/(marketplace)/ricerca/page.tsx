@@ -12,6 +12,7 @@ import {
   resolvePlaceQuery,
 } from "@/lib/geo-search";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { filtroRicercaVeicolo } from "@/lib/ricerca-veicoli";
 
 export const dynamic = "force-dynamic";
 
@@ -109,9 +110,9 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
     .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
 
   if (filters.q) {
-    const safeQ = filters.q.replace(/[,%]/g, " ").trim();
-    if (safeQ) {
-      query = query.or(`brand.ilike.%${safeQ}%,model.ilike.%${safeQ}%,version.ilike.%${safeQ}%`);
+    const filtroTesto = filtroRicercaVeicolo(filters.q);
+    if (filtroTesto) {
+      query = query.or(filtroTesto);
     }
   }
 

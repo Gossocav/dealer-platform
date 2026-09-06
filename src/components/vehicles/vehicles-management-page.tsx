@@ -20,6 +20,7 @@ import {
   type VersoDelCambio,
 } from "@/lib/cambio-stato-di-gruppo";
 import { supabase } from "@/lib/supabaseClient";
+import { filtroRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -150,9 +151,9 @@ function applicaFiltriVeicoli<
 >(query: Q, filters: VehicleFilters, minPrice: number | null, maxPrice: number | null): Q {
   let q = query;
 
-  if (filters.query.trim().length > 0) {
-    const cercato = filters.query.trim();
-    q = q.or(`brand.ilike.%${cercato}%,model.ilike.%${cercato}%,version.ilike.%${cercato}%`);
+  const filtroTesto = filtroRicercaVeicolo(filters.query);
+  if (filtroTesto) {
+    q = q.or(filtroTesto);
   }
 
   if (filters.brand !== "all") q = q.eq("brand", filters.brand);
