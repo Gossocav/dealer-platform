@@ -87,6 +87,9 @@ describe("le tendine mostrano tutto l'inventario, non una finestra", () => {
     // Senza `model` fra le colonne lette, la mappa nascerebbe vuota e la
     // tendina non mostrerebbe niente scegliendo una marca: peggio di prima.
     expect(home).toContain('"dealer_id, body_type, brand, model, dealers!inner(status, name, legal_name, city)"');
-    expect(home).toMatch(/type PublishedRow = \{[^}]*model: string \| null;/s);
+    // Senza il flag `s`, che il progetto non puo' usare (target ES2017):
+    // si ritaglia il blocco e ci si guarda dentro.
+    const tipo = home.slice(home.indexOf("type PublishedRow = {"), home.indexOf("};", home.indexOf("type PublishedRow = {")));
+    expect(tipo, "PublishedRow non porta il modello").toContain("model: string | null;");
   });
 });
