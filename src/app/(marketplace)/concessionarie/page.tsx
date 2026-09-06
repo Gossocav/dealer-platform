@@ -1,7 +1,20 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatPrice, logMarketplaceQueryError, publicSupabase, resolveDealerLocality, resolveDealerSlug, resolveVehicleImageUrl, resolveVehicleImages, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import {
+  MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
+  MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
+  formatPrice,
+  logMarketplaceQueryError,
+  publicSupabase,
+  resolveDealerLocality,
+  resolveDealerSlug,
+  resolveVehicleImages,
+  toAbsoluteUrl,
+  type MarketplaceDealer,
+  type MarketplaceVehicle,
+} from "@/lib/public-marketplace";
+import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 
 // Cinque minuti: l'elenco delle concessionarie cambia molto piu' di rado del
 // catalogo dei veicoli.

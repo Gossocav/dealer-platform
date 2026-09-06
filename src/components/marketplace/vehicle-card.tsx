@@ -8,12 +8,12 @@ import {
   resolveDealerLocality,
   resolveDealerLogo,
   resolveDealerSlug,
-  resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
   resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 
 type VehicleCardProps = {
   vehicle: MarketplaceVehicle;

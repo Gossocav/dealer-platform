@@ -19,12 +19,13 @@ import {
   resolveDealerPhone,
   resolveDealerWhatsAppPhone,
   toAbsoluteUrl,
-  resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
   resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
-  normalizeVehicleLabelField,} from "@/lib/public-marketplace";
+  normalizeVehicleLabelField,
+} from "@/lib/public-marketplace";
+import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
 import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";

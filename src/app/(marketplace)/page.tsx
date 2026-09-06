@@ -22,13 +22,13 @@ import {
   resolveDealerLocality,
   publicSupabase,
   resolveDealerSlug,
-  resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
   toAbsoluteUrl,
   type MarketplaceDealer,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { raggruppaConcessionariePartner, type PartnerDealer } from "@/lib/marketplace-partner-dealers";
 import { DISTANCE_OPTIONS } from "@/lib/search-distance";

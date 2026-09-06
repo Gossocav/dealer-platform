@@ -6,11 +6,11 @@ import {
   getAppBaseUrl,
   publicSupabase,
   resolveDealerDisplayName,
-  resolveVehicleImageUrl,
   resolveVehicleImages,
   resolveVehicleLabel,
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
+import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 import { renderOgCard } from "@/lib/og-card";
 
 /**
