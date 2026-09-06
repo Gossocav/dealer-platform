@@ -21,6 +21,7 @@ import {
 } from "@/lib/cambio-stato-di-gruppo";
 import { supabase } from "@/lib/supabaseClient";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
+import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -156,8 +157,11 @@ function applicaFiltriVeicoli<
     q = q.ilike(COLONNA_RICERCA, modelloIlike(parola));
   }
 
-  if (filters.brand !== "all") q = q.eq("brand", filters.brand);
-  if (filters.model !== "all") q = q.eq("model", filters.model);
+  // Confronto senza maiuscole, come nella vetrina: nei dati la stessa auto e'
+  // scritta in due modi, e con un confronto esatto il concessionario perdeva
+  // le proprie vetture filtrando il proprio parco.
+  if (filters.brand !== "all") q = q.ilike("brand", perConfrontoSenzaMaiuscole(filters.brand));
+  if (filters.model !== "all") q = q.ilike("model", perConfrontoSenzaMaiuscole(filters.model));
   if (filters.fuel !== "all") q = q.eq("fuel", filters.fuel);
   if (filters.transmission !== "all") q = q.eq("transmission", filters.transmission);
   // Confronto esatto: nel database la condizione e' sempre una delle quattro
@@ -626,10 +630,10 @@ export function VehiclesManagementPage() {
           fuel: String((row as { fuel?: string | null }).fuel ?? "").trim(),
         }))
         .filter((row) => row.brand.length > 0 && row.model.length > 0);
-      const brands = Array.from(new Set(rawOptions.map((row) => String((row as { brand?: string | null }).brand ?? "").trim()).filter(Boolean))).sort((a, b) =>
+      const brands = valoriDistinti(rawOptions.map((row) => (row as { brand?: string | null }).brand)).sort((a, b) =>
         a.localeCompare(b, "it-IT")
       );
-      const models = Array.from(new Set(rawOptions.map((row) => String((row as { model?: string | null }).model ?? "").trim()).filter(Boolean))).sort((a, b) =>
+      const models = valoriDistinti(rawOptions.map((row) => (row as { model?: string | null }).model)).sort((a, b) =>
         a.localeCompare(b, "it-IT")
       );
       const fuelTypes = Array.from(new Set(rawOptions.map((row) => String((row as { fuel?: string | null }).fuel ?? "").trim()).filter(Boolean))).sort((a, b) =>
