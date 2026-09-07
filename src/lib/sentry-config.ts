@@ -35,6 +35,61 @@ export function indirizzoDiRaccolta(): string | null {
  * costruito il conteggio delle visite. Un errore serve a sapere *cosa* si e'
  * rotto, non *chi* stava guardando.
  */
+/**
+ * Le chiavi che non escono mai da qui.
+ *
+ * Un errore serve a sapere **cosa** si e' rotto, non **chi** stava
+ * guardando. La piattaforma non conserva gli indirizzi di rete nemmeno per
+ * contare le visite: sarebbe incoerente spedirli a un servizio esterno
+ * dentro il dettaglio di un errore.
+ */
+const CHIAVI_DA_NON_SPEDIRE = [
+  "email",
+  "phone",
+  "telefono",
+  "password",
+  "token",
+  "authorization",
+  "first_name",
+  "last_name",
+  "nome",
+  "cognome",
+  "ip",
+  "indirizzo",
+  "address",
+  "message",
+  "messaggio",
+];
+
+function chiaveVietata(chiave: string) {
+  const nome = chiave.toLowerCase();
+  return CHIAVI_DA_NON_SPEDIRE.some((vietata) => nome.includes(vietata));
+}
+
+/**
+ * Ripulisce quello che sta per partire, a qualsiasi profondita'.
+ *
+ * **E' la seconda rete, e serve.** `segnalaErrore` ripulisce cio' che le
+ * viene passato, ma la raccolta prende **tutti** i `console.error` del
+ * server -- comprese le settanta chiamate non ancora convertite e quelle che
+ * verranno scritte domani. Quelle nessuno le ha ripulite, e passano di qui.
+ */
+export function ripuliscil(valore: unknown, profondita = 0): unknown {
+  if (profondita > 6) return "[troppo profondo]";
+  if (Array.isArray(valore)) return valore.map((v) => ripuliscil(v, profondita + 1));
+
+  if (valore && typeof valore === "object") {
+    const pulito: Record<string, unknown> = {};
+    for (const [chiave, contenuto] of Object.entries(valore as Record<string, unknown>)) {
+      if (chiaveVietata(chiave)) continue;
+      pulito[chiave] = ripuliscil(contenuto, profondita + 1);
+    }
+    return pulito;
+  }
+
+  return valore;
+}
+
 export function opzioniDiRaccolta() {
   return {
     dsn: indirizzoDiRaccolta() ?? undefined,
@@ -50,4 +105,30 @@ export function opzioniDiRaccolta() {
     // domanda che ci siamo posti, che e' "cosa si e' rotto".
     tracesSampleRate: 0,
   };
+}
+
+/**
+ * L'ultimo passaggio prima che un errore parta davvero.
+ *
+ * Toglie dal corpo dell'evento tutto cio' che riguarda una persona. Non
+ * sostituisce la pulizia fatta a monte: la raggiunge dove quella non arriva,
+ * cioe' su ogni `console.error` che nessuno ha convertito.
+ */
+export function primaDiSpedire<T>(evento: T): T {
+  const corpo = evento as unknown as Record<string, unknown>;
+
+  if (corpo.extra) corpo.extra = ripuliscil(corpo.extra);
+  if (corpo.contexts) corpo.contexts = ripuliscil(corpo.contexts);
+
+  // L'utente non si spedisce mai, in nessuna forma.
+  delete corpo.user;
+
+  const richiesta = corpo.request as Record<string, unknown> | undefined;
+  if (richiesta) {
+    delete richiesta.cookies;
+    delete richiesta.headers;
+    delete richiesta.data;
+  }
+
+  return evento;
 }
