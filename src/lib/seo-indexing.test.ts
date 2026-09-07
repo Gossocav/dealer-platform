@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PRIVATE_AREA_PREFIXES, isPrivateAreaPath } from "@/lib/private-areas";
+import robotsRoute from "@/app/robots";
+import { PRIVATE_AREA_PREFIXES, PUBLIC_API_PREFIXES, isPrivateAreaPath } from "@/lib/private-areas";
 
 function read(path: string) {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -22,6 +23,43 @@ describe("le aree private restano fuori dai motori di ricerca", () => {
     for (const pubblica of ["/", "/auto", "/auto/abc-123", "/ricerca", "/concessionarie", "/concessionarie/rossi-auto", "/faq", "/registrazione"]) {
       expect(isPrivateAreaPath(pubblica), pubblica).toBe(false);
     }
+  });
+
+  /**
+   * Il difetto che questi tre test impediscono, misurato il 5 settembre 2026.
+   *
+   * Ogni fotografia del sito passa da `/api/image-proxy`, e `/api` e' fra le
+   * aree private: le foto erano quindi chiuse ai motori **due volte**, dal
+   * divieto nel robots.txt e dall'intestazione `X-Robots-Tag: noindex` che il
+   * proxy manda su ogni risposta. Togliere solo uno dei due non sarebbe
+   * servito a niente, ed e' il motivo per cui qui se ne controllano tutti e
+   * due insieme.
+   *
+   * Su una scheda auto sono nove risorse su ventisette: Google apriva
+   * l'annuncio per giudicarlo e un terzo non gli arrivava, tutte fotografie.
+   */
+  it("il proxy delle fotografie non e' un'area privata", () => {
+    expect(isPrivateAreaPath("/api/image-proxy")).toBe(false);
+    expect(isPrivateAreaPath("/api/image-proxy/qualunque-cosa")).toBe(false);
+  });
+
+  it("il resto di /api resta chiuso: l'eccezione vale solo per le foto", () => {
+    for (const privata of ["/api", "/api/marketplace/lead", "/api/admin/visite", "/api/vehicles/feed"]) {
+      expect(isPrivateAreaPath(privata), privata).toBe(true);
+    }
+  });
+
+  it("robots.txt dichiara il permesso esplicito, che vince sul divieto piu' corto", () => {
+    const regole = robotsRoute().rules;
+    const regola = Array.isArray(regole) ? regole[0] : regole;
+    const permessi = Array.isArray(regola.allow) ? regola.allow : [regola.allow];
+    const divieti = Array.isArray(regola.disallow) ? regola.disallow : [regola.disallow];
+
+    // Davanti a due regole che si contraddicono i motori seguono la piu'
+    // lunga: "/api/image-proxy" batte "/api/".
+    expect(permessi).toContain("/api/image-proxy");
+    expect(divieti).toContain("/api/");
+    expect(PUBLIC_API_PREFIXES).toContain("/api/image-proxy");
   });
 
   // Il nome di una sezione privata non deve poter catturare un indirizzo

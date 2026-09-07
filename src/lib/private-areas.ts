@@ -37,6 +37,26 @@ export const PRIVATE_AREA_PREFIXES = [
   "/api",
 ] as const;
 
+/**
+ * Le eccezioni dentro `/api`: quello che deve restare visibile ai motori.
+ *
+ * Il proxy delle fotografie sta sotto `/api` per come e' fatto il progetto, non
+ * perche' sia roba da gestionale: e' il percorso da cui passa **ogni singola
+ * fotografia del sito pubblico**. Finendo dentro il divieto generale, le foto
+ * erano chiuse ai motori due volte -- il `Disallow: /api/` nel robots.txt e
+ * l'intestazione `X-Robots-Tag: noindex` che il proxy manda su ogni risposta.
+ *
+ * Non era solo l'assenza da Google Immagini. Su una scheda auto sono nove
+ * risorse su ventisette: quando Google apriva l'annuncio per giudicarlo, un
+ * terzo non gli arrivava, ed erano tutte le fotografie. Giudicava un annuncio
+ * d'automobile senza vederne una.
+ */
+export const PUBLIC_API_PREFIXES = ["/api/image-proxy"] as const;
+
 export function isPrivateAreaPath(pathname: string) {
+  if (PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return false;
+  }
+
   return PRIVATE_AREA_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }

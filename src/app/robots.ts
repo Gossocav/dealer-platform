@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getAppBaseUrl } from "@/lib/public-marketplace";
-import { PRIVATE_AREA_PREFIXES } from "@/lib/private-areas";
+import { PRIVATE_AREA_PREFIXES, PUBLIC_API_PREFIXES } from "@/lib/private-areas";
 
 // Senza questo file /robots.txt rispondeva 404. Un 404 non blocca Google --
 // in assenza di regole assume di poter entrare ovunque -- ma lasciava fuori
@@ -12,7 +12,12 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      // Il permesso esplicito sul proxy delle fotografie vince sul divieto
+      // generale che copre "/api/": davanti a due regole che si contraddicono
+      // i motori seguono la piu' lunga, e "/api/image-proxy" e' piu' lungo di
+      // "/api/". Senza questa riga il divieto si sarebbe portato dietro ogni
+      // fotografia del sito pubblico.
+      allow: ["/", ...PUBLIC_API_PREFIXES],
       // Il gestionale non ha niente da offrire a chi cerca un'auto.
       disallow: PRIVATE_AREA_PREFIXES.map((prefix) => `${prefix}/`),
     },
