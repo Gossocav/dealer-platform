@@ -12,11 +12,35 @@ import {
   type MarketplaceDealer,
 } from "@/lib/public-marketplace";
 
-// La sitemap si rilegge dal database ogni ora. Non serve che sia istantanea --
-// un annuncio pubblicato adesso non finisce comunque su Google nel minuto
-// dopo -- e ricalcolarla a ogni passaggio di un crawler significherebbe
-// interrogare il database per niente, molte volte al giorno.
-export const revalidate = 3600;
+// La sitemap si ricostruisce a ogni richiesta.
+//
+// Prima diceva `revalidate = 3600`, e non succedeva: si rigenerava **soltanto
+// al rilascio del sito**. Misurato tre volte in tre giorni, sempre uguale --
+// l'ora dichiarata dalla sitemap cadeva entro un minuto da quella dell'ultimo
+// commit pubblicato. Il 4 settembre alle 14:53, il 5 alle 13:55, il 6 alle
+// 06:40. E il 5 settembre alle 17:44, con la cache svuotata, rispondeva ancora
+// con il contenuto delle 13:55: quasi quattro ore dopo, con una regola scritta
+// che ne dichiarava una.
+//
+// Cosa e' costato: il 5 settembre il sito aveva 298 auto pubblicate e la
+// sitemap ne dichiarava 248. Le 54 mancanti erano tutte di una concessionaria
+// caricata dopo l'ultimo rilascio, e con loro mancava la pagina della
+// concessionaria stessa. Per Google quelle auto non esistevano, e non sarebbero
+// esistite fino al deploy successivo -- che poteva essere il giorno dopo.
+//
+// Perche' non basta la rigenerazione su evento, che sarebbe la soluzione piu'
+// elegante: il gestionale scrive sui veicoli **dal browser**, con la chiave
+// pubblica, in dieci file diversi. Non esiste un punto sul server dove
+// agganciare `revalidatePath`, e costruirlo vorrebbe dire far passare dal
+// server tutte le scritture del gestionale -- una modifica molto piu' grande di
+// quella che il problema merita.
+//
+// Il costo di questa scelta e' una interrogazione al database per ogni lettura
+// della sitemap. Il commento precedente la temeva ("molte volte al giorno"),
+// ma una sitemap la leggono i motori di ricerca, non le persone: sono una
+// manciata di richieste al giorno che leggono trecento righe. Una sitemap
+// sempre giusta vale largamente quelle interrogazioni.
+export const dynamic = "force-dynamic";
 
 // Il protocollo ne ammette 50.000 per file. Oltre servirebbe spezzarla con
 // generateSitemaps: il tetto sta qui per non spedire un file che i motori
