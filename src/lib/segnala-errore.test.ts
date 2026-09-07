@@ -65,19 +65,19 @@ describe("segnalaErrore", () => {
     spia.mockRestore();
   });
 
-  it("continua a scrivere nei registri, senza i dati personali", async () => {
+  /**
+   * L'errore vero va passato **come errore**, non trasformato in testo: e'
+   * cosi' che arriva con la sua traccia di esecuzione invece che come una
+   * riga sola, e che si capisce da quale riga di codice e' partito.
+   */
+  it("scrive nei registri l'errore vero, con l'etichetta e senza dati personali", async () => {
     const { segnalaErrore } = await import("@/lib/segnala-errore");
     const spia = vi.spyOn(console, "error").mockImplementation(() => {});
+    const guasto = new Error("database non raggiungibile");
 
-    segnalaErrore("visita", new Error("database non raggiungibile"), {
-      vehicleId: "v-1",
-      email: "mario@esempio.it",
-    });
+    segnalaErrore("visita", guasto, { vehicleId: "v-1", email: "mario@esempio.it" });
 
-    expect(spia).toHaveBeenCalledWith("visita", {
-      vehicleId: "v-1",
-      message: "database non raggiungibile",
-    });
+    expect(spia).toHaveBeenCalledWith("visita:", guasto, { vehicleId: "v-1" });
 
     spia.mockRestore();
   });
