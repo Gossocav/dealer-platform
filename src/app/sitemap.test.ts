@@ -52,7 +52,7 @@ vi.mock("@/lib/public-marketplace", async (importOriginal) => {
   return { ...reale, publicSupabase: catena };
 });
 
-import sitemap from "./sitemap";
+import sitemap, * as moduloSitemap from "./sitemap";
 
 const BASE = "http://localhost:3000";
 
@@ -68,6 +68,26 @@ function autoFinta(indice: number, dealer: string, aggiornata: string) {
 beforeEach(() => {
   mocks.righe = [];
   mocks.rangeChiamate = [];
+});
+
+describe("sitemap, come viene servita", () => {
+  /**
+   * Non legge il sorgente: legge i valori che Next legge davvero dal modulo.
+   * Non prova che Vercel si comporti bene -- quello si vede solo in produzione,
+   * e la prova e' che le date cambino senza un rilascio -- ma impedisce che
+   * qualcuno rimetta `revalidate` credendo che basti.
+   *
+   * Il difetto che blocca: `revalidate = 3600` era dichiarato e non veniva
+   * onorato. La sitemap si rigenerava solo al rilascio, e il 5 settembre
+   * dichiarava 248 auto su 298 pubblicate.
+   */
+  it("si ricostruisce a ogni richiesta, non a intervalli", () => {
+    expect(moduloSitemap.dynamic).toBe("force-dynamic");
+  });
+
+  it("non dichiara piu' un intervallo di rigenerazione, che non veniva rispettato", () => {
+    expect("revalidate" in moduloSitemap).toBe(false);
+  });
 });
 
 describe("sitemap", () => {
