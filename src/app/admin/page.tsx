@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { isPlatformAdminRole, resolveUserRoleFromMetadata } from "@/lib/account-approval";
 import { supabase } from "@/lib/supabaseClient";
 import { AdminShell } from "@/components/layout/admin-shell";
+import { ProvaDegliAvvisi } from "@/components/admin/prova-degli-avvisi";
 
 type AdminStats = {
   dealersRegistered: number;
@@ -302,6 +303,8 @@ export default function AdminHomePage() {
             </button>
           </div>
         </section>
+
+        <ProvaDegliAvvisi />
     </AdminShell>
   );
 }
