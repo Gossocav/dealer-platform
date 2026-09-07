@@ -54,7 +54,25 @@ export async function resolveVehicleImageUrl(rawValue?: string | null) {
     return null;
   }
 
-   return resolveVehicleImageUrlByStoragePath(storagePath);
+  // L'indirizzo che finisce nella pagina: **stabile, non scade mai**.
+  //
+  // Qui prima si restituiva la firma vera, che dura un'ora. Funziona per chi
+  // guarda -- apre la pagina e la foto e' li' -- ma non per un motore di
+  // ricerca, che archivia l'indirizzo oggi e lo ripassa fra una settimana:
+  // trova un 404, e impara che le nostre fotografie non sono affidabili.
+  // L'indirizzo cambiava anche a ogni rigenerazione della pagina, quindi
+  // Google non ne avrebbe mai visto due volte uno uguale.
+  //
+  // Adesso la pagina dichiara il *percorso* della foto e la firma se la
+  // procura il proxy, al momento di servirla. Effetto secondario gradito: con
+  // un indirizzo che non cambia, la copia sulla rete di distribuzione vale per
+  // tutti invece che per un'ora e per una sola versione della pagina.
+  return indirizzoStabileFoto(storagePath);
+}
+
+/** L'indirizzo pubblico e immutabile di una foto dell'archivio. */
+export function indirizzoStabileFoto(storagePath: string) {
+  return `/api/image-proxy?foto=${encodeURIComponent(storagePath)}`;
 }
 
 // The bucket-creation migration declares "vehicle-images" as public, but
@@ -93,7 +111,14 @@ const storageSigner = (() => {
   });
 })();
 
-const resolveVehicleImageUrlByStoragePath = cache(async (storagePath: string) => {
+/**
+ * La firma con cui si scaricano davvero i byte di una foto, valida un'ora.
+ *
+ * Non finisce piu' nelle pagine: se la procura il proxy delle immagini quando
+ * deve servire la fotografia, cosi' l'indirizzo pubblico resta sempre lo
+ * stesso e la firma nasce e muore dentro una singola richiesta.
+ */
+export const firmaFotoVeicolo = cache(async (storagePath: string) => {
   if (!storagePath) {
     return null;
   }
