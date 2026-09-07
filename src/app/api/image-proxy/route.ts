@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firmaFotoVeicolo } from "@/lib/marketplace-foto-firmate";
 import { assertHostPubblico, IndirizzoNonAmmesso } from "@/lib/ssrf-protection";
 import { accettaWebp, larghezzaFotoRichiesta, motivoFotoIntera, qualitaFotoRichiesta, rimpicciolisciFoto } from "@/lib/foto-misure";
 
@@ -56,14 +57,56 @@ async function readCapped(response: Response, maxBytes: number): Promise<Buffer 
   return Buffer.concat(chunks);
 }
 
+/**
+ * Un percorso dentro l'archivio delle fotografie, non qualcos'altro.
+ *
+ * La firma che il proxy costruisce vale soltanto per il secchio
+ * "vehicle-images", quindi da qui non si esce comunque. Questi controlli sono
+ * la cintura oltre alle bretelle: rifiutano prima ancora di provare tutto cio'
+ * che non somiglia a un percorso di foto -- una risalita con "..", un
+ * indirizzo intero travestito da percorso, una riga a capo infilata dentro.
+ */
+function percorsoFotoValido(percorso: string) {
+  if (percorso.length === 0 || percorso.length > 512) return false;
+  if (percorso.startsWith("/")) return false;
+  if (percorso.includes("..")) return false;
+  if (percorso.includes("\\")) return false;
+  if (percorso.includes("://")) return false;
+  if (/[\r\n\t\0]/.test(percorso)) return false;
+  return true;
+}
+
 export async function GET(request: NextRequest) {
+  const rawFoto = request.nextUrl.searchParams.get("foto")?.trim() ?? "";
   const rawUrl = request.nextUrl.searchParams.get("url")?.trim() ?? "";
   const larghezza = larghezzaFotoRichiesta(request.nextUrl.searchParams.get("w"));
   const qualita = qualitaFotoRichiesta(request.nextUrl.searchParams.get("q"));
 
+  // Due modi di chiedere una foto, e servono tutti e due.
+  //
+  // "foto" e' il percorso di una fotografia nostra: l'indirizzo che la pagina
+  // pubblica, immutabile, di cui la firma se ne occupa qui. "url" resta per le
+  // fotografie che vivono altrove -- quelle importate dai siti delle
+  // concessionarie -- che un percorso nel nostro archivio non ce l'hanno.
+  let indirizzo = rawUrl;
+
+  if (rawFoto) {
+    if (!percorsoFotoValido(rawFoto)) {
+      return new NextResponse("Invalid image path", { status: 400 });
+    }
+
+    const firmato = await firmaFotoVeicolo(rawFoto);
+
+    if (!firmato) {
+      return new NextResponse("Image not found", { status: 404 });
+    }
+
+    indirizzo = firmato;
+  }
+
   let target: URL;
   try {
-    target = new URL(rawUrl);
+    target = new URL(indirizzo);
   } catch {
     return new NextResponse("Invalid image url", { status: 400 });
   }
