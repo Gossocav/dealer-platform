@@ -10,6 +10,7 @@ import {
   PAUSA_FRA_SCHEDE_MS,
 } from "@/lib/dealer-site-fetch";
 import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-site-import";
+import { indirizzoDellaScheda, segnalaAIndexNow } from "@/lib/indexnow";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
   campiVeicoloRitrovato,
@@ -239,6 +240,10 @@ export async function POST(request: Request) {
     // a piacere.
     const lotto = voci.slice(offset, offset + limit);
     const esiti: EsitoScheda[] = [];
+    // Le auto entrate o cambiate in questo giro: a fine lotto si segnalano ai
+    // motori che accettano IndexNow, cosi' un annuncio nuovo non aspetta che
+    // qualcuno passi a rileggere la sitemap.
+    const idDaSegnalare: string[] = [];
 
     for (const voce of lotto) {
       const html = await leggiPagina(voce.url);
@@ -283,6 +288,7 @@ export async function POST(request: Request) {
           continue;
         }
         esiti.push({ sourceId: veicolo.sourceId, url: voce.url, esito: "aggiornato", titolo: veicolo.name });
+        idDaSegnalare.push(vehicleId);
       } else {
         const { data: inserito, error } = await supabase
           .from("vehicles")
@@ -301,6 +307,7 @@ export async function POST(request: Request) {
         }
         vehicleId = inserito.id;
         esiti.push({ sourceId: veicolo.sourceId, url: voce.url, esito: "importato", titolo: veicolo.name });
+        idDaSegnalare.push(vehicleId);
       }
 
       if (vehicleId && veicolo.images.length > 0) {
@@ -310,6 +317,12 @@ export async function POST(request: Request) {
       await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
     }
 
+    // Effetto collaterale, nel senso stretto che questo progetto da' alla
+    // parola: un'auto importata correttamente resta importata anche se Bing
+    // non risponde. `segnalaAIndexNow` non solleva mai, e il suo esito finisce
+    // nella risposta solo perche' si possa leggere nei registri.
+    const segnalazione = await segnalaAIndexNow(idDaSegnalare.map(indirizzoDellaScheda));
+
     return NextResponse.json({
       site: host,
       totale: voci.length,
@@ -318,6 +331,7 @@ export async function POST(request: Request) {
       prossimoOffset: offset + lotto.length,
       finito: offset + lotto.length >= voci.length,
       esiti,
+      segnalazione,
     });
   } catch (error) {
     console.error("import-site error", error);
