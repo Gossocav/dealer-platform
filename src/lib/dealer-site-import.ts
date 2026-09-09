@@ -194,6 +194,122 @@ function testo(value: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
+/**
+ * I codici HTML piu' comuni nelle descrizioni italiane delle concessionarie.
+ *
+ * Contati sulla produzione il 09/09/2026: `&#39;` (apostrofo), `&agrave;`,
+ * `&egrave;`, `&rsquo;`, `&ndash;`, `&euml;`. Comparivano scritti cosi' sulla
+ * pagina -- "PASSAGGIO DI PROPRIETA&#39;" -- in **160 descrizioni su 205**.
+ */
+const ENTITA_HTML: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  agrave: "à", egrave: "è", eacute: "é", igrave: "ì", ograve: "ò", ugrave: "ù",
+  Agrave: "À", Egrave: "È", Eacute: "É", Igrave: "Ì", Ograve: "Ò", Ugrave: "Ù",
+  ccedil: "ç", euml: "ë", uuml: "ü", ouml: "ö", auml: "ä",
+  rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”",
+  ndash: "–", mdash: "—", hellip: "…", bull: "•", middot: "·",
+  euro: "€", deg: "°", laquo: "«", raquo: "»", trade: "™", reg: "®", copy: "©",
+};
+
+/**
+ * Traduce i codici HTML in caratteri veri, in un passaggio solo.
+ *
+ * Un passaggio solo e non uno per codice: sostituendoli a turno, `&amp;#39;`
+ * diventerebbe prima `&#39;` e poi un apostrofo, cioe' si tradurrebbe due
+ * volte un testo che voleva mostrare proprio quel codice.
+ */
+export function decodificaEntitaHtml(testoGrezzo: string): string {
+  return testoGrezzo.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]{1,31});/gi, (intero, corpo: string) => {
+    if (corpo.startsWith("#")) {
+      const codice = corpo[1]?.toLowerCase() === "x" ? Number.parseInt(corpo.slice(2), 16) : Number.parseInt(corpo.slice(1), 10);
+      if (!Number.isFinite(codice) || codice <= 0 || codice > 0x10ffff) return intero;
+      try {
+        return String.fromCodePoint(codice);
+      } catch {
+        return intero;
+      }
+    }
+
+    return ENTITA_HTML[corpo] ?? ENTITA_HTML[corpo.toLowerCase()] ?? intero;
+  });
+}
+
+/**
+ * Una descrizione scritta da una concessionaria, resa leggibile.
+ *
+ * **Il difetto, verificato il 09/09/2026 su una Jeep Wrangler di Autogepy.**
+ * Sulla pagina della concessionaria lo stesso testo esiste tre volte: nei dati
+ * strutturati di Yoast (quelli che leggevamo), dentro lo script di Google Tag
+ * Manager, e nel corpo visibile. La prima copia ha i ritorni a capo `<br/>`
+ * **tolti senza mettere uno spazio al loro posto**, e i codici HTML non
+ * tradotti:
+ *
+ *     ...CERCHI OZ RACING OFF ROADLA VETTURA E&#39; STATA PREPARATA...
+ *
+ * Le altre due li hanno. Chi guarda il sito della concessionaria vede la terza
+ * e la legge giusta; noi salvavamo la prima cosi' com'era, e la stessa frase
+ * sulla nostra piattaforma diventava illeggibile.
+ *
+ * Qui i tag che separano diventano ritorni a capo veri, gli altri spariscono
+ * lasciando uno spazio, e i codici tornano caratteri.
+ */
+export function normalizzaDescrizione(grezzo: unknown): string | null {
+  const partenza = String(grezzo ?? "");
+  if (!partenza.trim()) return null;
+
+  const conACapo = partenza
+    // I tag che separano due frasi. Senza questi, "OFF ROAD<br/>LA VETTURA"
+    // diventa "OFF ROADLA VETTURA": e' il difetto delle parole attaccate.
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li|h[1-6]|tr)\s*>/gi, "\n")
+    .replace(/<li\b[^>]*>/gi, "\n")
+    // Tutto il resto se ne va, ma lasciando uno spazio: due parole separate da
+    // un tag non devono ritrovarsi attaccate.
+    .replace(/<[^>]+>/g, " ");
+
+  const leggibile = decodificaEntitaHtml(conACapo);
+
+  return (
+    leggibile
+      // Lo spazio unificatore (&nbsp;) e' diventato U+00A0: a video sembra uno
+      // spazio, ma non lo e', e spezza le ricerche.
+      .replace(/[ \t  ]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim() || null
+  );
+}
+
+/**
+ * La descrizione dal corpo visibile della pagina, quando c'e'.
+ *
+ * E' la copia che una persona legge aprendo il sito della concessionaria, ed
+ * e' l'unica delle tre che ha conservato i ritorni a capo. Tutti e tre i siti
+ * verificati usano la stessa piattaforma e lo stesso contenitore.
+ */
+export function leggiDescrizioneDallaPagina(html: string): string | null {
+  const trovato = html.match(/class="[^"]*vehicle-description--content[^"]*"[^>]*>([\s\S]{0,8000}?)<\/div>/i);
+  return trovato ? normalizzaDescrizione(trovato[1]) : null;
+}
+
+/**
+ * Fra le due copie si prende la piu' ricca.
+ *
+ * Non sempre la pagina vince: su una scheda dove il contenitore visibile e'
+ * un moncone -- o dove la nostra lettura ne prende solo un pezzo -- i dati
+ * strutturati restano la fonte migliore. Il caso peggiore di questa regola e'
+ * il comportamento di prima, con i codici HTML finalmente tradotti.
+ */
+export function scegliDescrizione(html: string, dalloSchema: unknown): string | null {
+  const dallaPagina = leggiDescrizioneDallaPagina(html);
+  const daiDati = normalizzaDescrizione(dalloSchema);
+
+  if (!dallaPagina) return daiDati;
+  if (!daiDati) return dallaPagina;
+
+  return dallaPagina.length >= daiDati.length ? dallaPagina : daiDati;
+}
+
 function numero(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   const s = String(value ?? "").replace(/\./g, "").replace(",", ".").trim();
@@ -662,7 +778,7 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
 
   const price = leggiPrezzo(grezzo) ?? leggiPrezzoDallaPagina(html, entry.sourceId);
   const name = testo(grezzo.name) ?? "";
-  const description = testo(grezzo.description);
+  const description = scegliDescrizione(html, grezzo.description);
 
   if (looksLikeRental({ name, description, price })) {
     return { ok: false, reason: "noleggio", url: entry.url };

@@ -2,11 +2,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  decodificaEntitaHtml,
   leggiDatiTecnici,
+  leggiDescrizioneDallaPagina,
+  normalizzaDescrizione,
   looksLikeRental,
   normalizzaMisuraFoto,
   parseDealerStockSitemap,
   parseDealerStockVehicle,
+  scegliDescrizione,
   type DealerSiteEntry,
 } from "@/lib/dealer-site-import";
 
@@ -701,5 +705,194 @@ describe("un dato si prende solo se la pagina lo dice sempre allo stesso modo", 
     expect(dati.engineSize).toBeNull();
     expect(dati.emissionClass).toBeNull();
     expect(dati.traction).toBeNull();
+  });
+});
+
+/**
+ * Cosa impedisce questo blocco.
+ *
+ * **Il difetto, verificato il 09/09/2026 su una Jeep Wrangler di Autogepy.**
+ * Sul sito della concessionaria lo stesso testo esiste tre volte: nei dati
+ * strutturati di Yoast, dentro lo script di Google Tag Manager, e nel corpo
+ * visibile. Leggevamo la prima, che ha i ritorni a capo tolti senza uno spazio
+ * al loro posto e i codici HTML non tradotti. Chi apriva il sito della
+ * concessionaria leggeva la terza, giusta, e non capiva perche' da noi la
+ * stessa frase fosse illeggibile.
+ *
+ * Misurato sulla produzione: **160 descrizioni su 205** mostravano codici come
+ * `&#39;`, 11 avevano parole attaccate, 15 mostravano i tag `<p>` a video.
+ */
+describe("le descrizioni importate dai siti delle concessionarie", () => {
+  describe("i codici HTML tornano caratteri", () => {
+    it("traduce l'apostrofo, che era il caso piu' diffuso", () => {
+      expect(normalizzaDescrizione("PASSAGGIO DI PROPRIETA&#39; escluso")).toBe("PASSAGGIO DI PROPRIETA' escluso");
+    });
+
+    it("traduce le lettere accentate e la punteggiatura tipografica", () => {
+      expect(decodificaEntitaHtml("qualit&agrave; e affidabilit&agrave;")).toBe("qualità e affidabilità");
+      expect(decodificaEntitaHtml("l&rsquo;ampia selezione &ndash; garantita")).toBe("l’ampia selezione – garantita");
+      expect(decodificaEntitaHtml("Citro&euml;n")).toBe("Citroën");
+    });
+
+    it("traduce anche i codici numerici, in cifre e in esadecimale", () => {
+      expect(decodificaEntitaHtml("Rock&#x27;s")).toBe("Rock's");
+      expect(decodificaEntitaHtml("30&#176; anniversario")).toBe("30° anniversario");
+    });
+
+    it("non traduce due volte", () => {
+      // Con una sostituzione per codice, "&amp;#39;" diventerebbe prima
+      // "&#39;" e poi un apostrofo: cioe' si tradurrebbe un testo che voleva
+      // mostrare proprio quel codice.
+      expect(decodificaEntitaHtml("scrivi &amp;#39; per l'apostrofo")).toBe("scrivi &#39; per l'apostrofo");
+    });
+
+    it("lascia stare quello che non e' un codice", () => {
+      expect(decodificaEntitaHtml("vendita & noleggio")).toBe("vendita & noleggio");
+      expect(decodificaEntitaHtml("&nonesiste;")).toBe("&nonesiste;");
+    });
+  });
+
+  describe("i tag diventano spazi e ritorni a capo", () => {
+    it("separa le frasi dove c'era un ritorno a capo", () => {
+      // Il difetto vero: "OFF ROAD<br/>LA VETTURA" diventava "OFF ROADLA VETTURA".
+      const risultato = normalizzaDescrizione("-CERCHI OZ RACING OFF ROAD<br/><br/>LA VETTURA E&#39; STATA PREPARATA");
+
+      expect(risultato).toContain("OFF ROAD");
+      expect(risultato).toContain("LA VETTURA E' STATA");
+      expect(risultato).not.toContain("ROADLA");
+    });
+
+    it("chiude i paragrafi con un ritorno a capo, invece di incollarli", () => {
+      expect(normalizzaDescrizione("<p>Prima frase.</p><p>Seconda frase.</p>")).toBe("Prima frase.\nSeconda frase.");
+    });
+
+    it("non lascia mai un tag a video", () => {
+      const risultato = normalizzaDescrizione("<p>Offerta valida <strong>soltanto</strong> con finanziamento.<br/></p>");
+
+      expect(risultato).not.toMatch(/<[a-zA-Z/]/);
+      expect(risultato).toBe("Offerta valida soltanto con finanziamento.");
+    });
+
+    it("un tag fra due parole lascia uno spazio, non le attacca", () => {
+      expect(normalizzaDescrizione("garanzia<span>24</span>mesi")).toBe("garanzia 24 mesi");
+    });
+
+    it("lo spazio unificatore diventa uno spazio vero", () => {
+      // A video sembra uno spazio ma non lo e', e spezza le ricerche.
+      expect(normalizzaDescrizione("tagliando&nbsp;incluso")).toBe("tagliando incluso");
+    });
+
+    it("non lascia righe vuote a raffica", () => {
+      expect(normalizzaDescrizione("A<br/><br/><br/><br/>B")).toBe("A\n\nB");
+    });
+
+    it("una descrizione vuota resta assente, non diventa una stringa vuota", () => {
+      expect(normalizzaDescrizione(null)).toBeNull();
+      expect(normalizzaDescrizione("   ")).toBeNull();
+      expect(normalizzaDescrizione("<p></p>")).toBeNull();
+    });
+  });
+
+  describe("fra le due copie si prende la piu' ricca", () => {
+    const paginaConBlocco = `
+      <html><body>
+        <div class="text vehicle-description--content">
+          <p>- PREZZO ESPOSTO -<br /><br />CERCHI OZ RACING OFF ROAD<br /><br />LA VETTURA E' STATA PREPARATA</p>
+        </div>
+      </body></html>`;
+
+    it("legge il corpo visibile della pagina", () => {
+      const letto = leggiDescrizioneDallaPagina(paginaConBlocco);
+
+      expect(letto).toContain("LA VETTURA E' STATA PREPARATA");
+      expect(letto).not.toContain("ROADLA");
+    });
+
+    it("preferisce la pagina quando i dati strutturati sono la copia rotta", () => {
+      const rotta = "- PREZZO ESPOSTO -CERCHI OZ RACING OFF ROADLA VETTURA E&#39; STATA PREPARATA";
+
+      expect(scegliDescrizione(paginaConBlocco, rotta)).not.toContain("ROADLA");
+    });
+
+    it("ripiega sui dati strutturati quando la pagina non ha il blocco", () => {
+      // Il caso peggiore di questa regola e' il comportamento di prima, con i
+      // codici finalmente tradotti.
+      const risultato = scegliDescrizione("<html><body>niente</body></html>", "Vettura garantita 24 mesi&#39;");
+
+      expect(risultato).toBe("Vettura garantita 24 mesi'");
+    });
+
+    it("non sostituisce una descrizione buona con un moncone della pagina", () => {
+      const conMoncone = '<div class="vehicle-description--content"><p>Ok</p></div>';
+      const buona = "Vettura garantita 24 mesi, tagliandata, con soccorso stradale incluso.";
+
+      expect(scegliDescrizione(conMoncone, buona)).toBe(buona);
+    });
+
+    it("senza nessuna delle due, non inventa niente", () => {
+      expect(scegliDescrizione("<html></html>", null)).toBeNull();
+    });
+  });
+});
+
+/**
+ * L'aggancio, non solo le funzioni.
+ *
+ * Le prove sopra controllano che la pulizia funzioni; questa controlla che
+ * venga **usata**. Serve: rimettendo il vecchio `testo(grezzo.description)`
+ * dentro `parseDealerStockVehicle`, tutte le prove qui sopra continuavano a
+ * passare. Sarebbe stato possibile riportare il difetto in produzione senza
+ * che niente diventasse rosso -- lo stesso buco per cui, per un mese, un test
+ * ha certificato un 404 che il sito non restituiva.
+ */
+describe("la scheda letta porta una descrizione leggibile", () => {
+  function paginaCon(descrizioneNeiDati: string, corpoVisibile = "") {
+    return `
+      <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/primo.jpeg">
+      ${corpoVisibile}
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        name: "Hyundai Bayon",
+        description: descrizioneNeiDati,
+        offers: { price: 19500 },
+      })}</script>`;
+  }
+
+  it("traduce i codici HTML che arrivano dai dati strutturati", () => {
+    const esito = parseDealerStockVehicle(paginaCon("PASSAGGIO DI PROPRIETA&#39; escluso"), VOCE);
+
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.description).toBe("PASSAGGIO DI PROPRIETA' escluso");
+  });
+
+  it("prende dal corpo visibile la versione con i ritorni a capo", () => {
+    // Il caso vero: nei dati strutturati i <br/> erano gia' stati tolti senza
+    // uno spazio al loro posto, e "OFF ROAD" e "LA VETTURA" si attaccavano.
+    const esito = parseDealerStockVehicle(
+      paginaCon(
+        "CERCHI OZ RACING OFF ROADLA VETTURA E&#39; STATA PREPARATA PER SFIZIO PERSONALE",
+        '<div class="vehicle-description--content"><p>CERCHI OZ RACING OFF ROAD<br /><br />LA VETTURA E\' STATA PREPARATA PER SFIZIO PERSONALE</p></div>'
+      ),
+      VOCE
+    );
+
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.description).not.toContain("ROADLA");
+    expect(esito.vehicle.description).toContain("LA VETTURA E' STATA PREPARATA");
+  });
+
+  it("non lascia mai un tag dentro la descrizione salvata", () => {
+    const esito = parseDealerStockVehicle(paginaCon("<p>Offerta valida<br/>solo con finanziamento.</p>"), VOCE);
+
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.description).not.toMatch(/<[a-zA-Z/]/);
+    expect(esito.vehicle.description).toBe("Offerta valida\nsolo con finanziamento.");
+  });
+
+  it("un annuncio senza descrizione resta senza, non con una stringa vuota", () => {
+    const esito = parseDealerStockVehicle(paginaCon(""), VOCE);
+
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.description).toBeNull();
   });
 });
