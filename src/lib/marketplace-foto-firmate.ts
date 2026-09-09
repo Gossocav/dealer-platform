@@ -28,7 +28,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { cache } from "react";
 import { normalizzaMisuraFoto } from "@/lib/dealer-site-import";
-import { publicSupabase } from "@/lib/public-marketplace";
+import {
+  isMarketplaceVehiclePublishable,
+  logMarketplaceQueryError,
+  publicSupabase,
+} from "@/lib/public-marketplace";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -118,6 +122,91 @@ const storageSigner = (() => {
  * deve servire la fotografia, cosi' l'indirizzo pubblico resta sempre lo
  * stesso e la firma nasce e muore dentro una singola richiesta.
  */
+/** Cosa si e' potuto stabilire su una fotografia chiesta al proxy. */
+export type EsitoControlloFoto = "pubblica" | "non-pubblica" | "non-lo-so";
+
+/**
+ * L'identificativo del veicolo, ricavato dal percorso della fotografia.
+ *
+ * Il percorso lo costruisce il pannello al caricamento
+ * (`vehicle-editor-page.tsx`) nella forma `<utente>/<veicolo>/<file>`: il
+ * veicolo e' li' dentro, quindi non serve cercarlo. Se un giorno la forma
+ * cambiasse, qui si smette di riconoscerlo e la fotografia viene rifiutata --
+ * rumorosamente, non in silenzio.
+ */
+function idVeicoloDalPercorso(percorso: string): string | null {
+  const pezzi = percorso.split("/");
+  if (pezzi.length < 3) return null;
+
+  const forse = pezzi[1].trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(forse) ? forse : null;
+}
+
+/**
+ * La fotografia appartiene a un annuncio che un visitatore puo' vedere?
+ *
+ * **Quale difetto chiude.** Dal 09/09/2026 il proxy firma un percorso invece
+ * di ricevere un indirizzo gia' firmato (#292): serviva a dare a Google un
+ * indirizzo immutabile, e su quello non si torna indietro. Ma firmava
+ * **qualunque cosa** stesse nel secchio, senza guardare di chi fosse.
+ *
+ * La motivazione scritta allora -- "quel secchio contiene soltanto fotografie
+ * di annunci gia' pubblici" -- e' stata verificata il 09/09/2026 e non era
+ * vera. Nel secchio c'erano nove file di tre veicoli: uno pubblicato, uno **in
+ * bozza** e uno **cancellato**. Provate dal sito pubblico senza credenziali,
+ * le due che non dovevano uscire rispondevano `HTTP 200 image/jpeg`.
+ *
+ * La regola qui e' la stessa che decide se un'auto compare in vetrina
+ * (`isMarketplaceVehiclePublishable`): veicolo pubblicato, stato pubblicabile,
+ * concessionaria attiva. Non se ne scrive una seconda, altrimenti un giorno
+ * le due direbbero cose diverse.
+ *
+ * **Il controllo non rallenta le pagine.** La risposta del proxy resta in
+ * cache sulla rete di consegna per un mese, quindi questa lettura avviene una
+ * volta per fotografia ogni mese, non a ogni visita. Ed e' una lettura per
+ * chiave primaria.
+ *
+ * **Se il database non risponde si lascia passare** (`"non-lo-so"`), e va
+ * detto invece che nascosto. Rifiutare a ogni singhiozzo del database
+ * farebbe sparire *tutte* le fotografie del sito e farebbe registrare errori
+ * ai motori di ricerca -- un danno certo e visibile, in cambio di una
+ * protezione che comunque richiede di conoscere gia' un percorso fatto di
+ * codici casuali. Chi chiama conserva la risposta per poco, cosi' una
+ * decisione presa alla cieca non resta appesa per un mese.
+ */
+export const fotoDiUnAnnuncioPubblico = cache(async (storagePath: string): Promise<EsitoControlloFoto> => {
+  const veicoloId = idVeicoloDalPercorso(storagePath);
+
+  if (!veicoloId) {
+    return "non-pubblica";
+  }
+
+  const esito = await publicSupabase
+    .from("vehicles")
+    .select("published, status, dealers!inner(status)")
+    .eq("id", veicoloId)
+    .maybeSingle<{ published: boolean | null; status: string | null; dealers: { status: string | null } | null }>();
+
+  if (esito.error) {
+    logMarketplaceQueryError("foto: controllo pubblicazione", esito.error);
+    return "non-lo-so";
+  }
+
+  // Nessuna riga vuol dire due cose, e nessuna delle due autorizza: il
+  // veicolo non esiste piu', oppure non e' visibile a un visitatore.
+  if (!esito.data) {
+    return "non-pubblica";
+  }
+
+  return isMarketplaceVehiclePublishable({
+    published: esito.data.published,
+    status: esito.data.status,
+    dealerStatus: esito.data.dealers?.status ?? null,
+  })
+    ? "pubblica"
+    : "non-pubblica";
+});
+
 export const firmaFotoVeicolo = cache(async (storagePath: string) => {
   if (!storagePath) {
     return null;
