@@ -128,6 +128,19 @@ export function estraiCanonico(html) {
   return trovato ? trovato[1] : "";
 }
 
+/**
+ * Se una pagina chiede ai motori di non indicizzarla.
+ *
+ * Ne cerca **tutte** le dichiarazioni, non la prima: su una pagina "non
+ * trovato" ce ne sono due -- quella scritta da noi e quella che Next inietta
+ * da se' -- e guardarne una sola darebbe una risposta a caso su quale delle
+ * due e' sparita.
+ */
+export function chiedeDiNonEssereIndicizzata(html) {
+  const dichiarazioni = String(html ?? "").match(/<meta name="robots" content="([^"]*)"/g) ?? [];
+  return dichiarazioni.some((riga) => /noindex/i.test(riga));
+}
+
 /** Gli identificativi delle auto linkate in una pagina di catalogo. */
 export function idDelleSchede(html) {
   const trovati = String(html ?? "").match(/href="\/auto\/([a-f0-9-]{36})"/g) ?? [];
@@ -161,6 +174,11 @@ const rotti = [];
 const noti = [];
 const risolti = [];
 const righe = [];
+
+/** "1 difetto" e non "1 difetti": un guardiano che scrive male si legge male. */
+function plurale(quanti, singolare, plurali) {
+  return `${quanti} ${quanti === 1 ? singolare : plurali}`;
+}
 
 function segna(esito, titolo, dettaglio = "") {
   const simbolo = esito === "ok" ? "ok  " : esito === "rotto" ? "ROTTO" : "noto";
@@ -300,23 +318,41 @@ async function main() {
   const fotoNascoste = esitiFoto.filter((f) => f.xRobotsTag && /noindex/i.test(f.xRobotsTag));
   deveReggere(fotoNascoste.length === 0, "le fotografie non dicono ai motori di ignorarle");
 
-  // --- difetti gia' noti, riportati ma non fatali
+  // --- le pagine che non dovrebbero esistere
+  //
+  // Qui si guardava lo stato HTTP e si pretendeva un 404. Era la domanda
+  // sbagliata, e la documentazione di Next lo dice: quando la risposta viene
+  // servita a pezzi -- e lo e', perche' c'e' uno scheletro di caricamento --
+  // le intestazioni partono prima che il programma sappia che la pagina non
+  // esiste, quindi **lo stato resta 200 per costruzione**. Next lo compensa
+  // iniettando un "noindex", e per questo, sempre secondo la documentazione,
+  // "non porta a indicizzazione".
+  //
+  // La cosa da sorvegliare non e' quindi il 404, che non arrivera' mai: e' che
+  // il "noindex" ci sia. Se un giorno sparisse -- per una modifica ai metadati
+  // o per un cambio di Next -- allora si', queste pagine finirebbero
+  // nell'indice, e nessuno se ne accorgerebbe.
   const inesistente = await leggi("/auto/00000000-0000-0000-0000-000000000000");
-  difettoNoto(
-    inesistente.status === 404,
-    "un'auto che non esiste risponde 404",
-    "reperto 09",
-    `risponde ${inesistente.status}`
+  deveReggere(
+    chiedeDiNonEssereIndicizzata(await inesistente.text()),
+    "un'auto che non esiste chiede di non essere indicizzata",
+    `risponde ${inesistente.status} e non lo dichiara`
   );
 
   const oltreLUltima = await leggi("/auto?page=9999");
-  difettoNoto(
-    oltreLUltima.status === 404,
-    "il catalogo oltre l'ultima pagina risponde 404",
-    "reperto 12",
-    `risponde ${oltreLUltima.status}`
+  const htmlOltre = await oltreLUltima.text();
+  deveReggere(
+    chiedeDiNonEssereIndicizzata(htmlOltre),
+    "il catalogo oltre l'ultima pagina chiede di non essere indicizzato",
+    `risponde ${oltreLUltima.status} e non lo dichiara`
+  );
+  deveReggere(
+    estraiCanonico(htmlOltre) === "",
+    "una pagina di catalogo che non esiste non si dichiara originale",
+    `dichiara ${estraiCanonico(htmlOltre)}`
   );
 
+  // --- difetti gia' noti, riportati ma non fatali
   const doppioni = gruppiDiTitoliUguali(schede.map((s) => s.titolo));
   const schedeConDoppione = doppioni.reduce((somma, [, n]) => somma + n, 0);
   difettoNoto(
@@ -338,11 +374,11 @@ async function main() {
     "```",
     "",
     rotti.length > 0
-      ? `**${rotti.length} controlli rotti.** Qualcosa che funzionava ha smesso di funzionare.`
+      ? `**${plurale(rotti.length, "controllo rotto", "controlli rotti")}.** Qualcosa che funzionava ha smesso di funzionare.`
       : "**Tutto quello che deve reggere, regge.**",
-    noti.length > 0 ? `\n${noti.length} difetti gia' noti e ancora aperti: ${noti.join(", ")}.` : "",
+    noti.length > 0 ? `\n${plurale(noti.length, "difetto gia' noto", "difetti gia' noti")} e ancora aperti: ${noti.join(", ")}.` : "",
     risolti.length > 0
-      ? `\n**${risolti.length} difetti noti risultano risolti**: vanno promossi a controlli veri, togliendoli dall'elenco dei noti in \`scripts/controllo-indicizzazione.mjs\`.`
+      ? `\n**${plurale(risolti.length, "difetto noto risulta risolto", "difetti noti risultano risolti")}**: vanno promossi a controlli veri, togliendoli dall'elenco dei noti in \`scripts/controllo-indicizzazione.mjs\`.`
       : "",
   ].join("\n");
 
@@ -352,11 +388,11 @@ async function main() {
   }
 
   if (rotti.length > 0) {
-    console.log(`Esito: ${rotti.length} controlli rotti.\n`);
+    console.log(`Esito: ${plurale(rotti.length, "controllo rotto", "controlli rotti")}.\n`);
     process.exit(1);
   }
 
-  console.log(`Esito: tutto regge. ${noti.length} difetti noti ancora aperti.\n`);
+  console.log(`Esito: tutto regge. ${plurale(noti.length, "difetto noto ancora aperto", "difetti noti ancora aperti")}.\n`);
 }
 
 // Solo quando lo si esegue, non quando i test lo importano per le funzioni.
