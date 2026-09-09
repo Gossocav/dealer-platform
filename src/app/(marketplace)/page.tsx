@@ -530,8 +530,14 @@ export default async function MarketplaceHomePage() {
               <PortaCard
                 occhiello="Ho una concessionaria"
                 titolo="Cosa offre KeyAuto a chi vende"
-                testo="Una vetrina davanti a chi sta cercando un'automobile e un pannello dove gestire stock, richieste, clienti e agenda. Sette giorni di prova gratuita."
-                punti={["Vetrina nel marketplace e pagina dedicata", "Stock caricabile da file, feed o dal tuo sito", "Canone mensile, nessuna commissione sulle vendite"]}
+                testo="Una vetrina davanti a chi cerca un'automobile, e dietro un gestionale vero: stock, richieste, clienti e agenda. Dal piano Pro sai anche quanto ti e' costata ogni vettura e quanto ci hai guadagnato davvero. Sette giorni di prova gratuita."
+                punti={[
+                  "Vetrina nel marketplace e pagina dedicata",
+                  "Dal Pro: conto economico, giorni di giacenza e vendite mese per mese",
+                  "Documenti delle vetture, promemoria e scadenze",
+                  "Stock caricabile da file, feed o dal tuo sito",
+                  "Canone mensile, nessuna commissione sulle vendite",
+                ]}
                 href="/per-le-concessionarie"
                 cta="Scopri cosa offriamo alle concessionarie"
                 inEvidenza
