@@ -1,0 +1,94 @@
+name: Controllo dell'indicizzazione
+
+# Ogni notte guarda il sito vero e dice se l'indicizzazione si e' rotta.
+#
+# **Perche' serve, con il caso che l'ha prodotto.** I quattro controlli che
+# proteggevano l'indicizzazione leggevano il *testo del sorgente*. Uno diceva
+# cosi', in `seo-indexing.test.ts`:
+#
+#     expect(veicolo).toContain("notFound()");
+#
+# Passava dal 3 agosto. E la produzione rispondeva 200 su un'auto inesistente,
+# perche' lo scheletro di caricamento spediva la risposta prima che il
+# programma scoprisse che l'auto non c'era. La regola era scritta, il test la
+# trovava scritta, e il sito faceva un'altra cosa per oltre un mese, senza che
+# niente lo segnalasse.
+#
+# Questo lavoro non legge una riga di codice: apre il sito come lo aprirebbe
+# Google.
+#
+# **Perche' da GitHub e non dentro l'applicazione.** Un guardiano che vive
+# dentro la cosa che sorveglia tace proprio quando servirebbe: se il sito non
+# risponde, non risponde neanche il controllo. Qui gira altrove, e se il sito
+# e' giu' questo lavoro diventa rosso.
+#
+# **Perche' non chiede nessun segreto.** Guarda soltanto quello che vede
+# chiunque: robots.txt, la sitemap, il catalogo, le schede, le fotografie. Non
+# tocca il database e non ha bisogno di CRON_SECRET, quindi non puo' rompersi
+# perche' una chiave e' scaduta.
+
+on:
+  schedule:
+    # Le 06:30 UTC: la sincronizzazione dello stock gira ogni tre ore, e a
+    # quest'ora ha appena finito il giro delle sei. Si controlla lo stato
+    # appena assestato, non uno a meta'.
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      sito:
+        description: "Indirizzo da controllare (vuoto = produzione)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# Due esecuzioni insieme leggerebbero le stesse trecento pagine per niente.
+concurrency:
+  group: controllo-indicizzazione
+  cancel-in-progress: false
+
+jobs:
+  controlla:
+    name: controlla
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Scarica il repository
+        uses: actions/checkout@v4
+
+      - name: Prepara Node
+        uses: actions/setup-node@v4
+        with:
+          # La stessa di produzione. Qui serve soprattutto per `fetch` e per i
+          # timeout: niente dipendenze da installare, lo script e' Node puro.
+          node-version: 22.x
+
+      - name: Guarda il sito
+        env:
+          SITO: ${{ github.event.inputs.sito }}
+        run: node scripts/controllo-indicizzazione.mjs
+
+      # Se il passo sopra fallisce, il riepilogo lo ha gia' scritto lo script:
+      # qui si aggiunge solo cosa farne, perche' fra sei mesi chi apre la
+      # scheda Actions non ricordera' cosa significa un controllo rosso.
+      - name: Spiega cosa vuol dire, se e' rosso
+        if: failure()
+        run: |
+          {
+            echo ""
+            echo "### Cosa fare"
+            echo ""
+            echo "Un controllo rosso vuol dire che **qualcosa che funzionava ha smesso**:"
+            echo "non e' un difetto noto, e' una regressione arrivata con una modifica recente."
+            echo ""
+            echo "Il riepilogo qui sopra dice quale controllo e' caduto. Per riprodurlo in locale:"
+            echo ""
+            echo '```'
+            echo "node scripts/controllo-indicizzazione.mjs"
+            echo '```'
+            echo ""
+            echo "I difetti elencati come *gia' noti* non fanno fallire questo lavoro:"
+            echo "sono quelli tracciati nell'audit dell'indicizzazione, con il numero del reperto."
+          } >> "$GITHUB_STEP_SUMMARY"
