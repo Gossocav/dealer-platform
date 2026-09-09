@@ -250,7 +250,7 @@ const ELITE = componi(
   "elite",
   "KeyAuto Elite",
   399,
-  "La crescita: tutto quello del Pro, piu' la visibilita' che porta clienti nuovi e la scheda consegna da dare a chi compra.",
+  "La crescita: tutto il gestionale del Pro -- conto economico, giacenza, vendite e perizie di ogni vettura -- piu' la visibilita' che porta clienti nuovi e la scheda consegna da dare a chi compra.",
   ELITE_SERVICES,
   "pro",
   PRO.services
