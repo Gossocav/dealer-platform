@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 
@@ -39,13 +40,68 @@ function parseSort(value: string | string[] | undefined) {
   return SORT_OPTIONS.some((option) => option.value === candidate) ? candidate : "created_desc";
 }
 
+/**
+ * Quante auto ci sono in vetrina, per sapere dove finisce il catalogo.
+ *
+ * Avvolta in `cache`: i metadati e la pagina la chiedono tutti e due, e React
+ * la esegue una volta sola per richiesta. Chiede il solo conteggio
+ * (`head: true`), quindi il database non consegna nessuna riga.
+ */
+const contaVeicoliInVetrina = cache(async () => {
+  const { count, error } = await publicSupabase
+    .from("vehicles")
+    .select("id, dealers!inner(status)", { count: "exact", head: true })
+    .eq("published", true)
+    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
+
+  if (error) {
+    logMarketplaceQueryError("catalogo:conteggio", error);
+    // Senza conteggio non si sa dove finisce il catalogo: meglio non
+    // dichiarare fuori posto una pagina che magari esiste.
+    return null;
+  }
+
+  return count ?? 0;
+});
+
+/** L'ultima pagina che ha davvero qualcosa dentro. */
+export function ultimaPaginaDelCatalogo(totaleVeicoli: number, perPagina = MARKETPLACE_CATALOG_PAGE_SIZE) {
+  return Math.max(1, Math.ceil(totaleVeicoli / perPagina));
+}
+
 export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
   const resolved = await searchParams;
   const page = parsePage(resolved.page);
-  const canonicalPath = page > 1 ? `/auto?page=${page}` : "/auto";
   const title = page > 1 ? `Catalogo Veicoli - Pagina ${page}` : "Catalogo Veicoli";
   const description = "Catalogo pubblico dei veicoli disponibili: filtra e consulta le auto pubblicate dalle concessionarie partner.";
-  const canonical = toAbsoluteUrl(canonicalPath);
+
+  /**
+   * Le pagine oltre la fine del catalogo.
+   *
+   * Il difetto, misurato il 05/09/2026: le pagine vere erano tredici, e
+   * `/auto?page=999` rispondeva 200 con una pagina vuota che **dichiarava se
+   * stessa come indirizzo ufficiale**. Un numero qualunque produceva una
+   * pagina indicizzabile e priva di contenuto: uno spazio infinito di pagine
+   * vuote, tutte con lo stesso titolo e nessuna auto dentro.
+   *
+   * Niente indirizzo canonico e niente indice, come gia' fa la scheda di
+   * un'auto che non esiste: dichiarare canonica una pagina che non c'e'
+   * significherebbe chiedere a Google di considerarla la versione buona di
+   * qualcosa.
+   */
+  const totale = await contaVeicoliInVetrina();
+  const oltreLaFine = totale !== null && page > ultimaPaginaDelCatalogo(totale);
+
+  if (oltreLaFine) {
+    return {
+      title,
+      description,
+      robots: { index: false, follow: true },
+    };
+  }
+
+  const canonical = toAbsoluteUrl(page > 1 ? `/auto?page=${page}` : "/auto");
 
   return {
     title,
@@ -123,7 +179,9 @@ export default async function MarketplaceCatalogPage({ searchParams }: { searchP
 
   const vehicles = (data ?? []) as unknown as MarketplaceVehicle[];
   const totalCount = count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalCount / MARKETPLACE_CATALOG_PAGE_SIZE));
+  // Lo stesso calcolo dei metadati, non una copia: se i due divergessero, la
+  // pagina disegnerebbe una paginazione che i metadati dichiarano inesistente.
+  const totalPages = ultimaPaginaDelCatalogo(totalCount);
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
   const sortQuery = sort !== "created_desc" ? `&sort=${sort}` : "";
