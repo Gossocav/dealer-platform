@@ -118,4 +118,43 @@ describe("una ricostruzione del database non indebolisce la sicurezza", () => {
       }
     }
   });
+
+  /**
+   * Il file che gira per ultimo non deve **creare** politiche.
+   *
+   * Il difetto, misurato il 09/09/2026 ricostruendo lo schema su un Postgres
+   * vero e confrontandolo con la produzione:
+   *
+   *                        ricostruzione   produzione
+   *   vehicles                    9             5
+   *   vehicle_images              9             5
+   *
+   * `rls_vehicles_policies.sql` creava quattro politiche per tabella con i
+   * nomi in inglese. In produzione erano sparite -- il 22 agosto
+   * `pulisci_politiche` le ha cancellate e rifatte con i nomi italiani -- ma
+   * in una ricostruzione quel file gira **dopo** la migration di agosto,
+   * perche' non ha una data nel nome: le sue quattro tornavano, sommandosi
+   * alle cinque buone.
+   *
+   * Le regole per riga si sommano: piu' politiche vuol dire piu' permessi.
+   * Quelle otto non aprivano niente a estranei, ma sarebbero comparse solo
+   * dopo un ripristino, con nomi che non corrispondono a nessuna migration --
+   * e chi le avesse trovate non avrebbe saputo da dove venivano.
+   *
+   * Le cancellazioni restano, e vanno lasciate: su un ambiente vecchio che
+   * ha ancora quelle politiche, questo file le toglie.
+   */
+  it("l'ultimo file non crea politiche: le sue si sommerebbero a quelle di agosto", () => {
+    const ultimo = migrazioni[migrazioni.length - 1];
+
+    const create = ultimo.sql
+      .split("\n")
+      .filter((riga) => /^\s*create\s+policy/i.test(riga))
+      .map((riga) => riga.trim());
+
+    expect(create, `${ultimo.nome} crea politiche che si sommerebbero a quelle gia' presenti`).toEqual([]);
+    // Le cancellazioni invece servono e devono restare.
+    expect(ultimo.sql).toMatch(/drop policy if exists vehicles_select_own/i);
+    expect(ultimo.sql).toMatch(/drop policy if exists vehicle_images_select_own/i);
+  });
 });

@@ -192,110 +192,54 @@ alter table public.vehicles force row level security;
 alter table public.vehicle_images enable row level security;
 alter table public.vehicle_images force row level security;
 
--- ==========================
--- 5) Replace vehicles policies
--- ==========================
+-- ==========================================================
+-- 5) Le politiche di questo file non si ricreano piu'
+-- ==========================================================
+--
+-- Qui c'erano otto `create policy` -- quattro su vehicles e quattro su
+-- vehicle_images, con i nomi in inglese (`vehicles_select_own` e simili).
+-- Adesso restano solo le cancellazioni, e le politiche buone sono quelle
+-- che crea 20260822000000_isolamento_tenant_rls.sql con i nomi italiani.
+--
+-- **Perche'.** Questo file non ha una data nel nome, quindi in una
+-- ricostruzione da zero -- ordinata per nome -- gira **per ultimo**, dopo la
+-- migration di agosto. In produzione era andata al contrario: applicato a
+-- suo tempo, poi il 22 agosto `pulisci_politiche` ha cancellato tutte le
+-- politiche di vehicles e vehicle_images e le ha rifatte con i nomi nuovi.
+--
+-- Il risultato erano due mondi diversi, misurato il 09/09/2026 ricostruendo
+-- lo schema su un Postgres vero e confrontandolo con la produzione:
+--
+--                        ricostruzione   produzione
+--   vehicles                    9             5
+--   vehicle_images              9             5
+--
+-- Le quattro di troppo per tabella erano queste, sopravvissute alla pulizia
+-- di agosto perche' venivano ricreate dopo. Le regole per riga si sommano:
+-- piu' politiche vuol dire piu' permessi, non meno. Non aprivano niente a
+-- estranei -- si appoggiano tutte a `current_dealer_id()`, che dopo la
+-- correzione di settembre e' la versione che controlla l'appartenenza
+-- attiva -- ma erano otto regole fantasma che sarebbero comparse solo dopo
+-- un ripristino, con nomi che non corrispondono a nessuna migration.
+--
+-- Le cancellazioni restano, e servono: su un database che ha ancora quelle
+-- politiche (un ambiente vecchio) questo file le toglie e lascia in piedi
+-- soltanto quelle di agosto.
+--
+-- **Non si e' rinominato il file** per dargli una data: il controllo di
+-- deriva confronta i nomi dei file con le migration registrate in
+-- produzione, e un rinomino gli farebbe vedere migration mancanti che
+-- mancanti non sono. Si corregge il contenuto, come gia' fatto per
+-- `current_dealer_id()`.
 drop policy if exists vehicles_select_own on public.vehicles;
 drop policy if exists vehicles_insert_own on public.vehicles;
 drop policy if exists vehicles_update_own on public.vehicles;
 drop policy if exists vehicles_delete_own on public.vehicles;
 
-create policy vehicles_select_own
-on public.vehicles
-for select
-to authenticated
-using (dealer_id = public.current_dealer_id());
-
-create policy vehicles_insert_own
-on public.vehicles
-for insert
-to authenticated
-with check (
-  coalesce(dealer_id, public.current_dealer_id()) = public.current_dealer_id()
-);
-
-create policy vehicles_update_own
-on public.vehicles
-for update
-to authenticated
-using (dealer_id = public.current_dealer_id())
-with check (dealer_id = public.current_dealer_id());
-
-create policy vehicles_delete_own
-on public.vehicles
-for delete
-to authenticated
-using (dealer_id = public.current_dealer_id());
-
 drop policy if exists vehicle_images_select_own on public.vehicle_images;
 drop policy if exists vehicle_images_insert_own on public.vehicle_images;
 drop policy if exists vehicle_images_update_own on public.vehicle_images;
 drop policy if exists vehicle_images_delete_own on public.vehicle_images;
-
-create policy vehicle_images_select_own
-on public.vehicle_images
-for select
-to authenticated
-using (
-  dealer_id = public.current_dealer_id()
-  and exists (
-    select 1
-    from public.vehicles v
-    where v.id = vehicle_id
-      and v.dealer_id = public.current_dealer_id()
-  )
-);
-
-create policy vehicle_images_insert_own
-on public.vehicle_images
-for insert
-to authenticated
-with check (
-  coalesce(dealer_id, public.current_dealer_id()) = public.current_dealer_id()
-  and exists (
-    select 1
-    from public.vehicles v
-    where v.id = vehicle_id
-      and v.dealer_id = public.current_dealer_id()
-  )
-);
-
-create policy vehicle_images_update_own
-on public.vehicle_images
-for update
-to authenticated
-using (
-  dealer_id = public.current_dealer_id()
-  and exists (
-    select 1
-    from public.vehicles v
-    where v.id = vehicle_id
-      and v.dealer_id = public.current_dealer_id()
-  )
-)
-with check (
-  dealer_id = public.current_dealer_id()
-  and exists (
-    select 1
-    from public.vehicles v
-    where v.id = vehicle_id
-      and v.dealer_id = public.current_dealer_id()
-  )
-);
-
-create policy vehicle_images_delete_own
-on public.vehicle_images
-for delete
-to authenticated
-using (
-  dealer_id = public.current_dealer_id()
-  and exists (
-    select 1
-    from public.vehicles v
-    where v.id = vehicle_id
-      and v.dealer_id = public.current_dealer_id()
-  )
-);
 
 -- =====================================
 -- 6) Privileges (required with RLS)
