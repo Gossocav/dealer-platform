@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { firmaFotoVeicolo } from "@/lib/marketplace-foto-firmate";
+import { firmaFotoVeicolo, fotoDiUnAnnuncioPubblico } from "@/lib/marketplace-foto-firmate";
 import { assertHostPubblico, IndirizzoNonAmmesso } from "@/lib/ssrf-protection";
 import { accettaWebp, larghezzaFotoRichiesta, motivoFotoIntera, qualitaFotoRichiesta, rimpicciolisciFoto } from "@/lib/foto-misure";
 
@@ -89,11 +89,29 @@ export async function GET(request: NextRequest) {
   // fotografie che vivono altrove -- quelle importate dai siti delle
   // concessionarie -- che un percorso nel nostro archivio non ce l'hanno.
   let indirizzo = rawUrl;
+  let controlloIncerto = false;
 
   if (rawFoto) {
     if (!percorsoFotoValido(rawFoto)) {
       return new NextResponse("Invalid image path", { status: 400 });
     }
+
+    // La fotografia si firma solo se appartiene a un annuncio che un
+    // visitatore puo' vedere. Fino al 09/09/2026 si firmava qualunque cosa
+    // stesse nel secchio: verificato quel giorno, dentro c'erano anche le
+    // fotografie di un veicolo in bozza e di uno cancellato, e dal sito
+    // pubblico rispondevano 200.
+    const controllo = await fotoDiUnAnnuncioPubblico(rawFoto);
+
+    if (controllo === "non-pubblica") {
+      // 404 e non 403: a chi chiede non si dice se quel percorso esista.
+      return new NextResponse("Image not found", { status: 404 });
+    }
+
+    // Il database non ha risposto. Si lascia passare, ma la risposta si
+    // conserva poco: una decisione presa alla cieca non deve restare appesa
+    // per un mese sulla rete di consegna.
+    controlloIncerto = controllo === "non-lo-so";
 
     const firmato = await firmaFotoVeicolo(rawFoto);
 
@@ -235,9 +253,10 @@ export async function GET(request: NextRequest) {
         // Cinque minuti quando invece e' fallito: conservare per un mese una
         // foto intera vorrebbe dire continuare a servirla intera per un mese
         // anche dopo aver riparato il guasto.
-        "Cache-Control": esito.startsWith("intera:")
-          ? "public, max-age=300, s-maxage=300"
-          : "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
+        "Cache-Control":
+          controlloIncerto || esito.startsWith("intera:")
+            ? "public, max-age=300, s-maxage=300"
+            : "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
         // La risposta cambia col formato che il browser dichiara di sapere
         // leggere: senza questo, la rete di consegna servirebbe il webp anche
         // a chi ha chiesto un JPEG.
