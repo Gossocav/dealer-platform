@@ -24,14 +24,13 @@ import {
   resolveVehicleLabel,
   resolveVehicleRegistrationDate,
   type MarketplaceVehicle,
-  normalizeVehicleLabelField,
 } from "@/lib/public-marketplace";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
 import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
+import { righeSchedaTecnica } from "@/lib/scheda-tecnica";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
-import { normalizzaModello, ripulisciTitoloVeicolo } from "@/lib/vehicle-label";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { WhatsAppContactButton } from "@/components/marketplace/whatsapp-contact-button";
 import { VideoAnnuncioRiquadro } from "@/components/marketplace/video-annuncio-riquadro";
@@ -357,24 +356,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
         : null
       : null;
 
-  /** Le maiuscole del titolo, applicate anche alla scheda tecnica. */
-  const etichettaCampo = (value: string | null) => (value ? normalizeVehicleLabelField(value) : null);
-
-  const technicalSpecs: Array<{ label: string; value: string }> = [
-    { label: "Marca", value: formatText(etichettaCampo(vehicle.brand)) },
-    { label: "Modello", value: formatText(etichettaCampo(normalizzaModello(vehicle.model))) },
-    // La stessa pulizia del titolo. Senza, la pagina diceva due cose diverse
-    // di se stessa: intestazione "Honda Prelude P1 2.0 Advance My2025" e, tre
-    // righe sotto, "Versione P1 2.0 Advance MY2025 2026" con l'anno ripetuto.
-    { label: "Versione", value: formatText(etichettaCampo(ripulisciTitoloVeicolo(vehicle.version))) },
-    { label: "Trazione", value: formatText(vehicle.traction) },
-    { label: "Cilindrata", value: formatText(vehicle.engine_size) },
-    { label: "Potenza kW", value: formatText(vehicle.power_kw) },
-    { label: "Porte", value: formatText(vehicle.doors) },
-    { label: "Classe Euro", value: formatText(vehicle.emission_class) },
-    { label: "Colore", value: formatText(vehicle.color) },
-    { label: "Interni", value: formatText(vehicle.interior_type) },
-  ];
+  const technicalSpecsVisibili = righeSchedaTecnica(vehicle);
 
   return (
     <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
@@ -467,7 +449,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               <h2 className="mt-7 text-lg font-bold tracking-tight text-white">Scheda tecnica</h2>
               <div className="mt-4 grid gap-x-8 sm:grid-cols-2">
                 <dl className="divide-y divide-white/5">
-                  {technicalSpecs.filter((_, i) => i % 2 === 0).map((spec) => (
+                  {technicalSpecsVisibili.filter((_, i) => i % 2 === 0).map((spec) => (
                     <div key={spec.label} className="flex items-center justify-between gap-4 py-3 first:pt-0">
                       <dt className="text-sm text-slate-500">{spec.label}</dt>
                       <dd className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-white">{spec.value}</dd>
@@ -475,7 +457,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   ))}
                 </dl>
                 <dl className="divide-y divide-white/5">
-                  {technicalSpecs.filter((_, i) => i % 2 === 1).map((spec) => (
+                  {technicalSpecsVisibili.filter((_, i) => i % 2 === 1).map((spec) => (
                     <div key={spec.label} className="flex items-center justify-between gap-4 py-3 first:pt-0 sm:first:pt-3">
                       <dt className="text-sm text-slate-500">{spec.label}</dt>
                       <dd className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-white">{spec.value}</dd>
