@@ -557,4 +557,174 @@ alter table public.lead_activities force row level security;
 
 grant select, insert, update, delete on public.lead_activities to authenticated, service_role;
 
+
+-- LE POLITICHE, che questo file non aveva.
+--
+-- Aggiunte il 09/09/2026 dopo una prova di ricostruzione: applicando tutte le
+-- migration a un database vuoto, queste sette tabelle nascevano con la
+-- protezione per riga **accesa e forzata ma senza nessuna regola**. Con RLS
+-- forzata e zero politiche non passa nessuno: nemmeno la concessionaria
+-- proprietaria. L'importazione veicoli e lo storico dei contatti sarebbero
+-- nati morti.
+--
+-- Sbaglia in sicurezza -- chiude invece di aprire -- ma resta un difetto.
+--
+-- Perche' non me n'ero accorto scrivendo il file: la verifica di sabato
+-- confrontava il database ricostruito con la mia trascrizione di cio' che la
+-- produzione aveva risposto, e in quella trascrizione le righe delle
+-- politiche erano state perse. Confrontavo il mio lavoro con la mia stessa
+-- svista, e ovviamente combaciavano. Un confronto va fatto contro la fonte.
+--
+-- Sono le stesse quattro regole per ognuna delle sette tabelle, tutte su
+-- `authenticated` e tutte legate a `current_dealer_id()`: si legge, si
+-- scrive, si modifica e si cancella soltanto cio' che e' della propria
+-- concessionaria.
+
+drop policy if exists import_sources_lettura_propria on public.import_sources;
+create policy import_sources_lettura_propria on public.import_sources
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_sources_inserimento_proprio on public.import_sources;
+create policy import_sources_inserimento_proprio on public.import_sources
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists import_sources_modifica_propria on public.import_sources;
+create policy import_sources_modifica_propria on public.import_sources
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists import_sources_cancellazione_propria on public.import_sources;
+create policy import_sources_cancellazione_propria on public.import_sources
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_profiles_lettura_propria on public.import_profiles;
+create policy import_profiles_lettura_propria on public.import_profiles
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_profiles_inserimento_proprio on public.import_profiles;
+create policy import_profiles_inserimento_proprio on public.import_profiles
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists import_profiles_modifica_propria on public.import_profiles;
+create policy import_profiles_modifica_propria on public.import_profiles
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists import_profiles_cancellazione_propria on public.import_profiles;
+create policy import_profiles_cancellazione_propria on public.import_profiles
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_runs_lettura_propria on public.import_runs;
+create policy import_runs_lettura_propria on public.import_runs
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_runs_inserimento_proprio on public.import_runs;
+create policy import_runs_inserimento_proprio on public.import_runs
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists import_runs_modifica_propria on public.import_runs;
+create policy import_runs_modifica_propria on public.import_runs
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists import_runs_cancellazione_propria on public.import_runs;
+create policy import_runs_cancellazione_propria on public.import_runs
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_items_lettura_propria on public.import_items;
+create policy import_items_lettura_propria on public.import_items
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_items_inserimento_proprio on public.import_items;
+create policy import_items_inserimento_proprio on public.import_items
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists import_items_modifica_propria on public.import_items;
+create policy import_items_modifica_propria on public.import_items
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists import_items_cancellazione_propria on public.import_items;
+create policy import_items_cancellazione_propria on public.import_items
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_errors_lettura_propria on public.import_errors;
+create policy import_errors_lettura_propria on public.import_errors
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_errors_inserimento_proprio on public.import_errors;
+create policy import_errors_inserimento_proprio on public.import_errors
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists import_errors_modifica_propria on public.import_errors;
+create policy import_errors_modifica_propria on public.import_errors
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists import_errors_cancellazione_propria on public.import_errors;
+create policy import_errors_cancellazione_propria on public.import_errors
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_dedup_keys_lettura_propria on public.import_dedup_keys;
+create policy import_dedup_keys_lettura_propria on public.import_dedup_keys
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists import_dedup_keys_inserimento_proprio on public.import_dedup_keys;
+create policy import_dedup_keys_inserimento_proprio on public.import_dedup_keys
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists import_dedup_keys_modifica_propria on public.import_dedup_keys;
+create policy import_dedup_keys_modifica_propria on public.import_dedup_keys
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists import_dedup_keys_cancellazione_propria on public.import_dedup_keys;
+create policy import_dedup_keys_cancellazione_propria on public.import_dedup_keys
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists lead_activities_lettura_propria on public.lead_activities;
+create policy lead_activities_lettura_propria on public.lead_activities
+  for select to authenticated
+  using (dealer_id = current_dealer_id());
+
+drop policy if exists lead_activities_inserimento_proprio on public.lead_activities;
+create policy lead_activities_inserimento_proprio on public.lead_activities
+  for insert to authenticated
+  with check (COALESCE(dealer_id, current_dealer_id()) = current_dealer_id());
+
+drop policy if exists lead_activities_modifica_propria on public.lead_activities;
+create policy lead_activities_modifica_propria on public.lead_activities
+  for update to authenticated
+  using (dealer_id = current_dealer_id())
+  with check (dealer_id = current_dealer_id());
+
+drop policy if exists lead_activities_cancellazione_propria on public.lead_activities;
+create policy lead_activities_cancellazione_propria on public.lead_activities
+  for delete to authenticated
+  using (dealer_id = current_dealer_id());
+
 commit;
