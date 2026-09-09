@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   analizzaRobots,
   analizzaSitemap,
+  chiedeDiNonEssereIndicizzata,
   estraiCanonico,
   estraiTitolo,
   gruppiDiTitoliUguali,
@@ -180,5 +181,47 @@ describe("titoli che si ripetono", () => {
 
   it("a catalogo sano non trova niente", () => {
     expect(gruppiDiTitoliUguali(["Peugeot 2008", "Jeep Avenger"])).toEqual([]);
+  });
+});
+
+/**
+ * Perche' si guarda il "noindex" e non il 404.
+ *
+ * Il controllo pretendeva un 404 sulle pagine che non esistono, e restava
+ * rosso. Era la domanda sbagliata: la documentazione di Next dice che con una
+ * risposta servita a pezzi -- e lo e', perche' c'e' uno scheletro di
+ * caricamento -- le intestazioni partono prima che il programma sappia che la
+ * pagina non c'e', quindi **lo stato resta 200 per costruzione**. Next lo
+ * compensa iniettando un "noindex", e per questo "non porta a indicizzazione".
+ *
+ * La cosa da sorvegliare e' quindi che il "noindex" ci sia. Se sparisse -- per
+ * una modifica ai metadati o per un cambio di Next -- quelle pagine finirebbero
+ * davvero nell'indice, e nessuno se ne accorgerebbe.
+ */
+describe("una pagina che chiede di non essere indicizzata", () => {
+  it("si riconosce dalla dichiarazione nell'intestazione", () => {
+    expect(chiedeDiNonEssereIndicizzata('<meta name="robots" content="noindex, follow"/>')).toBe(true);
+  });
+
+  it("si riconosce anche quando le dichiarazioni sono due", () => {
+    // E' il caso vero di un'auto inesistente: una la scriviamo noi in
+    // generateMetadata, l'altra la inietta Next da se'. Guardarne una sola
+    // darebbe una risposta a caso su quale delle due e' sparita.
+    const dueVolte = '<meta name="robots" content="noindex, follow"/><meta name="robots" content="noindex"/>';
+
+    expect(chiedeDiNonEssereIndicizzata(dueVolte)).toBe(true);
+  });
+
+  it("non si confonde con una pagina che vuole essere indicizzata", () => {
+    expect(chiedeDiNonEssereIndicizzata('<meta name="robots" content="index, follow"/>')).toBe(false);
+    expect(chiedeDiNonEssereIndicizzata("<html><head><title>Catalogo</title></head></html>")).toBe(false);
+  });
+
+  it("basta che una delle due lo dica", () => {
+    // Se ne sopravvive una sola, la pagina resta protetta: il controllo non
+    // deve diventare rosso per questo.
+    const soloLaSeconda = '<meta name="robots" content="index"/><meta name="robots" content="noindex"/>';
+
+    expect(chiedeDiNonEssereIndicizzata(soloLaSeconda)).toBe(true);
   });
 });
