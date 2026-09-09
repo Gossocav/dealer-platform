@@ -78,11 +78,8 @@ describe("le foto non arrivano piu' a piena risoluzione", () => {
 // Ogni visita ricalcolava tutto e il browser riceveva l'ordine di non
 // conservare niente: mille persone sullo stesso annuncio erano mille calcoli.
 describe("le pagine pubbliche si possono conservare", () => {
-  // La home non c'e' piu': con una copia a scadenza si e' rivelata
-  // inaffidabile, e serviva a Google il segnaposto di autenticazione al posto
-  // della pagina. Ora si ricalcola a ogni richiesta. Vedi il test qui sotto,
-  // che pretende che resti cosi'.
   const PAGINE = [
+    ["src/app/(marketplace)/page.tsx", 300],
     ["src/app/(marketplace)/auto/[id]/page.tsx", 60],
     ["src/app/(marketplace)/concessionarie/page.tsx", 300],
     ["src/app/(marketplace)/concessionarie/[slug]/page.tsx", 300],
@@ -97,20 +94,34 @@ describe("le pagine pubbliche si possono conservare", () => {
   });
 
   // Su una pagina a indirizzo variabile "revalidate" da solo non basta: senza
-  // un elenco (anche vuoto) di indirizzi da costruire, Next continua a
-  // ricalcolare a ogni visita. Verificato in produzione: la scheda veicolo
-  // rispondeva ancora "no-store" con il solo revalidate.
+  // un elenco di indirizzi da costruire, Next continua a ricalcolare a ogni
+  // visita. Verificato in produzione: la scheda veicolo rispondeva ancora
+  // "no-store" con il solo revalidate.
   it("le pagine a indirizzo variabile dichiarano l'elenco, altrimenti la validita' non vale", () => {
     for (const percorso of [
       "src/app/(marketplace)/auto/[id]/page.tsx",
       "src/app/(marketplace)/concessionarie/[slug]/page.tsx",
     ]) {
-      const sorgente = read(percorso);
-      expect(sorgente, percorso).toContain("export async function generateStaticParams()");
-      // Vuoto: il catalogo cambia di continuo, le pagine si costruiscono alla
-      // prima visita invece che in anticipo.
-      expect(sorgente, percorso).toMatch(/generateStaticParams\(\)\s*\{\s*return \[\];/);
+      expect(read(percorso), percorso).toContain("export async function generateStaticParams()");
     }
+  });
+
+  // Qui l'elenco era **vuoto**, e c'era scritto che era deliberato: il
+  // catalogo cambia di continuo, meglio costruire alla prima visita. Per una
+  // persona e' vero -- ne apre una per volta e non nota mezzo secondo. Per
+  // Googlebot no: con quasi trecento schede e poco traffico, quasi ogni suo
+  // passaggio cadeva su una pagina fredda (0,65 s contro 0,07), che e'
+  // testualmente la condizione dello stato "Rilevata, ma attualmente non
+  // indicizzata" -- 124 schede il 06/09/2026. Adesso le schede si costruiscono
+  // alla pubblicazione: cambia solo chi paga la prima costruzione.
+  it("le schede veicolo si costruiscono in anticipo, non alla prima visita di Google", () => {
+    const scheda = read("src/app/(marketplace)/auto/[id]/page.tsx");
+
+    expect(scheda).not.toMatch(/generateStaticParams\(\)\s*\{\s*return \[\];/);
+    expect(scheda).toContain("MAX_SCHEDE_PRECOSTRUITE");
+    // Se la lettura fallisce si torna al comportamento di prima invece di far
+    // fallire la pubblicazione del sito.
+    expect(scheda).toContain("return [];");
   });
 
   // Leggere le intestazioni della richiesta rende la pagina non conservabile,
@@ -137,14 +148,19 @@ describe("le pagine pubbliche si possono conservare", () => {
     }
   });
 
-  // Con una copia a scadenza la home ha servito per ore, a Google e a chi non
-  // esegue JavaScript, la scritta "Verifica autenticazione..." al posto della
-  // pagina: la copia appena costruita era corretta, quella conservata restava
-  // indietro e si rigenerava sbagliata. Rimetterle una validita' farebbe
-  // tornare il difetto.
-  it("la home si ricalcola a ogni richiesta e non torna a conservarsi", () => {
+  // La home ha passato mesi fuori dalla cache, e c'era una ragione: la copia
+  // conservata aveva servito per ore -- a Google e a chi non esegue
+  // JavaScript -- la scritta "Verifica autenticazione..." al posto della
+  // pagina. La cache non era la causa, la moltiplicava: la causa stava in
+  // `auth-shell`, dove un percorso vuoto non corrispondeva a nessuna pagina
+  // pubblica ("" non e' "/") e la sola radice passava per area protetta.
+  //
+  // Corretta la causa, la cache e' tornata. Costava 1,8 secondi a ogni visita
+  // contro gli 0,06-0,19 delle pagine conservate, misurato in produzione il
+  // 09/09/2026. Il legame fra le due cose lo tiene `home-in-cache.test.ts`.
+  it("la home conserva una copia, come le altre pagine pubbliche", () => {
     const home = read("src/app/(marketplace)/page.tsx");
-    expect(home).toContain('export const dynamic = "force-dynamic"');
-    expect(home).not.toMatch(/export const revalidate/);
+    expect(home).toContain("export const revalidate = 300");
+    expect(home).not.toContain('export const dynamic = "force-dynamic"');
   });
 });

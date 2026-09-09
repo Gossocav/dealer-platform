@@ -38,23 +38,33 @@ import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
 
-// La home si ricalcola a ogni richiesta, e non e' una scelta di comodo.
+// La home torna a conservare una copia, cinque minuti, come le altre pagine
+// pubbliche.
 //
-// Con una copia a scadenza (ISR) questa pagina si e' rivelata inaffidabile,
-// misurato in produzione due volte a due giorni di distanza. La copia appena
-// costruita e' corretta; quella conservata resta indietro e continua a
-// rigenerarsi sbagliata, anche dopo una ripubblicazione senza cache e anche
-// dopo aver cambiato l'impronta di questo file. L'ultima volta ha servito per
-// ore, a Google e a chi non esegue JavaScript, la scritta "Verifica
-// autenticazione..." al posto della pagina.
+// **Perche' prima non poteva.** Si ricalcolava a ogni richiesta (PR #151)
+// dopo che la copia conservata aveva servito per ore -- a Google e a chi non
+// esegue JavaScript -- la scritta "Verifica autenticazione..." al posto della
+// pagina. La cache non era la causa: la moltiplicava. La causa era in
+// `auth-shell`, dove un percorso vuoto non corrispondeva a nessuna voce
+// dell'elenco delle pagine pubbliche ("" non e' "/"), quindi la sola radice
+// veniva scambiata per un'area protetta.
 //
-// Una pagina calcolata a ogni richiesta non ha nessuna copia da lasciare
-// indietro. Si perde la cache di frontiera -- la home torna a costare quanto
-// costava prima -- e per la porta d'ingresso del sito e' un prezzo che vale
-// la pena pagare: meglio lenta e giusta che veloce e sbagliata.
+// **Adesso la causa non c'e' piu'**: `auth-shell` ripiega su "/" quando il
+// percorso arriva vuoto, e un test lega quel ripiego a questa riga. Verificato
+// sulla produzione prima di rimettere la cache: la scritta non compare piu'
+// nell'HTML servito, che contiene le automobili vere.
 //
-// Le altre pagine tengono la loro cache: il difetto ha colpito solo questa.
-export const dynamic = "force-dynamic";
+// **Cosa costava tenerla fuori dalla cache**, misurato in produzione il
+// 09/09/2026 su quattro richieste per pagina: la home rispondeva in **1,8
+// secondi**, sempre, ogni volta; le concessionarie -- stessa struttura, ma con
+// la copia conservata -- in **0,06-0,19**. Trenta volte tanto, sulla porta
+// d'ingresso del sito, pagato da ogni visitatore e da ogni passaggio di
+// Google.
+//
+// Cinque minuti sono gli stessi di `/concessionarie`. La vetrina Elite ruota
+// una volta al giorno e i conteggi cambiano quando cambia lo stock: niente qui
+// dentro ha bisogno di essere aggiornato al secondo.
+export const revalidate = 300;
 
 // Le righe del pubblicato: una per veicolo, con la concessionaria agganciata.
 // Servono ai conteggi della home, non a disegnare le schede dei veicoli.
