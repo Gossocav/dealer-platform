@@ -10,6 +10,7 @@ import {
   formatText,
   getAppBaseUrl,
   logMarketplaceQueryError,
+  logMarketplaceTruncatedList,
   resolveDealerSlug,
   MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
   MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
@@ -25,6 +26,7 @@ import {
   type MarketplaceVehicle,
   normalizeVehicleLabelField,
 } from "@/lib/public-marketplace";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
 import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
@@ -48,17 +50,71 @@ import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
 // pagina per controllare.
 export const revalidate = 60;
 
+// Quante schede si costruiscono alla pubblicazione del sito. E' un budget di
+// compilazione, non un limite di correttezza: oltre questo numero le schede
+// restano raggiungibili e si costruiscono alla prima visita, esattamente come
+// facevano tutte fino a ieri.
+const MAX_SCHEDE_PRECOSTRUITE = 1000;
+
 /**
- * Perche' un elenco vuoto e non l'assenza di questa funzione: senza,
- * "revalidate" su una pagina a indirizzo variabile non ha effetto e ogni
- * visita ricalcola tutto -- e' scritto nella documentazione di Next.
+ * Le schede vengono costruite prima che qualcuno le chieda.
  *
- * Vuoto e non pieno perche' il catalogo cambia di continuo: le pagine non si
- * costruiscono in anticipo, si costruiscono alla prima visita e da li' si
- * conservano per il minuto dichiarato sopra.
+ * **Perche' e' cambiato.** Qui c'era un elenco vuoto, con scritto che era
+ * deliberato: "il catalogo cambia di continuo, le pagine si costruiscono alla
+ * prima visita". Per chi guarda va benissimo -- una persona apre una scheda per
+ * volta e non nota mezzo secondo. Per un motore di ricerca no, ed e' misurabile:
+ *
+ *   prima visita, pagina mai chiesta   0,65 s  (mediana su 12 schede, punte a 1,66)
+ *   seconda visita, pagina pronta      0,07 s
+ *
+ * Con quasi trecento schede, poco traffico e una cache che dura un minuto,
+ * **quasi ogni visita di Googlebot cadeva su una pagina fredda**. Ed e'
+ * testualmente la condizione che Google descrive per lo stato "Rilevata, ma
+ * attualmente non indicizzata": voleva scansionare l'indirizzo, si aspettava di
+ * sovraccaricare il sito, e ha rimandato. Il 6 settembre erano 124 schede in
+ * quello stato: conosciute e mai aperte, nemmeno una volta.
+ *
+ * **Perche' adesso si puo'.** L'obiezione del commento precedente era giusta e
+ * non e' piu' valida: le schede si conservano per un minuto e poi si
+ * rigenerano da sole, quindi costruirle in anticipo non le congela. Cambia
+ * soltanto chi paga la prima costruzione -- noi alla pubblicazione, una volta,
+ * invece di Googlebot a ogni scoperta.
+ *
+ * Ordinate dalla piu' recente: se un giorno il catalogo supera il tetto, a
+ * restare fuori sono le schede piu' vecchie, che sono anche quelle che
+ * interessano meno.
  */
 export async function generateStaticParams() {
-  return [];
+  const { righe, troncato, error } = await caricaTutto<{ id: string }>(
+    (da, a) =>
+      publicSupabase
+        .from("vehicles")
+        .select("id, dealers!inner(status)")
+        .eq("published", true)
+        .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+        .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+        // Un ordine stabile serve a caricaTutto: senza, due blocchi possono
+        // consegnare due volte la stessa riga e saltarne un'altra. "id" fa da
+        // spareggio dove due auto hanno la stessa data.
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(da, a) as unknown as PromiseLike<{ data: { id: string }[] | null; error: { message: string } | null }>,
+    { massimo: MAX_SCHEDE_PRECOSTRUITE }
+  );
+
+  if (error) {
+    // Senza elenco si torna al comportamento di prima -- ogni scheda si
+    // costruisce alla prima visita -- invece di far fallire la pubblicazione
+    // del sito per una lettura andata storta.
+    logMarketplaceQueryError("generateStaticParams veicoli", error);
+    return [];
+  }
+
+  if (troncato) {
+    logMarketplaceTruncatedList("generateStaticParams veicoli", righe.length);
+  }
+
+  return righe.map((riga) => ({ id: riga.id }));
 }
 
 
