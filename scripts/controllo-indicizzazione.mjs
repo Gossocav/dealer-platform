@@ -159,6 +159,24 @@ async function leggi(percorso, opzioni = {}) {
   return risposta;
 }
 
+/**
+ * La chiave di IndexNow, letta dal repository e non scritta qui.
+ *
+ * Copiarla in questo file vorrebbe dire tenerne due, e il giorno in cui una
+ * delle due cambia il controllo direbbe che va tutto bene mentre non va. Se la
+ * cartella non c'e' -- il controllo puo' girare anche fuori dal repository --
+ * la verifica si salta invece di fallire.
+ */
+async function chiaveIndexNowNelRepository() {
+  try {
+    const { readdirSync } = await import("node:fs");
+    const trovati = readdirSync("public").filter((nome) => /^[0-9a-f]{8,128}\.txt$/i.test(nome));
+    return trovati.length === 1 ? trovati[0].replace(/\.txt$/i, "") : null;
+  } catch {
+    return null;
+  }
+}
+
 async function aBlocchi(elementi, lavoro) {
   const risultati = [];
   for (let i = 0; i < elementi.length; i += CONCORRENZA) {
@@ -351,6 +369,26 @@ async function main() {
     "una pagina di catalogo che non esiste non si dichiara originale",
     `dichiara ${estraiCanonico(htmlOltre)}`
   );
+
+  // --- la chiave con cui segnaliamo le novita' a Bing
+  //
+  // IndexNow funziona cosi': il motore chiede il file `/<chiave>.txt` e si
+  // aspetta di trovarci dentro la stessa chiave con cui firmiamo le
+  // segnalazioni. Se il file sparisse dal sito, o non corrispondesse piu',
+  // **ogni segnalazione verrebbe rifiutata in silenzio** -- la
+  // sincronizzazione continuerebbe a dichiararsi riuscita e le auto nuove
+  // resterebbero invisibili, esattamente come prima di averlo.
+  const chiaveLocale = await chiaveIndexNowNelRepository();
+
+  if (chiaveLocale) {
+    const rispostaChiave = await leggi(`/${chiaveLocale}.txt`);
+    const contenuto = rispostaChiave.ok ? (await rispostaChiave.text()).trim() : "";
+    deveReggere(
+      contenuto === chiaveLocale,
+      "la chiave di IndexNow e' pubblicata e corrisponde",
+      rispostaChiave.ok ? "il file c'e' ma dice un'altra cosa" : `il file risponde ${rispostaChiave.status}`
+    );
+  }
 
   // --- difetti gia' noti, riportati ma non fatali
   const doppioni = gruppiDiTitoliUguali(schede.map((s) => s.titolo));

@@ -144,3 +144,33 @@ describe("i motivi dello scarto sono leggibili nel pannello", () => {
     expect(pagina).toContain("MOTIVI_SALTO[esito.motivo");
   });
 });
+
+/**
+ * L'aggancio a IndexNow.
+ *
+ * **Cosa prova e cosa no.** Legge il sorgente, quindi dice che la chiamata e'
+ * scritta -- non che parta davvero. La prova vera sta altrove, in due punti:
+ * l'esito della segnalazione finisce nella risposta della rotta e quindi nel
+ * registro del lavoro notturno, e il controllo dell'indicizzazione verifica
+ * ogni notte che la chiave sia pubblicata sul sito e corrisponda.
+ *
+ * Serve comunque: togliendo questa riga, le auto nuove smetterebbero di essere
+ * segnalate e la sincronizzazione continuerebbe a dichiararsi riuscita.
+ */
+describe("le auto entrate o cambiate vengono segnalate ai motori", () => {
+  it("la rotta chiama IndexNow con gli indirizzi delle schede", () => {
+    expect(route).toContain("segnalaAIndexNow(idDaSegnalare.map(indirizzoDellaScheda))");
+  });
+
+  it("raccoglie sia quelle importate sia quelle aggiornate", () => {
+    // Due punti diversi nel ciclo: una scheda nuova e una gia' presente che
+    // ha cambiato prezzo o chilometri meritano entrambe una segnalazione.
+    expect(route.match(/idDaSegnalare\.push\(vehicleId\);/g) ?? []).toHaveLength(2);
+  });
+
+  it("la segnalazione non decide se la sincronizzazione e' riuscita", () => {
+    // Un'auto importata correttamente resta importata anche se Bing non
+    // risponde: l'esito viaggia nella risposta, non in un'eccezione.
+    expect(route).toContain("segnalazione,");
+  });
+});
