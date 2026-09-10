@@ -1,16 +1,22 @@
-name: Migration del database
+# Il database di produzione dice la stessa cosa dei file del progetto?
+#
+# **Cosa controllava prima, e perche' e' cambiato.** Questo lavoro eseguiva
+# `supabase migration list`, che confronta i **nomi dei file** con il quaderno
+# delle migration applicate. In questo progetto le migration si applicano a
+# mano dall'editor SQL: quel quaderno e' fermo a luglio, e il controllo diceva
+# "ne mancano 77" da sempre, anche quando lo schema era perfetto. Un allarme
+# che suona sempre e' un allarme che si smette di leggere -- e infatti, il
+# giorno che ha girato davvero, le differenze vere le abbiamo trovate a mano.
+#
+# Adesso confronta lo **schema vero**: tabelle, colonne, regole di accesso,
+# permessi, vincoli, funzioni, trigger e indici. I due lati si leggono con la
+# stessa interrogazione, `public.inventario_schema()`, che nasce da una
+# migration e quindi esiste identica su entrambi.
+#
+# **Legge e basta.** Non c'e' nessun `db push`, `repair` o `reset`, e il
+# permesso richiesto e' `contents: read`.
 
-# Dice se la produzione ha migration ancora da applicare. Non ne applica
-# nessuna: legge e basta.
-#
-# Perche' non le applica da solo, che sarebbe piu' comodo: dodici migration di
-# questo progetto non si limitano a creare tabelle, toccano i dati -- e una
-# cancella righe da profiles. Se lo storico delle migration sul database di
-# produzione fosse incompleto (e ci sono indizi che lo sia: lo schema e' gia'
-# andato alla deriva una volta), applicarle alla cieca le rieseguirebbe tutte
-# dall'inizio, quella cancellazione compresa.
-#
-# Prima si guarda, poi si decide. Questo lavoro serve a guardare.
+name: Lo schema di produzione combacia con i file
 
 on:
   push:
@@ -29,97 +35,94 @@ permissions:
   contents: read
 
 jobs:
-  controllo-migration:
-    name: controllo-migration
+  confronto:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Senza credenziali il controllo non puo' guardare niente -- e allora
-      # deve dirlo fallendo, non passando. Fino al 22/08/2026 qui si usciva
-      # con successo: il lavoro risultava verde anche sul commit che
-      # introduceva una migration non ancora applicata alla produzione. Una
-      # sentinella che dorme e' peggio di nessuna sentinella, perche' quella
-      # che dorme la si crede sveglia.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Senza le credenziali il controllo non puo' guardare la produzione. Si
+      # dice subito e con parole chiare, invece di fallire piu' avanti con un
+      # errore che non spiega niente.
       - name: Verifica che le credenziali ci siano
         env:
-          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           mancanti=""
-          [ -z "$TOKEN" ] && mancanti="$mancanti SUPABASE_ACCESS_TOKEN"
-          [ -z "$PROJECT_ID" ] && mancanti="$mancanti SUPABASE_PROJECT_ID"
-          [ -z "$DB_PASSWORD" ] && mancanti="$mancanti SUPABASE_DB_PASSWORD"
+          [ -z "$PROJECT_ID" ]  && mancanti="$mancanti SUPABASE_PROJECT_ID"
+          [ -z "$SERVICE_KEY" ] && mancanti="$mancanti SUPABASE_SERVICE_ROLE_KEY"
 
           if [ -n "$mancanti" ]; then
             echo "::error::Il controllo non puo' essere eseguito: mancano i segreti$mancanti"
             {
-              echo "## Controllo non eseguito"
+              echo "## Mancano dei segreti"
               echo ""
-              echo "Mancano questi segreti su GitHub:"
-              for s in $mancanti; do echo "- \`$s\`"; done
+              echo "Vanno aggiunti in **Settings → Secrets and variables → Actions**:"
               echo ""
-              echo "Si aggiungono in **Settings -> Secrets and variables -> Actions -> New repository secret**."
-              echo ""
-              echo "- \`SUPABASE_ACCESS_TOKEN\`: da supabase.com/dashboard/account/tokens"
-              echo "- \`SUPABASE_PROJECT_ID\`: l'identificativo del progetto, in Project Settings -> General"
-              echo "- \`SUPABASE_DB_PASSWORD\`: la password del database, in Project Settings -> Database"
+              echo "-\`SUPABASE_PROJECT_ID\`: l'identificativo del progetto, quello nell'indirizzo di Supabase"
+              echo "- \`SUPABASE_SERVICE_ROLE_KEY\`: in Supabase, **Project Settings → API**, la chiave \`service_role\`"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
-      - name: Installa la CLI Supabase
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Collega il progetto
+      - name: Ricostruisci lo schema dai file
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+          PGPASSWORD: postgres
+        run: |
+          bash scripts/ricostruisci-schema.sh "postgresql://postgres@127.0.0.1:5432/postgres"
 
-      - name: Confronta le migration locali con quelle applicate
+      - name: Leggi l'inventario del database ricostruito
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGPASSWORD: postgres
         run: |
-          echo "## Stato delle migration" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          supabase migration list | tee /tmp/migration-list.txt >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          psql "postgresql://postgres@127.0.0.1:5432/postgres" -tAc \
+            "select public.inventario_schema()" > /tmp/inventario-dai-file.json
+          echo "Inventario letto: $(wc -c < /tmp/inventario-dai-file.json) byte"
 
-      # Una migration presente in locale e assente in remoto compare con la
-      # colonna "Remote" vuota. Se ce n'e' almeno una, il lavoro fallisce: e'
-      # il promemoria che la produzione e' rimasta indietro, ed e' l'unica cosa
-      # che prima nessuno ci diceva.
-      - name: Segnala le migration mancanti in produzione
+      - name: Confronta con la produzione
+        env:
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          # La CLI disegna la tabella con "│" o con "|" a seconda della
-          # versione, e a volte mette un separatore anche a inizio riga: si
-          # normalizza tutto prima di leggere le colonne, altrimenti il
-          # controllo direbbe "tutto a posto" per il motivo sbagliato.
-          MANCANTI=$(sed 's/│/|/g' /tmp/migration-list.txt \
-            | sed 's/^[[:space:]]*|//; s/|[[:space:]]*$//' \
-            | awk -F'|' 'NF>=2 {
-                locale=$1; remoto=$2;
-                gsub(/[[:space:]]/,"",locale); gsub(/[[:space:]]/,"",remoto);
-                if (locale ~ /^[0-9]+$/ && remoto == "") print locale;
-              }' || true)
+          set +e
+          node scripts/confronta-schema.mjs --locale /tmp/inventario-dai-file.json | tee /tmp/esito.txt
+          esito=${PIPESTATUS[0]}
+          set -e
 
-          if [ -n "$MANCANTI" ]; then
-            echo "::error::La produzione non ha ancora queste migration:"
-            echo "$MANCANTI"
-            {
-              echo ""
-              echo "### Da applicare in produzione"
-              echo "$MANCANTI" | sed 's/^/- /'
-            } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Schema di produzione contro file del progetto"
+            echo ""
+            echo '```'
+            cat /tmp/esito.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$esito" -eq 2 ]; then
+            echo "::error::Il controllo non e' riuscito a leggere la produzione. Il motivo e' nel riepilogo."
             exit 1
           fi
 
-          echo "::notice::Produzione allineata: nessuna migration in attesa."
+          if [ "$esito" -ne 0 ]; then
+            echo "::error::Il database di produzione e i file del progetto non dicono la stessa cosa. Il dettaglio e' nel riepilogo."
+            exit 1
+          fi
+
+          echo "Nessuna differenza."
