@@ -151,6 +151,15 @@ lo ha prodotto. Serve a chi un giorno lo vedra' fallire.
 
 ## Trappole gia' pagate
 
+**Un contatto senza `dealer_id` non lo vede nessuno.** Oggi i contatti nascono
+in un posto solo -- `/api/marketplace/lead`, che imposta sempre la
+concessionaria -- e **il gestionale non ne crea a mano**. Il giorno che si
+aggiunge "nuovo contatto" al pannello, quel modulo **deve impostare
+`dealer_id`**: il trigger `enforce_lead_dealer_id` riempie quel campo solo per
+i contatti di origine `marketplace`, quindi un contatto creato a mano senza
+concessionaria resta orfano e non compare nell'elenco di nessuno. Non da'
+errore: si perde in silenzio. Verificato su Postgres vero il 10/09/2026.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
