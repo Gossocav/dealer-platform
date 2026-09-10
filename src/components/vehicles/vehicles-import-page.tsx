@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Link2, Loader2, RefreshCw, UploadCloud } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { buildActiveDealerHeaders, getActiveDealerId } from "@/lib/active-tenant";
+import { type OrigineSincronizzata } from "@/lib/sincronizzazioni-veicoli";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
@@ -51,15 +52,6 @@ type FeedImportResult = {
   errors: string[];
 };
 
-type FeedHistoryItem = {
-  id: string;
-  created_at: string;
-  source: string;
-  source_type: "csv" | "xml" | "json";
-  imported_count: number;
-  error_count: number;
-  duration_ms: number;
-};
 
 type SiteAnalysis = { site: string; totale: number; usate: number; km0: number };
 
@@ -150,7 +142,10 @@ export function VehiclesImportPage() {
   const [feedError, setFeedError] = useState<string | null>(null);
   const [feedAnalysis, setFeedAnalysis] = useState<FeedAnalysisResult | null>(null);
   const [feedImportResult, setFeedImportResult] = useState<FeedImportResult | null>(null);
-  const [history, setHistory] = useState<FeedHistoryItem[]>([]);
+  const [origini, setOrigini] = useState<OrigineSincronizzata[]>([]);
+  const [originiErrore, setOriginiErrore] = useState<string | null>(null);
+  const [originiTroncate, setOriginiTroncate] = useState(false);
+  const [originiCaricate, setOriginiCaricate] = useState(false);
 
   const [siteUrl, setSiteUrl] = useState("");
   const [siteAnalysis, setSiteAnalysis] = useState<SiteAnalysis | null>(null);
@@ -166,6 +161,10 @@ export function VehiclesImportPage() {
   const [siteAlignResult, setSiteAlignResult] = useState<SiteAlignResult | null>(null);
   const [siteLog, setSiteLog] = useState<string[]>([]);
 
+  // Un elenco vuoto e un errore non sono la stessa cosa, e non si mostrano
+  // allo stesso modo: "nessuna sincronizzazione" e' un fatto, "non sono
+  // riuscito a leggerle" e' un guasto. Confonderli e' il modo di far credere
+  // a una concessionaria che il suo sito non sia mai stato sincronizzato.
   const loadSyncHistory = useCallback(
     async (tokenOverride?: string | null) => {
       const token = tokenOverride ?? sessionToken;
@@ -181,14 +180,27 @@ export function VehiclesImportPage() {
           }),
         });
 
+        const payload = (await response.json().catch(() => null)) as
+          | { origini?: OrigineSincronizzata[]; troncato?: boolean; error?: string }
+          | null;
+
         if (!response.ok) {
+          setOrigini([]);
+          setOriginiTroncate(false);
+          setOriginiErrore(payload?.error || "Non e' stato possibile leggere le sincronizzazioni.");
+          setOriginiCaricate(true);
           return;
         }
 
-        const payload = (await response.json()) as { history?: FeedHistoryItem[] };
-        setHistory(Array.isArray(payload.history) ? payload.history : []);
+        setOrigini(Array.isArray(payload?.origini) ? payload.origini : []);
+        setOriginiTroncate(Boolean(payload?.troncato));
+        setOriginiErrore(null);
+        setOriginiCaricate(true);
       } catch {
-        // Best effort: keep UI usable even without history.
+        setOrigini([]);
+        setOriginiTroncate(false);
+        setOriginiErrore("Errore di rete durante la lettura delle sincronizzazioni.");
+        setOriginiCaricate(true);
       }
     },
     [sessionToken]
@@ -662,17 +674,6 @@ export function VehiclesImportPage() {
     }
 
     return <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">Da verificare</span>;
-  };
-
-  const formatDuration = (durationMs: number) => {
-    const seconds = Math.max(0, Math.round(durationMs / 1000));
-    if (seconds < 60) {
-      return `${seconds}s`;
-    }
-
-    const minutes = Math.floor(seconds / 60);
-    const rem = seconds % 60;
-    return `${minutes}m ${rem}s`;
   };
 
   const renderTabButtons = () => (
@@ -1290,43 +1291,59 @@ export function VehiclesImportPage() {
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex items-center gap-2">
           <Clock3 className="h-4 w-4 text-slate-500" />
-          <h3 className="text-base font-semibold text-slate-900">Ultime sincronizzazioni</h3>
+          <h3 className="text-base font-semibold text-slate-900">Siti collegati</h3>
         </div>
+        <p className="mt-1 text-sm text-slate-600">
+          Da dove arrivano gli annunci importati e quando sono stati controllati l&apos;ultima volta.
+        </p>
 
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-500">
-              <tr>
-                <th className="px-3 py-2 font-semibold">Data</th>
-                <th className="px-3 py-2 font-semibold">Origine</th>
-                <th className="px-3 py-2 font-semibold">Tipo</th>
-                <th className="px-3 py-2 font-semibold">Veicoli importati</th>
-                <th className="px-3 py-2 font-semibold">Errori</th>
-                <th className="px-3 py-2 font-semibold">Durata</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
-              {history.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-5 text-center text-sm text-slate-500">
-                    Nessuna sincronizzazione disponibile.
-                  </td>
-                </tr>
-              ) : (
-                history.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="px-3 py-2">{new Date(entry.created_at).toLocaleString("it-IT")}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{entry.source}</td>
-                    <td className="px-3 py-2 uppercase">{entry.source_type}</td>
-                    <td className="px-3 py-2">{entry.imported_count}</td>
-                    <td className="px-3 py-2">{entry.error_count}</td>
-                    <td className="px-3 py-2">{formatDuration(entry.duration_ms)}</td>
+        {originiErrore ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {originiErrore}
+          </div>
+        ) : !originiCaricate ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            Lettura in corso...
+          </div>
+        ) : origini.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Nessuna sincronizzazione registrata finora.
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Sito</th>
+                    <th className="px-3 py-2 font-semibold">Ultimo controllo</th>
+                    <th className="px-3 py-2 font-semibold">Annunci</th>
+                    <th className="px-3 py-2 font-semibold">Non piu&apos; sul sito</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                  {origini.map((origine) => (
+                    <tr key={origine.fonte}>
+                      <td className="px-3 py-2 text-xs text-slate-500">{origine.fonte}</td>
+                      <td className="px-3 py-2">
+                        {origine.ultimaSincronizzazione
+                          ? new Date(origine.ultimaSincronizzazione).toLocaleString("it-IT")
+                          : "Non risulta"}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">{origine.annunci}</td>
+                      <td className="px-3 py-2 tabular-nums">{origine.nonPiuSulSito}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {originiTroncate ? (
+              <p className="mt-2 text-xs text-amber-700">
+                Il parco auto e&apos; molto grande: i numeri qui sopra contano solo i primi annunci letti.
+              </p>
+            ) : null}
+          </>
+        )}
       </section>
     </DealerDashboardShell>
   );
