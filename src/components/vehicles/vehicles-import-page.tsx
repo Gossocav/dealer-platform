@@ -35,7 +35,7 @@ type ImportReport = {
   errors: string[];
 };
 
-type TabId = "file" | "feed" | "sito" | "dms";
+type TabId = "file" | "feed" | "sito";
 
 type FeedFormatOption = "auto" | "csv" | "xml" | "json";
 type FeedFrequencyOption = "manual" | "nightly" | "weekly";
@@ -705,15 +705,6 @@ export function VehiclesImportPage() {
       >
         DAL TUO SITO
       </button>
-      <button
-        type="button"
-        onClick={() => setActiveTab("dms")}
-        className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-          activeTab === "dms" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-        }`}
-      >
-        GESTIONALE (PROSSIMAMENTE)
-      </button>
     </div>
   );
 
@@ -1261,32 +1252,6 @@ export function VehiclesImportPage() {
         </section>
       ) : null}
 
-      {activeTab === "dms" ? (
-        <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
-          <h3 className="text-base font-semibold text-slate-900">Collegamento Gestionale</h3>
-          <p className="mt-1 text-sm text-slate-600">Prossimamente sarà possibile collegare direttamente il gestionale della concessionaria.</p>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              "DealerK",
-              "Infinity",
-              "EVO",
-              "AutoScout",
-              "FTP",
-              "API REST",
-              "SOAP",
-              "XML Feed",
-              "JSON Feed",
-              "CSV Feed",
-            ].map((name) => (
-              <article key={name} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-900">{name}</p>
-                <span className="mt-2 inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-600">Coming Soon</span>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <section className="dashboard-fade-up rounded-3xl border border-slate-200/70 bg-white p-5 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] sm:p-6">
         <div className="flex items-center gap-2">
