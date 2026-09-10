@@ -49,7 +49,13 @@ function richiesta(method: "GET" | "POST", headers?: Record<string, string>) {
  * perche' sono quelli che i test guardano -- se sono stati chiamati, qualcosa
  * e' cambiato.
  */
-function supabaseFinto(risultati: { sorgenti?: unknown[]; archivio?: unknown[]; daRileggere?: unknown[] }) {
+function supabaseFinto(risultati: {
+  sorgenti?: unknown[];
+  archivio?: unknown[];
+  daRileggere?: unknown[];
+  /** Il tetto del piano che il database dichiara. `undefined` = nessun tetto. */
+  limite?: number;
+}) {
   const update = vi.fn();
   const insert = vi.fn();
   let chiamateSelect = 0;
@@ -88,7 +94,11 @@ function supabaseFinto(risultati: { sorgenti?: unknown[]; archivio?: unknown[]; 
     return Promise.resolve(risolvi({ data, error: null }));
   };
 
-  return { client: { from: vi.fn(() => catena) }, update, insert };
+  // Il tetto del piano lo dice il database, con questa funzione. Senza un
+  // numero non c'e' tetto da applicare, ed e' il caso di questi test.
+  const rpc = vi.fn(() => Promise.resolve({ data: risultati.limite ?? null, error: null }));
+
+  return { client: { from: vi.fn(() => catena), rpc }, update, insert, rpc };
 }
 
 beforeEach(() => {
@@ -179,6 +189,66 @@ describe("le auto vendute", () => {
 
     expect(corpo.esiti[0].nascoste).toBe(1);
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "in_review", published: false }));
+  });
+});
+
+/**
+ * Il tetto del piano, applicato dalla sincronizzazione.
+ *
+ * Ponginibbi, 10/09/2026: 81 auto sul sito, piano Base da 50. In vetrina ce
+ * n'erano 33 usate e 17 km 0, perche' quali cinquanta entrassero lo decideva
+ * l'ordine dell'indice del sito. La regola -- prima le usate -- sta in
+ * `src/lib/tetto-del-piano.ts`, con i suoi test: qui si prova che la
+ * sincronizzazione la applica davvero, e con il limite che dice il database.
+ */
+describe("il tetto del piano", () => {
+  it("mette da parte una km 0 per far salire una usata in attesa", async () => {
+    const { client, update, rpc } = supabaseFinto({
+      sorgenti: [{ dealer_id: "d1", import_source: "ponginibbigroup.it" }],
+      archivio: [{ id: "k1", import_source_id: "1", status: "published", published: true, import_missing_since: null }],
+      // Terza interrogazione in poi: l'archivio che legge il tetto.
+      daRileggere: [
+        { id: "k1", vehicle_condition: "Km/0", status: "published", published: true, created_at: "2026-09-01T00:00:00Z", import_source: "ponginibbigroup.it", import_missing_since: null },
+        { id: "u1", vehicle_condition: "Usato", status: "in_review", published: false, created_at: "2026-09-02T00:00:00Z", import_source: "ponginibbigroup.it", import_missing_since: null },
+      ],
+      limite: 1,
+    });
+    mocks.createClientMock.mockReturnValue(client);
+    mocks.elencoStockMock.mockResolvedValue([
+      { sourceId: "1", url: "https://www.ponginibbigroup.it/auto/km0/x/1/", condition: "Km/0" },
+    ]);
+
+    const risposta = await GET(richiesta("GET", { authorization: `Bearer ${SEGRETO}` }));
+    const corpo = (await risposta.json()) as { esiti: Array<{ limite: number | null; oltreIlTetto: number; salite: number; messeDaParte: number }> };
+
+    // Il limite non e' scritto qui: lo chiede al database.
+    expect(rpc).toHaveBeenCalledWith("resolve_dealer_listing_cap", { p_dealer_id: "d1" });
+    expect(corpo.esiti[0].limite).toBe(1);
+    expect(corpo.esiti[0].messeDaParte).toBe(1);
+    expect(corpo.esiti[0].salite).toBe(1);
+    expect(corpo.esiti[0].oltreIlTetto).toBe(1);
+    // Prima si libera il posto, poi si riempie.
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "in_review", published: false }));
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "published", published: true }));
+  });
+
+  it("senza un limite leggibile non tocca la vetrina", async () => {
+    const { client, update } = supabaseFinto({
+      sorgenti: [{ dealer_id: "d1", import_source: "ponginibbigroup.it" }],
+      archivio: [{ id: "k1", import_source_id: "1", status: "published", published: true, import_missing_since: null }],
+      daRileggere: [],
+    });
+    mocks.createClientMock.mockReturnValue(client);
+    mocks.elencoStockMock.mockResolvedValue([
+      { sourceId: "1", url: "https://www.ponginibbigroup.it/auto/km0/x/1/", condition: "Km/0" },
+    ]);
+
+    const risposta = await GET(richiesta("GET", { authorization: `Bearer ${SEGRETO}` }));
+    const corpo = (await risposta.json()) as { esiti: Array<{ limite: number | null; messeDaParte: number }> };
+
+    expect(corpo.esiti[0].limite).toBeNull();
+    expect(corpo.esiti[0].messeDaParte).toBe(0);
+    expect(update).not.toHaveBeenCalled();
   });
 });
 

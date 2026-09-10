@@ -143,6 +143,8 @@ export async function GET(request: Request) {
   // which plan they actually have -- dealers.subscription_plan is a
   // separate, legacy base/pro-only field never touched by the demo
   // conversion flow.
+  const limiteAnnunci = await context.supabaseAdmin.rpc("resolve_dealer_listing_cap", { p_dealer_id: context.dealerId });
+
   const subscription = await context.supabaseAdmin
     .from("dealer_demo_subscriptions")
     .select("requested_plan_code, requested_plan_at, converted_plan_code, demo_profile_code")
@@ -171,6 +173,10 @@ export async function GET(request: Request) {
         demoProfileCode: subscription.data?.demo_profile_code,
         legacyPlanCode: dealer.data?.subscription_plan,
       }),
+      // Quante auto il piano consente in vetrina. Lo dice il database, che e'
+      // lo stesso che poi lo impone: qui non c'e' nessun numero scritto a
+      // mano. `null` se il piano non ne ha uno leggibile.
+      limiteAnnunci: limiteAnnunci.data ?? null,
     },
     { status: 200 }
   );

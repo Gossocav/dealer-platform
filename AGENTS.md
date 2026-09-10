@@ -125,6 +125,7 @@ solo sul server: mai in un componente del browser.
 | `src/lib/carica-tutto.ts` | legge un elenco per intero: il database ne consegna mille per volta e non lo dice |
 | `src/lib/dealer-plan.ts` | il piano in vigore. **Mai** leggerlo da `dealers.subscription_plan`: e' una colonna vecchia che la conversione non aggiorna |
 | `src/lib/vehicle-body-types.ts` | l'unico elenco delle carrozzerie: i valori sono anche quelli scritti nel database |
+| `src/lib/tetto-del-piano.ts` | la regola del tetto del piano: quali auto stanno in vetrina quando sono piu' del consentito. **Una funzione sola** per sincronizzazione, importazione e pubblicazione a mano |
 | `src/lib/dealer-site-import.ts` | legge lo stock dal sito della concessionaria; non parla col database, quindi si puo' provare su dati veri senza rischi |
 
 Gli endpoint stanno in `src/app/api/**/route.ts` e seguono sempre lo stesso
@@ -150,6 +151,22 @@ Un test spiega nel commento **quale difetto impedisce**, con il caso reale che
 lo ha prodotto. Serve a chi un giorno lo vedra' fallire.
 
 ## Trappole gia' pagate
+
+**Il tetto del piano si applica con una regola, non con un rifiuto.** Quando
+una concessionaria ha sul suo sito piu' auto di quante il piano ne consente
+(Ponginibbi, 10/09/2026: 81 auto, piano Base da 50), KeyAuto ne pubblica
+esattamente quante il piano permette, scelte cosi': **prima le usate**, poi le
+altre; a parita' di tipo prima quelle **gia' pubblicate** (la scelta non deve
+cambiare a ogni sincronizzazione), poi le piu' recenti. Il limite vale sul
+**totale** delle pubblicate, comprese quelle inserite a mano, e si legge sempre
+dal piano in vigore (`resolve_dealer_listing_cap`): **mai un numero nel
+codice**. Le auto oltre il tetto restano nell'archivio *in revisione*, con
+l'origine e senza data di sparizione, e salgono da sole quando si libera un
+posto; se il piano scende, escono nello stesso ordine, le usate per ultime. Il
+concessionario legge nel gestionale quante ne restano fuori e cosa fare. La
+regola sta in `src/lib/tetto-del-piano.ts`, ed e' **una sola** per la
+sincronizzazione, l'importazione dal sito e la pubblicazione a mano: il
+trigger del database resta come ultima serratura, non come regola.
 
 **Un contatto senza `dealer_id` non lo vede nessuno.** Oggi i contatti nascono
 in un posto solo -- `/api/marketplace/lead`, che imposta sempre la
