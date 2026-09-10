@@ -5,10 +5,9 @@
 -- Serve a ricostruire lo schema da zero per confrontarlo con la produzione.
 --
 -- Non e' una copia fedele di Supabase: e' il minimo che le nostre migration
--- pretendono. Se un giorno una migration usasse qualcosa di nuovo di Supabase,
+-- pretendono. Non c'e' pgcrypto: nessuna migration lo usa (gen_random_uuid e'
+-- nel Postgres di base) e in produzione le sue funzioni non stanno in public. Se un giorno una migration usasse qualcosa di nuovo di Supabase,
 -- la ricostruzione fallirebbe qui, ed e' il posto giusto dove aggiungerlo.
-
-create extension if not exists pgcrypto;
 
 create role anon nologin;
 create role authenticated nologin;
@@ -63,9 +62,10 @@ create table storage.objects (
 alter table storage.objects enable row level security;
 alter table storage.buckets enable row level security;
 
--- Supabase concede da se' i permessi al ruolo di servizio: senza, ogni prova
--- fatta "come il server" fallirebbe per un motivo che in produzione non
--- esiste. Misurato: senza questa riga un contatto inserito con la chiave di
--- servizio veniva respinto con "permission denied", e sembrava un difetto
--- delle regole.
-alter default privileges in schema public grant all on tables to service_role;
+-- **Niente permessi predefiniti.** Supabase concede da se' ad anon,
+-- authenticated e service_role tutti i permessi su ogni tabella nuova. Qui
+-- non si copia niente di tutto questo, di proposito: se l'impalcatura li
+-- regalasse, il confronto con la produzione non vedrebbe mai un permesso di
+-- troppo -- ed e' esattamente quello che deve trovare. I permessi li danno
+-- le migration, uno per uno, anche al ruolo di servizio
+-- (20260910180000_permessi_solo_quelli_usati.sql).

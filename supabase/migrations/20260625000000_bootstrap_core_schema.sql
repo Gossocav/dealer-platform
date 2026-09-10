@@ -32,7 +32,11 @@ begin
       );
   end if;
 
-  execute 'create extension if not exists "pgcrypto"';
+  -- Nello schema `extensions`, dove lo tiene Supabase: in `public` le sue
+  -- trentasei funzioni comparirebbero nell'inventario del controllo
+  -- settimanale come "nei file ma non in produzione". Nessuna migration le
+  -- usa (gen_random_uuid e' nel Postgres di base).
+  execute 'create extension if not exists "pgcrypto" with schema extensions';
 
   execute $sql$
     create table public.dealers (

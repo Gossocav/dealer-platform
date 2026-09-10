@@ -85,7 +85,19 @@ as $$
         select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
           -- Il corpo si riduce a un'impronta: interessa **che cambi**, non
           -- vederlo per intero in un messaggio d'errore lungo trecento righe.
-          || ' | ' || md5(pg_get_functiondef(p.oid)) as riga
+          --
+          -- L'impronta si calcola sul testo **senza commenti e senza spazi**.
+          -- In questo progetto le funzioni arrivano in produzione incollate a
+          -- mano nell'editor SQL, e un rientro diverso o un commento in piu'
+          -- non sono una differenza: sono lo stesso codice. Con l'impronta
+          -- sul testo grezzo sedici funzioni identiche risultavano diverse.
+          || ' | ' || md5(
+               regexp_replace(
+                 regexp_replace(
+                   regexp_replace(pg_get_functiondef(p.oid), '--[^\n]*', '', 'g'),
+                   '/\*.*?\*/', '', 'g'),
+                 '\s+', ' ', 'g')
+             ) as riga
         from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'

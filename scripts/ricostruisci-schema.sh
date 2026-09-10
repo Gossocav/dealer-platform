@@ -24,10 +24,6 @@ for file in $(ls "$CARTELLA"/supabase/migrations/*.sql | xargs -n1 basename | so
 done
 rm -f "/tmp/errore-$$.log"
 
-# Il ruolo di servizio deve avere i permessi anche sulle tabelle create dopo
-# l'impalcatura: i privilegi predefiniti valgono solo per il futuro.
-psql "$CONNESSIONE" -q -c "grant all on all tables in schema public to service_role" >/dev/null
-
 if [ "$fallite" -gt 0 ]; then
   echo "Ricostruzione non riuscita: $fallite migration si sono fermate."
   exit 1

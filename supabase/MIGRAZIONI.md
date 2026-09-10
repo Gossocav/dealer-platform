@@ -5,11 +5,15 @@
 Le migration si applicano **a mano**, dal pannello Supabase. Non c'è nessun
 automatismo che le esegua, ed è una scelta: vedi più sotto perché.
 
-Da adesso però non serve più ricordarsele. Quando una migration nuova arriva su
-`main`, il controllo automatico `db-migrations` guarda cosa manca alla
-produzione e **fallisce** se è rimasta indietro, elencando i file da applicare.
-Prima nessuno lo diceva, ed è così che lo schema di produzione è andato alla
-deriva rispetto a queste cartelle.
+Ogni lunedì (e a ogni modifica di queste cartelle) il controllo automatico
+*Lo schema di produzione combacia con i file* ricostruisce da zero lo schema
+dai file, chiede alla produzione il proprio inventario e li mette a confronto
+riga per riga: tabelle, colonne, regole di accesso, permessi di tabella e di
+colonna, vincoli, funzioni, trigger, chi può eseguire le funzioni, regole dei
+magazzini dei file, indici. Se qualcosa non torna diventa **rosso** e dice
+cosa, in italiano. Fino al 10/09/2026 il controllo leggeva invece il quaderno
+delle migration, fermo a luglio: diceva "ne mancano 77" da sempre, e nessuno
+lo leggeva più.
 
 Il controllo **legge soltanto**. Non applica niente.
 
@@ -19,8 +23,9 @@ Il controllo **legge soltanto**. Non applica niente.
 2. Menu di sinistra → **SQL Editor** → **New query**.
 3. Incolla il contenuto del file `.sql` indicato dal controllo.
 4. **Run**. La risposta attesa è `Success. No rows returned`.
-5. Rilancia il controllo da GitHub (scheda **Actions** → *Migration del
-   database* → **Run workflow**) e verifica che diventi verde.
+5. Rilancia il controllo da GitHub (scheda **Actions** → *Lo schema di
+   produzione combacia con i file* → **Run workflow**) e verifica che diventi
+   verde.
 
 Applica i file **in ordine di data**, dal più vecchio al più recente: alcuni
 danno per scontato quello che ha fatto il precedente.
@@ -87,15 +92,38 @@ prima di accorgersi che la riga esiste. Il limite di un utente per piano --
 nato dieci giorni dopo -- la respinge su ogni concessionaria che ha gia' un
 utente attivo. In una ricostruzione da zero l'ordine e' l'inverso e funziona.
 
+## Ogni tabella nuova dichiara i suoi permessi (10/09/2026)
+
+Supabase regala ad `anon`, `authenticated` e `service_role` **tutti** i
+permessi su ogni tabella creata dall'editor SQL, TRUNCATE compreso. Il
+10/09/2026 il confronto con la produzione ne ha contati 121 di troppo, e in
+otto casi una scrittura dal browser passava davvero (`email_queue`,
+`email_delivery_events`, `notifications`).
+
+`20260910180000_permessi_solo_quelli_usati.sql` azzera e ridà, tabella per
+tabella, solo ciò che il codice usa. Da allora la regola è: **una migration
+che crea una tabella fa subito `revoke all ... from public, anon,
+authenticated`, concede ad `authenticated` (o `anon`) solo i comandi che una
+schermata usa, e concede `grant all ... to service_role`** -- perché la
+ricostruzione usata dal controllo non copia i permessi predefiniti di Supabase,
+di proposito. Una tabella che non lo fa esce rossa il lunedì dopo.
+
+Tre difese vivono nei permessi di colonna, e vanno rimesse se si tocca la
+tabella con un `revoke all`: le colonne pubbliche di `vehicles` e `dealers`
+(quello che il sito legge senza login), e le colonne aggiornabili di
+`dealers` e `profiles` (tutto tranne piano, stato dell'abbonamento, ruolo e
+concessionaria). Sono nella stessa migration, per esteso.
+
 ## Credenziali
 
-Il controllo ha bisogno di tre segreti su GitHub
+Il controllo ha bisogno di due segreti su GitHub
 (*Settings → Secrets and variables → Actions*):
 
 | Segreto | Dove si trova |
 |---|---|
-| `SUPABASE_ACCESS_TOKEN` | supabase.com → icona profilo → *Access Tokens* → genera |
 | `SUPABASE_PROJECT_ID` | Project Settings → *General* → *Reference ID* |
-| `SUPABASE_DB_PASSWORD` | Project Settings → *Database* → password del database |
+| `SUPABASE_SECRET_KEY` | Project Settings → *API Keys* → una chiave segreta dedicata (`sb_secret_...`), creata apposta per il controllo; non è la chiave di servizio del sito |
 
-Finché mancano, il controllo si salta da solo senza far fallire niente.
+La chiave serve a chiamare `public.inventario_schema()`, che è riservata al
+ruolo di servizio e restituisce solo com'è fatto lo schema, mai i dati. Non
+serve più né la password del database né un token personale di Supabase.
