@@ -42,3 +42,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Le impostazioni locali di Claude Code: contengono la password del database
+# di sviluppo. Finora erano escluse solo dalla configurazione di questa
+# macchina -- che un Codespace ricreato non ha piu.
+.claude/settings.local.json
