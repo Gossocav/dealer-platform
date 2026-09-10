@@ -160,6 +160,30 @@ i contatti di origine `marketplace`, quindi un contatto creato a mano senza
 concessionaria resta orfano e non compare nell'elenco di nessuno. Non da'
 errore: si perde in silenzio. Verificato su Postgres vero il 10/09/2026.
 
+**Un ripiego non inventa dati.** Quando un dato non c'e' -- la tabella non
+esiste, la sessione e' scaduta, il database non risponde -- la tentazione e'
+rispondere con qualcosa di plausibile per non lasciare la pagina vuota. E' il
+difetto piu' ripetuto di questo progetto: la barra del pannello (PR #146), le
+"Visualizzazioni" ferme a zero (PR #172), e le "Ultime sincronizzazioni" della
+pagina Importazione, che per due mesi e mezzo hanno mostrato a ogni
+concessionaria due importazioni mai avvenute -- 27 auto un'ora fa, 19 ieri --
+perche' le tre tabelle interrogate non erano mai esistite.
+
+Le regole, in ordine di importanza:
+
+1. **Niente dati di esempio sul percorso vero.** Se servono a un test, stanno
+   nel file di test e da nessun'altra parte.
+2. **Un elenco vuoto e un errore non sono la stessa cosa.** "Non c'e' niente"
+   e' un fatto e si dice; "non sono riuscito a leggerlo" e' un guasto e si
+   dice diversamente. Un errore non diventa mai una lista vuota consegnata
+   come successo.
+3. **Un segnale `mock: true` nella risposta non salva niente**, perche' chi
+   disegna la pagina non lo guarda: era li' anche stavolta.
+4. Il suggerimento dentro una casella vuota (`placeholder`) e' un'altra cosa e
+   va bene: non e' un dato mostrato come vero.
+
+Il guardiano e' `src/lib/sincronizzazioni-veicoli.test.ts`.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
