@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
+import { messaggioDelTetto, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { applicaTettoDelPiano, limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 import {
   elencoStock,
   leggiPagina,
@@ -13,6 +15,7 @@ import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-si
 import { indirizzoDellaScheda, segnalaAIndexNow } from "@/lib/indexnow";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
+  campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
   payloadDatiVeicolo,
@@ -49,7 +52,7 @@ type EsitoScheda = {
   titolo?: string;
 };
 
-function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, status: "draft" | "published") {
+function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, status: "draft" | "published" | typeof STATO_OLTRE_IL_TETTO) {
   return {
     ...payloadDatiVeicolo(v),
     dealer_id: dealerId,
@@ -83,6 +86,8 @@ async function riconcilia(
   dealerId: string,
   host: string,
   idsSulSito: string[],
+  /** Con la chiave di servizio: il tetto del piano si legge solo con quella. */
+  supabaseTetto: ApiSupabaseClient | null,
 ) {
   const { righe, troncato, error } = await caricaTutto<RigaImportata>((da, a) =>
     supabase
@@ -111,7 +116,7 @@ async function riconcilia(
   }
 
   const adesso = new Date();
-  const { daNascondere, daRipristinare } = esito.piano;
+  const { daNascondere, daRipristinare, daSegnareSparite } = esito.piano;
 
   if (daNascondere.length > 0) {
     const { error: erroreNascondi } = await supabase
@@ -135,6 +140,18 @@ async function riconcilia(
       .in("id", daRipristinare);
   }
 
+  if (daSegnareSparite.length > 0) {
+    await supabase
+      .from("vehicles")
+      .update(campiSparitaFuoriVetrina(adesso))
+      .eq("dealer_id", dealerId)
+      .in("id", daSegnareSparite);
+  }
+
+  // Un posto liberato da una sparizione va alla prossima in fila; un'auto
+  // tornata sul sito torna in fila, non in vetrina. La regola decide.
+  const tetto = supabaseTetto ? await applicaTettoDelPiano(supabaseTetto, dealerId) : null;
+
   return NextResponse.json({
     site: host,
     nascoste: daNascondere.length,
@@ -142,6 +159,9 @@ async function riconcilia(
     inArchivio: righe.length,
     sulSito: idsSulSito.length,
     troncato,
+    tetto: tetto
+      ? { limite: tetto.limite, oltreIlTetto: tetto.oltreIlTetto, salite: tetto.salite, messaggio: messaggioDelTetto(tetto.limite, tetto.oltreIlTetto) }
+      : null,
   });
 }
 
@@ -175,6 +195,18 @@ export async function POST(request: Request) {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     }) as ApiSupabaseClient;
+
+    // Il tetto del piano si legge e si applica con la chiave di servizio:
+    // `resolve_dealer_listing_cap` e' riservata a quella (05/09/2026), e le
+    // scritture della regola devono poter togliere dalla vetrina anche
+    // un'auto inserita a mano. Tutto il resto continua a passare dalla
+    // sessione dell'utente, con la protezione per riga a fare da guardia.
+    const chiaveDiServizio = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseTetto = chiaveDiServizio
+      ? (createClient(supabaseUrl, chiaveDiServizio, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        }) as ApiSupabaseClient)
+      : null;
 
     const {
       data: { user },
@@ -226,7 +258,7 @@ export async function POST(request: Request) {
     }
 
     if (body?.action === "riconcilia") {
-      return await riconcilia(supabase, dealerId, host, voci.map((voce) => voce.sourceId));
+      return await riconcilia(supabase, dealerId, host, voci.map((voce) => voce.sourceId), supabaseTetto);
     }
 
     // Le bozze non consumano il tetto del piano, che conta solo i pubblicati:
@@ -240,6 +272,11 @@ export async function POST(request: Request) {
     // a piacere.
     const lotto = voci.slice(offset, offset + limit);
     const esiti: EsitoScheda[] = [];
+    // Chi chiede "pubblicata" ne ha diritto finche' c'e' posto; le altre
+    // entrano lo stesso, in fila per il tetto (`src/lib/tetto-del-piano.ts`):
+    // a fine lotto la regola decide chi sta in vetrina, usate per prime.
+    const limite = status === "published" && supabaseTetto ? await limiteDelPiano(supabaseTetto, dealerId) : null;
+    let posti = status === "published" ? await postiLiberi(supabase, dealerId, limite) : null;
     // Le auto entrate o cambiate in questo giro: a fine lotto si segnalano ai
     // motori che accettano IndexNow, cosi' un annuncio nuovo non aspetta che
     // qualcuno passi a rileggere la sitemap.
@@ -268,7 +305,7 @@ export async function POST(request: Request) {
       // Il client Supabase qui non ha i tipi generati dello schema: senza
       // questo, inserimento e aggiornamento non accettano nessun oggetto.
       // Stessa soluzione gia' usata dalla sincronizzazione da feed.
-      const payload = payloadVeicolo(veicolo, dealerId, host, status) as Record<string, unknown>;
+      const payload = payloadVeicolo(veicolo, dealerId, host, status === "published" && posti !== null && posti <= 0 ? STATO_OLTRE_IL_TETTO : status) as Record<string, unknown>;
 
       const { data: esistente } = await supabase
         .from("vehicles")
@@ -306,6 +343,7 @@ export async function POST(request: Request) {
           continue;
         }
         vehicleId = inserito.id;
+        if (status === "published" && posti !== null && posti > 0) posti -= 1;
         esiti.push({ sourceId: veicolo.sourceId, url: voce.url, esito: "importato", titolo: veicolo.name });
         idDaSegnalare.push(vehicleId);
       }
@@ -323,6 +361,11 @@ export async function POST(request: Request) {
     // nella risposta solo perche' si possa leggere nei registri.
     const segnalazione = await segnalaAIndexNow(idDaSegnalare.map(indirizzoDellaScheda));
 
+    // A fine lotto la regola del tetto sistema la vetrina: chi ha chiesto
+    // "pubblicata" per 81 auto con un piano da 50 vede 50 usate in vetrina,
+    // non le prime 50 dell'indice.
+    const tetto = status === "published" && supabaseTetto ? await applicaTettoDelPiano(supabaseTetto, dealerId, limite) : null;
+
     return NextResponse.json({
       site: host,
       totale: voci.length,
@@ -332,6 +375,7 @@ export async function POST(request: Request) {
       finito: offset + lotto.length >= voci.length,
       esiti,
       segnalazione,
+      tetto: tetto ? { limite: tetto.limite, oltreIlTetto: tetto.oltreIlTetto, messaggio: messaggioDelTetto(tetto.limite, tetto.oltreIlTetto) } : null,
     });
   } catch (error) {
     console.error("import-site error", error);

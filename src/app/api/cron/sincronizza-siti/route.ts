@@ -5,12 +5,15 @@ import { elencoStock, leggiPaginaConEsito, PAUSA_FRA_SCHEDE_MS } from "@/lib/dea
 import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
+  campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
   payloadDatiVeicolo,
   pianoRiconciliazione,
   type RigaImportata,
 } from "@/lib/dealer-site-sync";
+import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { applicaTettoDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import {
   aggiungiSaltate,
@@ -98,6 +101,12 @@ type EsitoSorgente = {
   rilette: number;
   /** Quando una scheda di questo sito e' stata riletta l'ultima volta. */
   ultimaSincronizzazione: string | null;
+  /** Il tetto del piano, e quante auto del sito restano fuori per quello. */
+  limite: number | null;
+  oltreIlTetto: number;
+  /** Mosse dal tetto in questa chiamata: salite in vetrina, messe da parte. */
+  salite: number;
+  messeDaParte: number;
   nota?: string;
   /** Le scritture non riuscite, con il motivo del database. */
   errori?: string[];
@@ -198,7 +207,7 @@ async function allinea(
   }
 
   const adesso = new Date();
-  const { daNascondere, daRipristinare } = esito.piano;
+  const { daNascondere, daRipristinare, daSegnareSparite } = esito.piano;
 
   if (daNascondere.length > 0) {
     await supabase
@@ -216,8 +225,17 @@ async function allinea(
       .in("id", daRipristinare);
   }
 
+  if (daSegnareSparite.length > 0) {
+    await supabase
+      .from("vehicles")
+      .update(campiSparitaFuoriVetrina(adesso))
+      .eq("dealer_id", sorgente.dealer_id)
+      .in("id", daSegnareSparite);
+  }
+
   return { nascoste: daNascondere.length, ripristinate: daRipristinare.length };
 }
+
 
 /**
  * Porta dentro le automobili che sul sito ci sono e qui no.
@@ -230,9 +248,14 @@ async function importaNuove(
   supabase: ApiSupabaseClient,
   sorgente: Sorgente,
   nuove: DealerSiteEntry[],
+  postiLiberi: number | null,
   scaduto: () => boolean,
 ): Promise<{ fila: EsitoFila; errori: string[] }> {
   const errori: string[] = [];
+  // Quante possono entrare pubblicate adesso. Le altre entrano lo stesso, in
+  // fila per il tetto: al prossimo giro la regola decide chi sale, e a un'usata
+  // arrivata dopo non tocca restare fuori solo perche' e' arrivata dopo.
+  let posti = postiLiberi;
 
   const fila = await percorriFila({
     voci: nuove,
@@ -248,13 +271,14 @@ async function importaNuove(
       }
 
       const adesso = new Date().toISOString();
+      const inVetrina = posti === null || posti > 0;
       const { data: inserito, error } = await supabase
         .from("vehicles")
         .insert({
           ...payloadDatiVeicolo(letto.vehicle),
           dealer_id: sorgente.dealer_id,
-          status: "published",
-          published: true,
+          status: inVetrina ? "published" : STATO_OLTRE_IL_TETTO,
+          published: inVetrina,
           import_source: sorgente.import_source,
           import_source_id: letto.vehicle.sourceId,
           import_synced_at: adesso,
@@ -269,6 +293,8 @@ async function importaNuove(
         errori.push(`${letto.vehicle.sourceId}: ${error?.message ?? "inserimento non riuscito"}`);
         return "fermati";
       }
+
+      if (inVetrina && posti !== null) posti -= 1;
 
       if (letto.vehicle.images.length > 0) {
         await sostituisciFoto(supabase, sorgente.dealer_id, inserito.id, letto.vehicle.images);
@@ -420,6 +446,10 @@ async function handle(request: Request) {
       importate: 0,
       rilette: 0,
       ultimaSincronizzazione: null,
+      limite: null,
+      oltreIlTetto: 0,
+      salite: 0,
+      messeDaParte: 0,
     };
     esiti.set(chiave, esito);
 
@@ -445,6 +475,13 @@ async function handle(request: Request) {
     esito.nascoste = allineamento.nascoste;
     esito.ripristinate = allineamento.ripristinate;
     if (allineamento.nota) esito.nota = allineamento.nota;
+
+    const tetto = await applicaTettoDelPiano(supabase, sorgente.dealer_id);
+    esito.limite = tetto.limite;
+    esito.oltreIlTetto = tetto.oltreIlTetto;
+    esito.salite = tetto.salite;
+    esito.messeDaParte = tetto.messeDaParte;
+    if (tetto.errori.length > 0) esito.errori = tetto.errori;
 
     lavoro.push({ sorgente, voci, righe });
   }
@@ -479,15 +516,19 @@ async function handle(request: Request) {
       if (bloccoDemo) {
         esito.nota = esito.nota ?? "importazione non consentita a questo account";
       } else {
-        const { fila, errori } = await importaNuove(supabase, sorgente, nuove, scadutaPorzione);
+        // I posti liberi adesso: il tetto meno le pubblicate, dopo che la regola
+        // ha gia' sistemato l'archivio nel primo passo.
+        const posti = await postiLiberi(supabase, sorgente.dealer_id, esito.limite);
+
+        const { fila, errori } = await importaNuove(supabase, sorgente, nuove, posti, scadutaPorzione);
         esito.importate = fila.fatte;
-        if (errori.length > 0) esito.errori = errori;
+        if (errori.length > 0) esito.errori = [...(esito.errori ?? []), ...errori];
         cursore = aggiungiSaltate(cursore, chiave, fila.fallite);
 
         if (fila.fermataPer === "tetto") {
-          // Ponginibbi dal 04/09/2026: 71 auto sul sito, piano da 50. Non sono
-          // "da fare": non entreranno finche' il piano non cambia.
-          esito.nota = `${fila.restanti + nuove.length - fila.esaminate} auto sul sito oltre il tetto del piano`;
+          // Il database ha rifiutato lo stesso: il conto dei posti era sbagliato
+          // o il piano e' cambiato nel frattempo. Non sono "da fare".
+          esito.nota = "il database ha rifiutato un inserimento per il tetto del piano";
         }
         const nota = notaPerFermata(fila.fermataPer, "importazione");
         if (nota) esito.nota = nota;

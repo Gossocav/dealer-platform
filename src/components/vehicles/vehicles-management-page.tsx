@@ -20,6 +20,8 @@ import {
   type VersoDelCambio,
 } from "@/lib/cambio-stato-di-gruppo";
 import { supabase } from "@/lib/supabaseClient";
+import { candidataAllaVetrina, ePubblicata, messaggioDelTetto, type RigaPerIlTetto } from "@/lib/tetto-del-piano";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -73,7 +75,7 @@ const PAGE_SIZE = 9;
  * vetture che invece sono a posto.
  */
 const COLONNE_VEICOLO =
-  "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, import_missing_since, vehicle_images(id, image_url, position, is_cover)";
+  "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, vehicle_condition, city, province, description, created_at, updated_at, import_source, import_missing_since, vehicle_images(id, image_url, position, is_cover)";
 
 /**
  * Filtri, pagina, ordinamento e vista scritti nell'indirizzo.
@@ -216,6 +218,7 @@ export function VehiclesManagementPage() {
   // concessionario ricarica la pagina a meta' strada.
   const [avanzamentoTutti, setAvanzamentoTutti] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { limiteAnnunci } = usePianoInVigore();
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -230,6 +233,24 @@ export function VehiclesManagementPage() {
 
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [filters, page, viewMode, sort, pathname, router, searchParams]);
+
+  // Il tetto del piano, come lo vede il concessionario. Il limite arriva dal
+  // server, che lo legge dal database (`resolve_dealer_listing_cap`): qui non
+  // c'e' nessun numero. Le auto in attesa di un posto sono quelle che la
+  // regola ha messo da parte -- `src/lib/tetto-del-piano.ts`.
+  const avvisoDelTetto = useMemo(() => {
+    const righe: RigaPerIlTetto[] = items.map((item) => ({
+      id: item.id,
+      vehicle_condition: (item.raw.vehicle_condition as string | null) ?? null,
+      status: (item.raw.status as string | null) ?? null,
+      published: (item.raw.published as boolean | null) ?? null,
+      created_at: (item.raw.created_at as string | null) ?? null,
+      import_source: (item.raw.import_source as string | null) ?? null,
+      import_missing_since: (item.raw.import_missing_since as string | null) ?? null,
+    }));
+    const inAttesa = righe.filter((riga) => candidataAllaVetrina(riga) && !ePubblicata(riga)).length;
+    return messaggioDelTetto(limiteAnnunci, inAttesa);
+  }, [items, limiteAnnunci]);
 
   const refreshData = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
@@ -1341,6 +1362,12 @@ export function VehiclesManagementPage() {
           ) : null}
         </div>
       </section>
+
+      {avvisoDelTetto ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {avvisoDelTetto}
+        </section>
+      ) : null}
 
       {error ? (
         <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</section>
