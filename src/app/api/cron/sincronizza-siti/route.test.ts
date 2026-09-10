@@ -13,6 +13,12 @@ vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClientMock }
 vi.mock("@/lib/dealer-site-fetch", () => ({
   elencoStock: mocks.elencoStockMock,
   leggiPagina: mocks.leggiPaginaMock,
+  // La rotta legge con il motivo del fallimento: qui il finto risponde come
+  // il vero, "ok" con il testo o "non-letta" quando il testo non c'e'.
+  leggiPaginaConEsito: async (url: string) => {
+    const html = await mocks.leggiPaginaMock(url);
+    return html ? { ok: true, html } : { ok: false, motivo: "non-letta" };
+  },
   PAUSA_FRA_SCHEDE_MS: 0,
 }));
 
