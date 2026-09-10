@@ -36,42 +36,6 @@ type ApiSupabaseClient = SupabaseClient;
 const MAX_FEED_BYTES = 1_000_000;
 
 const PREVIEW_LIMIT = 20;
-const DEMO_FEED_IMAGES_URL = "demo://automotive-feed-images";
-const DEMO_FEED_RECORDS: FeedRecord[] = [
-  {
-    brand: "Audi",
-    model: "A3 Sportback",
-    version: "35 TFSI S tronic Business",
-    year: "2023",
-    price: "31900",
-    mileage: "22800",
-    fuel: "Benzina",
-    transmission: "Automatico",
-    images: "https://picsum.photos/seed/audi-a3/900/600",
-  },
-  {
-    brand: "Alfa Romeo",
-    model: "Giulia",
-    version: "2.2 Turbo Diesel 190 AT8 Veloce",
-    year: "2022",
-    price: "36900",
-    mileage: "48200",
-    fuel: "Diesel",
-    transmission: "Automatico",
-    images: "https://picsum.photos/seed/alfa-giulia/900/600",
-  },
-  {
-    brand: "Peugeot",
-    model: "3008",
-    version: "1.5 BlueHDi 130 EAT8 GT",
-    year: "2021",
-    price: "27400",
-    mileage: "61500",
-    fuel: "Diesel",
-    transmission: "Automatico",
-    images: "https://picsum.photos/seed/peugeot-3008/900/600",
-  },
-];
 
 function normalizeActiveDealerId(value: string | null) {
   const normalized = String(value ?? "").trim();
@@ -209,43 +173,36 @@ export async function POST(request: Request) {
       }
     }
 
-    let detectedFormat: FeedFormat;
-    let records: FeedRecord[];
 
-    if (feedUrl === DEMO_FEED_IMAGES_URL) {
-      detectedFormat = "json";
-      records = DEMO_FEED_RECORDS;
-    } else {
-      const safeFeedUrl = parseAndValidateExternalHttpUrl(feedUrl);
+    const safeFeedUrl = parseAndValidateExternalHttpUrl(feedUrl);
 
-      const feedResponse = await fetchWithSsrfProtection(safeFeedUrl, {
-        method: "GET",
-        headers: {
-          Accept: "application/json, text/csv, application/xml, text/xml, */*",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(8_000),
-      });
+    const feedResponse = await fetchWithSsrfProtection(safeFeedUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json, text/csv, application/xml, text/xml, */*",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    });
 
-      if (!feedResponse.ok) {
-        return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
-      }
-
-      const contentLength = Number(feedResponse.headers.get("content-length") ?? "NaN");
-      if (Number.isFinite(contentLength) && contentLength > MAX_FEED_BYTES) {
-        return NextResponse.json({ error: "Il feed supera la dimensione massima consentita." }, { status: 400 });
-      }
-
-      const rawText = await readLimitedText(feedResponse, MAX_FEED_BYTES);
-      detectedFormat = detectFeedFormat(
-        preferredFormat,
-        feedUrl,
-        String(feedResponse.headers.get("content-type") ?? ""),
-        rawText
-      );
-
-      records = parseFeedRecords(rawText, detectedFormat);
+    if (!feedResponse.ok) {
+      return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
     }
+
+    const contentLength = Number(feedResponse.headers.get("content-length") ?? "NaN");
+    if (Number.isFinite(contentLength) && contentLength > MAX_FEED_BYTES) {
+      return NextResponse.json({ error: "Il feed supera la dimensione massima consentita." }, { status: 400 });
+    }
+
+    const rawText = await readLimitedText(feedResponse, MAX_FEED_BYTES);
+    const detectedFormat = detectFeedFormat(
+      preferredFormat,
+      feedUrl,
+      String(feedResponse.headers.get("content-type") ?? ""),
+      rawText
+    );
+
+    const records = parseFeedRecords(rawText, detectedFormat);
 
     if (records.length === 0) {
       return NextResponse.json({
