@@ -8,10 +8,10 @@
 -- REFERENCES e TRIGGER. Le migration di questo progetto hanno tolto quel che
 -- serviva togliere una tabella per volta, ma non tutto: il 10/09/2026 il
 -- confronto con la produzione ha trovato 121 permessi in piu' rispetto ai
--- file, fra cui TRUNCATE su 31 tabelle e, su otto casi, scritture che in
--- produzione passavano davvero (permesso presente *e* regola di accesso
--- presente) mentre nei file erano chiuse: email_queue, email_delivery_events,
--- notifications.
+-- file, fra cui TRUNCATE su 31 tabelle e otto casi in cui l'accesso passava
+-- davvero (permesso presente *e* regola di accesso presente) mentre nei file
+-- era chiuso: sette scritture e una lettura, su email_queue,
+-- email_delivery_events e notifications.
 --
 -- **Il criterio.** Per ogni tabella si azzera tutto e si concede solo cio'
 -- che il codice usa oggi con la sessione dell'utente o con la chiave pubblica
@@ -130,7 +130,7 @@ grant select, insert on public.email_messages to authenticated;
 grant all on public.email_messages to service_role;
 
 -- Nessuna riga di codice la usa. In produzione `authenticated` poteva
--- leggerla, scriverci e cancellare: era uno degli otto casi aperti.
+-- leggerla, scriverci e cancellare: quattro degli otto casi aperti.
 revoke all on public.email_queue from public, anon, authenticated;
 grant all on public.email_queue to service_role;
 

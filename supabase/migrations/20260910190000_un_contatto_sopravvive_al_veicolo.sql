@@ -13,11 +13,10 @@
 -- veicolo vuoto -- e i file si allineano a lei. Applicata in produzione,
 -- questa parte non cambia niente.
 --
--- Per `customers` e' il contrario: in produzione la chiave e' senza azione,
--- quindi cancellare un cliente che ha contatti collegati fallisce con un
--- errore; nei file era gia' SET NULL. Qui vince il file: il cliente si
--- cancella e i suoi contatti restano, senza anagrafica collegata. Applicata
--- in produzione, questa parte cambia quel comportamento.
+-- `leads.customer_id` resta com'e': in produzione la chiave e' senza azione
+-- (cancellare un cliente con contatti collegati da' errore), nei file era
+-- SET NULL. Quale dei due sia giusto lo decide il titolare; nel frattempo
+-- nessun codice scrive quella colonna.
 
 begin;
 
@@ -30,12 +29,5 @@ alter table public.leads
 alter table public.leads
   add constraint leads_vehicle_id_fkey
   foreign key (vehicle_id) references public.vehicles(id) on delete set null;
-
-alter table public.leads
-  drop constraint if exists leads_customer_id_fkey;
-
-alter table public.leads
-  add constraint leads_customer_id_fkey
-  foreign key (customer_id) references public.customers(id) on delete set null;
 
 commit;

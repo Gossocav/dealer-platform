@@ -97,8 +97,8 @@ utente attivo. In una ricostruzione da zero l'ordine e' l'inverso e funziona.
 Supabase regala ad `anon`, `authenticated` e `service_role` **tutti** i
 permessi su ogni tabella creata dall'editor SQL, TRUNCATE compreso. Il
 10/09/2026 il confronto con la produzione ne ha contati 121 di troppo, e in
-otto casi una scrittura dal browser passava davvero (`email_queue`,
-`email_delivery_events`, `notifications`).
+otto casi l'accesso dal browser passava davvero -- sette scritture e una
+lettura, su `email_queue`, `email_delivery_events` e `notifications`.
 
 `20260910180000_permessi_solo_quelli_usati.sql` azzera e ridà, tabella per
 tabella, solo ciò che il codice usa. Da allora la regola è: **una migration

@@ -62,12 +62,20 @@ as $$
         where schemaname = 'public'
       ) t
     ),
+    -- I permessi si leggono dal catalogo vero (`relacl`), non da
+    -- information_schema: quella vista elenca solo i sette permessi dello
+    -- standard e **non vede MAINTAIN**, che Postgres 17 concede con
+    -- `grant all` e che Supabase regala ad anon e authenticated. Misurato il
+    -- 10/09/2026: stessa tabella, information_schema ne mostra sette,
+    -- aclexplode otto.
     'permessi', (
       select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
-        select table_name || ' | ' || grantee || ' | ' || privilege_type as riga
-        from information_schema.role_table_grants
-        where table_schema = 'public'
-          and grantee in ('anon', 'authenticated', 'service_role')
+        select c.relname || ' | ' || pg_get_userbyid(acl.grantee) || ' | ' || acl.privilege_type as riga
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) as acl
+        where n.nspname = 'public' and c.relkind = 'r'
+          and pg_get_userbyid(acl.grantee) in ('anon', 'authenticated', 'service_role')
       ) t
     ),
     'vincoli', (

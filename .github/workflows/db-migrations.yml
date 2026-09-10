@@ -40,7 +40,11 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        # La stessa versione maggiore della produzione (Postgres 17). Con una
+        # versione diversa il confronto trova differenze finte: dalla 17
+        # `grant all` comprende anche MAINTAIN, e il ruolo di servizio
+        # risulterebbe con un permesso in piu' su ogni tabella.
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
         ports:

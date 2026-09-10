@@ -73,7 +73,7 @@ questo progetto leggono il *testo* dei file SQL: dicono che la regola e'
 scritta, non che il database la applichi. Docker c'e':
 
 ```bash
-docker run -d --name prova -e POSTGRES_PASSWORD=postgres postgres:15
+docker run -d --name prova -e POSTGRES_PASSWORD=postgres postgres:17   # la stessa versione della produzione
 # ricostruire i ruoli anon/authenticated/service_role, auth.uid() da
 # request.jwt.claim.sub, le tabelle coinvolte, poi applicare la migration e
 # interrogare come ciascun ruolo
