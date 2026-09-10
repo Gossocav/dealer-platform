@@ -101,6 +101,36 @@ as $$
         where n.nspname = 'public' and not tg.tgisinternal
       ) t
     ),
+    -- Chi puo' **eseguire** le funzioni. E' la famiglia che avrebbe trovato
+    -- da sola il difetto del 05/09: sette funzioni `security definer`
+    -- restavano eseguibili con la sola chiave pubblica del sito, perche'
+    -- `revoke ... from public` non toglie il permesso che Supabase concede
+    -- ad `anon`. Nessuno se n'era accorto per due mesi.
+    'permessi_funzioni', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+          || ' | ' || ruolo
+          || ' | esegue=' || has_function_privilege(ruolo, p.oid, 'execute')::text as riga
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join (values ('anon'), ('authenticated')) as r(ruolo)
+        where n.nspname = 'public'
+      ) t
+    ),
+    -- Le regole dei magazzini dei file. Stanno nello schema `storage`, che
+    -- non e' `public`: senza questa famiglia una fotografia aperta a tutti
+    -- non comparirebbe da nessuna parte nel confronto.
+    'politiche_storage', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select tablename || ' | ' || policyname
+          || ' | ' || cmd
+          || ' | ' || coalesce(roles::text, '-')
+          || ' | using=' || coalesce(qual, '-')
+          || ' | check=' || coalesce(with_check, '-') as riga
+        from pg_policies
+        where schemaname = 'storage'
+      ) t
+    ),
     'indici', (
       select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
         select tablename || ' | ' || indexname || ' | ' || indexdef as riga

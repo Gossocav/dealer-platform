@@ -64,11 +64,11 @@ jobs:
       - name: Verifica che le credenziali ci siano
         env:
           PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
           mancanti=""
           [ -z "$PROJECT_ID" ]  && mancanti="$mancanti SUPABASE_PROJECT_ID"
-          [ -z "$SERVICE_KEY" ] && mancanti="$mancanti SUPABASE_SERVICE_ROLE_KEY"
+          [ -z "$SECRET_KEY" ] && mancanti="$mancanti SUPABASE_SECRET_KEY"
 
           if [ -n "$mancanti" ]; then
             echo "::error::Il controllo non puo' essere eseguito: mancano i segreti$mancanti"
@@ -78,7 +78,7 @@ jobs:
               echo "Vanno aggiunti in **Settings → Secrets and variables → Actions**:"
               echo ""
               echo "-\`SUPABASE_PROJECT_ID\`: l'identificativo del progetto, quello nell'indirizzo di Supabase"
-              echo "- \`SUPABASE_SERVICE_ROLE_KEY\`: in Supabase, **Project Settings → API**, la chiave \`service_role\`"
+              echo "- \`SUPABASE_SECRET_KEY\`: in Supabase, **Project Settings → API Keys → Secret keys**, una chiave creata apposta per questo controllo"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
@@ -100,7 +100,7 @@ jobs:
       - name: Confronta con la produzione
         env:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
           set +e
           node scripts/confronta-schema.mjs --locale /tmp/inventario-dai-file.json | tee /tmp/esito.txt

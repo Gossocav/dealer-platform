@@ -38,6 +38,8 @@ const FAMIGLIE = [
   ["vincoli", "vincoli"],
   ["funzioni", "funzioni"],
   ["trigger", "trigger"],
+  ["permessi_funzioni", "chi puo' eseguire le funzioni"],
+  ["politiche_storage", "regole dei magazzini dei file"],
   ["indici", "indici"],
 ];
 
@@ -52,14 +54,17 @@ async function inventarioDellaProduzione() {
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     (process.env.SUPABASE_PROJECT_ID ? `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co` : null);
-  const chiave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Una chiave segreta dedicata (`sb_secret_...`), creata apposta per questo
+  // controllo: si revoca da sola, senza fermare il sito. La chiave del sito
+  // resta il ripiego per chi esegue il controllo dal proprio computer.
+  const chiave = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url) {
     throw new Error("Manca SUPABASE_PROJECT_ID (o NEXT_PUBLIC_SUPABASE_URL): non so quale progetto guardare.");
   }
   if (!chiave) {
     throw new Error(
-      "Manca SUPABASE_SERVICE_ROLE_KEY: e' la chiave con cui si legge lo schema. Si trova in Supabase, Project Settings -> API."
+      "Manca SUPABASE_SECRET_KEY: e' la chiave dedicata a questo controllo. Si crea in Supabase, Project Settings -> API Keys -> Secret keys."
     );
   }
 
@@ -78,6 +83,11 @@ async function inventarioDellaProduzione() {
     if (/inventario_schema/.test(testo) && /not find|does not exist/i.test(testo)) {
       throw new Error(
         "La produzione non ha ancora la funzione inventario_schema(): va applicata la migration 20260910160000."
+      );
+    }
+    if (/permission denied/i.test(testo)) {
+      throw new Error(
+        "La chiave usata non ha il permesso di eseguire inventario_schema(). Serve una chiave segreta, non quella pubblicabile."
       );
     }
     throw new Error(`La produzione ha risposto ${risposta.status}: ${testo.slice(0, 200)}`);

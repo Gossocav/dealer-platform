@@ -63,7 +63,14 @@ describe("il controllo dello schema non scrive niente", () => {
    * settimane senza che nessuno se ne accorgesse.
    */
   it("confronta tutte le famiglie, comprese regole, permessi, vincoli e trigger", () => {
-    for (const famiglia of ["tabelle", "colonne", "politiche", "permessi", "vincoli", "funzioni", "trigger", "indici"]) {
+    for (const famiglia of [
+      "tabelle", "colonne", "politiche", "permessi", "vincoli", "funzioni", "trigger",
+      // Queste due sono nate da difetti veri: funzioni riservate rimaste
+      // eseguibili con la chiave pubblica (05/09) e magazzini di fotografie
+      // nati aperti in una ricostruzione.
+      "permessi_funzioni", "politiche_storage",
+      "indici",
+    ]) {
       expect(script, `manca la famiglia "${famiglia}"`).toContain(`"${famiglia}"`);
     }
   });
