@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
@@ -717,13 +718,37 @@ export async function POST(request: Request) {
 
   const dealerId = resolvedDealerId;
 
-  // NOTA: qui non c'e' nessun freno per gli account di prova. C'era, ma
-  // valeva **solo** per il feed di esempio appena tolto: l'importazione da un
-  // feed vero non l'ha mai avuto. Difetto trovato il 10/09/2026 togliendo le
-  // auto finte, e segnalato invece di correggerlo qui: questa modifica parla
-  // d'altro. L'importazione dal sito (`/api/vehicles/import-site`) il freno
-  // ce l'ha. Insieme al freno se n'e' andato il conteggio dei veicoli, che
-  // serviva solo a quello.
+  // Il freno per gli account di prova, come in `/api/vehicles/import-site`.
+  //
+  // C'era anche qui, ma valeva **solo** dentro il ramo del feed di esempio, e
+  // togliendo quello (10/09/2026) e' rimasta scoperta l'importazione da un
+  // feed vero. Era il buco piu' largo dei tre percorsi di importazione:
+  // questa rotta scrive con la **chiave di servizio** (`supabaseAdmin`, piu'
+  // sotto), che scavalca la protezione per riga -- il tetto dei dieci veicoli
+  // della demo non l'avrebbe fermata nemmeno dal database.
+  //
+  // Guardare resta libero: si nega solo la scrittura, e prima di andare a
+  // leggere il feed per conto di chi non potrebbe importarlo comunque.
+  if (action === "import") {
+    // Il conteggio serve a `resolveDemoAccessContext` per il tetto dei dieci
+    // veicoli; con la chiave "import" il rifiuto arriva prima comunque, ma
+    // passarglielo sbagliato renderebbe bugiardo il messaggio.
+    const { count: vehicleCount } = await supabaseAuth
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", dealerId);
+
+    // Con la chiave dell'utente, mai con quella di servizio: il contesto
+    // demo di una concessionaria lo si chiede per conto suo.
+    const demoContext = await resolveDemoAccessContext(supabaseAuth, dealerId, {
+      vehicleCount: vehicleCount ?? 0,
+    });
+    const demoBlock = getDemoFeatureBlockReason(demoContext, "import");
+
+    if (demoBlock) {
+      return NextResponse.json({ success: false, message: demoBlock.message }, { status: 403 });
+    }
+  }
 
   if (!url) {
     return NextResponse.json(
