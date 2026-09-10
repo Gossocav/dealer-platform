@@ -147,8 +147,12 @@ using (profile_id = auth.uid());
 -- ------------------------------------------------------------
 -- E' questo che ferma l'attacco al primo passo, prima ancora delle regole.
 
+-- `revoke all` e non `revoke insert, update, delete`: cosi' non resta
+-- appeso nessun permesso meno ovvio -- TRUNCATE, REFERENCES, TRIGGER -- che
+-- un elenco scritto a mano dimentica sempre. Si azzera tutto e si ridà solo
+-- cio' che serve.
 revoke all on public.dealer_users from public;
 revoke all on public.dealer_users from anon;
-revoke insert, update, delete on public.dealer_users from authenticated;
+revoke all on public.dealer_users from authenticated;
 grant select on public.dealer_users to authenticated;
 grant select, insert, update, delete on public.dealer_users to service_role;
