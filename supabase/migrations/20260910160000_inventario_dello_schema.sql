@@ -117,6 +117,37 @@ as $$
         where n.nspname = 'public'
       ) t
     ),
+    -- I permessi **colonna per colonna** in scrittura. Sono la serratura che
+    -- tiene davvero: su `dealers` una concessionaria puo' aggiornare la
+    -- propria riga -- la regola di accesso glielo consente -- ma non le
+    -- colonne del piano e dell'abbonamento, perche' il permesso di scrittura
+    -- non le nomina. Senza questa famiglia l'inventario direbbe "permesso di
+    -- UPDATE presente" e non si accorgerebbe se un giorno quell'elenco
+    -- diventasse la tabella intera: un `grant update on public.dealers to
+    -- authenticated` di troppo aprirebbe subscription_plan e
+    -- subscription_status, e il confronto resterebbe verde.
+    --
+    -- Si leggono da `pg_attribute.attacl`, che contiene **solo** i permessi
+    -- dati colonna per colonna: dove il permesso e' sull'intera tabella qui
+    -- non compare niente, e l'inventario non si riempie di una riga per ogni
+    -- colonna di ogni tabella.
+    'permessi_colonne', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select c.relname || '.' || a.attname
+          || ' | ' || pg_get_userbyid(acl.grantee)
+          || ' | ' || acl.privilege_type as riga
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        join pg_attribute a on a.attrelid = c.oid
+        cross join lateral aclexplode(a.attacl) as acl
+        where n.nspname = 'public'
+          and c.relkind = 'r'
+          and a.attnum > 0
+          and not a.attisdropped
+          and acl.privilege_type in ('INSERT', 'UPDATE')
+          and pg_get_userbyid(acl.grantee) in ('anon', 'authenticated')
+      ) t
+    ),
     -- Le regole dei magazzini dei file. Stanno nello schema `storage`, che
     -- non e' `public`: senza questa famiglia una fotografia aperta a tutti
     -- non comparirebbe da nessuna parte nel confronto.

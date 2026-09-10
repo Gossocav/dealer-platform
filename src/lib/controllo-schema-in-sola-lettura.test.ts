@@ -57,7 +57,7 @@ describe("il controllo dello schema non scrive niente", () => {
   });
 
   /**
-   * Confronta tutte e otto le famiglie. Toglierne una farebbe passare
+   * Confronta tutte le famiglie. Toglierne una farebbe passare
    * inosservata proprio la categoria di differenze che quella famiglia
    * copre -- ed e' cosi' che le regole di accesso sono rimaste diverse per
    * settimane senza che nessuno se ne accorgesse.
@@ -69,6 +69,11 @@ describe("il controllo dello schema non scrive niente", () => {
       // eseguibili con la chiave pubblica (05/09) e magazzini di fotografie
       // nati aperti in una ricostruzione.
       "permessi_funzioni", "politiche_storage",
+      // I permessi colonna per colonna sono l'unica cosa che oggi impedisce
+      // a una concessionaria di riscriversi il piano: la regola di accesso le
+      // lascia aggiornare la propria riga, e solo l'elenco delle colonne
+      // tiene fuori subscription_plan e subscription_status.
+      "permessi_colonne",
       "indici",
     ]) {
       expect(script, `manca la famiglia "${famiglia}"`).toContain(`"${famiglia}"`);

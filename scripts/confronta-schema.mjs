@@ -35,6 +35,7 @@ const FAMIGLIE = [
   ["colonne", "colonne"],
   ["politiche", "regole di accesso"],
   ["permessi", "permessi"],
+  ["permessi_colonne", "permessi colonna per colonna"],
   ["vincoli", "vincoli"],
   ["funzioni", "funzioni"],
   ["trigger", "trigger"],
