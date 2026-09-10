@@ -52,24 +52,44 @@ export function normalizzaSitoConcessionaria(value: unknown) {
  * Ora passa dalla stessa protezione delle importazioni e del proxy delle
  * fotografie, che guarda **dove porta** ogni indirizzo, a ogni rimbalzo.
  */
-export async function leggiPagina(url: string, tentativi = TENTATIVI_PER_SCHEDA): Promise<string | null> {
+export type EsitoLettura =
+  | { ok: true; html: string }
+  /**
+   * `frenato`: il sito ha risposto 429, "troppe richieste". Non e' la pagina
+   * che manca, e' il sito che ci sta chiedendo di rallentare: ritentare
+   * subito peggiora le cose, e chi legge una fila di schede deve fermarsi.
+   * `non-letta`: tutto il resto -- errore, tempo scaduto, indirizzo rifiutato.
+   */
+  | { ok: false; motivo: "frenato" | "non-letta" };
+
+export async function leggiPaginaConEsito(url: string, tentativi = TENTATIVI_PER_SCHEDA): Promise<EsitoLettura> {
   for (let i = 0; i < tentativi; i += 1) {
     try {
       const risposta = await fetchWithSsrfProtection(url, {
         headers: { "User-Agent": "KeyAuto/1.0 (+https://www.keyauto.it)" },
         signal: AbortSignal.timeout(TIMEOUT_SCHEDA_MS),
       });
-      if (risposta.ok) return await risposta.text();
+      if (risposta.ok) return { ok: true, html: await risposta.text() };
+      // Dal 07/09/2026 il sito di Autogepy risponde cosi' dalla seconda scheda
+      // in poi. Un secondo tentativo dopo meno di un secondo e' esattamente
+      // quello che il 429 chiede di non fare.
+      if (risposta.status === 429) return { ok: false, motivo: "frenato" };
     } catch (errore) {
       // Un indirizzo rifiutato non si ritenta: la seconda volta e' rifiutato
       // uguale, e l'attesa fra un tentativo e l'altro moltiplicata per le
       // centinaia di schede di un sito diventa un fermo lungo per niente.
-      if (errore instanceof IndirizzoNonAmmesso) return null;
+      if (errore instanceof IndirizzoNonAmmesso) return { ok: false, motivo: "non-letta" };
       // Tutto il resto si ritenta: vedi la nota sulla pausa qui sopra.
     }
     if (i + 1 < tentativi) await new Promise((r) => setTimeout(r, PAUSA_FRA_TENTATIVI_MS));
   }
-  return null;
+  return { ok: false, motivo: "non-letta" };
+}
+
+/** Come sopra, per chi vuole solo il testo e non il motivo. */
+export async function leggiPagina(url: string, tentativi = TENTATIVI_PER_SCHEDA): Promise<string | null> {
+  const esito = await leggiPaginaConEsito(url, tentativi);
+  return esito.ok ? esito.html : null;
 }
 
 /**
