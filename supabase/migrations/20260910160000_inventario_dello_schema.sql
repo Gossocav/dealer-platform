@@ -1,0 +1,199 @@
+-- ============================================================
+-- L'inventario dello schema, per confrontare produzione e file
+-- ============================================================
+--
+-- **Perche' esiste.** Il controllo settimanale precedente leggeva il
+-- *quaderno* delle migration (`supabase migration list`) e non il database:
+-- in questo progetto le migration si applicano a mano, quel quaderno e' fermo
+-- a luglio, e il controllo diceva "ne mancano 77" da sempre. Un allarme che
+-- suona sempre e' un allarme che si smette di leggere.
+--
+-- Adesso si confronta lo **schema vero** con quello che i file producono. Ma
+-- il catalogo di Postgres (`pg_policies`, `pg_tables`, ...) non e'
+-- raggiungibile dall'esterno: PostgREST espone solo lo schema `public`.
+-- Questa funzione fa da finestra, e restituisce l'inventario in una forma
+-- gia' ordinata e confrontabile riga per riga.
+--
+-- **La stessa funzione gira sui due lati.** Nasce da questa migration, quindi
+-- una ricostruzione da zero ce l'ha identica: il confronto non puo' sbagliare
+-- perche' le due interrogazioni sono diverse.
+--
+-- **Sola lettura.** Legge il catalogo e non tocca niente. E' `security
+-- definer` perche' deve vedere il catalogo per intero, e per questo e'
+-- riservata alla sola chiave di servizio: a un estraneo direbbe com'e' fatta
+-- ogni serratura della piattaforma.
+
+create or replace function public.inventario_schema()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'tabelle', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select c.relname
+          || ' | rls=' || c.relrowsecurity::text
+          || ' | forzata=' || c.relforcerowsecurity::text as riga
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind = 'r'
+      ) t
+    ),
+    'colonne', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select table_name || '.' || column_name
+          || ' | ' || data_type
+          || ' | null=' || is_nullable
+          || ' | default=' || coalesce(column_default, '-') as riga
+        from information_schema.columns
+        where table_schema = 'public'
+      ) t
+    ),
+    'politiche', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select tablename || ' | ' || policyname
+          || ' | ' || cmd
+          || ' | ' || coalesce(roles::text, '-')
+          || ' | using=' || coalesce(qual, '-')
+          || ' | check=' || coalesce(with_check, '-') as riga
+        from pg_policies
+        where schemaname = 'public'
+      ) t
+    ),
+    -- I permessi si leggono dal catalogo vero (`relacl`), non da
+    -- information_schema: quella vista elenca solo i sette permessi dello
+    -- standard e **non vede MAINTAIN**, che Postgres 17 concede con
+    -- `grant all` e che Supabase regala ad anon e authenticated. Misurato il
+    -- 10/09/2026: stessa tabella, information_schema ne mostra sette,
+    -- aclexplode otto.
+    'permessi', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select c.relname || ' | ' || pg_get_userbyid(acl.grantee) || ' | ' || acl.privilege_type as riga
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) as acl
+        where n.nspname = 'public' and c.relkind = 'r'
+          and pg_get_userbyid(acl.grantee) in ('anon', 'authenticated', 'service_role')
+      ) t
+    ),
+    'vincoli', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select c.relname || ' | ' || con.conname
+          || ' | ' || pg_get_constraintdef(con.oid) as riga
+        from pg_constraint con
+        join pg_class c on c.oid = con.conrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public'
+      ) t
+    ),
+    'funzioni', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+          -- Il corpo si riduce a un'impronta: interessa **che cambi**, non
+          -- vederlo per intero in un messaggio d'errore lungo trecento righe.
+          --
+          -- L'impronta si calcola sul testo **senza commenti e senza spazi**.
+          -- In questo progetto le funzioni arrivano in produzione incollate a
+          -- mano nell'editor SQL, e un rientro diverso o un commento in piu'
+          -- non sono una differenza: sono lo stesso codice. Con l'impronta
+          -- sul testo grezzo sedici funzioni identiche risultavano diverse.
+          || ' | ' || md5(
+               regexp_replace(
+                 regexp_replace(
+                   regexp_replace(pg_get_functiondef(p.oid), '--[^\n]*', '', 'g'),
+                   '/\*.*?\*/', '', 'g'),
+                 '\s+', ' ', 'g')
+             ) as riga
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+      ) t
+    ),
+    'trigger', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select c.relname || ' | ' || tg.tgname
+          || ' | ' || pg_get_triggerdef(tg.oid) as riga
+        from pg_trigger tg
+        join pg_class c on c.oid = tg.tgrelid
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and not tg.tgisinternal
+      ) t
+    ),
+    -- Chi puo' **eseguire** le funzioni. E' la famiglia che avrebbe trovato
+    -- da sola il difetto del 05/09: sette funzioni `security definer`
+    -- restavano eseguibili con la sola chiave pubblica del sito, perche'
+    -- `revoke ... from public` non toglie il permesso che Supabase concede
+    -- ad `anon`. Nessuno se n'era accorto per due mesi.
+    'permessi_funzioni', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+          || ' | ' || ruolo
+          || ' | esegue=' || has_function_privilege(ruolo, p.oid, 'execute')::text as riga
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join (values ('anon'), ('authenticated')) as r(ruolo)
+        where n.nspname = 'public'
+      ) t
+    ),
+    -- I permessi **colonna per colonna** in scrittura. Sono la serratura che
+    -- tiene davvero: su `dealers` una concessionaria puo' aggiornare la
+    -- propria riga -- la regola di accesso glielo consente -- ma non le
+    -- colonne del piano e dell'abbonamento, perche' il permesso di scrittura
+    -- non le nomina. Senza questa famiglia l'inventario direbbe "permesso di
+    -- UPDATE presente" e non si accorgerebbe se un giorno quell'elenco
+    -- diventasse la tabella intera: un `grant update on public.dealers to
+    -- authenticated` di troppo aprirebbe subscription_plan e
+    -- subscription_status, e il confronto resterebbe verde.
+    --
+    -- Si leggono da `pg_attribute.attacl`, che contiene **solo** i permessi
+    -- dati colonna per colonna: dove il permesso e' sull'intera tabella qui
+    -- non compare niente, e l'inventario non si riempie di una riga per ogni
+    -- colonna di ogni tabella.
+    'permessi_colonne', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select c.relname || '.' || a.attname
+          || ' | ' || pg_get_userbyid(acl.grantee)
+          || ' | ' || acl.privilege_type as riga
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        join pg_attribute a on a.attrelid = c.oid
+        cross join lateral aclexplode(a.attacl) as acl
+        where n.nspname = 'public'
+          and c.relkind = 'r'
+          and a.attnum > 0
+          and not a.attisdropped
+          and acl.privilege_type in ('INSERT', 'UPDATE')
+          and pg_get_userbyid(acl.grantee) in ('anon', 'authenticated')
+      ) t
+    ),
+    -- Le regole dei magazzini dei file. Stanno nello schema `storage`, che
+    -- non e' `public`: senza questa famiglia una fotografia aperta a tutti
+    -- non comparirebbe da nessuna parte nel confronto.
+    'politiche_storage', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select tablename || ' | ' || policyname
+          || ' | ' || cmd
+          || ' | ' || coalesce(roles::text, '-')
+          || ' | using=' || coalesce(qual, '-')
+          || ' | check=' || coalesce(with_check, '-') as riga
+        from pg_policies
+        where schemaname = 'storage'
+      ) t
+    ),
+    'indici', (
+      select coalesce(jsonb_agg(riga order by riga), '[]'::jsonb) from (
+        select tablename || ' | ' || indexname || ' | ' || indexdef as riga
+        from pg_indexes
+        where schemaname = 'public'
+      ) t
+    )
+  )
+$$;
+
+-- Riservata al server. A un estraneo direbbe com'e' fatta ogni serratura.
+revoke all on function public.inventario_schema() from public;
+revoke all on function public.inventario_schema() from anon;
+revoke all on function public.inventario_schema() from authenticated;
+grant execute on function public.inventario_schema() to service_role;
