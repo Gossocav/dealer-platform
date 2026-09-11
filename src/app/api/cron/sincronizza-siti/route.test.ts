@@ -55,7 +55,7 @@ function supabaseFinto(risultati: { sorgenti?: unknown[]; archivio?: unknown[]; 
   let chiamateSelect = 0;
 
   const catena: Record<string, unknown> = {};
-  for (const metodo of ["not", "eq", "is", "in", "or", "order", "limit", "range"]) {
+  for (const metodo of ["not", "eq", "is", "in", "or", "order", "limit", "range", "gte"]) {
     catena[metodo] = vi.fn(() => catena);
   }
 
@@ -77,6 +77,9 @@ function supabaseFinto(risultati: { sorgenti?: unknown[]; archivio?: unknown[]; 
   catena.maybeSingle = vi.fn(() => Promise.resolve({ data: { id: "nuovo-1" }, error: null }));
 
   catena.then = (risolvi: (valore: unknown) => unknown) => {
+    // Le interrogazioni con { count: "exact", head: true } vogliono un
+    // conteggio, non delle righe: si risolve con tutti e due, e chi chiama
+    // legge quello che gli serve.
     // 1a interrogazione: l'elenco delle sorgenti. 2a: l'archivio della
     // sorgente. Dalla 3a in poi: le schede da rileggere.
     const data =
@@ -85,7 +88,7 @@ function supabaseFinto(risultati: { sorgenti?: unknown[]; archivio?: unknown[]; 
         : chiamateSelect === 2
           ? (risultati.archivio ?? [])
           : (risultati.daRileggere ?? []);
-    return Promise.resolve(risolvi({ data, error: null }));
+    return Promise.resolve(risolvi({ data, error: null, count: Array.isArray(data) ? data.length : 0 }));
   };
 
   return { client: { from: vi.fn(() => catena) }, update, insert };

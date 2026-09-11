@@ -18,8 +18,8 @@
 
 export const FALLIMENTI_CONSECUTIVI_MAX = 3;
 
-/** Oltre queste ore senza una scheda riletta, il lavoro periodico diventa rosso. */
-export const ORE_MASSIME_SENZA_AGGIORNAMENTO = 24;
+/** La finestra su cui si guarda se un sito e' vivo: quanto ne e' stato ricontrollato. */
+export const ORE_DELLA_FINESTRA = 24;
 
 /** Quante schede fallite si ricordano per sito, fra una chiamata e l'altra. */
 const SALTATE_MASSIME_PER_SITO = 200;
@@ -184,33 +184,85 @@ export function serveAncora(esito: Pick<EsitoFila, "restanti" | "fatte" | "esami
   return esito.fatte > 0 || esito.esaminate === 0;
 }
 
-export type SitoInRitardo = {
+export type StatoDelSito = {
   sito: string;
   dealerId: string;
+  /** L'ultima scheda riletta, per il riepilogo. */
   ultimaSincronizzazione: string | null;
-  /** `null` quando non e' mai stato sincronizzato. */
+  /** Quante schede il sito dichiara ancora, e che quindi vanno tenute fresche. */
+  schede: number;
+  /** Di quelle, quante sono state rilette nelle ultime 24 ore. */
+  schedeFresche: number;
+};
+
+export type SitoInRitardo = StatoDelSito & {
+  /** Da quante ore risale la scheda piu' recente. `null` se non risulta. */
   oreDiRitardo: number | null;
 };
 
 /**
- * I siti fermi da troppo. E' quello che manca al riepilogo: un sito che non
- * viene aggiornato da tre giorni non e' un dettaglio dentro un JSON, e' un
- * lavoro che non sta facendo quello per cui esiste.
+ * Quanta parte dello stock va ricontrollata perche' il sito si consideri vivo.
+ * Un terzo e' largo: il lavoro rilegge ogni scheda ogni sei ore, quindi in
+ * ventiquattro ore un sito che risponde le passa tutte piu' volte.
  */
-export function sitiInRitardo(
-  esiti: ReadonlyArray<{ sito: string; dealerId: string; ultimaSincronizzazione: string | null }>,
-  adesso: Date,
-  oreMassime = ORE_MASSIME_SENZA_AGGIORNAMENTO,
-): SitoInRitardo[] {
+const QUOTA_MINIMA = 3;
+
+/**
+ * I siti fermi da troppo.
+ *
+ * **Non si guarda la scheda piu' recente.** Era la prima versione di questo
+ * controllo, ed era cieca proprio sul caso per cui era nata: il sito di
+ * Autogepy, dal 07/09/2026, lasciava passare la prima lettura e rispondeva
+ * "troppe richieste" a tutte le altre. Una sola scheda riletta rimetteva a
+ * zero l'orologio, e un sito che non aggiornava nulla da tre giorni risultava
+ * sincronizzato un minuto fa. Misurato il 10/09/2026.
+ *
+ * Si guarda invece **quanta parte dello stock e' stata ricontrollata nelle
+ * ultime ventiquattro ore**: otto schede su centocinquantatre' sono un sito
+ * fermo, comunque le si guardi. Cosi' una sola scheda che non si lascia
+ * leggere non fa gridare al lupo, e un sito che non si lascia leggere non
+ * riesce a nascondersi dietro una scheda fortunata.
+ */
+export function sitiInRitardo(stati: ReadonlyArray<StatoDelSito>, adesso: Date): SitoInRitardo[] {
   const inRitardo: SitoInRitardo[] = [];
-  for (const esito of esiti) {
-    const istante = esito.ultimaSincronizzazione ? Date.parse(esito.ultimaSincronizzazione) : Number.NaN;
-    if (Number.isNaN(istante)) {
-      inRitardo.push({ ...esito, oreDiRitardo: null });
-      continue;
-    }
-    const ore = (adesso.getTime() - istante) / 3_600_000;
-    if (ore > oreMassime) inRitardo.push({ ...esito, oreDiRitardo: Math.floor(ore) });
+  for (const stato of stati) {
+    if (stato.schede <= 0) continue;
+    if (stato.schedeFresche * QUOTA_MINIMA >= stato.schede) continue;
+
+    const istante = stato.ultimaSincronizzazione ? Date.parse(stato.ultimaSincronizzazione) : Number.NaN;
+    const ore = Number.isNaN(istante) ? null : Math.floor((adesso.getTime() - istante) / 3_600_000);
+    inRitardo.push({ ...stato, oreDiRitardo: ore });
   }
   return inRitardo;
+}
+
+/**
+ * Di quali siti si grida **oggi**.
+ *
+ * Il lavoro gira ogni tre ore: senza un freno, un sito bloccato manderebbe
+ * otto avvisi al giorno, e un avviso che suona sempre e' un avviso che si
+ * smette di leggere. Se ne manda uno solo, al giro di mezzanotte UTC -- cosi'
+ * arriva sempre alla stessa ora e lo si aspetta, invece di trovarselo addosso
+ * a caso.
+ *
+ * `< 3` e non `=== 0` perche' GitHub fa partire i lavori programmati in
+ * ritardo, anche di parecchi minuti: cosi' il giro di mezzanotte resta quello
+ * di mezzanotte anche se parte all'una, e non puo' confondersi con quello
+ * delle tre.
+ *
+ * **Un giro lanciato a mano segnala tutto.** Chi preme "Run workflow" lo fa
+ * per sapere come stanno le cose adesso: un verde che nasconde un sito fermo
+ * da tre giorni e' il difetto che questo progetto ha gia' pagato due volte.
+ *
+ * Quello che resta scoperto, e non si chiude senza tenere memoria da qualche
+ * parte: se il giro di mezzanotte salta, quel giorno l'avviso non parte e
+ * torna il giorno dopo.
+ */
+export function daSegnalareOggi(
+  inRitardo: ReadonlyArray<SitoInRitardo>,
+  adesso: Date,
+  opzioni?: { aMano?: boolean },
+): SitoInRitardo[] {
+  if (opzioni?.aMano) return [...inRitardo];
+  return adesso.getUTCHours() < 3 ? [...inRitardo] : [];
 }
