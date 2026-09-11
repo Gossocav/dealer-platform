@@ -75,6 +75,11 @@ jobs:
           # dalle stesse schede: e' cosi' che Autogepy e' rimasta ferma tre
           # giorni, dal 07/09/2026, con questo lavoro verde.
           MAX_CHIAMATE=20
+
+          # Chi preme "Run workflow" lo fa per sapere come stanno le cose
+          # adesso: in quel caso i siti fermi si segnalano tutti, senza
+          # aspettare il giro di mezzanotte.
+          A_MANO=$([ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && echo true || echo false)
           echo "## Sincronizzazione stock" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -89,7 +94,7 @@ jobs:
             codice=$(curl -s -o "$risposta" -w "%{http_code}" --max-time 180 \
               -X POST -H "content-type: application/json" \
               -H "x-cron-secret: $CRON_SECRET" \
-              --data "{\"cursore\": $cursore}" \
+              --data "{\"cursore\": $cursore, \"aMano\": $A_MANO}" \
               "$BASE_URL/api/cron/sincronizza-siti")
 
             if [ "$codice" = "403" ]; then
@@ -158,34 +163,41 @@ jobs:
           print("")
           print("### Stato dei siti")
           print("")
-          print("| Sito | Ultimo aggiornamento | Nascoste | Ripristinate | Importate | Rilette | Nota |")
-          print("|---|---|---|---|---|---|---|")
+          print("| Sito | Ultimo aggiornamento | Ricontrollate in 24h | Nascoste | Ripristinate | Importate | Rilette | Nota |")
+          print("|---|---|---|---|---|---|---|---|")
           for e in dati.get("esiti", []):
               quando = e.get("ultimaSincronizzazione")
               if quando:
                   quando = datetime.fromisoformat(quando.replace("Z", "+00:00")).astimezone(timezone.utc).strftime("%d/%m %H:%M UTC")
               else:
                   quando = "mai"
-              print(f"| {e.get('sito')} | {quando} | {e.get('nascoste', 0)} | {e.get('ripristinate', 0)} | {e.get('importate', 0)} | {e.get('rilette', 0)} | {e.get('nota') or ''} |")
+              fresche = f"{e.get('schedeFresche', 0)}/{e.get('schede', 0)}"
+              print(f"| {e.get('sito')} | {quando} | {fresche} | {e.get('nascoste', 0)} | {e.get('ripristinate', 0)} | {e.get('importate', 0)} | {e.get('rilette', 0)} | {e.get('nota') or ''} |")
           ritardo = dati.get("sitiInRitardo", [])
           if ritardo:
               print("")
               print("## :red_circle: Siti fermi da piu' di 24 ore")
               print("")
+              gridati = {s.get("sito") for s in dati.get("sitiDaSegnalare", [])}
               for s in ritardo:
                   ore = s.get("oreDiRitardo")
-                  da = f"da {ore} ore" if ore is not None else "mai sincronizzato"
+                  da = f"ultima scheda riletta {ore} ore fa" if ore is not None else "mai sincronizzato"
+                  quante = f"{s.get('schedeFresche', 0)} auto su {s.get('schede', 0)} ricontrollate nelle ultime 24 ore"
                   nota = next((e.get("nota") for e in dati.get("esiti", []) if e.get("sito") == s.get("sito") and e.get("nota")), None)
-                  print(f"- **{s.get('sito')}**: {da}." + (f" Ultimo esito: {nota}." if nota else ""))
+                  coda = "" if s.get("sito") in gridati else " Gia' segnalato: il rosso torna al prossimo giro di mezzanotte."
+                  print(f"- **{s.get('sito')}**: {quante} ({da})." + (f" Ultimo esito: {nota}." if nota else "") + coda)
               print("")
               print("Se la nota dice che il sito frena le nostre richieste (429), il sito della concessionaria")
               print("limita le letture automatiche: va chiesto al fornitore del sito (MotorK/DealerK) di")
               print("consentire le letture di KeyAuto, identificate dallo User-Agent `KeyAuto/1.0`.")
           PY
 
-          in_ritardo=$(python3 -c "import json; print(len(json.load(open('$risposta')).get('sitiInRitardo', [])))")
-          if [ "$in_ritardo" != "0" ]; then
-            elenco=$(python3 -c "import json; print(', '.join(s['sito'] for s in json.load(open('$risposta')).get('sitiInRitardo', [])))")
+          # Il rosso guarda "sitiDaSegnalare", non "sitiInRitardo": chi e' fermo
+          # sta sempre nel riepilogo, ma si grida al massimo una volta al
+          # giorno per sito. La regola sta nell'endpoint, con i suoi test.
+          da_segnalare=$(python3 -c "import json; print(len(json.load(open('$risposta')).get('sitiDaSegnalare', [])))")
+          if [ "$da_segnalare" != "0" ]; then
+            elenco=$(python3 -c "import json; print(', '.join(s['sito'] for s in json.load(open('$risposta')).get('sitiDaSegnalare', [])))")
             echo "::error::Sincronizzazione ferma da piu' di 24 ore per: $elenco. Vedi il riepilogo."
             exit 1
           fi

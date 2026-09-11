@@ -19,10 +19,13 @@ import {
   ordinaARotazione,
   percorriFila,
   serveAncora,
+  daSegnalareOggi,
+  ORE_DELLA_FINESTRA,
   sitiInRitardo,
   type Cursore,
   type EsitoFila,
   type SitoInRitardo,
+  type StatoDelSito,
 } from "@/lib/sincronizzazione-turni";
 
 /**
@@ -98,6 +101,9 @@ type EsitoSorgente = {
   rilette: number;
   /** Quando una scheda di questo sito e' stata riletta l'ultima volta. */
   ultimaSincronizzazione: string | null;
+  /** Quante schede il sito dichiara ancora, e quante rilette nelle ultime 24 ore. */
+  schede: number;
+  schedeFresche: number;
   nota?: string;
   /** Le scritture non riuscite, con il motivo del database. */
   errori?: string[];
@@ -120,13 +126,13 @@ function isAuthorized(request: Request): boolean {
 }
 
 /** Il cursore che il chiamante ci ripassa, se ce l'ha. In GET non c'e'. */
-async function cursoreDallaRichiesta(request: Request): Promise<Cursore> {
-  if (request.method !== "POST") return leggiCursore(null);
+async function corpoDellaRichiesta(request: Request): Promise<{ cursore: Cursore; aMano: boolean }> {
+  if (request.method !== "POST") return { cursore: leggiCursore(null), aMano: true };
   try {
-    const corpo = (await request.json()) as { cursore?: unknown } | null;
-    return leggiCursore(corpo?.cursore);
+    const corpo = (await request.json()) as { cursore?: unknown; aMano?: unknown } | null;
+    return { cursore: leggiCursore(corpo?.cursore), aMano: corpo?.aMano === true };
   } catch {
-    return leggiCursore(null);
+    return { cursore: leggiCursore(null), aMano: false };
   }
 }
 
@@ -163,18 +169,44 @@ async function archivioDellaSorgente(supabase: ApiSupabaseClient, sorgente: Sorg
   );
 }
 
-/** L'ultima scheda riletta di questo sito, per dire da quanto e' fermo. */
-async function ultimaSincronizzazione(supabase: ApiSupabaseClient, sorgente: Sorgente): Promise<string | null> {
-  const { data } = await supabase
-    .from("vehicles")
-    .select("import_synced_at")
-    .eq("dealer_id", sorgente.dealer_id)
-    .eq("import_source", sorgente.import_source)
-    .not("import_synced_at", "is", null)
-    .order("import_synced_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ import_synced_at: string | null }>();
-  return data?.import_synced_at ?? null;
+/**
+ * Come sta un sito: quante schede tiene, quante ne ha rilette di recente, e
+ * qual e' la piu' recente.
+ *
+ * Il conto delle fresche e' quello che dice se il sito e' vivo. Guardare solo
+ * la piu' recente non basta: una sola scheda letta per fortuna rimetterebbe a
+ * zero l'orologio -- vedi `sitiInRitardo` in `sincronizzazione-turni.ts`.
+ */
+async function statoDelSito(supabase: ApiSupabaseClient, sorgente: Sorgente): Promise<Pick<StatoDelSito, "ultimaSincronizzazione" | "schede" | "schedeFresche">> {
+  const daQuando = new Date(Date.now() - ORE_DELLA_FINESTRA * 3600 * 1000).toISOString();
+
+  const dellaSorgente = () =>
+    supabase
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", sorgente.dealer_id)
+      .eq("import_source", sorgente.import_source)
+      .is("import_missing_since", null);
+
+  const [{ count: schede }, { count: fresche }, { data: ultima }] = await Promise.all([
+    dellaSorgente(),
+    dellaSorgente().gte("import_synced_at", daQuando),
+    supabase
+      .from("vehicles")
+      .select("import_synced_at")
+      .eq("dealer_id", sorgente.dealer_id)
+      .eq("import_source", sorgente.import_source)
+      .not("import_synced_at", "is", null)
+      .order("import_synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ import_synced_at: string | null }>(),
+  ]);
+
+  return {
+    ultimaSincronizzazione: ultima?.import_synced_at ?? null,
+    schede: schede ?? 0,
+    schedeFresche: fresche ?? 0,
+  };
 }
 
 async function allinea(
@@ -403,7 +435,10 @@ async function handle(request: Request) {
   const inizio = Date.now();
   const scaduto = () => Date.now() - inizio > BUDGET_MS;
 
-  let cursore = await cursoreDallaRichiesta(request);
+  // Una chiamata in GET e' sempre lanciata da una persona: la manda il
+  // titolare a mano, il lavoro periodico usa POST.
+  const { cursore: cursoreIniziale, aMano } = await corpoDellaRichiesta(request);
+  let cursore = cursoreIniziale;
   const sorgenti = ordinaARotazione(await sorgentiAttive(supabase), chiaveSorgente, cursore.dopo);
   const esiti = new Map<string, EsitoSorgente>();
   const lavoro: Array<{ sorgente: Sorgente; voci: DealerSiteEntry[]; righe: RigaImportata[] }> = [];
@@ -420,6 +455,8 @@ async function handle(request: Request) {
       importate: 0,
       rilette: 0,
       ultimaSincronizzazione: null,
+      schede: 0,
+      schedeFresche: 0,
     };
     esiti.set(chiave, esito);
 
@@ -496,7 +533,7 @@ async function handle(request: Request) {
         // Il sito ci ha chiesto di rallentare, o e' giu': il resto del suo
         // turno va agli altri. Rileggerlo adesso sarebbe insistere.
         if (fila.fermataPer === "freno" || fila.fermataPer === "letture-fallite") {
-          esito.ultimaSincronizzazione = await ultimaSincronizzazione(supabase, sorgente);
+          Object.assign(esito, await statoDelSito(supabase, sorgente));
           continue;
         }
       }
@@ -519,7 +556,7 @@ async function handle(request: Request) {
       ancoraDaFare = true;
     }
 
-    esito.ultimaSincronizzazione = await ultimaSincronizzazione(supabase, sorgente);
+    Object.assign(esito, await statoDelSito(supabase, sorgente));
   }
 
   // Anche per chi e' rimasto fuori dal secondo passo: un sito non raggiungibile
@@ -527,11 +564,15 @@ async function handle(request: Request) {
   for (const [chiave, esito] of esiti) {
     if (esito.ultimaSincronizzazione === null) {
       const sorgente = sorgenti.find((s) => chiaveSorgente(s) === chiave)!;
-      esito.ultimaSincronizzazione = await ultimaSincronizzazione(supabase, sorgente);
+      Object.assign(esito, await statoDelSito(supabase, sorgente));
     }
   }
 
-  const inRitardo: SitoInRitardo[] = sitiInRitardo([...esiti.values()], new Date());
+  const adesso = new Date();
+  const inRitardo: SitoInRitardo[] = sitiInRitardo([...esiti.values()], adesso);
+  // Chi e' fermo si dice sempre nel riepilogo; di chi si diventa rossi, al
+  // massimo una volta al giorno. Un giro lanciato a mano li dice tutti.
+  const daSegnalare = daSegnalareOggi(inRitardo, adesso, { aMano });
 
   return NextResponse.json({
     sorgenti: sorgenti.length,
@@ -543,6 +584,8 @@ async function handle(request: Request) {
     // I siti fermi da piu' di 24 ore. Il lavoro periodico li legge e diventa
     // rosso: e' l'unica cosa che manca a un riepilogo per essere letto.
     sitiInRitardo: inRitardo,
+    // Di questi si diventa rossi adesso: al massimo uno al giorno per sito.
+    sitiDaSegnalare: daSegnalare,
     durataMs: Date.now() - inizio,
     esiti: [...esiti.values()],
   });
