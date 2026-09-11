@@ -17,6 +17,8 @@ import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-
 import { pianoIncludeSchedaConsegna } from "@/lib/scheda-consegna";
 import { supabase } from "@/lib/supabaseClient";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
+import { messaggioPostiFiniti } from "@/lib/tetto-del-piano";
+import { postiLiberi } from "@/lib/tetto-del-piano-db";
 import { evaluateVehicleHealth } from "@/lib/vehicle-health";
 import { pickCoverPreviewUrl, resolveVehicleImageRows, type ResolvedVehicleImage } from "@/lib/vehicle-photos";
 import { buildVehicleTimelineEvents, listVehicleTimelineAuditEvents, writeVehicleTimelineEvent, type VehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -101,7 +103,7 @@ function getHealthLevelPill(level: "eccellente" | "buono" | "incompleto" | "crit
 
 export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const router = useRouter();
-  const { planCode, caricamento: caricamentoPiano } = usePianoInVigore();
+  const { planCode, limiteAnnunci, caricamento: caricamentoPiano } = usePianoInVigore();
   const [dealerName, setDealerName] = useState("");
   const [vehicle, setVehicle] = useState<VehicleWithEquipment | null>(null);
   const [images, setImages] = useState<ViewImage[]>([]);
@@ -242,6 +244,18 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
       setError(`Pubblicazione bloccata: ${firstIssue}`);
       setUpdating(false);
       return;
+    }
+
+    // Il tetto del piano non si supera mai: si chiede al database quanti posti
+    // restano -- con la stessa definizione del trigger -- e si dice di no
+    // prima del clic. La regola sta in `src/lib/tetto-del-piano.ts`.
+    if (nextPublished) {
+      const posti = await postiLiberi(supabase, currentDealerId, limiteAnnunci);
+      if (posti !== null && posti <= 0) {
+        setError(messaggioPostiFiniti(limiteAnnunci));
+        setUpdating(false);
+        return;
+      }
     }
 
     const transition = validateVehicleStatusTransitionForCrud({

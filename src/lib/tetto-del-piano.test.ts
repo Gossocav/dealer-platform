@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   candidataAllaVetrina,
   messaggioDelTetto,
+  messaggioPostiFiniti,
   pianoDelTetto,
   STATO_OLTRE_IL_TETTO,
   type RigaPerIlTetto,
@@ -146,5 +147,48 @@ describe("il messaggio per il concessionario", () => {
     );
     expect(messaggioDelTetto(50, 0)).toBeNull();
     expect(messaggioDelTetto(null, 10)).toBeNull();
+  });
+});
+
+/**
+ * Il tetto non si supera mai, da nessuna delle dodici porte.
+ *
+ * Fino al 10/09/2026 il limite lo imponeva **solo** il trigger del database,
+ * rifiutando la prima auto di troppo con una frase che parla di "annunci" e
+ * non dice cosa fare. Nel gestionale il concessionario ci sbatteva contro a
+ * meta' di un'operazione di gruppo; sui percorsi del server, peggio: due di
+ * essi scrivono con la chiave di servizio, e li' il trigger non e' nemmeno
+ * l'ultima serratura, perche' non scatta.
+ */
+describe("il posto in vetrina si conta prima, non dopo", () => {
+  it("quando i posti sono finiti il messaggio dice le due strade", () => {
+    expect(messaggioPostiFiniti(50)).toBe("Il tuo piano include 50 auto: togline una o passa a un piano superiore.");
+  });
+
+  it("senza un limite leggibile il messaggio non inventa un numero", () => {
+    expect(messaggioPostiFiniti(null)).toBe("Il tuo piano non ha piu' posto per altre auto pubblicate.");
+    expect(messaggioPostiFiniti(null)).not.toMatch(/\d/);
+  });
+
+  /**
+   * Il conto dei posti che i percorsi di importazione tengono a mano mentre
+   * scrivono, riprodotto qui: e' la parte che sbagliava in `import-site`, dove
+   * veniva scalato solo sugli inserimenti e non sugli aggiornamenti -- e chi
+   * reimportava il proprio sito, con le auto gia' in archivio, superava il
+   * tetto.
+   */
+  it("un'auto portata in vetrina occupa un posto, che sia nuova o gia' in archivio", () => {
+    let posti = 2;
+    const entra = () => {
+      const inVetrina = posti > 0;
+      if (inVetrina) posti -= 1;
+      return inVetrina ? "published" : STATO_OLTRE_IL_TETTO;
+    };
+
+    expect(entra()).toBe("published");
+    // La seconda e' un aggiornamento di una gia' presente: occupa lo stesso.
+    expect(entra()).toBe("published");
+    expect(entra()).toBe(STATO_OLTRE_IL_TETTO);
+    expect(posti).toBe(0);
   });
 });

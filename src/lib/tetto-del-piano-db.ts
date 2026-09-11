@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { caricaTutto } from "@/lib/carica-tutto";
-import { campiInVetrina, campiOltreIlTetto, pianoDelTetto, type RigaPerIlTetto } from "@/lib/tetto-del-piano";
+import { campiInVetrina, campiOltreIlTetto, pianoDelTetto, STATO_OLTRE_IL_TETTO, type RigaPerIlTetto } from "@/lib/tetto-del-piano";
 
 /**
  * La regola del tetto applicata all'archivio di una concessionaria.
@@ -68,14 +68,41 @@ export async function applicaTettoDelPiano(supabase: SupabaseClient, dealerId: s
   return { limite, oltreIlTetto: piano.escluse.length, salite: piano.daPubblicare.length, messeDaParte: piano.daTogliere.length, errori };
 }
 
-/** Quante auto possono ancora entrare pubblicate adesso. `null` senza un limite leggibile. */
-export async function postiLiberi(supabase: SupabaseClient, dealerId: string, limite: number | null): Promise<number | null> {
-  if (limite === null) return null;
+/**
+ * Quante auto risultano pubblicate, **con la stessa definizione del trigger**
+ * che impone il tetto: `published` vero **e** `status` "published".
+ *
+ * Non e' pignoleria. In giro per il gestionale ci sono altri due conteggi che
+ * chiamano "pubblicata" cose diverse -- il riquadro di Gestione Veicoli usa un
+ * "oppure", il pannello il solo `published` -- e chi calcolasse i posti liberi
+ * da quelli sbaglierebbe in tutti e due i versi: rifiutando una pubblicazione
+ * che il database accetterebbe, o lasciandone passare una che rifiutera'.
+ * Questa e' l'unica da riusare.
+ */
+export async function contaPubblicate(supabase: SupabaseClient, dealerId: string): Promise<number> {
   const { count } = await supabase
     .from("vehicles")
     .select("id", { count: "exact", head: true })
     .eq("dealer_id", dealerId)
     .eq("published", true)
     .eq("status", "published");
-  return Math.max(0, limite - (count ?? 0));
+  return count ?? 0;
+}
+
+/** Quante auto del sito aspettano un posto in vetrina. */
+export async function contaInAttesa(supabase: SupabaseClient, dealerId: string): Promise<number> {
+  const { count } = await supabase
+    .from("vehicles")
+    .select("id", { count: "exact", head: true })
+    .eq("dealer_id", dealerId)
+    .eq("status", STATO_OLTRE_IL_TETTO)
+    .not("import_source", "is", null)
+    .is("import_missing_since", null);
+  return count ?? 0;
+}
+
+/** Quante auto possono ancora entrare pubblicate adesso. `null` senza un limite leggibile. */
+export async function postiLiberi(supabase: SupabaseClient, dealerId: string, limite: number | null): Promise<number | null> {
+  if (limite === null) return null;
+  return Math.max(0, limite - (await contaPubblicate(supabase, dealerId)));
 }

@@ -128,8 +128,21 @@ export function campiInVetrina(adesso: Date) {
 }
 
 /**
- * Il messaggio per il concessionario. Solo quando c'e' qualcosa fuori: un
- * avviso che compare sempre e' un avviso che si smette di leggere.
+ * Quello che si legge quando si prova a pubblicare e il posto non c'e'.
+ *
+ * Il tetto non si supera mai: il database lo rifiuterebbe comunque, ma con la
+ * frase che scrive lui -- che parla di "annunci" e non dice cosa fare. Questa
+ * arriva prima del clic e dice le due strade.
+ */
+export function messaggioPostiFiniti(limite: number | null): string {
+  if (limite === null) return "Il tuo piano non ha piu' posto per altre auto pubblicate.";
+  return `Il tuo piano include ${limite} auto: togline una o passa a un piano superiore.`;
+}
+
+/**
+ * Il riquadro che dice quante auto del sito restano fuori. Solo quando ce n'e'
+ * qualcuna: un avviso che compare sempre e' un avviso che si smette di
+ * leggere.
  */
 export function messaggioDelTetto(limite: number | null, escluse: number): string | null {
   if (limite === null || escluse <= 0) return null;

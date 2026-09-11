@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
+import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
 
@@ -1007,6 +1009,10 @@ export async function POST(request: Request) {
       }
     }
 
+    // Il limite del piano, letto dal database che e' lo stesso che lo impone.
+    const limite = await limiteDelPiano(supabaseAdmin, dealerId);
+    let posti = await postiLiberi(supabaseAdmin, dealerId, limite);
+
     for (const vehicle of analysis.preview) {
       const vehicleLabel = `${vehicle.brand} ${vehicle.model}`;
 
@@ -1025,10 +1031,14 @@ export async function POST(request: Request) {
           color: null,
           vin: null,
           description: null,
-          status: "published" as const,
-          published: true,
+          // Il tetto del piano: finche' c'e' posto l'auto entra in vetrina,
+          // oltre entra in attesa. Qui conta il doppio, perche' si scrive con
+          // la chiave di servizio e il trigger del database non ferma niente.
+          status: (posti === null || posti > 0 ? "published" : STATO_OLTRE_IL_TETTO) as string,
+          published: posti === null || posti > 0,
           dealer_id: dealerId,
         };
+        if (vehicleData.published && posti !== null && posti > 0) posti -= 1;
 
         let existingVehicle: { id: string } | null = null;
 

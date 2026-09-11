@@ -320,6 +320,10 @@ export async function POST(request: Request) {
 
       if (vehicleId) {
         const { error } = await supabase.from("vehicles").update(payload).eq("id", vehicleId).eq("dealer_id", dealerId);
+        // Anche un aggiornamento occupa un posto, se porta in vetrina un'auto
+        // che in vetrina non era: scalare il conto solo sugli inserimenti
+        // lasciava superare il tetto da chi reimportava il proprio sito.
+        if (!error && payload.status === "published" && posti !== null && posti > 0) posti -= 1;
         if (error) {
           esiti.push({ sourceId: veicolo.sourceId, url: voce.url, esito: "saltato", motivo: error.message });
           continue;

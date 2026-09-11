@@ -163,10 +163,26 @@ dal piano in vigore (`resolve_dealer_listing_cap`): **mai un numero nel
 codice**. Le auto oltre il tetto restano nell'archivio *in revisione*, con
 l'origine e senza data di sparizione, e salgono da sole quando si libera un
 posto; se il piano scende, escono nello stesso ordine, le usate per ultime. Il
-concessionario legge nel gestionale quante ne restano fuori e cosa fare. La
-regola sta in `src/lib/tetto-del-piano.ts`, ed e' **una sola** per la
-sincronizzazione, l'importazione dal sito e la pubblicazione a mano: il
-trigger del database resta come ultima serratura, non come regola.
+concessionario legge nel gestionale quante ne restano fuori e cosa fare, e se
+prova a pubblicare quando il posto non c'e' il clic viene **rifiutato subito**,
+non a meta' di un'operazione di gruppo con la frase del database.
+
+La regola sta in `src/lib/tetto-del-piano.ts` ed e' **una sola**. Le porte da
+cui un'auto entra in vetrina pero' sono **dodici**, non tre, e chi ne aggiunge
+una tredicesima deve passare di li': i tre bottoni di Gestione Veicoli
+(singola, selezione, "pubblica tutte"), la scheda in modifica, il dettaglio
+veicolo, l'importazione da file, quella da feed e quella dal sito con le loro
+rotte, la sincronizzazione notturna, e `applicaTettoDelPiano` stessa. **Due di
+queste scrivono con la chiave di servizio** (`/api/vehicles/feed` e la
+sincronizzazione): li' il trigger del database non e' nemmeno l'ultima
+serratura, perche' non scatta.
+
+Due trappole nel contarli, tutte e due gia' pagate: i posti liberi si contano
+**dal database** con la stessa definizione del trigger (`published` vero **e**
+`status` "published") -- in giro ce ne sono altre due che contano cose diverse,
+e l'elenco a video e' una pagina di nove righe gia' filtrata; e un'auto
+portata in vetrina occupa un posto **anche quando e' un aggiornamento** di una
+gia' in archivio, non solo quando e' nuova.
 
 **Un contatto senza `dealer_id` non lo vede nessuno.** Oggi i contatti nascono
 in un posto solo -- `/api/marketplace/lead`, che imposta sempre la

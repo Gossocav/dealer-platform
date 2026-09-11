@@ -7,6 +7,8 @@ import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Link2, Loader2, Refre
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
 import { buildActiveDealerHeaders, getActiveDealerId } from "@/lib/active-tenant";
 import { type OrigineSincronizzata } from "@/lib/sincronizzazioni-veicoli";
+import { messaggioPostiFiniti, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
@@ -526,6 +528,14 @@ export function VehiclesImportPage() {
     let skipped = 0;
     const errors: string[] = [];
 
+    // Il tetto del piano vale anche per un listino caricato a mano: finche'
+    // c'e' posto le auto entrano com'e' stato chiesto, oltre entrano in attesa
+    // di un posto. Prima il database rifiutava riga per riga e il ciclo
+    // proseguiva fino in fondo accumulando la stessa frase.
+    const limite = initialStatus === "published" ? await limiteDelPiano(supabase, dealerId) : null;
+    let posti = initialStatus === "published" ? await postiLiberi(supabase, dealerId, limite) : null;
+    let inAttesaPerIlTetto = 0;
+
     for (const row of rows) {
       const mappedRow = mapVehicleImportRow(row, mapping);
       const validationErrors = validateVehicleImportRow(mappedRow);
@@ -536,11 +546,15 @@ export function VehiclesImportPage() {
         continue;
       }
 
-      const payload = buildVehicleInsertPayload(mappedRow, initialStatus, defaults);
+      const inVetrina = initialStatus === "published" && (posti === null || posti > 0);
+      const payload = buildVehicleInsertPayload(mappedRow, inVetrina ? initialStatus : "draft", defaults);
 
       const insertError = await insertVehicleWithFallback({
         ...payload,
         dealer_id: dealerId,
+        ...(initialStatus === "published" && !inVetrina
+          ? { status: STATO_OLTRE_IL_TETTO, published: false }
+          : {}),
       });
 
       if (insertError) {
@@ -550,6 +564,14 @@ export function VehiclesImportPage() {
       }
 
       imported += 1;
+      if (inVetrina && posti !== null && posti > 0) posti -= 1;
+      else if (initialStatus === "published" && !inVetrina) inAttesaPerIlTetto += 1;
+    }
+
+    if (inAttesaPerIlTetto > 0) {
+      errors.push(
+        `${messaggioPostiFiniti(limite)} ${inAttesaPerIlTetto} auto sono entrate in attesa di un posto, non in vetrina.`,
+      );
     }
 
     setReport({ imported, skipped, errors });
