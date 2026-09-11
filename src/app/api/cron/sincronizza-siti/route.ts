@@ -18,7 +18,10 @@ import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-
 import {
   aggiungiSaltate,
   chiaveSorgente,
+  importazioneDaSaltare,
   leggiCursore,
+  PAUSA_DOPO_IL_FRENO_MS,
+  rimandaImportazione,
   ordinaARotazione,
   percorriFila,
   serveAncora,
@@ -118,7 +121,7 @@ type EsitoSorgente = {
   errori?: string[];
 };
 
-const pausa = () => new Promise<void>((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
+const attendi = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
  * Autorizza chi chiama con CRON_SECRET. Due modi, come per il cron delle demo:
@@ -282,6 +285,7 @@ async function importaNuove(
   nuove: DealerSiteEntry[],
   postiLiberi: number | null,
   scaduto: () => boolean,
+  pausaMs: number,
 ): Promise<{ fila: EsitoFila; errori: string[] }> {
   const errori: string[] = [];
   // Quante possono entrare pubblicate adesso. Le altre entrano lo stesso, in
@@ -292,7 +296,7 @@ async function importaNuove(
   const fila = await percorriFila({
     voci: nuove,
     scaduto,
-    pausa,
+    pausa: () => attendi(pausaMs),
     leggi: (voce) => leggiPaginaConEsito(voce.url),
     elabora: async (voce, html) => {
       const letto = parseDealerStockVehicle(html, voce);
@@ -354,6 +358,7 @@ async function rileggi(
   vociPerSourceId: Map<string, DealerSiteEntry>,
   saltate: readonly string[],
   scaduto: () => boolean,
+  pausaMs: number,
 ): Promise<{ fila: EsitoFila; errori: string[]; codaPiena: boolean }> {
   const soglia = new Date(Date.now() - ORE_PRIMA_DI_RILEGGERE * 3600 * 1000).toISOString();
 
@@ -387,7 +392,7 @@ async function rileggi(
   const fila = await percorriFila({
     voci,
     scaduto,
-    pausa,
+    pausa: () => attendi(pausaMs),
     leggi: (voce) => leggiPaginaConEsito(voce.url),
     elabora: async (voce, html) => {
       const letto = parseDealerStockVehicle(html, voce);
@@ -541,7 +546,12 @@ async function handle(request: Request) {
     const daSaltare = new Set(saltate);
     const nuove = voci.filter((voce) => !gia.has(String(voce.sourceId)) && !daSaltare.has(String(voce.sourceId)));
 
-    if (nuove.length > 0) {
+    // Un sito che alla chiamata scorsa ha risposto "troppe richieste" si legge
+    // piu' piano, e salta il passo che si era gia' preso il no.
+    const rimandata = importazioneDaSaltare(cursore, chiave);
+    const pausaMs = rimandata ? PAUSA_DOPO_IL_FRENO_MS : PAUSA_FRA_SCHEDE_MS;
+
+    if (nuove.length > 0 && !rimandata) {
       // Il freno della demo vale anche qui: un account di prova non deve
       // riempirsi di veicoli da solo. Le sparizioni invece si fanno comunque,
       // perche' tolgono, non aggiungono.
@@ -557,7 +567,7 @@ async function handle(request: Request) {
         // ha gia' sistemato l'archivio nel primo passo.
         const posti = await postiLiberi(supabase, sorgente.dealer_id, esito.limite);
 
-        const { fila, errori } = await importaNuove(supabase, sorgente, nuove, posti, scadutaPorzione);
+        const { fila, errori } = await importaNuove(supabase, sorgente, nuove, posti, scadutaPorzione, pausaMs);
         esito.importate = fila.fatte;
         if (errori.length > 0) esito.errori = [...(esito.errori ?? []), ...errori];
         cursore = aggiungiSaltate(cursore, chiave, fila.fallite);
@@ -571,9 +581,18 @@ async function handle(request: Request) {
         if (nota) esito.nota = nota;
 
         if (serveAncora(fila)) ancoraDaFare = true;
-        // Il sito ci ha chiesto di rallentare, o e' giu': il resto del suo
-        // turno va agli altri. Rileggerlo adesso sarebbe insistere.
+
+        // Il sito ci ha chiesto di rallentare, o e' giu': insistere adesso
+        // sarebbe esattamente quello che ci ha chiesto di non fare, quindi il
+        // resto del suo turno va agli altri. Ma il turno perso vale **solo per
+        // questo passo**: alla chiamata dopo si riparte dal ripasso delle
+        // schede che abbiamo gia', che e' la parte con qualcosa da guadagnare.
+        // Senza, diciassette pagine illeggibili tenevano in ostaggio
+        // centotrentotto schede da aggiornare -- e per quattro giorni non se ne
+        // e' mossa nessuna.
         if (fila.fermataPer === "freno" || fila.fermataPer === "letture-fallite") {
+          cursore = rimandaImportazione(cursore, chiave);
+          ancoraDaFare = true;
           Object.assign(esito, await statoDelSito(supabase, sorgente));
           continue;
         }
@@ -582,7 +601,7 @@ async function handle(request: Request) {
 
     if (!scadutaPorzione()) {
       const vociPerSourceId = new Map(voci.map((voce) => [String(voce.sourceId), voce]));
-      const { fila, errori, codaPiena } = await rileggi(supabase, sorgente, vociPerSourceId, saltate, scadutaPorzione);
+      const { fila, errori, codaPiena } = await rileggi(supabase, sorgente, vociPerSourceId, saltate, scadutaPorzione, pausaMs);
       esito.rilette = fila.fatte;
       if (errori.length > 0) esito.errori = [...(esito.errori ?? []), ...errori];
       cursore = aggiungiSaltate(cursore, chiave, fila.fallite);

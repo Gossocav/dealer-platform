@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   aggiungiSaltate,
   chiaveSorgente,
+  importazioneDaSaltare,
   leggiCursore,
+  PAUSA_DOPO_IL_FRENO_MS,
+  rimandaImportazione,
   ordinaARotazione,
   percorriFila,
   serveAncora,
@@ -221,15 +224,16 @@ describe("i turni ruotano", () => {
 
 describe("il cursore fra una chiamata e l'altra", () => {
   it("ricorda cosa e' fallito, senza fidarsi della forma in cui arriva", () => {
-    expect(leggiCursore(null)).toEqual({ dopo: null, saltate: {} });
-    expect(leggiCursore("spazzatura")).toEqual({ dopo: null, saltate: {} });
+    const vuoto = { dopo: null, saltate: {}, importazioneRimandata: [] };
+    expect(leggiCursore(null)).toEqual(vuoto);
+    expect(leggiCursore("spazzatura")).toEqual(vuoto);
     expect(leggiCursore({ dopo: 42, saltate: { "ag|autogepy.it": ["a", 7, "", "b"] } })).toEqual({
-      dopo: null,
+      ...vuoto,
       saltate: { "ag|autogepy.it": ["a", "b"] },
     });
     expect(leggiCursore({ dopo: " dl|delorenziauto.it ", saltate: "no" })).toEqual({
+      ...vuoto,
       dopo: "dl|delorenziauto.it",
-      saltate: {},
     });
   });
 
@@ -341,5 +345,79 @@ describe("un avviso al giorno, non otto", () => {
 
   it("se non c'e' nessuno in ritardo non si grida, nemmeno a mezzanotte", () => {
     expect(daSegnalareOggi([], new Date("2026-09-10T00:00:00Z"))).toEqual([]);
+  });
+});
+
+/**
+ * Il blocco di Autogepy, quello vero, misurato l'11/09/2026.
+ *
+ * Sul suo sito c'erano 17 auto mai entrate in KeyAuto, perche' le loro pagine
+ * non si lasciavano leggere. Ogni chiamata provava prima quelle, si prendeva
+ * un "troppe richieste" alla prima, e passava la mano all'intero sito: le 138
+ * schede che c'erano gia' e andavano solo ripassate non venivano mai
+ * raggiunte. E siccome le 17 non entravano, restavano 17 per sempre.
+ *
+ * Risultato: per quattro giorni **zero** schede aggiornate su quel sito,
+ * mentre l'indice si leggeva benissimo e le singole pagine, a ritmo lento,
+ * pure.
+ */
+describe("un passo che trova il freno non blocca l'altro", () => {
+  const CHIAVE = "ag|autogepy.it";
+
+  it("alla chiamata dopo il ripasso ha il suo turno, e l'importazione no", () => {
+    let cursore = leggiCursore(null);
+
+    // Prima chiamata: l'importazione delle 17 nuove trova il freno.
+    expect(importazioneDaSaltare(cursore, CHIAVE)).toBe(false);
+    cursore = rimandaImportazione(cursore, CHIAVE);
+
+    // Seconda chiamata: si salta l'importazione e si ripassano le 138.
+    expect(importazioneDaSaltare(cursore, CHIAVE)).toBe(true);
+    // Gli altri siti non sono toccati.
+    expect(importazioneDaSaltare(cursore, "dl|delorenziauto.it")).toBe(false);
+  });
+
+  it("segnarlo due volte non lo duplica", () => {
+    let cursore = rimandaImportazione(leggiCursore(null), CHIAVE);
+    cursore = rimandaImportazione(cursore, CHIAVE);
+    expect(cursore.importazioneRimandata).toEqual([CHIAVE]);
+  });
+
+  it("il cursore attraversa le chiamate senza fidarsi della forma in cui arriva", () => {
+    const andata = rimandaImportazione(leggiCursore(null), CHIAVE);
+    const ritorno = leggiCursore(JSON.parse(JSON.stringify(andata)));
+    expect(importazioneDaSaltare(ritorno, CHIAVE)).toBe(true);
+
+    expect(leggiCursore({ importazioneRimandata: "no" }).importazioneRimandata).toEqual([]);
+    expect(leggiCursore({ importazioneRimandata: [CHIAVE, 7, ""] }).importazioneRimandata).toEqual([CHIAVE]);
+    expect(leggiCursore(null).importazioneRimandata).toEqual([]);
+  });
+
+  it("il ripasso passa dove l'importazione si era fermata: la pausa lunga fa arrivare le schede", async () => {
+    // Un sito che rifiuta a raffica e risponde a ritmo lento, come quello vero.
+    const rispondeSe = (pausaUsata: number) => pausaUsata >= PAUSA_DOPO_IL_FRENO_MS;
+
+    const giro = async (pausaUsata: number) => {
+      const tempo = orologio(15);
+      return percorriFila({
+        voci: voci("autogepy.it", 25),
+        scaduto: tempo.scaduto,
+        leggi: async () => {
+          tempo.avanza(1);
+          return rispondeSe(pausaUsata) ? pagina({ sourceId: "x", url: "x" }) : frenato;
+        },
+        elabora: async () => "fatta",
+      });
+    };
+
+    // Con la pausa di sempre non passa niente: e' il blocco.
+    const veloce = await giro(400);
+    expect(veloce.fatte).toBe(0);
+    expect(veloce.fermataPer).toBe("freno");
+
+    // Con la pausa lunga le schede arrivano.
+    const lento = await giro(PAUSA_DOPO_IL_FRENO_MS);
+    expect(lento.fatte).toBeGreaterThan(0);
+    expect(lento.fermataPer).toBeNull();
   });
 });
