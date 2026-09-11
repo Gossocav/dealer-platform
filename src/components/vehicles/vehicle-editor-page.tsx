@@ -15,6 +15,8 @@ import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
+import { messaggioPostiFiniti } from "@/lib/tetto-del-piano";
+import { postiLiberi } from "@/lib/tetto-del-piano-db";
 import { getVehicleModelsForBrand } from "@/lib/vehicle-models";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
@@ -332,7 +334,7 @@ function resolveStatusAction(status: string) {
 
 export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   const router = useRouter();
-  const { planCode } = usePianoInVigore();
+  const { planCode, limiteAnnunci } = usePianoInVigore();
   const imageInputId = useId();
 
   const [dealerName, setDealerName] = useState("");
@@ -817,6 +819,18 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
     vehiclePayload.status = statusTransition.nextStatus;
     vehiclePayload.published = statusTransition.nextPublished;
+
+    // Il tetto del piano non si supera mai. Si conta solo quando la scheda
+    // **sta passando** in vetrina: risalvare un'auto gia' pubblicata non
+    // occupa un posto nuovo, e rifiutarla sarebbe assurdo.
+    if (statusTransition.nextPublished && !originalPublished) {
+      const posti = await postiLiberi(supabase, vehicleDealerId, limiteAnnunci);
+      if (posti !== null && posti <= 0) {
+        setError(messaggioPostiFiniti(limiteAnnunci));
+        setSaving(false);
+        return;
+      }
+    }
 
     if (statusTransition.nextPublished) {
       const healthVehicle: VehicleRow = {

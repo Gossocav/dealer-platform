@@ -31,6 +31,12 @@ export type RigaImportata = {
 };
 
 export type PianoRiconciliazione = {
+  /**
+   * Fuori vetrina -- messe da parte per il tetto del piano -- e non piu' sul
+   * sito: si segna solo la data, cosi' non concorrono piu' a un posto.
+   * Senza, un'auto sparita dal sito potrebbe salire in vetrina da sola.
+   */
+  daSegnareSparite: string[];
   /** Erano in vetrina, il sito non le dichiara piu': si tolgono. */
   daNascondere: string[];
   /** Le avevamo tolte noi e il sito le dichiara di nuovo: tornano in vetrina. */
@@ -88,6 +94,9 @@ export function pianoRiconciliazione(input: {
       daNascondere: assenti
         .filter((riga) => riga.import_missing_since === null && eraInVetrina(riga))
         .map((riga) => riga.id),
+      daSegnareSparite: assenti
+        .filter((riga) => riga.import_missing_since === null && !eraInVetrina(riga))
+        .map((riga) => riga.id),
       daRipristinare: input.righe
         .filter((riga) => sulSito.has(String(riga.import_source_id ?? "").trim()))
         .filter((riga) => riga.import_missing_since !== null)
@@ -115,14 +124,26 @@ export function campiVeicoloSparito(adesso: Date) {
   };
 }
 
-/** Come si presenta un'auto che il sito dichiara di nuovo. */
+/**
+ * Come si presenta un'auto che il sito dichiara di nuovo.
+ *
+ * Non torna pubblicata da sola: torna **in fila per il tetto del piano**
+ * (`src/lib/tetto-del-piano.ts`), che la pubblica nello stesso giro se c'e'
+ * posto. Pubblicarla qui vorrebbe dire scavalcare le usate in attesa, o farsi
+ * rifiutare dal database se il piano e' pieno.
+ */
 export function campiVeicoloRitrovato(adesso: Date) {
   return {
-    status: "published",
-    published: true,
+    status: "in_review",
+    published: false,
     import_missing_since: null,
     updated_at: adesso.toISOString(),
   };
+}
+
+/** Come si segna un'auto fuori vetrina che non e' piu' sul sito: solo la data. */
+export function campiSparitaFuoriVetrina(adesso: Date) {
+  return { import_missing_since: adesso.toISOString(), updated_at: adesso.toISOString() };
 }
 
 /**

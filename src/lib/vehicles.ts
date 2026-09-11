@@ -61,6 +61,10 @@ export type VehicleRow = {
   price: string | number | null;
   status: string | null;
   published: boolean | null;
+  /** Serve al tetto del piano: le usate stanno in vetrina per prime. */
+  vehicle_condition?: string | null;
+  /** Il sito da cui l'auto e' stata importata, se viene da un sito. */
+  import_source?: string | null;
   // Colonne ancora in tabella ma non piu' compilate: la posizione di un
   // veicolo e' quella della concessionaria.
   city?: string | null;

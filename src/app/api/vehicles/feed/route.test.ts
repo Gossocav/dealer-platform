@@ -59,6 +59,11 @@ function makeJsonRequest(body: Record<string, unknown>) {
 
 function makeSupabaseAuthClient() {
   return {
+    // Il tetto del piano lo chiede al database. Qui si risponde "nessun
+    // limite leggibile", che e' il caso in cui la regola non tocca niente:
+    // questi test parlano del freno degli account di prova, e il tetto ha i
+    // suoi (src/lib/tetto-del-piano.test.ts).
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     auth: {
       getUser: vi.fn().mockResolvedValue({
         data: { user: { id: "user-1" } },

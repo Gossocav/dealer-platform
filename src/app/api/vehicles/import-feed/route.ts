@@ -17,6 +17,8 @@ import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { riepilogaSincronizzazioni, type RigaVeicoloImportato } from "@/lib/sincronizzazioni-veicoli";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
+import { messaggioDelTetto, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { applicaTettoDelPiano, limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 
 type FeedFormat = "csv" | "xml" | "json";
 type FeedMode = "analyze" | "import";
@@ -255,6 +257,12 @@ export async function POST(request: Request) {
     let skippedCount = 0;
     const errors: string[] = [];
 
+    // Quante auto il piano lascia ancora entrare in vetrina. Il limite lo dice
+    // il database, che e' lo stesso che poi lo impone: qui non c'e' nessun
+    // numero. `null` quando il piano non ha un tetto leggibile.
+    const limite = desiredStatus === "published" ? await limiteDelPiano(supabase, dealerId) : null;
+    let posti = desiredStatus === "published" ? await postiLiberi(supabase, dealerId, limite) : null;
+
     for (const entry of analyzed) {
       if (entry.errors.length > 0) {
         skippedCount += 1;
@@ -263,11 +271,20 @@ export async function POST(request: Request) {
       }
 
       const duplicateId = await findDuplicateVehicleId(supabase, dealerId, entry.mapped);
+
+      // Il tetto del piano vale anche qui. Finche' c'e' posto l'auto entra
+      // pubblicata; oltre, entra lo stesso ma **in attesa di un posto**
+      // (`STATO_OLTRE_IL_TETTO`), e la regola comune la fara' salire quando
+      // se ne libera uno. Prima il database rifiutava una riga per volta e il
+      // ciclo proseguiva fino in fondo accumulando lo stesso errore.
+      const inVetrina = desiredStatus === "published" && (posti === null || posti > 0);
+      const statoDiQuestaRiga = desiredStatus === "published" && !inVetrina ? STATO_OLTRE_IL_TETTO : desiredStatus;
+
       const payload = {
         ...buildVehicleInsertPayload(entry.mapped, desiredStatus),
         dealer_id: dealerId,
-        status: desiredStatus,
-        published: desiredStatus === "published",
+        status: statoDiQuestaRiga,
+        published: statoDiQuestaRiga === "published",
         updated_at: new Date().toISOString(),
       } as Record<string, unknown>;
 
@@ -281,6 +298,7 @@ export async function POST(request: Request) {
           continue;
         }
         targetVehicleId = duplicateId;
+        if (inVetrina && posti !== null && posti > 0) posti -= 1;
       } else {
         const { data: inserted, error: insertError } = await supabase
           .from("vehicles")
@@ -298,6 +316,7 @@ export async function POST(request: Request) {
         }
 
         targetVehicleId = String(inserted.id);
+        if (inVetrina && posti !== null && posti > 0) posti -= 1;
       }
 
       if (!targetVehicleId) {
@@ -319,6 +338,11 @@ export async function POST(request: Request) {
     // il GET qui sotto.
     const durationMs = Date.now() - startedAt;
 
+    // A fine importazione la regola comune rimette in ordine la vetrina: se il
+    // feed portava piu' auto di quante il piano ne consente, restano quelle
+    // giuste -- usate per prime -- e non le prime arrivate.
+    const tetto = desiredStatus === "published" ? await applicaTettoDelPiano(supabase, dealerId) : null;
+
     return NextResponse.json({
       mode,
       format: detectedFormat,
@@ -329,6 +353,7 @@ export async function POST(request: Request) {
       errors,
       preview,
       durationMs,
+      tetto: tetto ? { limite: tetto.limite, oltreIlTetto: tetto.oltreIlTetto, messaggio: messaggioDelTetto(tetto.limite, tetto.oltreIlTetto) } : null,
     });
   } catch (error) {
     console.error("Vehicles import-feed POST unexpected error", error);
