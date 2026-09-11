@@ -6,6 +6,7 @@ import {
   ordinaARotazione,
   percorriFila,
   serveAncora,
+  daSegnalareOggi,
   sitiInRitardo,
   type EsitoLetturaFila,
 } from "@/lib/sincronizzazione-turni";
@@ -245,29 +246,100 @@ describe("il cursore fra una chiamata e l'altra", () => {
   });
 });
 
-describe("il rosso oltre le 24 ore", () => {
+describe("chi e' fermo, e quando lo si grida", () => {
   const adesso = new Date("2026-09-10T14:08:00Z");
+  const stato = (sito: string, ultima: string | null, schede: number, fresche: number) => ({
+    sito,
+    dealerId: sito.slice(0, 2),
+    ultimaSincronizzazione: ultima,
+    schede,
+    schedeFresche: fresche,
+  });
 
-  it("Autogepy ferma dal 7 settembre viene segnalata, gli altri no", () => {
+  /**
+   * Il difetto che questi test impediscono, misurato il 10/09/2026: guardando
+   * la scheda piu' recente, un sito che lascia passare una lettura su venti
+   * risulta "sincronizzato un minuto fa". E' esattamente quello che faceva il
+   * sito di Autogepy, e il controllo nato per accorgersene non se ne
+   * accorgeva.
+   */
+  it("un sito che rilegge una scheda su venti risulta fermo lo stesso", () => {
     const esito = sitiInRitardo(
       [
-        { sito: "delorenziauto.it", dealerId: "dl", ultimaSincronizzazione: "2026-09-10T12:20:00Z" },
-        { sito: "autogepy.it", dealerId: "ag", ultimaSincronizzazione: "2026-09-07T18:18:00Z" },
-        { sito: "ponginibbigroup.it", dealerId: "po", ultimaSincronizzazione: "2026-09-10T12:21:00Z" },
+        // Autogepy: 153 schede, otto rilette in un giorno, ma l'ultima e' di un minuto fa.
+        stato("autogepy.it", "2026-09-10T14:07:00Z", 153, 8),
+        // De Lorenzi: il giro si chiude, tutto a posto.
+        stato("delorenziauto.it", "2026-09-10T12:20:00Z", 97, 97),
       ],
       adesso,
     );
 
-    expect(esito).toEqual([{ sito: "autogepy.it", dealerId: "ag", ultimaSincronizzazione: "2026-09-07T18:18:00Z", oreDiRitardo: 67 }]);
+    expect(esito.map((s) => s.sito)).toEqual(["autogepy.it"]);
+    expect(esito[0].schedeFresche).toBe(8);
+    expect(esito[0].schede).toBe(153);
+  });
+
+  it("una scheda sola che non si lascia leggere non fa gridare al lupo", () => {
+    expect(sitiInRitardo([stato("x.it", "2026-09-10T13:00:00Z", 100, 99)], adesso)).toEqual([]);
+  });
+
+  it("un terzo dello stock e' il confine", () => {
+    expect(sitiInRitardo([stato("x.it", "2026-09-10T13:00:00Z", 90, 30)], adesso)).toEqual([]);
+    expect(sitiInRitardo([stato("x.it", "2026-09-10T13:00:00Z", 90, 29)], adesso)).toHaveLength(1);
+  });
+
+  it("un sito senza schede non e' in ritardo: non c'e' niente da tenere fresco", () => {
+    expect(sitiInRitardo([stato("nuovo.it", null, 0, 0)], adesso)).toEqual([]);
   });
 
   it("un sito mai sincronizzato e' in ritardo, senza inventare un numero di ore", () => {
-    const esito = sitiInRitardo([{ sito: "nuovo.it", dealerId: "n", ultimaSincronizzazione: null }], adesso);
-    expect(esito).toEqual([{ sito: "nuovo.it", dealerId: "n", ultimaSincronizzazione: null, oreDiRitardo: null }]);
+    const esito = sitiInRitardo([stato("nuovo.it", null, 20, 0)], adesso);
+    expect(esito).toHaveLength(1);
+    expect(esito[0].oreDiRitardo).toBeNull();
   });
 
-  it("ventiquattro ore esatte non sono ancora un ritardo", () => {
-    expect(sitiInRitardo([{ sito: "x.it", dealerId: "x", ultimaSincronizzazione: "2026-09-09T14:08:00Z" }], adesso)).toEqual([]);
-    expect(sitiInRitardo([{ sito: "x.it", dealerId: "x", ultimaSincronizzazione: "2026-09-09T14:07:59Z" }], adesso)).toHaveLength(1);
+  it("dice da quante ore risale la scheda piu' recente", () => {
+    const esito = sitiInRitardo([stato("autogepy.it", "2026-09-07T18:18:00Z", 153, 0)], adesso);
+    expect(esito[0].oreDiRitardo).toBe(67);
+  });
+});
+
+/**
+ * Il lavoro gira ogni tre ore. Senza freno, un sito bloccato manda otto avvisi
+ * al giorno: e' il modo di far smettere di leggerli.
+ */
+describe("un avviso al giorno, non otto", () => {
+  const fermo = [{ sito: "autogepy.it", dealerId: "ag", ultimaSincronizzazione: "2026-09-07T18:18:00Z", schede: 153, schedeFresche: 0, oreDiRitardo: 67 }];
+
+  it("si grida al giro di mezzanotte, e a nessun altro", () => {
+    const giri = [0, 3, 6, 9, 12, 15, 18, 21];
+    const gridati = giri.filter((ora) => daSegnalareOggi(fermo, new Date(`2026-09-10T${String(ora).padStart(2, "0")}:00:00Z`)).length > 0);
+    expect(gridati).toEqual([0]);
+  });
+
+  it("il giro di mezzanotte resta tale anche se parte in ritardo", () => {
+    // GitHub fa partire i lavori programmati in ritardo: mezzanotte puo'
+    // diventare l'una passata. Quello delle tre invece non deve gridare.
+    expect(daSegnalareOggi(fermo, new Date("2026-09-10T00:47:00Z"))).toHaveLength(1);
+    expect(daSegnalareOggi(fermo, new Date("2026-09-10T01:20:00Z"))).toHaveLength(1);
+    expect(daSegnalareOggi(fermo, new Date("2026-09-10T03:40:00Z"))).toHaveLength(0);
+  });
+
+  it("un giro lanciato a mano dice sempre come stanno le cose", () => {
+    expect(daSegnalareOggi(fermo, new Date("2026-09-10T15:00:00Z"), { aMano: true })).toHaveLength(1);
+  });
+
+  it("in una settimana intera arriva un avviso al giorno, sette in tutto", () => {
+    let quanti = 0;
+    for (let giorno = 1; giorno <= 7; giorno += 1)
+      for (const ora of [0, 3, 6, 9, 12, 15, 18, 21]) {
+        const quando = new Date(`2026-09-0${giorno}T${String(ora).padStart(2, "0")}:00:00Z`);
+        quanti += daSegnalareOggi(fermo, quando).length;
+      }
+    expect(quanti).toBe(7);
+  });
+
+  it("se non c'e' nessuno in ritardo non si grida, nemmeno a mezzanotte", () => {
+    expect(daSegnalareOggi([], new Date("2026-09-10T00:00:00Z"))).toEqual([]);
   });
 });
