@@ -20,6 +20,9 @@ import {
   type VersoDelCambio,
 } from "@/lib/cambio-stato-di-gruppo";
 import { supabase } from "@/lib/supabaseClient";
+import { messaggioDelTetto, messaggioPostiFiniti } from "@/lib/tetto-del-piano";
+import { contaInAttesa, contaPubblicate } from "@/lib/tetto-del-piano-db";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
@@ -73,7 +76,7 @@ const PAGE_SIZE = 9;
  * vetture che invece sono a posto.
  */
 const COLONNE_VEICOLO =
-  "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, city, province, description, created_at, updated_at, import_missing_since, vehicle_images(id, image_url, position, is_cover)";
+  "id, dealer_id, brand, model, version, interior_type, engine_size, power_kw, power_cv, doors, registration_date, registration_month, year, mileage, fuel, transmission, price, status, published, vehicle_condition, city, province, description, created_at, updated_at, import_source, import_missing_since, vehicle_images(id, image_url, position, is_cover)";
 
 /**
  * Filtri, pagina, ordinamento e vista scritti nell'indirizzo.
@@ -216,6 +219,7 @@ export function VehiclesManagementPage() {
   // concessionario ricarica la pagina a meta' strada.
   const [avanzamentoTutti, setAvanzamentoTutti] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { limiteAnnunci } = usePianoInVigore();
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -230,6 +234,43 @@ export function VehiclesManagementPage() {
 
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [filters, page, viewMode, sort, pathname, router, searchParams]);
+
+  // Il tetto del piano, come lo vede il concessionario.
+  //
+  // I conteggi si chiedono al database, non si contano le righe a video:
+  // l'elenco e' una pagina di nove, gia' filtrata, e un avviso calcolato su
+  // quello direbbe un numero che non e' quello vero. La definizione di
+  // "pubblicata" e' la stessa del trigger che impone il tetto -- in giro per
+  // il gestionale ce ne sono altre due, che contano cose diverse.
+  const [pubblicate, setPubblicate] = useState<number | null>(null);
+  const [inAttesa, setInAttesa] = useState(0);
+
+  useEffect(() => {
+    let vivo = true;
+    if (!currentDealerId) return;
+    void (async () => {
+      const [quante, attesa] = await Promise.all([
+        contaPubblicate(supabase, currentDealerId),
+        contaInAttesa(supabase, currentDealerId),
+      ]);
+      if (!vivo) return;
+      setPubblicate(quante);
+      setInAttesa(attesa);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [currentDealerId, refreshKey]);
+
+  const avvisoDelTetto = useMemo(() => messaggioDelTetto(limiteAnnunci, inAttesa), [limiteAnnunci, inAttesa]);
+
+  /**
+   * I posti rimasti in vetrina, o `null` se il piano non ha un tetto
+   * leggibile. Serve a rifiutare **prima** del clic: il tetto non si supera
+   * mai, e il database lo direbbe comunque, ma con la sua frase e senza dire
+   * cosa fare.
+   */
+  const postiRimasti = limiteAnnunci === null || pubblicate === null ? null : Math.max(0, limiteAnnunci - pubblicate);
 
   const refreshData = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
@@ -718,6 +759,18 @@ export function VehiclesManagementPage() {
       return;
     }
 
+    // Prima di chiedere conferma: se il posto non c'e', o non basta per
+    // tutte, lo si dice subito invece di far partire una a una e fermarsi a
+    // meta' con la frase del database.
+    if (postiRimasti !== null && postiRimasti < daPubblicare.length) {
+      setError(
+        postiRimasti === 0
+          ? messaggioPostiFiniti(limiteAnnunci)
+          : `${messaggioPostiFiniti(limiteAnnunci)} Adesso c'e' posto per ${postiRimasti} su ${daPubblicare.length}.`
+      );
+      return;
+    }
+
     const confermato = globalThis.confirm(
       `Vuoi pubblicare ${daPubblicare.length} veicoli? Compariranno sul marketplace pubblico.`
     );
@@ -813,7 +866,7 @@ export function VehiclesManagementPage() {
     }
 
     await refreshData();
-  }, [currentDealerId, ensureDemoWriteAllowed, items, refreshData, selectedVehicleIds]);
+  }, [currentDealerId, ensureDemoWriteAllowed, limiteAnnunci, postiRimasti, items, refreshData, selectedVehicleIds]);
 
   /**
    * Pubblica, oppure rimette in bozza, **tutte** le vetture dell'elenco che il
@@ -882,6 +935,18 @@ export function VehiclesManagementPage() {
           `Nessuna vettura da ${azione}.` +
             (piano.giaCosi > 0 ? ` ${piano.giaCosi} sono gia' cosi'.` : "") +
             (lasciate ? ` Restano fuori: ${lasciate}.` : "")
+        );
+        return;
+      }
+
+      // "Pubblica tutte" e' il gesto che piu' facilmente sbatte sul tetto: si
+      // dice quante ne stanno prima di cominciare, non a meta' del giro.
+      if (verso === "published" && postiRimasti !== null && postiRimasti < piano.daCambiare.length) {
+        setAvanzamentoTutti(null);
+        setError(
+          postiRimasti === 0
+            ? messaggioPostiFiniti(limiteAnnunci)
+            : `${messaggioPostiFiniti(limiteAnnunci)} Adesso c'e' posto per ${postiRimasti} vetture su ${piano.daCambiare.length}.`
         );
         return;
       }
@@ -989,7 +1054,7 @@ export function VehiclesManagementPage() {
 
       await refreshData();
     },
-    [currentDealerId, ensureDemoWriteAllowed, filters, refreshData, sort]
+    [currentDealerId, ensureDemoWriteAllowed, limiteAnnunci, postiRimasti, filters, refreshData, sort]
   );
 
   const handleDeleteSelected = useCallback(async () => {
@@ -1141,6 +1206,15 @@ export function VehiclesManagementPage() {
         setBusyVehicleId(null);
         return;
       }
+
+      // Il tetto non si supera mai: si dice di no prima, e si dicono le due
+      // strade. Il database rifiuterebbe comunque, ma con una frase che parla
+      // di "annunci" e non dice cosa fare.
+      if (postiRimasti !== null && postiRimasti <= 0) {
+        setError(messaggioPostiFiniti(limiteAnnunci));
+        setBusyVehicleId(null);
+        return;
+      }
     }
 
     const transition = validateVehicleStatusTransitionForCrud({
@@ -1198,7 +1272,7 @@ export function VehiclesManagementPage() {
 
     setBusyVehicleId(null);
     refreshData();
-  }, [currentDealerId, ensureDemoWriteAllowed, refreshData]);
+  }, [currentDealerId, ensureDemoWriteAllowed, limiteAnnunci, postiRimasti, refreshData]);
 
   const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
   const filteredModelOptions = useMemo(() => {
@@ -1341,6 +1415,12 @@ export function VehiclesManagementPage() {
           ) : null}
         </div>
       </section>
+
+      {avvisoDelTetto ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {avvisoDelTetto}
+        </section>
+      ) : null}
 
       {error ? (
         <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</section>

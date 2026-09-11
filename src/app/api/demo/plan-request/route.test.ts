@@ -82,6 +82,9 @@ function makeSupabaseAdmin(user: UserStub | null, dealerRow: { account_type?: st
   });
 
   const supabaseAdmin = {
+    // Il limite di annunci del piano lo dice il database: la rotta lo chiede
+    // con questa funzione, e il finto risponde come il vero.
+    rpc: vi.fn().mockResolvedValue({ data: 50, error: null }),
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user }, error: user ? null : new Error("no user") }),
     },

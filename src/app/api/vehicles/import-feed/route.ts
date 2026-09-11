@@ -12,9 +12,13 @@ import {
   type VehicleImportStatus,
   validateVehicleImportRow,
 } from "@/lib/vehicle-import";
+import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
+import { riepilogaSincronizzazioni, type RigaVeicoloImportato } from "@/lib/sincronizzazioni-veicoli";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
+import { messaggioDelTetto, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { applicaTettoDelPiano, limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 
 type FeedFormat = "csv" | "xml" | "json";
 type FeedMode = "analyze" | "import";
@@ -29,57 +33,11 @@ type FeedRequestBody = {
 
 type FeedRecord = Record<string, unknown>;
 
-type FeedHistoryItem = {
-  id: string;
-  created_at: string;
-  source: string;
-  source_type: FeedFormat;
-  imported_count: number;
-  error_count: number;
-  duration_ms: number;
-};
-
 type ApiSupabaseClient = SupabaseClient;
 
 const MAX_FEED_BYTES = 1_000_000;
 
 const PREVIEW_LIMIT = 20;
-const DEMO_FEED_IMAGES_URL = "demo://automotive-feed-images";
-const DEMO_FEED_RECORDS: FeedRecord[] = [
-  {
-    brand: "Audi",
-    model: "A3 Sportback",
-    version: "35 TFSI S tronic Business",
-    year: "2023",
-    price: "31900",
-    mileage: "22800",
-    fuel: "Benzina",
-    transmission: "Automatico",
-    images: "https://picsum.photos/seed/audi-a3/900/600",
-  },
-  {
-    brand: "Alfa Romeo",
-    model: "Giulia",
-    version: "2.2 Turbo Diesel 190 AT8 Veloce",
-    year: "2022",
-    price: "36900",
-    mileage: "48200",
-    fuel: "Diesel",
-    transmission: "Automatico",
-    images: "https://picsum.photos/seed/alfa-giulia/900/600",
-  },
-  {
-    brand: "Peugeot",
-    model: "3008",
-    version: "1.5 BlueHDi 130 EAT8 GT",
-    year: "2021",
-    price: "27400",
-    mileage: "61500",
-    fuel: "Diesel",
-    transmission: "Automatico",
-    images: "https://picsum.photos/seed/peugeot-3008/900/600",
-  },
-];
 
 function normalizeActiveDealerId(value: string | null) {
   const normalized = String(value ?? "").trim();
@@ -217,43 +175,36 @@ export async function POST(request: Request) {
       }
     }
 
-    let detectedFormat: FeedFormat;
-    let records: FeedRecord[];
 
-    if (feedUrl === DEMO_FEED_IMAGES_URL) {
-      detectedFormat = "json";
-      records = DEMO_FEED_RECORDS;
-    } else {
-      const safeFeedUrl = parseAndValidateExternalHttpUrl(feedUrl);
+    const safeFeedUrl = parseAndValidateExternalHttpUrl(feedUrl);
 
-      const feedResponse = await fetchWithSsrfProtection(safeFeedUrl, {
-        method: "GET",
-        headers: {
-          Accept: "application/json, text/csv, application/xml, text/xml, */*",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(8_000),
-      });
+    const feedResponse = await fetchWithSsrfProtection(safeFeedUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json, text/csv, application/xml, text/xml, */*",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    });
 
-      if (!feedResponse.ok) {
-        return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
-      }
-
-      const contentLength = Number(feedResponse.headers.get("content-length") ?? "NaN");
-      if (Number.isFinite(contentLength) && contentLength > MAX_FEED_BYTES) {
-        return NextResponse.json({ error: "Il feed supera la dimensione massima consentita." }, { status: 400 });
-      }
-
-      const rawText = await readLimitedText(feedResponse, MAX_FEED_BYTES);
-      detectedFormat = detectFeedFormat(
-        preferredFormat,
-        feedUrl,
-        String(feedResponse.headers.get("content-type") ?? ""),
-        rawText
-      );
-
-      records = parseFeedRecords(rawText, detectedFormat);
+    if (!feedResponse.ok) {
+      return NextResponse.json({ error: `Download feed fallito (HTTP ${feedResponse.status}).` }, { status: 400 });
     }
+
+    const contentLength = Number(feedResponse.headers.get("content-length") ?? "NaN");
+    if (Number.isFinite(contentLength) && contentLength > MAX_FEED_BYTES) {
+      return NextResponse.json({ error: "Il feed supera la dimensione massima consentita." }, { status: 400 });
+    }
+
+    const rawText = await readLimitedText(feedResponse, MAX_FEED_BYTES);
+    const detectedFormat = detectFeedFormat(
+      preferredFormat,
+      feedUrl,
+      String(feedResponse.headers.get("content-type") ?? ""),
+      rawText
+    );
+
+    const records = parseFeedRecords(rawText, detectedFormat);
 
     if (records.length === 0) {
       return NextResponse.json({
@@ -306,6 +257,12 @@ export async function POST(request: Request) {
     let skippedCount = 0;
     const errors: string[] = [];
 
+    // Quante auto il piano lascia ancora entrare in vetrina. Il limite lo dice
+    // il database, che e' lo stesso che poi lo impone: qui non c'e' nessun
+    // numero. `null` quando il piano non ha un tetto leggibile.
+    const limite = desiredStatus === "published" ? await limiteDelPiano(supabase, dealerId) : null;
+    let posti = desiredStatus === "published" ? await postiLiberi(supabase, dealerId, limite) : null;
+
     for (const entry of analyzed) {
       if (entry.errors.length > 0) {
         skippedCount += 1;
@@ -314,11 +271,20 @@ export async function POST(request: Request) {
       }
 
       const duplicateId = await findDuplicateVehicleId(supabase, dealerId, entry.mapped);
+
+      // Il tetto del piano vale anche qui. Finche' c'e' posto l'auto entra
+      // pubblicata; oltre, entra lo stesso ma **in attesa di un posto**
+      // (`STATO_OLTRE_IL_TETTO`), e la regola comune la fara' salire quando
+      // se ne libera uno. Prima il database rifiutava una riga per volta e il
+      // ciclo proseguiva fino in fondo accumulando lo stesso errore.
+      const inVetrina = desiredStatus === "published" && (posti === null || posti > 0);
+      const statoDiQuestaRiga = desiredStatus === "published" && !inVetrina ? STATO_OLTRE_IL_TETTO : desiredStatus;
+
       const payload = {
         ...buildVehicleInsertPayload(entry.mapped, desiredStatus),
         dealer_id: dealerId,
-        status: desiredStatus,
-        published: desiredStatus === "published",
+        status: statoDiQuestaRiga,
+        published: statoDiQuestaRiga === "published",
         updated_at: new Date().toISOString(),
       } as Record<string, unknown>;
 
@@ -332,6 +298,7 @@ export async function POST(request: Request) {
           continue;
         }
         targetVehicleId = duplicateId;
+        if (inVetrina && posti !== null && posti > 0) posti -= 1;
       } else {
         const { data: inserted, error: insertError } = await supabase
           .from("vehicles")
@@ -349,6 +316,7 @@ export async function POST(request: Request) {
         }
 
         targetVehicleId = String(inserted.id);
+        if (inVetrina && posti !== null && posti > 0) posti -= 1;
       }
 
       if (!targetVehicleId) {
@@ -361,20 +329,19 @@ export async function POST(request: Request) {
       importedCount += 1;
     }
 
+    // Qui si scriveva il registro dell'importazione in `vehicle_import_history`,
+    // `stock_sync_history` o `import_history`: nessuna delle tre e' mai
+    // esistita, quindi la scrittura non e' mai avvenuta e ogni importazione
+    // sprecava tre interrogazioni per scoprirlo. Il registro delle singole
+    // importazioni oggi non c'e'; quello che resta scritto sull'annuncio --
+    // da dove viene e quando e' stato visto l'ultima volta -- lo consegna
+    // il GET qui sotto.
     const durationMs = Date.now() - startedAt;
-    await persistHistoryIfTableExists(
-      supabase,
-      {
-        created_at: new Date().toISOString(),
-        source: feedUrl,
-        source_type: detectedFormat,
-        imported_count: importedCount,
-        error_count: errors.length,
-        duration_ms: durationMs,
-      },
-      dealerId,
-      body.frequency ?? "manual"
-    );
+
+    // A fine importazione la regola comune rimette in ordine la vetrina: se il
+    // feed portava piu' auto di quante il piano ne consente, restano quelle
+    // giuste -- usate per prime -- e non le prime arrivate.
+    const tetto = desiredStatus === "published" ? await applicaTettoDelPiano(supabase, dealerId) : null;
 
     return NextResponse.json({
       mode,
@@ -386,6 +353,7 @@ export async function POST(request: Request) {
       errors,
       preview,
       durationMs,
+      tetto: tetto ? { limite: tetto.limite, oltreIlTetto: tetto.oltreIlTetto, messaggio: messaggioDelTetto(tetto.limite, tetto.oltreIlTetto) } : null,
     });
   } catch (error) {
     console.error("Vehicles import-feed POST unexpected error", error);
@@ -399,12 +367,12 @@ export async function GET(request: Request) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ history: buildMockHistory(), mock: true });
+      return NextResponse.json({ error: "Configurazione server incompleta." }, { status: 500 });
     }
 
     const authHeader = request.headers.get("authorization");
     if (!authHeader?.toLowerCase().startsWith("bearer ")) {
-      return NextResponse.json({ history: buildMockHistory(), mock: true });
+      return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -425,45 +393,44 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser();
 
     if (!user?.id) {
-      return NextResponse.json({ history: buildMockHistory(), mock: true });
+      return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
     }
 
     const activeDealerId = normalizeActiveDealerId(request.headers.get("x-active-dealer-id"));
     const dealerId = await resolveDealerId(supabase, user.id, activeDealerId);
     if (!dealerId) {
-      return NextResponse.json({ history: buildMockHistory(), mock: true });
+      return NextResponse.json({ error: "Nessuna concessionaria associata a questo account." }, { status: 403 });
     }
 
-    const historyTable = await detectHistoryTable(supabase);
-    if (!historyTable) {
-      return NextResponse.json({ history: buildMockHistory(), mock: true });
+    // Gli annunci arrivati da un sito, con quando sono stati visti l'ultima
+    // volta. `caricaTutto` perche' il database ne consegna mille per volta e
+    // non lo dice: con un parco grande i conti sarebbero per difetto.
+    const { righe, troncato, error } = await caricaTutto<RigaVeicoloImportato>((da, a) =>
+      supabase
+        .from("vehicles")
+        .select("import_source, import_synced_at, import_missing_since")
+        .eq("dealer_id", dealerId)
+        .not("import_source", "is", null)
+        .range(da, a)
+    );
+
+    if (error) {
+      console.error("Vehicles import-feed GET: lettura sincronizzazioni fallita", {
+        errorMessage: error.message,
+      });
+      return NextResponse.json(
+        { error: "Non e' stato possibile leggere le sincronizzazioni." },
+        { status: 500 }
+      );
     }
 
-    const { data, error } = await supabase
-      .from(historyTable)
-      .select("id, created_at, source, source_type, imported_count, error_count, duration_ms")
-      .eq("dealer_id", dealerId)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (error || !Array.isArray(data) || data.length === 0) {
-      return NextResponse.json({ history: buildMockHistory(), mock: true });
-    }
-
-    const history = data.map((row: Record<string, unknown>) => ({
-      id: String(row.id ?? crypto.randomUUID()),
-      created_at: String(row.created_at ?? new Date().toISOString()),
-      source: String(row.source ?? "Feed"),
-      source_type: normalizeFeedType(String(row.source_type ?? "csv")),
-      imported_count: Number(row.imported_count ?? 0),
-      error_count: Number(row.error_count ?? 0),
-      duration_ms: Number(row.duration_ms ?? 0),
-    }));
-
-    return NextResponse.json({ history });
+    return NextResponse.json({ origini: riepilogaSincronizzazioni(righe), troncato });
   } catch (error) {
-    console.warn("Vehicles import-feed GET fallback to mock history", error);
-    return NextResponse.json({ history: buildMockHistory(), mock: true });
+    console.error("Vehicles import-feed GET unexpected error", error);
+    return NextResponse.json(
+      { error: "Non e' stato possibile leggere le sincronizzazioni." },
+      { status: 500 }
+    );
   }
 }
 
@@ -746,73 +713,6 @@ async function resolveDealerId(supabase: ApiSupabaseClient, userId: string, acti
   });
 }
 
-async function detectHistoryTable(supabase: ApiSupabaseClient) {
-  const candidates = ["vehicle_import_history", "stock_sync_history", "import_history"];
-
-  for (const table of candidates) {
-    const { error } = await supabase.from(table).select("id").limit(1);
-    if (!error) {
-      return table;
-    }
-  }
-
-  return null;
-}
-
-async function persistHistoryIfTableExists(
-  supabase: ApiSupabaseClient,
-  item: Omit<FeedHistoryItem, "id">,
-  dealerId: string,
-  frequency: "manual" | "nightly" | "weekly"
-) {
-  const table = await detectHistoryTable(supabase);
-  if (!table) {
-    return;
-  }
-
-  await supabase.from(table).insert({
-    dealer_id: dealerId,
-    source: item.source,
-    source_type: item.source_type,
-    imported_count: item.imported_count,
-    error_count: item.error_count,
-    duration_ms: item.duration_ms,
-    frequency,
-    created_at: item.created_at,
-  });
-}
-
-function normalizeFeedType(value: string): FeedFormat {
-  const lowered = value.trim().toLowerCase();
-  if (lowered === "xml" || lowered === "json") {
-    return lowered;
-  }
-
-  return "csv";
-}
-
-function buildMockHistory(): FeedHistoryItem[] {
-  return [
-    {
-      id: "mock-1",
-      created_at: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
-      source: "https://www.concessionaria.it/feed.xml",
-      source_type: "xml",
-      imported_count: 27,
-      error_count: 2,
-      duration_ms: 2400,
-    },
-    {
-      id: "mock-2",
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
-      source: "https://www.concessionaria.it/stock.csv",
-      source_type: "csv",
-      imported_count: 19,
-      error_count: 1,
-      duration_ms: 1780,
-    },
-  ];
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

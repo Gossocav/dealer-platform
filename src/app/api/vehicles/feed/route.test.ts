@@ -59,6 +59,11 @@ function makeJsonRequest(body: Record<string, unknown>) {
 
 function makeSupabaseAuthClient() {
   return {
+    // Il tetto del piano lo chiede al database. Qui si risponde "nessun
+    // limite leggibile", che e' il caso in cui la regola non tocca niente:
+    // questi test parlano del freno degli account di prova, e il tetto ha i
+    // suoi (src/lib/tetto-del-piano.test.ts).
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     auth: {
       getUser: vi.fn().mockResolvedValue({
         data: { user: { id: "user-1" } },
@@ -228,5 +233,84 @@ describe("vehicles feed route JSON/XML parsing", () => {
       success: false,
       message: "Il feed non contiene veicoli.",
     });
+  });
+});
+
+/**
+ * Il freno per gli account di prova sull'importazione da un feed.
+ *
+ * Il difetto che questi test impediscono, trovato il 10/09/2026: il controllo
+ * c'era, ma stava **dentro** il ramo di un feed di esempio ("demo://automotive-feed").
+ * Tolto quello, l'importazione da un feed vero e' rimasta senza freno -- e non
+ * e' un percorso qualsiasi: qui si scrive con la **chiave di servizio**, che
+ * scavalca la protezione per riga, quindi nemmeno il database avrebbe fermato
+ * un account di prova.
+ *
+ * Il secondo test e' la contropartita del primo: correggere il difetto
+ * spostando il freno troppo in alto spegnerebbe anche l'analisi, e guardare
+ * com'e' fatto un feed dev'essere permesso anche a chi sta provando.
+ */
+describe("il freno degli account di prova", () => {
+  const BLOCCO = {
+    code: "DEMO_IMPORT_NOT_ALLOWED",
+    message: "Questa funzione e' disponibile nella versione completa.",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "chiave-di-servizio-di-prova";
+    mocks.resolveDealerIdFromTenantSourcesMock.mockResolvedValue("dealer-1");
+    mocks.createClientMock.mockReturnValue(makeSupabaseAuthClient());
+  });
+
+  it("un account di prova non importa da un feed vero, e il feed non viene nemmeno letto", async () => {
+    mocks.getDemoFeatureBlockReasonMock.mockReturnValue(BLOCCO);
+
+    const response = await POST(
+      makeJsonRequest({ action: "import", url: "https://example.com/feed.json", type: "auto" })
+    );
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(403);
+    expect(payload).toMatchObject({ success: false, message: BLOCCO.message });
+
+    // Il rifiuto arriva prima di andare a leggere il sito di qualcun altro per
+    // conto di chi non potrebbe importare comunque.
+    expect(mocks.fetchWithSsrfProtectionMock).not.toHaveBeenCalled();
+
+    // La chiave giusta: "import", non "write" o "vehicle". Con un'altra il
+    // tetto dei dieci veicoli lascerebbe passare l'importazione.
+    expect(mocks.getDemoFeatureBlockReasonMock).toHaveBeenCalledWith(expect.anything(), "import");
+  });
+
+  it("guardare com'e' fatto un feed resta permesso anche in prova", async () => {
+    mocks.getDemoFeatureBlockReasonMock.mockReturnValue(BLOCCO);
+
+    const { response, payload } = await runFeedAnalysis(
+      "https://example.com/feed.json",
+      JSON.stringify([{ brand: "Fiat", model: "Panda", year: "2024", price: "15900" }]),
+      "application/json"
+    );
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ success: true, rowsCount: 1 });
+  });
+
+  it("un account normale importa senza incontrare il freno", async () => {
+    mocks.getDemoFeatureBlockReasonMock.mockReturnValue(null);
+    mocks.fetchWithSsrfProtectionMock.mockResolvedValue(
+      new Response(JSON.stringify([{ brand: "Fiat", model: "Panda", year: "2024", price: "15900" }]), {
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const response = await POST(
+      makeJsonRequest({ action: "import", url: "https://example.com/feed.json", type: "auto" })
+    );
+
+    expect(response.status).not.toBe(403);
+    expect(mocks.fetchWithSsrfProtectionMock).toHaveBeenCalled();
   });
 });

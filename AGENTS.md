@@ -125,6 +125,7 @@ solo sul server: mai in un componente del browser.
 | `src/lib/carica-tutto.ts` | legge un elenco per intero: il database ne consegna mille per volta e non lo dice |
 | `src/lib/dealer-plan.ts` | il piano in vigore. **Mai** leggerlo da `dealers.subscription_plan`: e' una colonna vecchia che la conversione non aggiorna |
 | `src/lib/vehicle-body-types.ts` | l'unico elenco delle carrozzerie: i valori sono anche quelli scritti nel database |
+| `src/lib/tetto-del-piano.ts` | la regola del tetto del piano: quali auto stanno in vetrina quando sono piu' del consentito. **Una funzione sola** per sincronizzazione, importazione e pubblicazione a mano |
 | `src/lib/dealer-site-import.ts` | legge lo stock dal sito della concessionaria; non parla col database, quindi si puo' provare su dati veri senza rischi |
 
 Gli endpoint stanno in `src/app/api/**/route.ts` e seguono sempre lo stesso
@@ -151,6 +152,57 @@ lo ha prodotto. Serve a chi un giorno lo vedra' fallire.
 
 ## Trappole gia' pagate
 
+**Il tetto del piano si applica con una regola, non con un rifiuto.** Quando
+una concessionaria ha sul suo sito piu' auto di quante il piano ne consente
+(Ponginibbi, 10/09/2026: 81 auto, piano Base da 50), KeyAuto ne pubblica
+esattamente quante il piano permette, scelte cosi': **prima le usate**, poi le
+altre; a parita' di tipo prima quelle **gia' pubblicate** (la scelta non deve
+cambiare a ogni sincronizzazione), poi le piu' recenti. Il limite vale sul
+**totale** delle pubblicate, comprese quelle inserite a mano, e si legge sempre
+dal piano in vigore (`resolve_dealer_listing_cap`): **mai un numero nel
+codice**. Le auto oltre il tetto restano nell'archivio *in revisione*, con
+l'origine e senza data di sparizione, e salgono da sole quando si libera un
+posto; se il piano scende, escono nello stesso ordine, le usate per ultime. Il
+concessionario legge nel gestionale quante ne restano fuori e cosa fare, e se
+prova a pubblicare quando il posto non c'e' il clic viene **rifiutato subito**,
+non a meta' di un'operazione di gruppo con la frase del database.
+
+La regola sta in `src/lib/tetto-del-piano.ts` ed e' **una sola**. Le porte da
+cui un'auto entra in vetrina pero' sono **dodici**, non tre, e chi ne aggiunge
+una tredicesima deve passare di li': i tre bottoni di Gestione Veicoli
+(singola, selezione, "pubblica tutte"), la scheda in modifica, il dettaglio
+veicolo, l'importazione da file, quella da feed e quella dal sito con le loro
+rotte, la sincronizzazione notturna, e `applicaTettoDelPiano` stessa. **Due di
+queste scrivono con la chiave di servizio** (`/api/vehicles/feed` e la
+sincronizzazione): li' il trigger del database non e' nemmeno l'ultima
+serratura, perche' non scatta.
+
+Due trappole nel contarli, tutte e due gia' pagate: i posti liberi si contano
+**dal database** con la stessa definizione del trigger (`published` vero **e**
+`status` "published") -- in giro ce ne sono altre due che contano cose diverse,
+e l'elenco a video e' una pagina di nove righe gia' filtrata; e un'auto
+portata in vetrina occupa un posto **anche quando e' un aggiornamento** di una
+gia' in archivio, non solo quando e' nuova.
+
+**Un sito che frena perde il turno, non il lavoro.** Quando il sito di una
+concessionaria risponde "troppe richieste" (429), insistere e' esattamente
+quello che ci ha chiesto di non fare: si passa la mano e il tempo va agli
+altri. Ma il turno perso vale **solo per il passo che ha trovato il no**.
+
+Il difetto, misurato l'11/09/2026 su autogepy.it: sul sito c'erano 17 auto mai
+entrate in KeyAuto perche' le loro pagine non si leggevano. Ogni chiamata
+provava prima quelle, prendeva il 429 alla prima, e passava la mano
+all'**intero sito** -- senza mai arrivare alle 138 schede che c'erano gia' e
+andavano solo ripassate. E siccome quelle 17 non entravano mai, restavano 17
+per sempre. Quattro giorni con **zero** schede aggiornate, mentre l'indice del
+sito si leggeva benissimo e le singole pagine, a ritmo lento, pure.
+
+Due regole da tenere insieme: l'importazione delle nuove e il ripasso delle
+esistenti **si alternano** (il cursore ricorda quale passo ha trovato il
+freno), e un sito che ha appena frenato si legge con una **pausa lunga**
+(`PAUSA_DOPO_IL_FRENO_MS`). Quel numero si corregge guardando quante schede
+passano davvero: le risposte di un sito che limita non sono una soglia netta.
+
 **Un contatto senza `dealer_id` non lo vede nessuno.** Oggi i contatti nascono
 in un posto solo -- `/api/marketplace/lead`, che imposta sempre la
 concessionaria -- e **il gestionale non ne crea a mano**. Il giorno che si
@@ -159,6 +211,30 @@ aggiunge "nuovo contatto" al pannello, quel modulo **deve impostare
 i contatti di origine `marketplace`, quindi un contatto creato a mano senza
 concessionaria resta orfano e non compare nell'elenco di nessuno. Non da'
 errore: si perde in silenzio. Verificato su Postgres vero il 10/09/2026.
+
+**Un ripiego non inventa dati.** Quando un dato non c'e' -- la tabella non
+esiste, la sessione e' scaduta, il database non risponde -- la tentazione e'
+rispondere con qualcosa di plausibile per non lasciare la pagina vuota. E' il
+difetto piu' ripetuto di questo progetto: la barra del pannello (PR #146), le
+"Visualizzazioni" ferme a zero (PR #172), e le "Ultime sincronizzazioni" della
+pagina Importazione, che per due mesi e mezzo hanno mostrato a ogni
+concessionaria due importazioni mai avvenute -- 27 auto un'ora fa, 19 ieri --
+perche' le tre tabelle interrogate non erano mai esistite.
+
+Le regole, in ordine di importanza:
+
+1. **Niente dati di esempio sul percorso vero.** Se servono a un test, stanno
+   nel file di test e da nessun'altra parte.
+2. **Un elenco vuoto e un errore non sono la stessa cosa.** "Non c'e' niente"
+   e' un fatto e si dice; "non sono riuscito a leggerlo" e' un guasto e si
+   dice diversamente. Un errore non diventa mai una lista vuota consegnata
+   come successo.
+3. **Un segnale `mock: true` nella risposta non salva niente**, perche' chi
+   disegna la pagina non lo guarda: era li' anche stavolta.
+4. Il suggerimento dentro una casella vuota (`placeholder`) e' un'altra cosa e
+   va bene: non e' un dato mostrato come vero.
+
+Il guardiano e' `src/lib/sincronizzazioni-veicoli.test.ts`.
 
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde

@@ -4,6 +4,8 @@ import { normalizeVehicleTraction } from "@/lib/vehicles";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
+import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
+import { limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 
 type FeedType = "auto" | "csv" | "xml" | "json";
 
@@ -629,99 +631,8 @@ function extractVehiclesFromXmlContent(content: string): { vehicles: VehicleReco
   return { vehicles, firstRawXml };
 }
 
-const DEMO_FEED_URL = "demo://automotive-feed";
-const DEMO_FEED_IMAGES_URL = "demo://automotive-feed-images";
 
-const DEMO_VEHICLES = [
-  {
-    brand: "Jeep",
-    model: "Avenger",
-    version: "1.2 Turbo Altitude",
-    year: "2024",
-    price: "29900",
-    mileage: "0",
-    fuel: "Benzina",
-    traction: "Anteriore",
-    transmission: "Automatico",
-    color: "Bianco Alpino",
-    image_urls: ["https://example.com/jeep-avenger-1.jpg", "https://example.com/jeep-avenger-2.jpg"],
-  },
-  {
-    brand: "Fiat",
-    model: "600",
-    version: "1.2 Hybrid Red",
-    year: "2024",
-    price: "24500",
-    mileage: "1200",
-    fuel: "Ibrido",
-    traction: "Anteriore",
-    transmission: "Automatico",
-    color: "Rosso Passione",
-    image_urls: ["https://example.com/fiat-600-1.jpg"],
-  },
-  {
-    brand: "BMW",
-    model: "X1",
-    version: "xDrive20d xLine",
-    year: "2023",
-    price: "49800",
-    mileage: "15000",
-    fuel: "Diesel",
-    traction: "Integrale 4x4",
-    transmission: "Automatico",
-    color: "Grigio Mineral",
-    image_urls: [
-      "https://example.com/bmw-x1-1.jpg",
-      "https://example.com/bmw-x1-2.jpg",
-      "https://example.com/bmw-x1-3.jpg",
-    ],
-  },
-];
 
-const DEMO_VEHICLES_WITH_IMAGES: VehicleRecord[] = [
-  {
-    brand: "Alfa Romeo",
-    model: "Giulia",
-    version: "2.2 Turbo Diesel 190 AT8 Veloce",
-    year: "2022",
-    price: "36900",
-    mileage: "48200",
-    fuel: "Diesel",
-    transmission: "Automatico",
-    color: "Rosso Competizione",
-    image_urls: [
-      "https://picsum.photos/seed/alfa-giulia/900/600",
-    ],
-  },
-  {
-    brand: "Audi",
-    model: "A3 Sportback",
-    version: "35 TFSI S tronic Business",
-    year: "2023",
-    price: "31900",
-    mileage: "22800",
-    fuel: "Benzina",
-    transmission: "Automatico",
-    color: "Grigio Daytona",
-    image_urls: [
-      "https://picsum.photos/seed/audi-a3/900/600",
-    ],
-  },
-  {
-    brand: "Peugeot",
-    model: "3008",
-    version: "1.5 BlueHDi 130 EAT8 GT",
-    year: "2021",
-    price: "27400",
-    mileage: "61500",
-    fuel: "Diesel",
-    transmission: "Automatico",
-    color: "Blu Celebes",
-    image_urls: [
-      "https://picsum.photos/seed/peugeot-3008/900/600",
-    ],
-  },
-];
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -809,24 +720,37 @@ export async function POST(request: Request) {
 
   const dealerId = resolvedDealerId;
 
-  const { count: vehicleCount, error: vehicleCountError } = await supabaseAuth
-    .from("vehicles")
-    .select("id", { count: "exact", head: true })
-    .eq("dealer_id", dealerId);
+  // Il freno per gli account di prova, come in `/api/vehicles/import-site`.
+  //
+  // C'era anche qui, ma valeva **solo** dentro il ramo del feed di esempio, e
+  // togliendo quello (10/09/2026) e' rimasta scoperta l'importazione da un
+  // feed vero. Era il buco piu' largo dei tre percorsi di importazione:
+  // questa rotta scrive con la **chiave di servizio** (`supabaseAdmin`, piu'
+  // sotto), che scavalca la protezione per riga -- il tetto dei dieci veicoli
+  // della demo non l'avrebbe fermata nemmeno dal database.
+  //
+  // Guardare resta libero: si nega solo la scrittura, e prima di andare a
+  // leggere il feed per conto di chi non potrebbe importarlo comunque.
+  if (action === "import") {
+    // Il conteggio serve a `resolveDemoAccessContext` per il tetto dei dieci
+    // veicoli; con la chiave "import" il rifiuto arriva prima comunque, ma
+    // passarglielo sbagliato renderebbe bugiardo il messaggio.
+    const { count: vehicleCount } = await supabaseAuth
+      .from("vehicles")
+      .select("id", { count: "exact", head: true })
+      .eq("dealer_id", dealerId);
 
-  if (vehicleCountError) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Impossibile verificare il limite demo del dealer.",
-      },
-      { status: 500 },
-    );
+    // Con la chiave dell'utente, mai con quella di servizio: il contesto
+    // demo di una concessionaria lo si chiede per conto suo.
+    const demoContext = await resolveDemoAccessContext(supabaseAuth, dealerId, {
+      vehicleCount: vehicleCount ?? 0,
+    });
+    const demoBlock = getDemoFeatureBlockReason(demoContext, "import");
+
+    if (demoBlock) {
+      return NextResponse.json({ success: false, message: demoBlock.message }, { status: 403 });
+    }
   }
-
-  const demoAccessContext = await resolveDemoAccessContext(supabaseAuth, dealerId, {
-    vehicleCount: vehicleCount ?? 0,
-  });
 
   if (!url) {
     return NextResponse.json(
@@ -838,85 +762,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (url === DEMO_FEED_URL) {
-    if (action === "import") {
-      const demoBlock = getDemoFeatureBlockReason(demoAccessContext, "import");
-      if (demoBlock) {
-        return NextResponse.json(
-          { success: false, message: demoBlock.message },
-          { status: 403 },
-        );
-      }
-
-      if (!dealerId) {
-        return NextResponse.json(
-          { success: false, message: "dealer_id obbligatorio per l'importazione." },
-          { status: 400 },
-        );
-      }
-
-      const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!supabaseServiceRoleKey) {
-        return NextResponse.json(
-          { success: false, message: "Configurazione Supabase incompleta." },
-          { status: 500 },
-        );
-      }
-
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      });
-
-      const now = new Date().toISOString();
-      const errors: string[] = [];
-      let imported = 0;
-
-      for (const vehicle of DEMO_VEHICLES) {
-        const { error } = await supabaseAdmin.from("vehicles").insert({
-          brand: vehicle.brand,
-          model: vehicle.model,
-          version: vehicle.version,
-          year: parseInt(vehicle.year, 10),
-          price: parseFloat(vehicle.price),
-          mileage: parseInt(vehicle.mileage, 10),
-          fuel: vehicle.fuel,
-          traction: normalizeVehicleTraction(vehicle.traction),
-          transmission: vehicle.transmission,
-          color: vehicle.color,
-          vin: null,
-          description: null,
-          status: "published",
-          published: true,
-          dealer_id: dealerId,
-          created_at: now,
-          updated_at: now,
-        });
-
-        if (error) {
-          errors.push(`${vehicle.brand} ${vehicle.model}: ${error.message}`);
-        } else {
-          imported += 1;
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        imported,
-        updated: 0,
-        errors,
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Feed demo automotive analizzato correttamente",
-      detectedType: "json",
-      rowsCount: DEMO_VEHICLES.length,
-      preview: DEMO_VEHICLES,
-    });
-  }
-
   let detectedType: "json" | "xml" | "csv" | null = null;
   let analysis: {
     rowsCount: number;
@@ -924,112 +769,91 @@ export async function POST(request: Request) {
     firstRawRecord?: unknown;
   } | null = null;
 
-  if (url === DEMO_FEED_IMAGES_URL) {
-    detectedType = "json";
-    analysis = {
-      rowsCount: DEMO_VEHICLES_WITH_IMAGES.length,
-      preview: DEMO_VEHICLES_WITH_IMAGES,
-      firstRawRecord: DEMO_VEHICLES_WITH_IMAGES[0],
-    };
-
-    if (action !== "import") {
-      return NextResponse.json({
-        success: true,
-        message: "Feed demo automotive con immagini analizzato correttamente",
-        detectedType,
-        rowsCount: analysis.rowsCount,
-        preview: analysis.preview,
-      });
-    }
+  if (!/^https?:\/\//i.test(url)) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "URL feed non valido",
+      },
+      { status: 400 },
+    );
   }
 
-  if (url !== DEMO_FEED_IMAGES_URL) {
-    if (!/^https?:\/\//i.test(url)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "URL feed non valido",
-        },
-        { status: 400 },
-      );
-    }
+  let response: Response;
 
-    let response: Response;
+  try {
+    const safeFeedUrl = parseAndValidateExternalHttpUrl(url);
 
-    try {
-      const safeFeedUrl = parseAndValidateExternalHttpUrl(url);
+    response = await fetchWithSsrfProtection(safeFeedUrl, {
+      method: "GET",
+      signal: AbortSignal.timeout(8_000),
+      headers: {
+        "user-agent": "DealerPlatformFeedAnalyzer/1.0",
+        accept: "application/json, text/xml, application/xml, text/csv, text/plain, */*",
+      },
+    });
+  } catch (error) {
+    console.error("Vehicles feed fetch failed", { url, error });
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Feed non raggiungibile",
+      },
+      { status: 400 },
+    );
+  }
 
-      response = await fetchWithSsrfProtection(safeFeedUrl, {
-        method: "GET",
-        signal: AbortSignal.timeout(8_000),
-        headers: {
-          "user-agent": "DealerPlatformFeedAnalyzer/1.0",
-          accept: "application/json, text/xml, application/xml, text/csv, text/plain, */*",
-        },
-      });
-    } catch (error) {
-      console.error("Vehicles feed fetch failed", { url, error });
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Feed non raggiungibile",
-        },
-        { status: 400 },
-      );
-    }
+  if (!response.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Feed non raggiungibile",
+      },
+      { status: 400 },
+    );
+  }
 
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Feed non raggiungibile",
-        },
-        { status: 400 },
-      );
-    }
+  const content = await readLimitedText(response, MAX_FEED_BYTES);
 
-    const content = await readLimitedText(response, MAX_FEED_BYTES);
+  try {
+    detectedType = detectFeedType(content, requestedType);
 
-    try {
-      detectedType = detectFeedType(content, requestedType);
-
-      if (detectedType === "json") {
-        analysis = parseJson(content);
-      } else if (detectedType === "xml") {
-        if (!isAutomotiveXmlFeed(content)) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: "Il feed è valido ma non contiene dati di veicoli.",
-            },
-            { status: 400 },
-          );
-        }
-
-        analysis = parseXml(content);
-      } else {
-        analysis = parseCsv(content);
-      }
-
-      if (analysis.rowsCount === 0) {
+    if (detectedType === "json") {
+      analysis = parseJson(content);
+    } else if (detectedType === "xml") {
+      if (!isAutomotiveXmlFeed(content)) {
         return NextResponse.json(
           {
             success: false,
-            message: "Il feed non contiene veicoli.",
+            message: "Il feed è valido ma non contiene dati di veicoli.",
           },
           { status: 400 },
         );
       }
-    } catch (error) {
-      console.error("Vehicles feed analysis failed", { url, requestedType, error });
+
+      analysis = parseXml(content);
+    } else {
+      analysis = parseCsv(content);
+    }
+
+    if (analysis.rowsCount === 0) {
       return NextResponse.json(
         {
           success: false,
-          message: "Errore durante l'analisi del feed.",
+          message: "Il feed non contiene veicoli.",
         },
         { status: 400 },
       );
     }
+  } catch (error) {
+    console.error("Vehicles feed analysis failed", { url, requestedType, error });
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Errore durante l'analisi del feed.",
+      },
+      { status: 400 },
+    );
   }
 
   // Gestisci l'import di feed reali
@@ -1210,6 +1034,10 @@ export async function POST(request: Request) {
       }
     }
 
+    // Il limite del piano, letto dal database che e' lo stesso che lo impone.
+    const limite = await limiteDelPiano(supabaseAdmin, dealerId);
+    let posti = await postiLiberi(supabaseAdmin, dealerId, limite);
+
     for (const vehicle of analysis.preview) {
       const vehicleLabel = `${vehicle.brand} ${vehicle.model}`;
 
@@ -1228,10 +1056,14 @@ export async function POST(request: Request) {
           color: null,
           vin: null,
           description: null,
-          status: "published" as const,
-          published: true,
+          // Il tetto del piano: finche' c'e' posto l'auto entra in vetrina,
+          // oltre entra in attesa. Qui conta il doppio, perche' si scrive con
+          // la chiave di servizio e il trigger del database non ferma niente.
+          status: (posti === null || posti > 0 ? "published" : STATO_OLTRE_IL_TETTO) as string,
+          published: posti === null || posti > 0,
           dealer_id: dealerId,
         };
+        if (vehicleData.published && posti !== null && posti > 0) posti -= 1;
 
         let existingVehicle: { id: string } | null = null;
 

@@ -165,11 +165,17 @@ describe("come si scrive il cambiamento", () => {
     expect(campi.import_missing_since).toBe("2026-08-27T09:00:00.000Z");
   });
 
-  it("l'auto ritrovata torna pubblicata e perde la data di sparizione", () => {
+  /**
+   * Dal 10/09/2026 non torna pubblicata da sola: torna **in fila per il tetto
+   * del piano**, che la pubblica nello stesso giro se c'e' posto. Pubblicarla
+   * qui vorrebbe dire scavalcare le usate in attesa -- o farsi rifiutare dal
+   * database, se il piano e' pieno.
+   */
+  it("l'auto ritrovata perde la data di sparizione e torna in fila per il tetto", () => {
     const campi = campiVeicoloRitrovato(adesso);
 
-    expect(campi.status).toBe("published");
-    expect(campi.published).toBe(true);
+    expect(campi.status).toBe("in_review");
+    expect(campi.published).toBe(false);
     expect(campi.import_missing_since).toBeNull();
   });
 });

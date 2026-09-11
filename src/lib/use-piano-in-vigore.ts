@@ -43,7 +43,9 @@ const DURATA_RISPOSTA_MS = 60_000;
  * viene riusata. Un piano preso in prestito da un'altra sessione aprirebbe
  * funzioni che non spettano, ed e' l'errore piu' caro fra quelli possibili qui.
  */
-let promessaInCorso: { token: string; risposta: Promise<string | null>; chiestaAlle: number } | null = null;
+export type PianoInVigore = { planCode: string | null; limiteAnnunci: number | null };
+
+let promessaInCorso: { token: string; risposta: Promise<PianoInVigore>; chiestaAlle: number } | null = null;
 
 /**
  * Chiede il piano al server. **Solleva** se la richiesta non riesce, invece di
@@ -52,7 +54,7 @@ let promessaInCorso: { token: string; risposta: Promise<string | null>; chiestaA
  * assomigliano a schermo -- funzioni chiuse -- ma la prima si puo' mettere in
  * cache e la seconda no.
  */
-async function chiediIlPiano(token: string): Promise<string | null> {
+async function chiediIlPiano(token: string): Promise<PianoInVigore> {
   const risposta = await fetch("/api/demo/plan-request", {
     headers: { authorization: `Bearer ${token}` },
   });
@@ -61,23 +63,28 @@ async function chiediIlPiano(token: string): Promise<string | null> {
     throw new Error(`plan-request ha risposto ${risposta.status}`);
   }
 
-  const payload = (await risposta.json().catch(() => ({}))) as { effectivePlanCode?: string | null };
-  return payload.effectivePlanCode ?? null;
+  const payload = (await risposta.json().catch(() => ({}))) as { effectivePlanCode?: string | null; limiteAnnunci?: number | null };
+  return {
+    planCode: payload.effectivePlanCode ?? null,
+    // Quante auto il piano consente in vetrina: lo dice il server, che lo
+    // legge dal database. Qui non c'e' nessun numero.
+    limiteAnnunci: typeof payload.limiteAnnunci === "number" ? payload.limiteAnnunci : null,
+  };
 }
 
-function piano(token: string): Promise<string | null> {
+function piano(token: string): Promise<PianoInVigore> {
   const messaDaParte = promessaInCorso;
 
   if (messaDaParte?.token === token && Date.now() - messaDaParte.chiestaAlle < DURATA_RISPOSTA_MS) {
     return messaDaParte.risposta;
   }
 
-  const risposta = chiediIlPiano(token).catch(() => {
+  const risposta = chiediIlPiano(token).catch((): PianoInVigore => {
     // Una richiesta fallita non resta in cache: al prossimo montaggio si
     // riprova, invece di ricordare per sempre "non lo so" -- che vorrebbe
     // dire funzioni chiuse fino al ricaricamento della pagina.
     if (promessaInCorso?.token === token) promessaInCorso = null;
-    return null;
+    return { planCode: null, limiteAnnunci: null };
   });
 
   promessaInCorso = { token, risposta, chiestaAlle: Date.now() };
@@ -101,11 +108,12 @@ export function dimenticaIlPianoInVigore() {
  * questo progetto non ha. Le schermate continuano a usare `usePianoInVigore`.
  */
 export function pianoPerProva(token: string): Promise<string | null> {
-  return piano(token);
+  return piano(token).then((inVigore) => inVigore.planCode);
 }
 
 export function usePianoInVigore() {
   const [planCode, setPlanCode] = useState<string | null>(null);
+  const [limiteAnnunci, setLimiteAnnunci] = useState<number | null>(null);
   const [caricamento, setCaricamento] = useState(true);
 
   useEffect(() => {
@@ -120,11 +128,12 @@ export function usePianoInVigore() {
         return;
       }
 
-      const codice = await piano(token);
+      const inVigore = await piano(token);
 
       if (!alive) return;
 
-      setPlanCode(codice);
+      setPlanCode(inVigore.planCode);
+      setLimiteAnnunci(inVigore.limiteAnnunci);
       setCaricamento(false);
     };
 
@@ -135,5 +144,5 @@ export function usePianoInVigore() {
     };
   }, []);
 
-  return { planCode, caricamento };
+  return { planCode, limiteAnnunci, caricamento };
 }
