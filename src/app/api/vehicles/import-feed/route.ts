@@ -140,6 +140,21 @@ export async function POST(request: Request) {
       },
     });
 
+    // Il tetto del piano si legge e si applica con la **chiave di servizio**,
+    // come gia' fa l'importazione dal sito. `resolve_dealer_listing_cap` e'
+    // riservata a quella dal 05/09/2026: chiedendola con la sessione
+    // dell'utente si riceve "permesso negato", e siccome quella lettura
+    // ignorava l'errore il limite risultava "non leggibile" e **la regola del
+    // tetto non si applicava mai su questo percorso**. Difetto mio del
+    // 11/09/2026, trovato misurando i permessi in produzione.
+    const chiaveDiServizio = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseTetto = chiaveDiServizio
+      ? (createClient(supabaseUrl, chiaveDiServizio, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        }) as ApiSupabaseClient)
+      : null;
+
+
     const {
       data: { user },
       error: authError,
@@ -260,7 +275,7 @@ export async function POST(request: Request) {
     // Quante auto il piano lascia ancora entrare in vetrina. Il limite lo dice
     // il database, che e' lo stesso che poi lo impone: qui non c'e' nessun
     // numero. `null` quando il piano non ha un tetto leggibile.
-    const limite = desiredStatus === "published" ? await limiteDelPiano(supabase, dealerId) : null;
+    const limite = desiredStatus === "published" && supabaseTetto ? await limiteDelPiano(supabaseTetto, dealerId) : null;
     let posti = desiredStatus === "published" ? await postiLiberi(supabase, dealerId, limite) : null;
 
     for (const entry of analyzed) {
@@ -341,7 +356,7 @@ export async function POST(request: Request) {
     // A fine importazione la regola comune rimette in ordine la vetrina: se il
     // feed portava piu' auto di quante il piano ne consente, restano quelle
     // giuste -- usate per prime -- e non le prime arrivate.
-    const tetto = desiredStatus === "published" ? await applicaTettoDelPiano(supabase, dealerId) : null;
+    const tetto = desiredStatus === "published" && supabaseTetto ? await applicaTettoDelPiano(supabaseTetto, dealerId) : null;
 
     return NextResponse.json({
       mode,
