@@ -36,9 +36,26 @@ export type Cursore = {
   dopo: string | null;
   /** Per sito, gli identificativi delle schede fallite in questo run: non si ritentano. */
   saltate: Record<string, string[]>;
+  /**
+   * I siti la cui **importazione** ha trovato il sito che frena: alla chiamata
+   * dopo saltano quel passo e vanno dritti al ripasso delle schede che hanno
+   * gia'. Vedi `PAUSA_DOPO_IL_FRENO_MS` per il perche'.
+   */
+  importazioneRimandata: string[];
 };
 
-export const CURSORE_VUOTO: Cursore = { dopo: null, saltate: {} };
+export const CURSORE_VUOTO: Cursore = { dopo: null, saltate: {}, importazioneRimandata: [] };
+
+/**
+ * Quanto si aspetta fra una scheda e l'altra su un sito che ha appena
+ * risposto "troppe richieste".
+ *
+ * Misurato su autogepy.it l'11/09/2026: a quattro decimi di secondo rifiuta
+ * quasi sempre, a cinque secondi e oltre risponde. Non e' una soglia netta --
+ * le risposte sono irregolari -- quindi questo numero va corretto guardando
+ * quante schede passano davvero, non calcolato.
+ */
+export const PAUSA_DOPO_IL_FRENO_MS = 5000;
 
 export function chiaveSorgente(sorgente: { dealer_id: string; import_source: string }) {
   return `${sorgente.dealer_id}|${sorgente.import_source}`;
@@ -57,7 +74,37 @@ export function leggiCursore(grezzo: unknown): Cursore {
       if (ids.length > 0) saltate[chiave] = ids.slice(-SALTATE_MASSIME_PER_SITO);
     }
   }
-  return { dopo, saltate };
+  const importazioneRimandata = Array.isArray(oggetto.importazioneRimandata)
+    ? (oggetto.importazioneRimandata as unknown[]).filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    : [];
+
+  return { dopo, saltate, importazioneRimandata };
+}
+
+/**
+ * Segna che per questo sito l'importazione va rimandata alla chiamata dopo.
+ *
+ * **Il difetto che questo chiude**, misurato l'11/09/2026. Sul sito di
+ * Autogepy c'erano diciassette auto che in KeyAuto non erano mai entrate,
+ * perche' le loro pagine non si lasciavano leggere. Ogni chiamata provava
+ * prima quelle, si prendeva un "troppe richieste" alla prima, e passava la
+ * mano all'intero sito -- senza mai arrivare alle centotrentotto schede che
+ * c'erano gia' e andavano solo ripassate. Quelle diciassette non entravano
+ * mai, quindi restavano diciassette per sempre: un blocco che si teneva in
+ * piedi da solo, e per quattro giorni non e' stata aggiornata **nessuna**
+ * scheda di quel sito.
+ *
+ * Adesso il turno perso vale solo per il passo che ha trovato il freno: alla
+ * chiamata dopo si riparte dal ripasso, che e' la parte che ha qualcosa da
+ * guadagnare.
+ */
+export function rimandaImportazione(cursore: Cursore, chiave: string): Cursore {
+  if (cursore.importazioneRimandata.includes(chiave)) return cursore;
+  return { ...cursore, importazioneRimandata: [...cursore.importazioneRimandata, chiave] };
+}
+
+export function importazioneDaSaltare(cursore: Cursore, chiave: string): boolean {
+  return cursore.importazioneRimandata.includes(chiave);
 }
 
 export function aggiungiSaltate(cursore: Cursore, chiave: string, ids: readonly string[]): Cursore {

@@ -184,6 +184,25 @@ e l'elenco a video e' una pagina di nove righe gia' filtrata; e un'auto
 portata in vetrina occupa un posto **anche quando e' un aggiornamento** di una
 gia' in archivio, non solo quando e' nuova.
 
+**Un sito che frena perde il turno, non il lavoro.** Quando il sito di una
+concessionaria risponde "troppe richieste" (429), insistere e' esattamente
+quello che ci ha chiesto di non fare: si passa la mano e il tempo va agli
+altri. Ma il turno perso vale **solo per il passo che ha trovato il no**.
+
+Il difetto, misurato l'11/09/2026 su autogepy.it: sul sito c'erano 17 auto mai
+entrate in KeyAuto perche' le loro pagine non si leggevano. Ogni chiamata
+provava prima quelle, prendeva il 429 alla prima, e passava la mano
+all'**intero sito** -- senza mai arrivare alle 138 schede che c'erano gia' e
+andavano solo ripassate. E siccome quelle 17 non entravano mai, restavano 17
+per sempre. Quattro giorni con **zero** schede aggiornate, mentre l'indice del
+sito si leggeva benissimo e le singole pagine, a ritmo lento, pure.
+
+Due regole da tenere insieme: l'importazione delle nuove e il ripasso delle
+esistenti **si alternano** (il cursore ricorda quale passo ha trovato il
+freno), e un sito che ha appena frenato si legge con una **pausa lunga**
+(`PAUSA_DOPO_IL_FRENO_MS`). Quel numero si corregge guardando quante schede
+passano davvero: le risposte di un sito che limita non sono una soglia netta.
+
 **Un contatto senza `dealer_id` non lo vede nessuno.** Oggi i contatti nascono
 in un posto solo -- `/api/marketplace/lead`, che imposta sempre la
 concessionaria -- e **il gestionale non ne crea a mano**. Il giorno che si
