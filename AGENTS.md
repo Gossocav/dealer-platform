@@ -396,6 +396,24 @@ condizione della correzione descritta piu' sopra in
 piano con piu' di un utente**, Elite compreso. Sono due voci della stessa
 lista, e vanno guardate insieme il giorno che quella lista si apre.
 
+**Una colonna nominata da una regola di accesso non cambia tipo.** Postgres
+rifiuta con *"cannot alter type of a column used in a policy definition"*, e
+lo rifiuta **a meta' della transazione**: se quella riga sta dentro una
+migration che il titolare incolla nell'editor SQL, si ferma li'. Successo il
+14/09/2026 convertendo `demo_requests.vehicle_count` da testo a numero, perche'
+`demo_requests_insert_public` pretende `vehicle_count is not null`.
+
+Si toglie la regola, si cambia il tipo, si rimette la regola **identica** --
+stesso nome, stesso comando, stesso ruolo, stesso controllo -- e si verifica
+dopo la ricostruzione che sia tornata bit per bit quella di prima.
+
+E' la terza volta che **provare invece di dedurre** evita un guasto nell'editor
+SQL del titolare: le altre due sono l'ordine di cancellazione delle tabelle
+(`drop table import_sources` rifiutato perche' quattro tabelle dipendono da
+lei) e il primo tentativo di `src/lib/targa.ts`, che escludeva le lettere I, O,
+Q, U anche dalle sigle delle province e rifiutava `MI123456`. Una migration si
+prova su Postgres vero **prima** di consegnarla, sempre.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si

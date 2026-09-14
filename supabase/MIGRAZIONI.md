@@ -290,6 +290,33 @@ numero non e' una condanna, e' una misura. E si legge in un posto solo, il
 riepilogo dell'esecuzione su GitHub, dove l'elenco completo delle differenze e'
 gia' stampato riga per riga -- non va ricostruito, va letto.
 
+## Perche' il ripristino va provato, e non soltanto scritto
+
+Il 14/09/2026, ricostruendo lo schema da zero per confrontarlo con la
+produzione, e' saltato fuori questo: **`vehicles.registration_date` in
+produzione e' una `date`, e nei file e' `text`.**
+
+Nasce cosi' in `20260702_add_power_kw_and_registration_date_to_vehicles.sql`;
+in produzione qualcuno l'ha poi corretta a mano e non l'ha scritto nei file.
+Finche' il database vero regge, non se ne accorge nessuno.
+
+**Cosa sarebbe successo dopo un ripristino.** Una data scritta come testo non
+si ordina per data, si ordina per lettera: `"09/2025"` verrebbe **prima** di
+`"1/2024"`, perche' `0` viene prima di `1`. L'elenco delle auto ordinato per
+immatricolazione avrebbe mostrato le vetture in un ordine sbagliato, e i
+filtri "dal 2023 in poi" avrebbero risposto male. **Senza nessun errore**:
+solo auto nell'ordine sbagliato, che nessuno avrebbe collegato al ripristino
+di tre settimane prima.
+
+E' la forma peggiore di difetto che questo progetto conosca: plausibile,
+silenzioso, e con la causa lontanissima dall'effetto. Insieme a lei sono
+emersi `vehicles.engine_size` e `demo_requests.vehicle_count`, numeri scritti
+come testo per lo stesso motivo.
+
+**Percio' il ripristino si prova**, non si dichiara: `scripts/ricostruisci-schema.sh`
+su un Postgres 17 vuoto, poi `scripts/confronta-schema.mjs` contro la
+produzione. Chiuse in `20260914070000_i_file_raccontano_le_colonne_come_sono.sql`.
+
 ## La decodifica a pagamento e' rimandata (14/09/2026)
 
 **Non si compra, e non si costruisce la tabella di cache che la servirebbe.**
