@@ -236,6 +236,49 @@ Le regole, in ordine di importanza:
 
 Il guardiano e' `src/lib/sincronizzazioni-veicoli.test.ts`.
 
+**Un dato mancante non vale zero, in nessun calcolo.** E' la stessa famiglia
+della trappola qui sopra, ma dentro i conti invece che dentro gli elenchi, e
+in questo progetto e' gia' costata tre volte:
+
+1. le "Ultime sincronizzazioni", due importazioni mai avvenute (PR #146, #172);
+2. il **margine**, che valeva il prezzo di vendita intero quando l'acquisto non
+   era scritto -- una vettura venduta a 11.500 senza acquisto risultava con
+   11.500 di margine, visto su una riga vera in produzione (31/08/2026);
+3. il **costo totale**, che sommava le altre voci ignorando l'acquisto
+   mancante: 500 euro di trasporto su una vettura pagata 14.000 rispondevano
+   "costo totale 500 euro" (14/09/2026).
+
+La forma e' sempre la stessa: **un numero plausibile al posto di "non lo so"**.
+Chi guarda lo schermo non ha nessun modo di distinguerli, e ci crede. Le
+regole:
+
+- una somma a cui manca una voce **non e' un totale parziale, e' un totale
+  sbagliato**: si restituisce `null`, non la somma del resto;
+- il trattino non va mai da solo: accanto si scrive **perche'** manca, come fa
+  `percheIlCosto`. Un trattino muto si legge come zero o come un guasto;
+- il campo scritto a **zero** e' un dato e il conto si fa. La differenza fra
+  `null` e `0` e' la differenza fra "non lo so" e "non e' costata niente", e
+  nel database esiste gia': non va appiattita;
+- se la stessa formula vive anche come **colonna calcolata** nel database,
+  vanno cambiate tutte e due insieme. Due formule che dicono cose diverse sono
+  peggio di una sola, e nel conto economico le schermate leggono l'una e le
+  statistiche l'altra.
+
+I guardiani sono in `src/lib/conto-economico.test.ts`, sotto "un dato mancante
+non vale zero".
+
+**Una scelta documentata non e' una scelta giusta.** Il terzo caso non era una
+svista: era una decisione, fissata da un test che la spiegava -- *"e' una
+risposta onesta anche senza acquisto: dice quanto si e' speso finora"*. Letta
+da sola suonava ragionevole. Era sbagliata di quattordicimila euro.
+
+Il commento che motiva una scelta dice **perche' fu presa**, non che regga
+ancora: chi l'ha scritta aveva in testa un caso, e il caso che la rompe e'
+quasi sempre un altro. Quando un difetto porta a una riga che sembra voluta,
+si legge la motivazione e la si mette alla prova con un numero vero, invece di
+fermarsi davanti al commento. Se cade, si cambia la riga **e** si riscrive la
+motivazione con la data e il caso che l'ha fatta cadere.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si

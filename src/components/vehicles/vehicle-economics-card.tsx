@@ -14,6 +14,7 @@ import {
   margine,
   marginePercentuale,
   perche,
+  percheIlCosto,
   type VociConto,
 } from "@/lib/conto-economico";
 
@@ -235,7 +236,7 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
 
       {/* Le due somme in cima: sono la ragione per cui si compila il resto. */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Riquadro etichetta="Costo totale" valore={formattaImporto(totale)} />
+        <Riquadro etichetta="Costo totale" valore={formattaImporto(totale)} nota={percheIlCosto(conto) ?? undefined} />
         <Riquadro
           etichetta="Margine"
           valore={formattaImporto(guadagno)}
