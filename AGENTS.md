@@ -290,6 +290,19 @@ regole:
 I guardiani sono in `src/lib/conto-economico.test.ts`, sotto "un dato mancante
 non vale zero".
 
+**E un si'/no che ammette il vuoto e' un terzo stato che nessuno gestisce.**
+E' la stessa famiglia, sulle colonne invece che sui conti. Misurato il
+14/09/2026: in produzione `vehicles.published` ammetteva il vuoto. Il tetto del
+piano conta `published = true`, il marketplace filtra `published = true`, la
+scheda mostra "in vetrina" o "no": una riga con quel campo vuoto **non sta ne'
+di qua ne' di la'**, e nessuna parte del codice sa cosa farne. Non e' un errore
+che si vede: e' un'auto che sparisce da tutti e due gli elenchi.
+
+Prima di allineare una colonna cosi' si contano le righe vuote: se sono zero --
+e lo erano, su tutte e quindici le colonne trovate quel giorno -- il dato c'e'
+sempre e manca solo la regola che lo pretende. Chiuse in
+`20260914080000_le_ultime_colonne_come_in_produzione.sql`.
+
 **Una scelta documentata non e' una scelta giusta.** Il terzo caso non era una
 svista: era una decisione, fissata da un test che la spiegava -- *"e' una
 risposta onesta anche senza acquisto: dice quanto si e' speso finora"*. Letta
@@ -395,6 +408,34 @@ condizione della correzione descritta piu' sopra in
 [MIGRAZIONI.md](supabase/MIGRAZIONI.md): **va risolto prima di vendere un
 piano con piu' di un utente**, Elite compreso. Sono due voci della stessa
 lista, e vanno guardate insieme il giorno che quella lista si apre.
+
+**Scrivere una regola nei file non chiude una differenza.** La chiude solo
+quando la regola arriva nel database vero. Sono due numeri diversi e vanno
+tenuti separati in ogni resoconto: *"le differenze scendono a N scrivendo i
+file"* e *"scendono a M quando il titolare applica la migration"*. Confonderli
+fa sembrare risolto qualcosa che nel database che gira e' ancora com'era.
+
+La prova che la distinzione conta: il 14/09/2026 quindici colonne erano
+dichiarate obbligatorie **nei file** e libere in produzione. Scriverle
+nuovamente nei file non cambiava niente -- li' lo erano gia'. Il conteggio si
+muove solo con l'`alter table` sulla produzione.
+
+**I valori di un tipo enumerato si leggono senza chiedere niente al titolare.**
+L'inventario dice soltanto `USER-DEFINED`, e il nome del tipo e i suoi valori
+sembrano richiedere una query sulla produzione. Non e' cosi': PostgREST
+pubblica la descrizione dello schema, e li' ci sono per esteso.
+
+```bash
+set -a; . ./.env.production; set +a
+curl -s -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+     -H "Accept: application/openapi+json" "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" \
+  | jq '.definitions.audit_logs.properties.actor_type'
+```
+
+Risponde `{"enum": ["user","system","api"], "format": "public.audit_actor_type_t"}`.
+E' cosi' che si e' saputo com'era fatto `audit_logs.actor_type` senza
+indovinarlo.
 
 **Una colonna nominata da una regola di accesso non cambia tipo.** Postgres
 rifiuta con *"cannot alter type of a column used in a policy definition"*, e
