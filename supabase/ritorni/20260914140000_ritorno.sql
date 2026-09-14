@@ -1,0 +1,13 @@
+-- Ritorno di 20260914140000_via_le_notifiche_delle_prove.sql.
+--
+-- **Non c'e'.** Le righe cancellate erano notifiche di conti di prova, e una
+-- notifica e' un avviso: non un dato di cui qualcuno abbia bisogno domani.
+-- Ricrearle vorrebbe dire reinventarle, e in questo progetto un dato che non
+-- c'e' non si finge.
+--
+-- Quelle che servono davvero le riscrive `sync_stale_notifications` da sola
+-- alla prima apertura del pannello, con il testo corretto: i contatti mai
+-- richiamati e le auto tenute fuori dal tetto del piano ricompaiono.
+--
+-- Se servisse tornare indietro sul **comportamento**, il ritorno da eseguire e'
+-- quello di `20260914130000`, non questo.
