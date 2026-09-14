@@ -301,7 +301,16 @@ eseguibili dal sito, per due mesi); e `dealer_users`, dove si toglievano
 **Come si evita la quinta volta.** Quando una regola nomina un elenco --
 comandi, ruoli, tabelle, tipi di oggetto -- la domanda non e' "l'elenco e'
 giusto?" ma **"cosa resta fuori dall'elenco, e perche'?"**. Se la risposta non
-sta in una riga, l'elenco e' incompleto. Il giro completo di quali serrature
+sta in una riga, l'elenco e' incompleto. E davanti a un controllo che dice
+"nessuna differenza", la frase da tenere in mente e' quella con cui il difetto
+e' stato trovato:
+
+> **"Zero differenze li' vuol dire non guardato, non tutto a posto."**
+
+Un conteggio a zero e' una risposta solo se si sa **cosa** e' stato contato.
+Prima di riportarlo come rassicurazione si apre la regola e si guarda il suo
+filtro: una famiglia che non viene interrogata risponde zero esattamente come
+una famiglia sana. Il giro completo di quali serrature
 l'inventario sorveglia e quali no sta in
 `supabase/migrations/20260914020000_il_guardiano_vede_anche_la_lettura.sql`.
 
@@ -349,6 +358,20 @@ lette, **62 distinte**, **zero** pagine contenenti i dati di un'altra vettura,
 se su questi tre siti non ha trovato niente: il giorno che un sito mettera' due
 vetture nella stessa pagina e' l'unica cosa che impedisce di attribuire la
 targa dell'una all'altra.
+
+**Le notifiche non distinguono gli utenti della stessa concessionaria.** Dal
+22/08/2026 le quattro regole di accesso su `notifications` chiedono soltanto
+la concessionaria (`dealer_id = current_dealer_id()`), non l'utente: al
+livello del database chiunque abbia una sessione attiva su una concessionaria
+puo' leggere -- e segnare come lette -- le notifiche di un suo collega. Le
+regole precedenti chiedevano `user_id = auth.uid()`; la migration
+dell'isolamento le ha sostituite tutte.
+
+**Oggi non fa danni perche' ogni piano ha un utente solo.** E' la stessa
+condizione della correzione descritta piu' sopra in
+[MIGRAZIONI.md](supabase/MIGRAZIONI.md): **va risolto prima di vendere un
+piano con piu' di un utente**, Elite compreso. Sono due voci della stessa
+lista, e vanno guardate insieme il giorno che quella lista si apre.
 
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde

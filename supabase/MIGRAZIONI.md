@@ -270,6 +270,26 @@ tabella con un `revoke all`: le colonne pubbliche di `vehicles` e `dealers`
 `dealers` e `profiles` (tutto tranne piano, stato dell'abbonamento, ruolo e
 concessionaria). Sono nella stessa migration, per esteso.
 
+## La deriva dello schema non e' cronica: scende quando la si affronta
+
+Si e' raccontata a lungo come un problema fisso -- "ci sono sempre state delle
+differenze". Non e' vero, e i numeri del controllo settimanale lo dicono:
+
+| quando | differenze | cos'era successo |
+|---|---|---|
+| 10/09/2026, 11:51 | **385** | prima esecuzione del controllo che guarda lo schema vero |
+| 11/09/2026 | **126** | applicate cinque migration (`20260910160000`, `170000`, `180000`, `190000`, `200000`) |
+| 14/09/2026 | **121** | tolte le dieci tabelle senza codice, e con loro cinque trigger che stavano solo in produzione |
+
+Da 385 a 121 in quattro giorni, **due terzi nei primi due**. Il debito non
+cresce da solo e non resta fermo: scende ogni volta che qualcuno ci lavora, e
+sale solo quando si tocca il database a mano senza scriverlo nei file.
+
+Vale la pena tenerlo a mente quando il controllo settimanale e' rosso: il
+numero non e' una condanna, e' una misura. E si legge in un posto solo, il
+riepilogo dell'esecuzione su GitHub, dove l'elenco completo delle differenze e'
+gia' stampato riga per riga -- non va ricostruito, va letto.
+
 ## La decodifica a pagamento e' rimandata (14/09/2026)
 
 **Non si compra, e non si costruisce la tabella di cache che la servirebbe.**
