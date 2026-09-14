@@ -1,3 +1,25 @@
+-- **Questo file non ha una data nel nome, e gira per ULTIMO.**
+--
+-- In una ricostruzione le migration si applicano in ordine alfabetico, e le
+-- cifre vengono prima delle lettere: `rls_vehicles_policies.sql` e
+-- `add_dealer_id_to_vehicle_images.sql` finiscono **dopo tutte** quelle
+-- datate, comprese quelle scritte mesi dopo. Qualunque cosa questo file
+-- ridefinisca, vince.
+--
+-- Non si rinominano: cambiare il nome cambierebbe l'ordine in modi che
+-- nessuno ha verificato. Si tiene invece il loro contenuto **allineato a
+-- quello che la produzione ha davvero**.
+--
+-- **Il 14/09/2026 non lo era.** Questo file ridefiniva
+-- `enforce_vehicle_dealer_id()` ed `enforce_vehicle_image_dealer_id()` con una
+-- versione piu' vecchia di quella in produzione, e siccome gira per ultimo era
+-- quella a sopravvivere alla ricostruzione. Le due versioni si comportano allo
+-- stesso modo -- l'unica differenza e' un `if` annidato al posto di un `and`
+-- -- ma il confronto settimanale le segnalava come diverse, e un allarme che
+-- suona per una differenza che non esiste e' un allarme che si smette di
+-- leggere. Ora sono identiche a quelle di `20260714000001`, cioe' a quelle
+-- della produzione.
+
 -- RLS policy pack for public.vehicles + public.vehicle_images
 -- Safe to run in Supabase SQL Editor.
 -- Idempotent: can be executed multiple times.
@@ -114,10 +136,8 @@ begin
     end if;
   end if;
 
-  if tg_op = 'UPDATE' then
-    if new.dealer_id is distinct from old.dealer_id then
-      raise exception 'dealer_id non puo essere modificato.' using errcode = '42501';
-    end if;
+  if tg_op = 'UPDATE' and new.dealer_id is distinct from old.dealer_id then
+    raise exception 'dealer_id non puo essere modificato.' using errcode = '42501';
   end if;
 
   return new;
@@ -168,10 +188,8 @@ begin
     end if;
   end if;
 
-  if tg_op = 'UPDATE' then
-    if new.dealer_id is distinct from old.dealer_id then
-      raise exception 'dealer_id non puo essere modificato.' using errcode = '42501';
-    end if;
+  if tg_op = 'UPDATE' and new.dealer_id is distinct from old.dealer_id then
+    raise exception 'dealer_id non puo essere modificato.' using errcode = '42501';
   end if;
 
   return new;
