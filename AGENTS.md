@@ -477,32 +477,46 @@ nessuno ha verificato -- e il loro contenuto si tiene allineato alla
 produzione. Il guardiano e' `src/lib/migrazioni-in-ordine.test.ts`, che
 fallisce se ne compare un terzo.
 
-**`sync_stale_notifications` ha tre difetti, e nessuno e' stato corretto.**
-Sono stati trovati leggendo il testo della funzione in produzione il
-14/09/2026, durante la pulizia dello schema; la pulizia non costruisce, quindi
-restano scritti qui.
+**Le notifiche: tre difetti corretti il 14/09/2026, e uno lasciato apposta.**
 
-1. **Dice una cosa falsa al concessionario.** Cerca i veicoli con
-   `published = false` e `status <> 'published'` da piu' di sette giorni, e
-   annuncia *"Veicolo in bozza da oltre 7 giorni -- non e' ancora stato
-   pubblicato"*. Ma in produzione ci sono **76 vetture in `in_review`**, e sono
-   li' perche' **il tetto del piano ce le ha messe**, non perche' qualcuno se
-   ne sia dimenticato. Il concessionario legge che ha 76 bozze abbandonate
-   quando ha 76 auto che il suo piano non gli permette di pubblicare. Stessa
-   famiglia dello storico finto e del margine a zero: un'informazione
-   plausibile e sbagliata.
-2. **Moltiplica per il numero di utenti.** Le due interrogazioni fanno
-   `cross join dealer_users`: **un inserimento per ogni veicolo per ogni
-   utente**. Oggi ogni piano ha un utente solo e non si vede; con tre utenti,
-   76 vetture diventano **228 notifiche in un colpo**. E' la seconda alluvione
-   dopo quella delle auto importate, e peggiora esattamente quando si
-   venderanno i piani multiutente.
-3. **Meta' della funzione non trova mai niente.** Cerca i contatti con
-   `coalesce(lower(status), 'created') = 'created'`, ma gli stati dei contatti
-   in questo progetto sono in italiano. Misurato sulla produzione: i due
-   contatti hanno stato `nuovo` e `chiuso_negativo`, **zero con `created`**.
-   L'avviso *"Lead non contattato da 24 ore"* -- che e' il piu' utile dei due
-   -- **non e' mai arrivato a nessuno**.
+I tre corretti, trovati leggendo il testo delle funzioni in produzione:
+
+1. **Meta' di `sync_stale_notifications` non trovava mai niente.** Cercava i
+   contatti con `status = 'created'`, il vecchio nome inglese. Gli stati di
+   questo progetto sono italiani (`src/lib/leads.ts`), e `leads_status_check`
+   -- in produzione -- ammette **solo** quei sei: scrivere `created` viene
+   rifiutato dal database. La condizione era morta due volte, e **l'avviso
+   "Lead non contattato da 24 ore" non e' mai arrivato a nessuno**.
+2. **Diceva una cosa falsa.** Annunciava *"Veicolo in bozza da oltre 7 giorni"*
+   per ogni vettura non pubblicata, comprese le **76 in `in_review`** che il
+   **tetto del piano** aveva messo da parte. Ora le bozze vere e le auto
+   fermate dal tetto si distinguono, e le seconde producono **una sola**
+   notifica per concessionaria: *"Il tuo piano include 50 auto: 76 del tuo
+   sito non sono pubblicate."*
+3. **Una sincronizzazione allagava la campanella.** Un trigger per riga
+   scriveva una notifica per ogni auto importata: delle 411 in produzione,
+   **373 erano `vehicle_new`**. Ora si raggruppano per sito e per giorno
+   (`vehicle_import`, con la colonna `conteggio`), e **un'auto inserita a mano
+   non produce piu' niente**: annunciare al concessionario una cosa che ha
+   appena fatto lui e' rumore.
+
+**Il quarto e' ancora li', ed e' voluto.** Le due interrogazioni fanno
+`cross join` sugli utenti della concessionaria: **un inserimento per ogni cosa
+per ogni utente**. Oggi ogni piano ha un utente solo e non si vede. Va risolto
+**prima di vendere un piano multiutente**, ed e' la **terza voce** di quella
+lista, insieme alle notifiche leggibili fra colleghi e alla correzione su
+`dealer_users` descritta in [MIGRAZIONI.md](supabase/MIGRAZIONI.md). Il
+raggruppamento lo rende molto meno grave: tre utenti moltiplicano **una**
+notifica per sito, non centoquaranta.
+
+**Due cose da sapere prima di aggiungere un tipo di notifica.**
+`notifications_type_check` elenca i tipi ammessi: un tipo nuovo va aggiunto li'
+o l'inserimento viene rifiutato **a meta' della transazione**. E i tipi vecchi
+non si tolgono dall'elenco finche' esistono righe che li portano. Le due cose
+insieme sono state trovate provando la migration su Postgres vero, non
+leggendola.
+
+Il guardiano e' `src/lib/notifiche.test.ts`.
 
 **E una quarta cosa, minore:** `set_updated_at()` in produzione non ha
 `set search_path`, mentre i file ce l'avevano. I file erano piu' prudenti. La
