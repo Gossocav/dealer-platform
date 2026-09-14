@@ -70,21 +70,38 @@ const VETRINA = {
  */
 const IMMAGINI = "vehicle_images";
 
+/**
+ * `null` vuol dire "non ho ricevuto righe", e fin qui basta per dire
+ * "protetta". Ma una tabella **che non esiste piu'** risponde allo stesso
+ * modo, e chiamarla "protetta" sarebbe un dato inventato: chi legge il
+ * riepilogo crederebbe che il controllo abbia guardato qualcosa. Postgres la
+ * distingue con il codice 42P01, che PostgREST riporta tale e quale.
+ */
 async function leggi(percorso) {
   const risposta = await fetch(`${url}/rest/v1/${percorso}`, {
     headers: { apikey: chiave, Authorization: `Bearer ${chiave}` },
     signal: AbortSignal.timeout(20000),
   });
   const corpo = await risposta.json().catch(() => null);
-  return Array.isArray(corpo) ? corpo : null;
+  if (Array.isArray(corpo)) return corpo;
+  if (corpo && typeof corpo === "object" && corpo.code === "42P01") return "assente";
+  return null;
 }
 
 let aperte = 0;
+let assenti = 0;
 
 console.log("\nCosa vede un visitatore senza login\n");
 
 for (const tabella of RISERVATE) {
   const righe = await leggi(`${tabella}?select=*&limit=5`);
+  if (righe === "assente") {
+    // Non e' un guasto: dal 14/09/2026 dieci tabelle senza codice sono state
+    // tolte. Si dice, invece di farla passare per protetta.
+    assenti += 1;
+    console.log(`  ${tabella.padEnd(28)} non esiste piu'`);
+    continue;
+  }
   if (righe === null) {
     console.log(`  ${tabella.padEnd(28)} protetta`);
     continue;
@@ -101,7 +118,7 @@ console.log("\nVetrina pubblica: quello che deve restare fuori\n");
 
 for (const [tabella, { filtro, descrizione }] of Object.entries(VETRINA)) {
   const righe = await leggi(`${tabella}?${filtro}&select=id&limit=5`);
-  if (righe === null || righe.length === 0) {
+  if (righe === null || righe === "assente" || righe.length === 0) {
     console.log(`  ${tabella.padEnd(28)} ok — nessun ${descrizione}`);
     continue;
   }
@@ -113,8 +130,9 @@ console.log("\nFotografie: di quali veicoli sono quelle che si vedono\n");
 
 {
   // Tutto con la sola chiave pubblica: e' quello che vede un estraneo.
-  const veicoli = (await leggi("vehicles?select=id&limit=2000")) ?? [];
-  const foto = (await leggi(`${IMMAGINI}?select=id,vehicle_id&limit=2000`)) ?? [];
+  const soloRighe = (v) => (Array.isArray(v) ? v : []);
+  const veicoli = soloRighe(await leggi("vehicles?select=id&limit=2000"));
+  const foto = soloRighe(await leggi(`${IMMAGINI}?select=id,vehicle_id&limit=2000`));
   const visibili = new Set(veicoli.map((v) => v.id));
   const orfane = foto.filter((f) => !visibili.has(f.vehicle_id));
 
@@ -147,4 +165,8 @@ if (aperte > 0) {
   process.exit(1);
 }
 
-console.log("Esito: nessun dato di concessionaria leggibile senza login.\n");
+console.log("Esito: nessun dato di concessionaria leggibile senza login.");
+if (assenti > 0) {
+  console.log(`       ${assenti} tabelle dell'elenco non esistono piu': vanno tolte da RISERVATE.`);
+}
+console.log("");

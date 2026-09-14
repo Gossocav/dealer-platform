@@ -124,6 +124,7 @@ solo sul server: mai in un componente del browser.
 | `src/lib/active-tenant.ts` | `resolveDealerIdForCurrentUser`: l'aggancio che le pagine del gestionale usano per sapere di chi sono i dati |
 | `src/lib/carica-tutto.ts` | legge un elenco per intero: il database ne consegna mille per volta e non lo dice |
 | `src/lib/dealer-plan.ts` | il piano in vigore. **Mai** leggerlo da `dealers.subscription_plan`: e' una colonna vecchia che la conversione non aggiorna |
+| `dealers.subscription_plan` | la colonna murata. Dice "base" per tutti da sempre. Il 14/09/2026 due vincoli che la limitavano a `('base','pro')` sono stati **tolti dai file** invece di essere messi in produzione: una serratura su una porta murata fa credere che la porta serva, e quell'elenco avrebbe rifiutato `elite` il giorno che qualcuno avesse provato a scrivere il valore giusto |
 | `src/lib/vehicle-body-types.ts` | l'unico elenco delle carrozzerie: i valori sono anche quelli scritti nel database |
 | `src/lib/tetto-del-piano.ts` | la regola del tetto del piano: quali auto stanno in vetrina quando sono piu' del consentito. **Una funzione sola** per sincronizzazione, importazione e pubblicazione a mano |
 | `src/lib/dealer-site-import.ts` | legge lo stock dal sito della concessionaria; non parla col database, quindi si puo' provare su dati veri senza rischi |
@@ -212,6 +213,29 @@ i contatti di origine `marketplace`, quindi un contatto creato a mano senza
 concessionaria resta orfano e non compare nell'elenco di nessuno. Non da'
 errore: si perde in silenzio. Verificato su Postgres vero il 10/09/2026.
 
+**Aggiornamento del 14/09/2026, e la nota qui sopra andava corretta.** Quella
+protezione in produzione **non c'era**: `enforce_lead_dealer_id()` era fermo
+alla versione del 28/06 -- identificata per confronto di impronte, non a
+memoria -- che rifiuta un `dealer_id` sbagliato ma **non riempie** quello
+vuoto. La versione che riempie stava solo nei file dal 22/08.
+`20260914040000_il_contatto_senza_concessionaria_non_nasce_piu.sql` la porta
+in produzione.
+
+**Ma chiude solo il percorso `marketplace`.** Il trigger entra in azione
+soltanto quando `source` vale `marketplace` (o e' vuoto): un contatto con
+un'origine diversa **non e' protetto dal database, ne' prima ne' dopo**. E'
+esattamente il caso di "nuovo contatto" dal gestionale il giorno che lo si
+aggiungera': quel modulo **deve** impostare `dealer_id` da se', oppure il
+trigger va esteso alla sua origine. Verificato in laboratorio su Postgres 17
+il 14/09/2026, sette casi: il contatto con origine diversa esce con
+`dealer_id` vuoto e nessun errore.
+
+Un piano piu' sotto la stessa protezione c'e' ed e' scritta bene:
+`enforce_lead_activity_dealer_id()` sulle **attivita'** dei contatti riempie
+il campo e rifiuta la concessionaria altrui. Girava in produzione e non stava
+in nessun file: se il database fosse stato ricostruito da zero si sarebbe
+persa. Messa nei file il 14/09/2026.
+
 **Un ripiego non inventa dati.** Quando un dato non c'e' -- la tabella non
 esiste, la sessione e' scaduta, il database non risponde -- la tentazione e'
 rispondere con qualcosa di plausibile per non lasciare la pagina vuota. E' il
@@ -267,6 +291,19 @@ regole:
 I guardiani sono in `src/lib/conto-economico.test.ts`, sotto "un dato mancante
 non vale zero".
 
+**E un si'/no che ammette il vuoto e' un terzo stato che nessuno gestisce.**
+E' la stessa famiglia, sulle colonne invece che sui conti. Misurato il
+14/09/2026: in produzione `vehicles.published` ammetteva il vuoto. Il tetto del
+piano conta `published = true`, il marketplace filtra `published = true`, la
+scheda mostra "in vetrina" o "no": una riga con quel campo vuoto **non sta ne'
+di qua ne' di la'**, e nessuna parte del codice sa cosa farne. Non e' un errore
+che si vede: e' un'auto che sparisce da tutti e due gli elenchi.
+
+Prima di allineare una colonna cosi' si contano le righe vuote: se sono zero --
+e lo erano, su tutte e quindici le colonne trovate quel giorno -- il dato c'e'
+sempre e manca solo la regola che lo pretende. Chiuse in
+`20260914080000_le_ultime_colonne_come_in_produzione.sql`.
+
 **Una scelta documentata non e' una scelta giusta.** Il terzo caso non era una
 svista: era una decisione, fissata da un test che la spiegava -- *"e' una
 risposta onesta anche senza acquisto: dice quanto si e' speso finora"*. Letta
@@ -278,6 +315,56 @@ quasi sempre un altro. Quando un difetto porta a una riga che sembra voluta,
 si legge la motivazione e la si mette alla prova con un numero vero, invece di
 fermarsi davanti al commento. Se cade, si cambia la riga **e** si riscrive la
 motivazione con la data e il caso che l'ha fatta cadere.
+
+**E una regola scritta giusta puo' essere applicata a meta'.** E' il caso
+gemello, e in questo progetto e' capitato quattro volte. L'ultima, il
+14/09/2026: l'inventario dello schema ha una famiglia per i permessi **colonna
+per colonna**, e il commento che la introduce spiega benissimo il pericolo --
+*"un grant di troppo aprirebbe subscription_plan, e il confronto resterebbe
+verde"*. La regola pero' guardava solo `INSERT` e `UPDATE`. I sessantuno
+permessi di **lettura** colonna per colonna -- quelli che decidono cosa il
+mondo vede di `vehicles` e `dealers` con la sola chiave pubblica, e che
+tengono chiusi targa, telaio, codice fiscale e piano dell'abbonamento -- erano
+fuori dalla sorveglianza. Un `grant select (plate) on public.vehicles to anon`
+avrebbe aperto la targa di ogni vettura **lasciando verde il controllo
+settimanale**.
+
+Le altre tre: la protezione per riga accesa ma senza `force` (chi possiede la
+tabella la scavalcava); `revoke ... from public` che non toglie il permesso
+che Supabase concede ad `anon` (sette funzioni `security definer` restavano
+eseguibili dal sito, per due mesi); e `dealer_users`, dove si toglievano
+`insert/update/delete` ma non `all`.
+
+**Come si evita la quinta volta.** Quando una regola nomina un elenco --
+comandi, ruoli, tabelle, tipi di oggetto -- la domanda non e' "l'elenco e'
+giusto?" ma **"cosa resta fuori dall'elenco, e perche'?"**. Se la risposta non
+sta in una riga, l'elenco e' incompleto. E davanti a un controllo che dice
+"nessuna differenza", la frase da tenere in mente e' quella con cui il difetto
+e' stato trovato:
+
+> **"Zero differenze li' vuol dire non guardato, non tutto a posto."**
+
+Un conteggio a zero e' una risposta solo se si sa **cosa** e' stato contato.
+Prima di riportarlo come rassicurazione si apre la regola e si guarda il suo
+filtro: una famiglia che non viene interrogata risponde zero esattamente come
+una famiglia sana. Il giro completo di quali serrature
+l'inventario sorveglia e quali no sta in
+`supabase/migrations/20260914020000_il_guardiano_vede_anche_la_lettura.sql`.
+
+**L'importazione da file non sa cosa sia una targa.** In
+`src/lib/vehicle-import.ts` i campi riconosciuti sono ventisette e comprendono il
+telaio (`vin`, con gli alias "telaio" e "chassis"), ma **la targa non c'e'**.
+Una colonna "Targa" in un CSV oggi non viene agganciata a niente: **si perde in
+silenzio**, senza un avviso, e il concessionario crede di averla importata.
+
+Non e' ancora costato niente perche' nessuno ha importato un file con le
+targhe, ma e' una bomba a orologeria: il giorno che un cliente arriva con il
+suo listino, la chiave piu' importante che possiede sparisce durante il
+caricamento. E' il primo lavoro della fase che riempie i dati gestionali.
+
+Quando si aggiunge, la targa passa **sempre** da `src/lib/targa.ts`: una targa
+che non ha una forma italiana valida non si salva come targa, si segnala nel
+riepilogo dell'importazione insieme alle righe ambigue.
 
 **Una targa sbagliata e' peggio di una targa mancante.** Leggendo le schede
 dei tre siti collegati il 14/09/2026, su **62 targhe pubblicate due valevano
@@ -308,6 +395,121 @@ lette, **62 distinte**, **zero** pagine contenenti i dati di un'altra vettura,
 se su questi tre siti non ha trovato niente: il giorno che un sito mettera' due
 vetture nella stessa pagina e' l'unica cosa che impedisce di attribuire la
 targa dell'una all'altra.
+
+**Le notifiche non distinguono gli utenti della stessa concessionaria.** Dal
+22/08/2026 le quattro regole di accesso su `notifications` chiedono soltanto
+la concessionaria (`dealer_id = current_dealer_id()`), non l'utente: al
+livello del database chiunque abbia una sessione attiva su una concessionaria
+puo' leggere -- e segnare come lette -- le notifiche di un suo collega. Le
+regole precedenti chiedevano `user_id = auth.uid()`; la migration
+dell'isolamento le ha sostituite tutte.
+
+**Oggi non fa danni perche' ogni piano ha un utente solo.** E' la stessa
+condizione della correzione descritta piu' sopra in
+[MIGRAZIONI.md](supabase/MIGRAZIONI.md): **va risolto prima di vendere un
+piano con piu' di un utente**, Elite compreso. Sono due voci della stessa
+lista, e vanno guardate insieme il giorno che quella lista si apre.
+
+**Scrivere una regola nei file non chiude una differenza.** La chiude solo
+quando la regola arriva nel database vero. Sono due numeri diversi e vanno
+tenuti separati in ogni resoconto: *"le differenze scendono a N scrivendo i
+file"* e *"scendono a M quando il titolare applica la migration"*. Confonderli
+fa sembrare risolto qualcosa che nel database che gira e' ancora com'era.
+
+La prova che la distinzione conta: il 14/09/2026 quindici colonne erano
+dichiarate obbligatorie **nei file** e libere in produzione. Scriverle
+nuovamente nei file non cambiava niente -- li' lo erano gia'. Il conteggio si
+muove solo con l'`alter table` sulla produzione.
+
+**I valori di un tipo enumerato si leggono senza chiedere niente al titolare.**
+L'inventario dice soltanto `USER-DEFINED`, e il nome del tipo e i suoi valori
+sembrano richiedere una query sulla produzione. Non e' cosi': PostgREST
+pubblica la descrizione dello schema, e li' ci sono per esteso.
+
+```bash
+set -a; . ./.env.production; set +a
+curl -s -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+     -H "Accept: application/openapi+json" "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" \
+  | jq '.definitions.audit_logs.properties.actor_type'
+```
+
+Risponde `{"enum": ["user","system","api"], "format": "public.audit_actor_type_t"}`.
+E' cosi' che si e' saputo com'era fatto `audit_logs.actor_type` senza
+indovinarlo.
+
+**Una colonna nominata da una regola di accesso non cambia tipo.** Postgres
+rifiuta con *"cannot alter type of a column used in a policy definition"*, e
+lo rifiuta **a meta' della transazione**: se quella riga sta dentro una
+migration che il titolare incolla nell'editor SQL, si ferma li'. Successo il
+14/09/2026 convertendo `demo_requests.vehicle_count` da testo a numero, perche'
+`demo_requests_insert_public` pretende `vehicle_count is not null`.
+
+Si toglie la regola, si cambia il tipo, si rimette la regola **identica** --
+stesso nome, stesso comando, stesso ruolo, stesso controllo -- e si verifica
+dopo la ricostruzione che sia tornata bit per bit quella di prima.
+
+E' la terza volta che **provare invece di dedurre** evita un guasto nell'editor
+SQL del titolare: le altre due sono l'ordine di cancellazione delle tabelle
+(`drop table import_sources` rifiutato perche' quattro tabelle dipendono da
+lei) e il primo tentativo di `src/lib/targa.ts`, che escludeva le lettere I, O,
+Q, U anche dalle sigle delle province e rifiutava `MI123456`. Una migration si
+prova su Postgres vero **prima** di consegnarla, sempre.
+
+**Ogni migration ha la data nel nome, e un file che non ce l'ha gira per
+ultimo.** In una ricostruzione le migration si applicano in ordine
+**alfabetico** (`scripts/ricostruisci-schema.sh`), e nell'alfabeto del computer
+**le cifre vengono prima delle lettere**: un file che comincia per lettera
+finisce dopo **tutti** quelli datati, comprese le migration scritte mesi dopo.
+Qualunque cosa ridefinisca, vince -- e nessuna correzione futura potra' avere
+la meglio, perche' arrivera' sempre prima.
+
+Il 14/09/2026 `supabase/migrations/rls_vehicles_policies.sql`, senza data nel
+nome, ridefiniva `enforce_vehicle_dealer_id()` ed
+`enforce_vehicle_image_dealer_id()` -- due protezioni dell'isolamento fra
+concessionarie -- con una versione piu' vecchia di quella in produzione, e
+girando per ultimo era quella a sopravvivere. Questa volta le due versioni si
+comportavano allo stesso modo (un `if` annidato invece di un `and`); la
+prossima potrebbe non essere cosi'.
+
+**I due file esistenti non si rinominano** -- cambierebbe l'ordine in modi che
+nessuno ha verificato -- e il loro contenuto si tiene allineato alla
+produzione. Il guardiano e' `src/lib/migrazioni-in-ordine.test.ts`, che
+fallisce se ne compare un terzo.
+
+**`sync_stale_notifications` ha tre difetti, e nessuno e' stato corretto.**
+Sono stati trovati leggendo il testo della funzione in produzione il
+14/09/2026, durante la pulizia dello schema; la pulizia non costruisce, quindi
+restano scritti qui.
+
+1. **Dice una cosa falsa al concessionario.** Cerca i veicoli con
+   `published = false` e `status <> 'published'` da piu' di sette giorni, e
+   annuncia *"Veicolo in bozza da oltre 7 giorni -- non e' ancora stato
+   pubblicato"*. Ma in produzione ci sono **76 vetture in `in_review`**, e sono
+   li' perche' **il tetto del piano ce le ha messe**, non perche' qualcuno se
+   ne sia dimenticato. Il concessionario legge che ha 76 bozze abbandonate
+   quando ha 76 auto che il suo piano non gli permette di pubblicare. Stessa
+   famiglia dello storico finto e del margine a zero: un'informazione
+   plausibile e sbagliata.
+2. **Moltiplica per il numero di utenti.** Le due interrogazioni fanno
+   `cross join dealer_users`: **un inserimento per ogni veicolo per ogni
+   utente**. Oggi ogni piano ha un utente solo e non si vede; con tre utenti,
+   76 vetture diventano **228 notifiche in un colpo**. E' la seconda alluvione
+   dopo quella delle auto importate, e peggiora esattamente quando si
+   venderanno i piani multiutente.
+3. **Meta' della funzione non trova mai niente.** Cerca i contatti con
+   `coalesce(lower(status), 'created') = 'created'`, ma gli stati dei contatti
+   in questo progetto sono in italiano. Misurato sulla produzione: i due
+   contatti hanno stato `nuovo` e `chiuso_negativo`, **zero con `created`**.
+   L'avviso *"Lead non contattato da 24 ore"* -- che e' il piu' utile dei due
+   -- **non e' mai arrivato a nessuno**.
+
+**E una quarta cosa, minore:** `set_updated_at()` in produzione non ha
+`set search_path`, mentre i file ce l'avevano. I file erano piu' prudenti. La
+funzione **non e' `security definer`**, quindi gira con i permessi di chi la
+chiama e un `search_path` non fissato non permette di scavalcare niente: e'
+un'imprudenza, non un buco. Da sistemare dopo la pulizia, insieme ai tre difetti
+qui sopra.
 
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde

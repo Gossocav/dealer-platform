@@ -270,6 +270,87 @@ tabella con un `revoke all`: le colonne pubbliche di `vehicles` e `dealers`
 `dealers` e `profiles` (tutto tranne piano, stato dell'abbonamento, ruolo e
 concessionaria). Sono nella stessa migration, per esteso.
 
+## La deriva dello schema non e' cronica: scende quando la si affronta
+
+Si e' raccontata a lungo come un problema fisso -- "ci sono sempre state delle
+differenze". Non e' vero, e i numeri del controllo settimanale lo dicono:
+
+| quando | differenze | cos'era successo |
+|---|---|---|
+| 10/09/2026, 11:51 | **385** | prima esecuzione del controllo che guarda lo schema vero |
+| 11/09/2026 | **126** | applicate cinque migration (`20260910160000`, `170000`, `180000`, `190000`, `200000`) |
+| 14/09/2026 | **121** | tolte le dieci tabelle senza codice, e con loro cinque trigger che stavano solo in produzione |
+
+Da 385 a 121 in quattro giorni, **due terzi nei primi due**. Il debito non
+cresce da solo e non resta fermo: scende ogni volta che qualcuno ci lavora, e
+sale solo quando si tocca il database a mano senza scriverlo nei file.
+
+Vale la pena tenerlo a mente quando il controllo settimanale e' rosso: il
+numero non e' una condanna, e' una misura. E si legge in un posto solo, il
+riepilogo dell'esecuzione su GitHub, dove l'elenco completo delle differenze e'
+gia' stampato riga per riga -- non va ricostruito, va letto.
+
+## Perche' il ripristino va provato, e non soltanto scritto
+
+Il 14/09/2026, ricostruendo lo schema da zero per confrontarlo con la
+produzione, e' saltato fuori questo: **`vehicles.registration_date` in
+produzione e' una `date`, e nei file e' `text`.**
+
+Nasce cosi' in `20260702_add_power_kw_and_registration_date_to_vehicles.sql`;
+in produzione qualcuno l'ha poi corretta a mano e non l'ha scritto nei file.
+Finche' il database vero regge, non se ne accorge nessuno.
+
+**Cosa sarebbe successo dopo un ripristino.** Una data scritta come testo non
+si ordina per data, si ordina per lettera: `"09/2025"` verrebbe **prima** di
+`"1/2024"`, perche' `0` viene prima di `1`. L'elenco delle auto ordinato per
+immatricolazione avrebbe mostrato le vetture in un ordine sbagliato, e i
+filtri "dal 2023 in poi" avrebbero risposto male. **Senza nessun errore**:
+solo auto nell'ordine sbagliato, che nessuno avrebbe collegato al ripristino
+di tre settimane prima.
+
+E' la forma peggiore di difetto che questo progetto conosca: plausibile,
+silenzioso, e con la causa lontanissima dall'effetto. Insieme a lei sono
+emersi `vehicles.engine_size` e `demo_requests.vehicle_count`, numeri scritti
+come testo per lo stesso motivo.
+
+**Percio' il ripristino si prova**, non si dichiara: `scripts/ricostruisci-schema.sh`
+su un Postgres 17 vuoto, poi `scripts/confronta-schema.mjs` contro la
+produzione. Chiuse in `20260914070000_i_file_raccontano_le_colonne_come_sono.sql`.
+
+## La decodifica a pagamento e' rimandata (14/09/2026)
+
+**Non si compra, e non si costruisce la tabella di cache che la servirebbe.**
+E' scritto qui perche' la migration della cache era gia' in elenco, e chi la
+trovera' fra sei mesi deve sapere perche' non e' stata fatta.
+
+**Il motivo.** Le pagine dei siti delle concessionarie pubblicano gia' un
+blocco dati di MotorK da 341 campi, e la sincronizzazione notturna **scarica
+gia' quelle pagine**. Misurato il 14/09/2026 su 126 schede dei tre siti
+collegati: marca, modello, allestimento, data di immatricolazione,
+chilometri, alimentazione, potenza, cilindrata, CO2, porte, posti e colore
+arrivano **gratis e al 100%** dai due siti che pubblicano il blocco ricco.
+Comprarli sarebbe pagare per un dato che gia' abbiamo.
+
+Quello che la decodifica darebbe in piu' -- storico chilometrico e antifrode
+-- ha bisogno della **targa**, che su quei due siti non c'e' affatto (0 su
+105 schede). Pagheremmo un servizio che non potremmo nemmeno interrogare.
+
+**La condizione che la fa tornare sul tavolo: il primo cliente che non sta su
+MotorK.** Quel giorno il suo sito non pubblichera' nessun blocco ricco, e i
+dati tecnici andranno presi da qualche parte. Fino ad allora ogni euro speso
+e' speso per niente.
+
+Due cose da non fare nel frattempo:
+
+- **non ricomprarla "perche' c'era nel piano"**: il piano e' cambiato il
+  14/09/2026 e questa e' la ragione;
+- **non costruire la cache in anticipo.** Una tabella di cache senza niente
+  da mettere dentro e' una delle dieci tabelle fantasma che questo progetto
+  sta gia' togliendo.
+
+La rotta `/api/vehicles/plate-lookup` resta dov'e' e continua a funzionare:
+serve alle auto inserite a mano, che al 14/09/2026 sono **2 su 372**.
+
 ## Credenziali
 
 Il controllo ha bisogno di due segreti su GitHub
