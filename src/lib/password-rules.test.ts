@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readFileSync as leggiFile } from "node:fs";
 import {
   GIORNI_VALIDITA_PASSWORD,
+  LUNGHEZZA_MASSIMA_PASSWORD,
   REGOLE_PASSWORD,
+  generaPasswordProvvisoria,
   giorniAllaScadenzaPassword,
   passwordAccettabile,
   passwordScaduta,
@@ -98,39 +99,108 @@ describe("che password si puo' scegliere", () => {
 });
 
 /**
- * La scadenza dei tre mesi, chiesta dal titolare il 02/09/2026.
- */
-/**
- * Il difetto che questo test impedisce: fermare l'attivazione di una
- * concessionaria per colpa di una password che non usera' nessuno.
+ * Il difetto che questo blocco impedisce, ed e' costato dodici giorni.
  *
- * Quando la piattaforma crea l'account ne inventa una provvisoria -- non la
- * conosce nessuno, non viene mai spedita, e il concessionario ne sceglie
- * subito una sua dal link dell'email. Ma il server le regole le applica a
- * tutte, e un identificativo casuale e' tutto in minuscolo: dal 02/09/2026,
- * con maiuscole e simboli diventati obbligatori su Supabase, una password
- * cosi' verrebbe rifiutata e l'attivazione si fermerebbe prima ancora di
- * creare la concessionaria.
+ * Quando la piattaforma crea l'account di una concessionaria ne inventa una
+ * password provvisoria: non la conosce nessuno, non viene mai spedita, e il
+ * concessionario ne sceglie subito una sua dal link dell'email. Ma il server
+ * le regole le applica a tutte, e quella password fino al 14/09/2026 era
+ * scritta a mano dentro la procedura di attivazione, lontana dalle regole.
+ *
+ * Il 02/09/2026 alle 18:38 e' diventata di 91 byte. **Da quel minuto nessuna
+ * attivazione e' piu' riuscita**: bcrypt si ferma a 72 byte e Supabase, invece
+ * di dire "troppo lunga", risponde `500 Internal Server Error`. La procedura
+ * moriva li', lasciando la concessionaria a meta' -- creata ma senza utente,
+ * senza profilo e senza abbonamento -- e ogni nuovo tentativo ricadeva nello
+ * stesso punto. Misurato sul server vero il 14/09/2026: a 91 byte 500, a 40
+ * byte l'utente nasce. L'ultima attivazione riuscita, Ponginibbi, e' delle
+ * 14:55 dello stesso 2 settembre.
+ *
+ * Il test che c'era leggeva il **testo** di quella riga e ricostruiva la
+ * password per provarla: ha continuato a passare per tutti i dodici giorni,
+ * perche' il limite di lunghezza allora non era scritto da nessuna parte.
  */
-describe("la password provvisoria rispetta le stesse regole", () => {
-  it("quella che l'attivazione costruisce sarebbe accettata", () => {
-    const attivazione = leggiFile(resolve(process.cwd(), "src/app/api/admin/demo-requests/route.ts"), "utf8");
-    const riga = attivazione.slice(attivazione.indexOf("const generatedPassword ="));
-    const modello = riga.slice(riga.indexOf("`") + 1, riga.indexOf("`", riga.indexOf("`") + 1));
+describe("la password provvisoria dell'attivazione", () => {
+  it("rispetta tutte le regole della piattaforma", () => {
+    for (let tentativo = 0; tentativo < 50; tentativo += 1) {
+      const provvisoria = generaPasswordProvvisoria();
+      expect(passwordAccettabile(provvisoria), `rifiutata: ${provvisoria}`).toBe(true);
+    }
+  });
 
-    // Si ricostruisce quello che il codice produrrebbe davvero, sostituendo i
-    // pezzi variabili con un identificativo vero: provare il modello com'e'
-    // scritto direbbe soltanto che il testo non e' cambiato.
-    const generata = modello
-      .replace("${crypto.randomUUID()}", crypto.randomUUID())
-      .replace("${crypto.randomUUID().toUpperCase()}", crypto.randomUUID().toUpperCase())
-      .replace("${Date.now()}", String(Date.now()));
+  // Il byte, non il carattere: e' in byte che bcrypt taglia, ed e' in byte che
+  // si misurava la password da 91 che ha fermato tutto.
+  it("sta dentro il limite oltre il quale il server risponde 500", () => {
+    const byte = new TextEncoder().encode(generaPasswordProvvisoria()).length;
 
-    expect(generata).not.toContain("${");
-    expect(passwordAccettabile(generata), `la password provvisoria non passa: ${generata}`).toBe(true);
+    expect(byte).toBeLessThanOrEqual(LUNGHEZZA_MASSIMA_PASSWORD);
+    expect(LUNGHEZZA_MASSIMA_PASSWORD).toBe(72);
+  });
+
+  it("non e' mai due volte la stessa", () => {
+    const generate = new Set(Array.from({ length: 100 }, () => generaPasswordProvvisoria()));
+
+    expect(generate.size).toBe(100);
+  });
+
+  /**
+   * E questo e' il pezzo che mancava. Le prove qui sopra dicono che la
+   * funzione fa il suo lavoro; non dicono che l'attivazione la chiami. Se
+   * qualcuno tornasse a comporre la password a mano dentro l'endpoint, tutto
+   * il resto di questo file continuerebbe a passare -- come ha fatto per
+   * dodici giorni.
+   */
+  it("e' quella che l'attivazione usa davvero", () => {
+    const attivazione = leggi("src/app/api/admin/demo-requests/route.ts");
+
+    expect(attivazione).toContain('import { generaPasswordProvvisoria } from "@/lib/password-rules"');
+    expect(attivazione).toContain("const generatedPassword = generaPasswordProvvisoria();");
+    // Nessuna password composta sul posto: era esattamente cosi' che si
+    // scriveva quella da 91 byte.
+    expect(attivazione).not.toMatch(/const generatedPassword = `/);
   });
 });
 
+/**
+ * Il limite vale anche per chi la password la sceglie di persona.
+ *
+ * Senza questa regola la pagina di scelta password mostrerebbe tutte le
+ * spunte verdi a chi incolla una frase lunga, e il salvataggio fallirebbe
+ * comunque con lo stesso `500` in inglese. E' la trappola che questo file
+ * dichiara di voler evitare fin dalla prima riga.
+ */
+describe("una password troppo lunga si ferma qui, non sul server", () => {
+  it("settantadue byte passano, settantatre no", () => {
+    const riempi = (quanti: number) => `Aa1!${"b".repeat(quanti - 4)}`;
+
+    expect(passwordAccettabile(riempi(LUNGHEZZA_MASSIMA_PASSWORD))).toBe(true);
+    expect(passwordAccettabile(riempi(LUNGHEZZA_MASSIMA_PASSWORD + 1))).toBe(false);
+  });
+
+  // Una lettera accentata occupa due byte: quello che conta e' quanto pesa,
+  // non quanto e' lunga a vedersi.
+  it("si misura quanto pesa, non quanti caratteri si vedono", () => {
+    const accentata = `Aa1!${"\u00e8".repeat(40)}`;
+
+    expect(accentata.length).toBeLessThanOrEqual(LUNGHEZZA_MASSIMA_PASSWORD);
+    expect(new TextEncoder().encode(accentata).length).toBeGreaterThan(LUNGHEZZA_MASSIMA_PASSWORD);
+    expect(passwordAccettabile(accentata)).toBe(false);
+  });
+
+  // La riga che il concessionario legge deve dire tutte e due le cose: una
+  // riga rossa che ripete solo "almeno 8 caratteri" a chi ne ha scritti cento
+  // non spiega niente.
+  it("la riga a schermo dichiara anche il massimo", () => {
+    const regola = REGOLE_PASSWORD.find((r) => r.chiave === "lunghezza");
+
+    expect(regola?.etichetta).toContain("8");
+    expect(regola?.etichetta).toContain(String(LUNGHEZZA_MASSIMA_PASSWORD));
+  });
+});
+
+/**
+ * La scadenza dei tre mesi, chiesta dal titolare il 02/09/2026.
+ */
 describe("quando una password va rifatta", () => {
   const ADESSO = new Date("2026-09-02T12:00:00.000Z");
   const giorniFa = (n: number) => new Date(ADESSO.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
