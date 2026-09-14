@@ -124,6 +124,7 @@ solo sul server: mai in un componente del browser.
 | `src/lib/active-tenant.ts` | `resolveDealerIdForCurrentUser`: l'aggancio che le pagine del gestionale usano per sapere di chi sono i dati |
 | `src/lib/carica-tutto.ts` | legge un elenco per intero: il database ne consegna mille per volta e non lo dice |
 | `src/lib/dealer-plan.ts` | il piano in vigore. **Mai** leggerlo da `dealers.subscription_plan`: e' una colonna vecchia che la conversione non aggiorna |
+| `dealers.subscription_plan` | la colonna murata. Dice "base" per tutti da sempre. Il 14/09/2026 due vincoli che la limitavano a `('base','pro')` sono stati **tolti dai file** invece di essere messi in produzione: una serratura su una porta murata fa credere che la porta serva, e quell'elenco avrebbe rifiutato `elite` il giorno che qualcuno avesse provato a scrivere il valore giusto |
 | `src/lib/vehicle-body-types.ts` | l'unico elenco delle carrozzerie: i valori sono anche quelli scritti nel database |
 | `src/lib/tetto-del-piano.ts` | la regola del tetto del piano: quali auto stanno in vetrina quando sono piu' del consentito. **Una funzione sola** per sincronizzazione, importazione e pubblicazione a mano |
 | `src/lib/dealer-site-import.ts` | legge lo stock dal sito della concessionaria; non parla col database, quindi si puo' provare su dati veri senza rischi |
