@@ -226,8 +226,11 @@ describe("si puo' chiudere una vendita anche dalla scheda del veicolo", () => {
   it("il modulo ha la targa, non solo il telaio", () => {
     // La targa e' quello che un concessionario ha sotto mano; il telaio va
     // cercato sul libretto. Il campo mancava del tutto.
-    expect(modulo).toContain('<EditorField label="Targa" value={state.plate}');
-    expect(modulo).toContain("plate: state.plate.trim().toUpperCase() || null,");
+    expect(modulo).toContain('label="Targa"');
+    expect(modulo).toContain("value={state.plate}");
+    // Dal 14/09/2026 la targa passa dal controllo di forma prima di essere
+    // scritta: la normalizzazione sta in src/lib/targa.ts, un posto solo.
+    expect(modulo).toContain("plate: targaDaSalvare(state.plate),");
     expect(modulo).toContain("registration_date, color, plate, vin, mileage");
   });
 

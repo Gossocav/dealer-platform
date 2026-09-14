@@ -13,6 +13,7 @@ import { campiImmatricolazioneDaModulo } from "@/lib/vehicles";
 import { puoEssereSegnataVenduta } from "@/lib/auto-da-chiudere";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
+import { messaggioTarga, targaDaSalvare } from "@/lib/targa";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { messaggioPostiFiniti } from "@/lib/tetto-del-piano";
@@ -669,6 +670,18 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       return;
     }
 
+    // Una targa che non e' una targa non si salva come targa. Misurato il
+    // 14/09/2026 sui siti collegati: su 62 targhe pubblicate, due valevano
+    // "XXX" e "XXXX". Scritta nell'archivio sarebbe indistinguibile da una
+    // vera, e la ricerca a pagamento si paga a interrogazione anche quando la
+    // targa non esiste.
+    const avvisoTarga = messaggioTarga(state.plate);
+    if (avvisoTarga) {
+      setError(avvisoTarga);
+      setSaving(false);
+      return;
+    }
+
     if (nextMissing.length > 0) {
       setMissingFields(nextMissing);
       setError(`Compila i campi obbligatori mancanti:\n- ${nextMissing.map((field) => REQUIRED_FIELD_LABELS[field]).join("\n- ")}`);
@@ -787,7 +800,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         annoInArchivio: annoInArchivio,
       }).registration_date,
       color: canonicalizeVehicleColorLabel(state.color) || null,
-      plate: state.plate.trim().toUpperCase() || null,
+      // Normalizzata, e solo se e' una targa: vedi il controllo al salvataggio.
+      plate: targaDaSalvare(state.plate),
       vin: state.vin.trim().toUpperCase() || null,
       mileage: parseMileageForSave(state.mileage),
       fuel: state.fuel.trim() || null,
@@ -1427,7 +1441,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                   ))}
                 </select>
               </label>
-              <EditorField label="Targa" value={state.plate} onChange={(value) => updateField("plate", value)} />
+              <EditorField
+                label="Targa"
+                value={state.plate}
+                onChange={(value) => updateField("plate", value)}
+                avviso={messaggioTarga(state.plate) ?? undefined}
+              />
               <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
               <EditorField
                 label="Prezzo"
@@ -1678,6 +1697,7 @@ function EditorField({
   required,
   missing,
   inputMode,
+  avviso,
 }: {
   label: string;
   value: string;
@@ -1685,6 +1705,8 @@ function EditorField({
   required?: boolean;
   missing?: boolean;
   inputMode?: "text" | "numeric";
+  /** Cosa c'e' che non va in quello che e' stato scritto. Compare sotto la casella. */
+  avviso?: string;
 }) {
   return (
     <label className="block space-y-2">
@@ -1701,6 +1723,7 @@ function EditorField({
         placeholder={`Inserisci ${label.toLowerCase()}`}
         className={getFieldInputClass(Boolean(missing))}
       />
+      {avviso ? <span className="block text-xs font-medium text-amber-700">{avviso}</span> : null}
     </label>
   );
 }

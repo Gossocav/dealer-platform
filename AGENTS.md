@@ -279,6 +279,36 @@ si legge la motivazione e la si mette alla prova con un numero vero, invece di
 fermarsi davanti al commento. Se cade, si cambia la riga **e** si riscrive la
 motivazione con la data e il caso che l'ha fatta cadere.
 
+**Una targa sbagliata e' peggio di una targa mancante.** Leggendo le schede
+dei tre siti collegati il 14/09/2026, su **62 targhe pubblicate due valevano
+`XXX` e `XXXX`**: segnaposto lasciati nel gestionale del concessionario.
+Scritte nel nostro archivio sarebbero indistinguibili da una targa vera, e la
+targa e' una chiave: con quella una vettura si segna venduta
+(`auto-da-chiudere.ts`), si raggruppano i suoi documenti
+(`archivio-documenti.ts`), e si interroga la ricerca a pagamento, **che si paga
+a interrogazione anche quando la targa non esiste**.
+
+La forma sta in `src/lib/targa.ts`, **un posto solo**, e vale sia per
+l'inserimento a mano sia per qualunque importazione. Due cose da sapere prima
+di toccarla:
+
+- **le targhe moderne non usano I, O, Q, U** (si confondono con 1, 0 e fra
+  loro), ma **le sigle delle province si'**: Milano, Bologna, L'Aquila. Il
+  primo tentativo di quel file escludeva quelle lettere dappertutto e
+  rifiutava `MI123456`;
+- **un campo vuoto non e' un errore.** Una vettura importata dal sito non ha
+  quasi mai la targa, e nessuno deve inventarsene una per salvare la scheda.
+  Quello che non si fa e' salvare come targa qualcosa che targa non e'.
+
+**La verifica di sicurezza sulle targhe lette dai siti** (14/09/2026, 126
+pagine): la targa si prende **solo** dal blocco dati il cui identificativo
+coincide con quello della scheda che si sta leggendo. Misurato: 62 targhe
+lette, **62 distinte**, **zero** pagine contenenti i dati di un'altra vettura,
+**mai piu' di un blocco veicolo per pagina**. Il controllo resta scritto anche
+se su questi tre siti non ha trovato niente: il giorno che un sito mettera' due
+vetture nella stessa pagina e' l'unica cosa che impedisce di attribuire la
+targa dell'una all'altra.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
