@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { segnalaErrore } from "@/lib/segnala-errore";
+import { esitoTarga } from "@/lib/targa";
 
 type PlateLookupBody = {
   licensePlate?: string;
@@ -25,7 +26,10 @@ type VehicleLookupResponse = {
   vin: string;
 };
 
-const PLATE_PATTERN = /^[A-Z]{2}\d{3}[A-Z]{2}$/;
+// La forma della targa sta in `src/lib/targa.ts`, un posto solo. Qui c'era una
+// copia che conosceva solo il formato moderno e accettava le lettere I, O, Q e
+// U, che una targa italiana non usa: passavano targhe mai esistite, e ogni
+// interrogazione a vuoto si paga lo stesso.
 
 /**
  * Chi chiede questa ricerca deve essere una concessionaria collegata.
@@ -101,11 +105,14 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as PlateLookupBody;
-    const normalizedPlate = normalizePlate(body.licensePlate);
+    const esito = esitoTarga(body.licensePlate);
 
-    if (!normalizedPlate || !PLATE_PATTERN.test(normalizedPlate)) {
+    // Qui si paga a interrogazione: una targa che non puo' esistere non si
+    // manda al fornitore, si rifiuta prima.
+    if (esito.stato !== "valida") {
       return NextResponse.json({ error: "Targa non valida. Usa formato AA123BB." }, { status: 400 });
     }
+    const normalizedPlate = esito.targa;
 
     const baseUrl = process.env.OPENAPI_AUTOMOTIVE_BASE_URL;
     const token = process.env.OPENAPI_AUTOMOTIVE_TOKEN;
@@ -144,14 +151,6 @@ export async function POST(request: Request) {
     segnalaErrore("vehicles/plate-lookup", error, { errorType: "unexpected" });
     return NextResponse.json({ error: "Errore interno durante la ricerca veicolo da targa." }, { status: 500 });
   }
-}
-
-function normalizePlate(value: unknown) {
-  return String(value ?? "")
-    .toUpperCase()
-    .replace(/\s+/g, "")
-    .replace(/-/g, "")
-    .trim();
 }
 
 async function safeReadJson(response: Response): Promise<unknown> {
