@@ -212,6 +212,29 @@ i contatti di origine `marketplace`, quindi un contatto creato a mano senza
 concessionaria resta orfano e non compare nell'elenco di nessuno. Non da'
 errore: si perde in silenzio. Verificato su Postgres vero il 10/09/2026.
 
+**Aggiornamento del 14/09/2026, e la nota qui sopra andava corretta.** Quella
+protezione in produzione **non c'era**: `enforce_lead_dealer_id()` era fermo
+alla versione del 28/06 -- identificata per confronto di impronte, non a
+memoria -- che rifiuta un `dealer_id` sbagliato ma **non riempie** quello
+vuoto. La versione che riempie stava solo nei file dal 22/08.
+`20260914040000_il_contatto_senza_concessionaria_non_nasce_piu.sql` la porta
+in produzione.
+
+**Ma chiude solo il percorso `marketplace`.** Il trigger entra in azione
+soltanto quando `source` vale `marketplace` (o e' vuoto): un contatto con
+un'origine diversa **non e' protetto dal database, ne' prima ne' dopo**. E'
+esattamente il caso di "nuovo contatto" dal gestionale il giorno che lo si
+aggiungera': quel modulo **deve** impostare `dealer_id` da se', oppure il
+trigger va esteso alla sua origine. Verificato in laboratorio su Postgres 17
+il 14/09/2026, sette casi: il contatto con origine diversa esce con
+`dealer_id` vuoto e nessun errore.
+
+Un piano piu' sotto la stessa protezione c'e' ed e' scritta bene:
+`enforce_lead_activity_dealer_id()` sulle **attivita'** dei contatti riempie
+il campo e rifiuta la concessionaria altrui. Girava in produzione e non stava
+in nessun file: se il database fosse stato ricostruito da zero si sarebbe
+persa. Messa nei file il 14/09/2026.
+
 **Un ripiego non inventa dati.** Quando un dato non c'e' -- la tabella non
 esiste, la sessione e' scaduta, il database non risponde -- la tentazione e'
 rispondere con qualcosa di plausibile per non lasciare la pagina vuota. E' il
