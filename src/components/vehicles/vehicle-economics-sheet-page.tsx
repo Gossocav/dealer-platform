@@ -19,6 +19,7 @@ import {
   margine,
   marginePercentuale,
   perche,
+  percheIlCosto,
   type VociConto,
 } from "@/lib/conto-economico";
 
@@ -298,7 +299,7 @@ export function VehicleEconomicsSheetPage({ vehicleId }: { vehicleId: string }) 
         </div>
 
         <div className="sheet-block mt-8 border-t-2 border-slate-900 pt-4">
-          <Riga etichetta="Costo totale" valore={formattaImporto(totale)} />
+          <Riga etichetta="Costo totale" valore={formattaImporto(totale)} nota={percheIlCosto(voci) ?? undefined} />
           <Riga etichetta="Prezzo di vendita" valore={importo(voci.sale_price)} />
           <Riga
             etichetta="Margine"

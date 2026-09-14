@@ -71,8 +71,8 @@ function numero(value: number | null | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-/** Quanto e' costata in tutto: l'acquisto piu' tutte le voci. */
-export function costoTotale(voci: VociConto): number {
+/** La somma pura delle cifre scritte. Non esce di qui: da sola non e' un costo. */
+function sommaDelleVoci(voci: VociConto): number {
   return (
     numero(voci.purchase_price) +
     numero(voci.cost_minivoltura) +
@@ -86,6 +86,38 @@ export function costoTotale(voci: VociConto): number {
     numero(voci.cost_commission) +
     numero(voci.cost_other)
   );
+}
+
+/**
+ * Quanto e' costata in tutto: l'acquisto piu' tutte le voci.
+ *
+ * **Senza il prezzo di acquisto non si puo' dire, e torna null.** Fino al
+ * 14/09/2026 tornava la somma delle altre voci: una vettura con 500 euro di
+ * trasporto e nessun acquisto scritto rispondeva "500 euro", che e' un numero
+ * plausibile, e sbagliato di tutto il prezzo della vettura.
+ *
+ * Il vecchio comportamento era voluto -- "dice quanto si e' speso finora" --
+ * ma e' lo stesso errore gia' pagato due volte in questo progetto: il margine
+ * che valeva il prezzo di vendita intero (31/08/2026) e lo storico di
+ * importazioni mai avvenute. Un dato che manca non vale zero, e un totale a
+ * cui manca la voce piu' grande non e' un totale parziale: e' un totale
+ * sbagliato, e chi lo legge non ha modo di accorgersene.
+ *
+ * Chi ha davvero avuto un costo di acquisto nullo scrive **0**, e il totale si
+ * calcola: e' la differenza fra il campo vuoto e il campo con dentro uno zero.
+ */
+export function costoTotale(voci: VociConto): number | null {
+  if (typeof voci.purchase_price !== "number" || !Number.isFinite(voci.purchase_price)) return null;
+  return sommaDelleVoci(voci);
+}
+
+/**
+ * Perche' il costo totale non si puo' ancora dire. Serve a scriverlo accanto
+ * al trattino, come si fa gia' per il margine: un trattino senza spiegazione
+ * si legge come "zero" o come un guasto.
+ */
+export function percheIlCosto(voci: VociConto): string | null {
+  return costoTotale(voci) === null ? "manca il prezzo di acquisto" : null;
 }
 
 /**
@@ -108,7 +140,7 @@ export function costoTotale(voci: VociConto): number {
 export function margine(voci: VociConto): number | null {
   if (typeof voci.sale_price !== "number" || !Number.isFinite(voci.sale_price)) return null;
   if (typeof voci.purchase_price !== "number" || !Number.isFinite(voci.purchase_price)) return null;
-  return voci.sale_price - costoTotale(voci);
+  return voci.sale_price - sommaDelleVoci(voci);
 }
 
 /**

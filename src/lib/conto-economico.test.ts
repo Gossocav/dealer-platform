@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   VOCI_DI_COSTO,
   costoTotale,
+  percheIlCosto,
   formattaImporto,
   leggiImporto,
   margine,
@@ -93,8 +94,8 @@ describe("le due somme", () => {
     expect(marginePercentuale(AUTO)).toBeNull();
   });
 
-  it("un conto vuoto non e' un errore", () => {
-    expect(costoTotale({})).toBe(0);
+  it("un conto vuoto non e' un errore, ma non produce nemmeno un totale", () => {
+    expect(costoTotale({})).toBeNull();
     expect(margine({})).toBeNull();
   });
 
@@ -112,9 +113,15 @@ describe("le due somme", () => {
  * salvataggio.
  */
 describe("il conto qui e il conto nel database sono lo stesso conto", () => {
-  it("il database somma le stesse voci", () => {
+  it("il database somma le stesse voci, e come qui non inventa il totale", () => {
+    // Dal 14/09/2026 la formula del database non fa piu' coalesce(purchase_price, 0):
+    // senza prezzo di acquisto il totale e' nullo, esattamente come costoTotale.
+    // Le schermate leggono la funzione, le statistiche leggono la colonna: se
+    // le due regole divergessero il concessionario vedrebbe due numeri diversi
+    // per la stessa vettura.
     const formula = sql.slice(sql.lastIndexOf("total_cost numeric"), sql.indexOf(") stored", sql.lastIndexOf("total_cost numeric")));
-    expect(formula).toContain("coalesce(purchase_price, 0)");
+    expect(formula).toContain("when purchase_price is null then null");
+    expect(formula).not.toContain("coalesce(purchase_price, 0)");
     for (const { campo } of VOCI_DI_COSTO) {
       expect(formula, `il database non somma ${campo}`).toContain(campo);
     }
@@ -359,10 +366,14 @@ describe("senza prezzo di acquisto il margine non si puo' dire", () => {
     expect(margine({ purchase_price: 0, cost_transport: 500, sale_price: 4000 })).toBe(3500);
   });
 
-  it("il costo totale invece resta la somma di cio' che e' scritto", () => {
-    // E' una risposta onesta anche senza acquisto: dice quanto si e' speso
-    // finora, non quanto vale l'automobile.
-    expect(costoTotale({ cost_transport: 400, cost_bodywork: 600 })).toBe(1000);
+  it("e nemmeno il costo totale si puo' dire", () => {
+    // Fino al 14/09/2026 questo tornava 1000, con la motivazione che fosse
+    // "una risposta onesta: quanto si e' speso finora". Non lo e': su una
+    // vettura pagata 14.000 euro, "costo totale 1.000 euro" e' un numero
+    // plausibile e sbagliato di quattordicimila, e chi lo legge non ha modo
+    // di accorgersene. Manca la voce piu' grande di tutte.
+    expect(costoTotale({ cost_transport: 400, cost_bodywork: 600 })).toBeNull();
+    expect(percheIlCosto({ cost_transport: 400, cost_bodywork: 600 })).toBe("manca il prezzo di acquisto");
   });
 
   it("la schermata dice quale delle due cifre manca", () => {
@@ -456,7 +467,8 @@ describe("il gommista e' una voce, non una nota da scrivere", () => {
     const base = { purchase_price: 10000, sale_price: 13000 };
     expect(margine(base)).toBe(3000);
     expect(margine({ ...base, cost_tyres: 600 })).toBe(2400);
-    expect(costoTotale({ cost_tyres: 600 })).toBe(600);
+    // Da sola, senza prezzo di acquisto, non fa un totale: vedi costoTotale.
+    expect(costoTotale({ purchase_price: 0, cost_tyres: 600 })).toBe(600);
   });
 
   it("la nota non esiste piu', ne' a schermo ne' nell'archivio", () => {
@@ -693,5 +705,69 @@ describe("il database somma il bollo come le altre voci", () => {
   it("la scadenza nasce vuota e resta vuota finche' non la si scrive", () => {
     expect(migration).toContain("add column if not exists bollo_expires_on date");
     expect(migration).not.toMatch(/bollo_expires_on date[^;]*default/);
+  });
+});
+
+/**
+ * **In questo progetto un dato mancante non vale zero, in nessun calcolo.**
+ *
+ * E' il terzo caso dello stesso errore, e questo blocco esiste perche' non ce
+ * ne sia un quarto:
+ *
+ * 1. le "Ultime sincronizzazioni" mostravano due importazioni mai avvenute,
+ *    perche' un elenco vuoto veniva riempito con dati di esempio (PR #146,
+ *    #172, e il caso delle tre tabelle inesistenti);
+ * 2. il margine valeva il prezzo di vendita intero quando l'acquisto non era
+ *    scritto: una vettura venduta a 11.500 senza acquisto risultava con
+ *    11.500 di margine, visto su una riga vera in produzione (31/08/2026);
+ * 3. il costo totale sommava le altre voci ignorando l'acquisto mancante
+ *    (14/09/2026).
+ *
+ * La forma dell'errore e' sempre la stessa: **un numero plausibile al posto di
+ * "non lo so"**. Chi guarda lo schermo non ha nessun modo di distinguerli, e
+ * ci crede.
+ *
+ * Il campo scritto a **zero** e' un'altra cosa e resta un dato: chi ha
+ * ricevuto una vettura senza pagarla scrive 0, e il conto si fa.
+ */
+describe("un dato mancante non vale zero", () => {
+  it("il costo totale non si inventa quando manca il prezzo di acquisto", () => {
+    expect(costoTotale({ cost_transport: 500 })).toBeNull();
+    expect(costoTotale({ purchase_price: null, cost_transport: 500 })).toBeNull();
+    expect(costoTotale({ purchase_price: undefined, cost_transport: 500 })).toBeNull();
+    expect(costoTotale({ purchase_price: Number.NaN, cost_transport: 500 })).toBeNull();
+  });
+
+  it("il margine non si inventa quando manca una delle due cifre", () => {
+    expect(margine({ sale_price: 11500 })).toBeNull();
+    expect(margine({ purchase_price: 9000 })).toBeNull();
+  });
+
+  it("uno zero scritto e' un dato, e i conti si fanno", () => {
+    // La differenza fra il campo vuoto e il campo con dentro uno zero: nel
+    // database e' la differenza fra null e 0, e va rispettata in tutti e due
+    // i calcoli.
+    expect(costoTotale({ purchase_price: 0, cost_transport: 500 })).toBe(500);
+    expect(margine({ purchase_price: 0, cost_transport: 500, sale_price: 4000 })).toBe(3500);
+  });
+
+  it("lo schermo dice perche' manca, invece di lasciare un trattino muto", () => {
+    // Un trattino senza spiegazione si legge come "zero" o come un guasto.
+    expect(percheIlCosto({ cost_transport: 500 })).toBe("manca il prezzo di acquisto");
+    expect(percheIlCosto({ purchase_price: 9000 })).toBeNull();
+    expect(perche({ sale_price: 11500 })).toBe("manca il prezzo di acquisto");
+  });
+
+  it("le due schermate del conto scrivono il motivo accanto al totale", () => {
+    // Un test sul testo del sorgente: il tipo non puo' esprimere "questo
+    // trattino e' accompagnato dalla sua spiegazione", e senza guardiano la
+    // nota si perde alla prima riscrittura della schermata.
+    for (const percorso of [
+      "src/components/vehicles/vehicle-economics-card.tsx",
+      "src/components/vehicles/vehicle-economics-sheet-page.tsx",
+    ]) {
+      const sorgente = readFileSync(resolve(process.cwd(), percorso), "utf8");
+      expect(sorgente).toContain("percheIlCosto");
+    }
   });
 });
