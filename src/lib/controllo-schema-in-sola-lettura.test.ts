@@ -80,3 +80,58 @@ describe("il controllo dello schema non scrive niente", () => {
     }
   });
 });
+
+/**
+ * **Il guardiano deve vedere tutte e quattro le serrature di colonna.**
+ *
+ * Il difetto, trovato il 14/09/2026: l'inventario leggeva i permessi colonna
+ * per colonna **solo** per INSERT e UPDATE. Ma su `vehicles` e `dealers` la
+ * serratura che conta e' in **lettura**: sessantuno permessi di colonna
+ * decidono cosa si vede con la sola chiave pubblica del sito, e tengono chiusi
+ * la targa, il numero di telaio, il codice fiscale della concessionaria e il
+ * piano del suo abbonamento. Nessuno dei sessantuno compariva nell'inventario,
+ * e un `grant select (plate) on public.vehicles to anon` avrebbe aperto la
+ * targa di ogni vettura lasciando **verde** il controllo settimanale.
+ *
+ * Misurato sulla produzione lo stesso giorno, interrogandola come farebbe un
+ * estraneo: su `vehicles` 39 colonne leggibili su 46, su `dealers` 22 su 39.
+ *
+ * Questo test non guarda il database: guarda che la regola resti **scritta**
+ * per intero. Serve al giorno in cui qualcuno, per far tornare un conteggio,
+ * restringera' di nuovo l'elenco dei comandi sorvegliati.
+ */
+describe("l'inventario sorveglia i permessi di colonna in tutti i comandi", () => {
+  const migrations = readFileSync(resolve(process.cwd(), "supabase/migrations/20260914020000_il_guardiano_vede_anche_la_lettura.sql"), "utf8");
+
+  it("guarda SELECT, INSERT, UPDATE e REFERENCES, non solo la scrittura", () => {
+    // Sono i quattro comandi che in PostgreSQL si possono concedere colonna
+    // per colonna. DELETE no: quello vale sempre sull'intera riga.
+    expect(migrations).toContain("acl.privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')");
+    expect(migrations, "l'elenco dei comandi sorvegliati e' stato ristretto").not.toContain(
+      "acl.privilege_type in ('INSERT', 'UPDATE')",
+    );
+  });
+
+  it("vede anche i permessi dati a chiunque, che non portano il nome di un ruolo", () => {
+    // In `aclexplode` un permesso concesso a `public` ha beneficiario zero:
+    // non corrisponde a nessun nome, e sfuggiva a tutte e due le famiglie dei
+    // permessi. In questo progetto la risposta giusta e' sempre "nessuna riga".
+    expect(migrations).toContain("'permessi_a_chiunque'");
+    expect(migrations).toContain("acl.grantee = 0");
+  });
+
+  it("vede le viste, che nessuna famiglia guardava", () => {
+    // Tutte le altre famiglie filtrano relkind = 'r', cioe' le sole tabelle
+    // vere. Una vista non dichiarata `security_invoker` legge con i permessi
+    // di chi l'ha creata, scavalcando le regole di chi la interroga.
+    expect(migrations).toContain("'viste'");
+    expect(migrations).toContain("c.relkind in ('v', 'm')");
+  });
+
+  it("l'inventario resta riservato al ruolo di servizio", () => {
+    // A un estraneo direbbe com'e' fatta ogni serratura.
+    expect(migrations).toContain("revoke all on function public.inventario_schema() from anon");
+    expect(migrations).toContain("revoke all on function public.inventario_schema() from authenticated");
+    expect(migrations).toContain("grant execute on function public.inventario_schema() to service_role");
+  });
+});

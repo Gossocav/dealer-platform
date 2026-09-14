@@ -279,6 +279,32 @@ si legge la motivazione e la si mette alla prova con un numero vero, invece di
 fermarsi davanti al commento. Se cade, si cambia la riga **e** si riscrive la
 motivazione con la data e il caso che l'ha fatta cadere.
 
+**E una regola scritta giusta puo' essere applicata a meta'.** E' il caso
+gemello, e in questo progetto e' capitato quattro volte. L'ultima, il
+14/09/2026: l'inventario dello schema ha una famiglia per i permessi **colonna
+per colonna**, e il commento che la introduce spiega benissimo il pericolo --
+*"un grant di troppo aprirebbe subscription_plan, e il confronto resterebbe
+verde"*. La regola pero' guardava solo `INSERT` e `UPDATE`. I sessantuno
+permessi di **lettura** colonna per colonna -- quelli che decidono cosa il
+mondo vede di `vehicles` e `dealers` con la sola chiave pubblica, e che
+tengono chiusi targa, telaio, codice fiscale e piano dell'abbonamento -- erano
+fuori dalla sorveglianza. Un `grant select (plate) on public.vehicles to anon`
+avrebbe aperto la targa di ogni vettura **lasciando verde il controllo
+settimanale**.
+
+Le altre tre: la protezione per riga accesa ma senza `force` (chi possiede la
+tabella la scavalcava); `revoke ... from public` che non toglie il permesso
+che Supabase concede ad `anon` (sette funzioni `security definer` restavano
+eseguibili dal sito, per due mesi); e `dealer_users`, dove si toglievano
+`insert/update/delete` ma non `all`.
+
+**Come si evita la quinta volta.** Quando una regola nomina un elenco --
+comandi, ruoli, tabelle, tipi di oggetto -- la domanda non e' "l'elenco e'
+giusto?" ma **"cosa resta fuori dall'elenco, e perche'?"**. Se la risposta non
+sta in una riga, l'elenco e' incompleto. Il giro completo di quali serrature
+l'inventario sorveglia e quali no sta in
+`supabase/migrations/20260914020000_il_guardiano_vede_anche_la_lettura.sql`.
+
 **L'importazione da file non sa cosa sia una targa.** In
 `src/lib/vehicle-import.ts` i campi riconosciuti sono ventisette e comprendono il
 telaio (`vin`, con gli alias "telaio" e "chassis"), ma **la targa non c'e'**.
