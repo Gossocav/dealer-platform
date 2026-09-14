@@ -449,12 +449,27 @@ Si toglie la regola, si cambia il tipo, si rimette la regola **identica** --
 stesso nome, stesso comando, stesso ruolo, stesso controllo -- e si verifica
 dopo la ricostruzione che sia tornata bit per bit quella di prima.
 
-E' la terza volta che **provare invece di dedurre** evita un guasto nell'editor
-SQL del titolare: le altre due sono l'ordine di cancellazione delle tabelle
-(`drop table import_sources` rifiutato perche' quattro tabelle dipendono da
-lei) e il primo tentativo di `src/lib/targa.ts`, che escludeva le lettere I, O,
-Q, U anche dalle sigle delle province e rifiutava `MI123456`. Una migration si
-prova su Postgres vero **prima** di consegnarla, sempre.
+**Provare invece di dedurre ha gia' evitato quattro guasti nell'editor SQL del
+titolare**, e tutte e quattro le volte il difetto era invisibile leggendo il
+codice:
+
+1. **l'ordine di cancellazione delle tabelle**: `drop table import_sources`
+   viene rifiutato, perche' quattro tabelle dipendono da lei;
+2. **il primo `src/lib/targa.ts`**, che escludeva le lettere I, O, Q, U anche
+   dalle sigle delle province e rifiutava `MI123456`;
+3. **il tipo di una colonna nominata da una regola di accesso**, qui sopra;
+4. **`notifications_type_check`**: quel vincolo elenca i tipi di notifica
+   ammessi, e aggiungerne uno nuovo senza toccarlo fa **rifiutare
+   l'inserimento a meta' della transazione**. Trovato il 14/09/2026
+   aggiungendo `vehicle_import` e `piano_pieno`. Il contrario e' altrettanto
+   vero: un tipo vecchio **non si toglie** dall'elenco finche' esistono righe
+   che lo portano, o le si rende illegali.
+
+La forma comune: **un vincolo, un permesso o una dipendenza che il codice non
+nomina**, e che si scopre solo quando il database dice di no. Una migration si
+prova su Postgres vero **prima** di consegnarla, sempre -- ricostruendo lo
+schema da zero, non su una tabella finta scritta a mano, perche' meta' di
+queste quattro non sarebbero comparse.
 
 **Ogni migration ha la data nel nome, e un file che non ce l'ha gira per
 ultimo.** In una ricostruzione le migration si applicano in ordine

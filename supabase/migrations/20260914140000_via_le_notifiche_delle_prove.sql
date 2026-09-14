@@ -1,11 +1,29 @@
--- Le 411 notifiche gia' in archivio si cancellano.
+-- Le notifiche gia' in archivio si cancellano tutte.
+--
+-- Erano **411 il 14/09/2026 alle 11**, ed erano gia' **413** tre ore dopo: il
+-- numero cresce a ogni sincronizzazione, e per questo non e' scritto qui
+-- dentro. Il conteggio vero lo stampa la migration stessa quando gira.
 --
 -- **Sono tutte di concessionarie di prova.** Al 14/09/2026 in produzione ci
--- sono tre concessionarie, e sono i conti di prova del titolare: non esiste
--- ancora nessun cliente pagante. Quelle notifiche non le ha lette nessuno e
+-- sono tre concessionarie collegate -- Autogepy, De Lorenzi, Ponginibbi -- e
+-- sono **conti di prova creati dal titolare**, che lo ha confermato per
+-- iscritto: non esiste ancora nessun cliente pagante, e la vendita degli
+-- abbonamenti non e' cominciata. Quelle notifiche non le ha lette nessuno e
 -- non le leggera' nessuno.
 --
--- **Perche' non basta lasciarle li'.** Delle 411, **373 sono "vehicle_new"**:
+-- **Si tocca solo `public.notifications`, e niente altro.** Nessun veicolo,
+-- nessun contatto, nessun cliente, nessuna fotografia: l'unica istruzione che
+-- scrive e' il `delete` qui sotto, e nomina quella tabella sola. Una notifica
+-- non ha figli: nessuna riga di nessun'altra tabella la referenzia -- si
+-- controlla cosi':
+--
+--     select conrelid::regclass from pg_constraint
+--     where contype = 'f' and confrelid = 'public.notifications'::regclass;
+--
+-- Al 14/09/2026 quella interrogazione non restituisce niente.
+--
+-- **Perche' non basta lasciarle li'.** La grande maggioranza -- 373 su 411 al
+-- momento della misura -- sono **"vehicle_new"**:
 -- una per ogni auto importata, cioe' esattamente l'alluvione che
 -- `20260914130000` ha appena tolto. Lasciarle vorrebbe dire che il primo
 -- cliente vero aprirebbe la campanella su trecentosettantatre avvisi che non
