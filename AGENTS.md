@@ -456,6 +456,61 @@ lei) e il primo tentativo di `src/lib/targa.ts`, che escludeva le lettere I, O,
 Q, U anche dalle sigle delle province e rifiutava `MI123456`. Una migration si
 prova su Postgres vero **prima** di consegnarla, sempre.
 
+**Ogni migration ha la data nel nome, e un file che non ce l'ha gira per
+ultimo.** In una ricostruzione le migration si applicano in ordine
+**alfabetico** (`scripts/ricostruisci-schema.sh`), e nell'alfabeto del computer
+**le cifre vengono prima delle lettere**: un file che comincia per lettera
+finisce dopo **tutti** quelli datati, comprese le migration scritte mesi dopo.
+Qualunque cosa ridefinisca, vince -- e nessuna correzione futura potra' avere
+la meglio, perche' arrivera' sempre prima.
+
+Il 14/09/2026 `supabase/migrations/rls_vehicles_policies.sql`, senza data nel
+nome, ridefiniva `enforce_vehicle_dealer_id()` ed
+`enforce_vehicle_image_dealer_id()` -- due protezioni dell'isolamento fra
+concessionarie -- con una versione piu' vecchia di quella in produzione, e
+girando per ultimo era quella a sopravvivere. Questa volta le due versioni si
+comportavano allo stesso modo (un `if` annidato invece di un `and`); la
+prossima potrebbe non essere cosi'.
+
+**I due file esistenti non si rinominano** -- cambierebbe l'ordine in modi che
+nessuno ha verificato -- e il loro contenuto si tiene allineato alla
+produzione. Il guardiano e' `src/lib/migrazioni-in-ordine.test.ts`, che
+fallisce se ne compare un terzo.
+
+**`sync_stale_notifications` ha tre difetti, e nessuno e' stato corretto.**
+Sono stati trovati leggendo il testo della funzione in produzione il
+14/09/2026, durante la pulizia dello schema; la pulizia non costruisce, quindi
+restano scritti qui.
+
+1. **Dice una cosa falsa al concessionario.** Cerca i veicoli con
+   `published = false` e `status <> 'published'` da piu' di sette giorni, e
+   annuncia *"Veicolo in bozza da oltre 7 giorni -- non e' ancora stato
+   pubblicato"*. Ma in produzione ci sono **76 vetture in `in_review`**, e sono
+   li' perche' **il tetto del piano ce le ha messe**, non perche' qualcuno se
+   ne sia dimenticato. Il concessionario legge che ha 76 bozze abbandonate
+   quando ha 76 auto che il suo piano non gli permette di pubblicare. Stessa
+   famiglia dello storico finto e del margine a zero: un'informazione
+   plausibile e sbagliata.
+2. **Moltiplica per il numero di utenti.** Le due interrogazioni fanno
+   `cross join dealer_users`: **un inserimento per ogni veicolo per ogni
+   utente**. Oggi ogni piano ha un utente solo e non si vede; con tre utenti,
+   76 vetture diventano **228 notifiche in un colpo**. E' la seconda alluvione
+   dopo quella delle auto importate, e peggiora esattamente quando si
+   venderanno i piani multiutente.
+3. **Meta' della funzione non trova mai niente.** Cerca i contatti con
+   `coalesce(lower(status), 'created') = 'created'`, ma gli stati dei contatti
+   in questo progetto sono in italiano. Misurato sulla produzione: i due
+   contatti hanno stato `nuovo` e `chiuso_negativo`, **zero con `created`**.
+   L'avviso *"Lead non contattato da 24 ore"* -- che e' il piu' utile dei due
+   -- **non e' mai arrivato a nessuno**.
+
+**E una quarta cosa, minore:** `set_updated_at()` in produzione non ha
+`set search_path`, mentre i file ce l'avevano. I file erano piu' prudenti. La
+funzione **non e' `security definer`**, quindi gira con i permessi di chi la
+chiama e un `search_path` non fissato non permette di scavalcare niente: e'
+un'imprudenza, non un buco. Da sistemare dopo la pulizia, insieme ai tre difetti
+qui sopra.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
