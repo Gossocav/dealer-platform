@@ -1,0 +1,177 @@
+/**
+ * Da dove viene ogni dato di una scheda, e chi puo' sovrascriverlo.
+ *
+ * **La regola, decisa dal titolare il 14/09/2026:**
+ *
+ * > Un dato scritto dal concessionario **non viene mai sovrascritto** dalla
+ * > sincronizzazione, nemmeno se il sito cambia idea.
+ *
+ * **Come si applica, ed e' il punto di tutto questo file.** Non chiedendo a
+ * chi scrive di ricordarsene: **non consegnandogli il dato protetto**. Chi
+ * sincronizza passa a `scriviDalSito` quello che il sito dice e riceve
+ * indietro **solo cio' che puo' scrivere** -- i campi che il concessionario ha
+ * scritto a mano non compaiono nel risultato, quindi non c'e' niente da
+ * saltare e niente da dimenticare.
+ *
+ * La differenza non e' di stile. Un controllo **dentro** la sincronizzazione
+ * si aggira scrivendo una tredicesima porta che non lo fa: e' esattamente
+ * quello che e' successo al tetto del piano, sparso su dodici punti di
+ * scrittura. Una funzione che **non restituisce** il campo protetto non si
+ * aggira, perche' chi la usa non ha in mano niente da scrivere.
+ *
+ * **Quando il sito cambia un dato che il concessionario aveva scritto**, il
+ * valore non si tocca e il disaccordo **non si butta via**: si registra
+ * accanto, in `il_sito_dice`. Un dato che il sito dichiara e noi scartiamo
+ * senza lasciare traccia e' indistinguibile da un dato che il sito non ha mai
+ * detto -- ed e' la famiglia di difetti piu' ripetuta di questo progetto.
+ *
+ * Tre regole perche' non diventi rumore: si **sovrascrive** a ogni giro (conta
+ * l'ultima cosa che il sito dice, non lo storico); **sparisce da solo** quando
+ * il sito torna d'accordo; e **non e' un errore** -- diventera' la riga "il tuo
+ * sito ora dice 03/2022, tu avevi scritto 01/2022", con un pulsante per
+ * adottarlo se il concessionario vuole.
+ */
+
+/** Chi ha messo li' quel valore. */
+export type Fonte =
+  /** Il sito della concessionaria lo dichiara. */
+  | "sito"
+  /** Il sistema del concessionario l'ha riempito da solo: vale meno. */
+  | "dedotto"
+  /** L'ha scritto il concessionario. **Non si sovrascrive mai.** */
+  | "dealer";
+
+export type SegnoDiProvenienza = {
+  fonte: Fonte;
+  /** Quando il concessionario l'ha confermato. Assente = e' una proposta. */
+  confermato_il?: string | null;
+  /** Cosa dice il sito adesso, quando non e' d'accordo con il concessionario. */
+  il_sito_dice?: { valore: string; visto_il: string } | null;
+};
+
+export type OrigineDati = Record<string, SegnoDiProvenienza>;
+
+/** Un valore letto dal sito, con quanto ci si puo' credere. */
+export type LettoDalSito = { valore: string | number | null; fonte: "sito" | "dedotto" };
+
+export type EsitoScrittura = {
+  /** Cosa si puo' scrivere davvero. I campi del concessionario non ci sono. */
+  daScrivere: Record<string, string | number | null>;
+  /** Il nuovo `origine_dati` della scheda, gia' pronto da salvare. */
+  origineDati: OrigineDati;
+  /**
+   * I campi che il sito dichiarava e che **non** si sono scritti perche' li ha
+   * scritti il concessionario. Serve a raccontarlo nei log, non a decidere.
+   */
+  protetti: string[];
+};
+
+/** Legge il segno di un campo. Un oggetto malformato vale come "mai visto". */
+export function provenienza(origineDati: unknown, campo: string): SegnoDiProvenienza | null {
+  if (!origineDati || typeof origineDati !== "object" || Array.isArray(origineDati)) return null;
+  const segno = (origineDati as Record<string, unknown>)[campo];
+  if (!segno || typeof segno !== "object" || Array.isArray(segno)) return null;
+  const fonte = (segno as { fonte?: unknown }).fonte;
+  if (fonte !== "sito" && fonte !== "dedotto" && fonte !== "dealer") return null;
+  return segno as SegnoDiProvenienza;
+}
+
+/** Vero solo se quel campo l'ha scritto il concessionario. */
+export function scrittoDalDealer(origineDati: unknown, campo: string): boolean {
+  return provenienza(origineDati, campo)?.fonte === "dealer";
+}
+
+/**
+ * Vero quando il concessionario ha confermato quel campo.
+ *
+ * **Un dato proposto si mostra ma non si usa**: finche' non e' confermato non
+ * entra nella giacenza, non entra nel margine, non entra nella priorita' del
+ * tetto del piano e non conta nella completezza. Quello che ha scritto lui e'
+ * confermato per definizione: non c'e' niente da approvare.
+ */
+export function confermato(origineDati: unknown, campo: string): boolean {
+  const segno = provenienza(origineDati, campo);
+  if (!segno) return false;
+  if (segno.fonte === "dealer") return true;
+  return Boolean(segno.confermato_il);
+}
+
+const uguali = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
+
+/**
+ * Cosa si puo' scrivere, avendo letto il sito.
+ *
+ * `valoriInArchivio` sono quelli che la scheda ha adesso: servono a capire se
+ * il sito sta dicendo una cosa **diversa** da quella scritta dal
+ * concessionario, che e' l'unico caso in cui si registra il disaccordo.
+ *
+ * `oggi` si passa da fuori invece di chiederlo all'orologio, cosi' la stessa
+ * chiamata da' sempre lo stesso risultato e il test non dipende dal giorno.
+ */
+export function scriviDalSito(
+  origineDatiAttuale: unknown,
+  valoriInArchivio: Record<string, string | number | null>,
+  lettiDalSito: Record<string, LettoDalSito>,
+  oggi: string,
+): EsitoScrittura {
+  const partenza = (origineDatiAttuale && typeof origineDatiAttuale === "object" && !Array.isArray(origineDatiAttuale)
+    ? (origineDatiAttuale as OrigineDati)
+    : {}) as OrigineDati;
+
+  const origineDati: OrigineDati = { ...partenza };
+  const daScrivere: Record<string, string | number | null> = {};
+  const protetti: string[] = [];
+
+  for (const [campo, letto] of Object.entries(lettiDalSito)) {
+    // Il sito non dice niente su questo campo: non e' un motivo per cancellare
+    // quello che c'e'.
+    if (letto.valore === null || letto.valore === undefined || letto.valore === "") continue;
+
+    const segno = provenienza(origineDati, campo);
+
+    if (segno?.fonte === "dealer") {
+      protetti.push(campo);
+
+      // Il disaccordo si registra; il valore no. Quando il sito torna a dire
+      // la stessa cosa, il segno sparisce da solo.
+      const nuovo: SegnoDiProvenienza = { ...segno };
+      if (uguali(valoriInArchivio[campo], letto.valore)) {
+        delete nuovo.il_sito_dice;
+      } else {
+        nuovo.il_sito_dice = { valore: String(letto.valore), visto_il: oggi };
+      }
+      origineDati[campo] = nuovo;
+      continue;
+    }
+
+    daScrivere[campo] = letto.valore;
+    origineDati[campo] = {
+      fonte: letto.fonte,
+      // Una conferma gia' data non si perde: il concessionario ha detto di si'
+      // a quel campo, e il sito che lo riconferma non gli chiede di rifarlo.
+      confermato_il: segno && uguali(valoriInArchivio[campo], letto.valore) ? segno.confermato_il ?? null : null,
+    };
+  }
+
+  return { daScrivere, origineDati, protetti };
+}
+
+/** Come si segna un campo scritto dal concessionario. Da qui in poi e' suo. */
+export function segnaComeScrittoDalDealer(origineDatiAttuale: unknown, campi: string[]): OrigineDati {
+  const partenza = (origineDatiAttuale && typeof origineDatiAttuale === "object" && !Array.isArray(origineDatiAttuale)
+    ? (origineDatiAttuale as OrigineDati)
+    : {}) as OrigineDati;
+
+  const origineDati: OrigineDati = { ...partenza };
+  for (const campo of campi) origineDati[campo] = { fonte: "dealer" };
+  return origineDati;
+}
+
+/** La dicitura da mettere accanto al valore. Un numero non si mostra mai nudo. */
+export function etichettaProvenienza(origineDati: unknown, campo: string): string | null {
+  const segno = provenienza(origineDati, campo);
+  if (!segno) return null;
+  if (segno.fonte === "dealer") return "scritto da te";
+  const daConfermare = segno.confermato_il ? "" : " · da confermare";
+  return segno.fonte === "sito" ? `dal tuo sito${daConfermare}` : `deciso dal tuo sito${daConfermare}`;
+}

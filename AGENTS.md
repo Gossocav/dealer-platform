@@ -582,6 +582,47 @@ toglierla puo' rompere qualcosa che non la nomina mai. Si guarda quindi ogni
 15/09/2026 su `vehicle_images` sono stati controllati tutti e nove: nessuno usa
 `*`, e nessuno chiede `updated_at`.
 
+**Un controllo si dimentica, un campo che non arriva non si puo' scrivere.**
+Quando una regola dice "questo dato non si tocca", non la si affida a chi
+scrive: **non gli si consegna il dato protetto**. Chi sincronizza passa a
+`scriviDalSito` cio' che il sito dichiara e riceve indietro **solo cio' che
+puo' scrivere** -- i campi del concessionario non compaiono nel risultato,
+quindi non c'e' niente da saltare e niente da dimenticare.
+
+Non e' una questione di stile. Un controllo **dentro** chi scrive si aggira
+aprendo una porta nuova che non lo fa: e' esattamente quello che e' successo al
+tetto del piano, corretto in un posto e aggirato in **dodici**. Una funzione
+che **non restituisce** il campo protetto non si aggira, perche' chi la usa non
+ha in mano niente da scrivere. La regola sta in `src/lib/provenienza-dati.ts`.
+
+**I due test servono a cose diverse, e servono tutti e due.** Il primo --
+comportamentale -- dice che la funzione fa la cosa giusta. Il secondo -- sul
+testo dei sorgenti -- dice che **nessuno puo' farla per conto suo**: nessun
+file, fuori da quella funzione, scrive un campo protetto. Il difetto arrivera'
+da una porta nuova, non da quella gia' scritta, e il primo test non la vedrebbe
+mai.
+
+Quando il secondo trova qualcosa che non si puo' correggere subito, il nome del
+file si scrive in un **elenco esplicito** dentro il test, con il perche' e la
+regola che quell'elenco puo' solo accorciarsi -- come
+`SENZA_DATA_CONOSCIUTI` per le migration senza data. Un elenco di eccezioni che
+cresce e' il modo in cui un controllo diventa rumore.
+
+**Un dato che il sito dichiara e noi scartiamo senza lasciare traccia e'
+indistinguibile da un dato che il sito non ha mai detto.** Vale oltre il caso
+che l'ha prodotto: ogni volta che si sceglie di **non** usare
+un'informazione arrivata, la scelta va registrata da qualche parte, altrimenti
+fra sei mesi nessuno sapra' se quell'informazione non c'era o se c'era e
+l'abbiamo buttata. Sul disaccordo fra sito e concessionario si scrive in
+`origine_dati` sotto `il_sito_dice`, senza toccare il valore.
+
+**Cio' che si scrive e non si mostra ancora va in
+[SCRITTE_NON_MOSTRATE.md](SCRITTE_NON_MOSTRATE.md)**, nello stesso momento in
+cui si scrive il codice che lo salva -- non dopo. Costruire prima il posto dove
+mettere i dati e poi la schermata che li racconta e' l'ordine giusto, ma
+lascia per un po' informazioni che il database ha e lo schermo no: quell'elenco
+esiste perche' nessuna si perda per strada.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
