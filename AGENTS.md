@@ -561,9 +561,26 @@ cancellazione:
 4. **nel dubbio non si cancella.** Ricreare una tabella e' facile; ricostruire
    un'idea persa no.
 
-Il conteggio delle righe resta utile per un'altra cosa: sapere se
-cancellandola si perdono **dati**. E' una domanda diversa da "serve a
-qualcuno", e le due non si confondono.
+**Sono due domande diverse e si riportano separate.**
+
+| la domanda | a cosa si risponde | cosa la risponde |
+|---|---|---|
+| **serve a qualcuno?** | se si cancella, qualcosa smette di funzionare | **la ricerca nel codice** |
+| **si perdono dati?** | se si cancella, qualcosa sparisce per sempre | **il conteggio delle righe** |
+
+Riportarle insieme, come se pesassero uguale, fa sembrare che due prove deboli
+ne facciano una forte. Non e' cosi': **solo la prima autorizza a cancellare**,
+la seconda dice se serve un travaso prima di farlo. Il 14/09/2026 le dieci
+tabelle senza codice sono state raccontate con le due prove appaiate, ed era
+un modo sbagliato di dirlo anche se la conclusione reggeva.
+
+**Un passo obbligatorio della ricerca: controllare che nessuno usi `select *`.**
+Se una sola interrogazione chiede tutte le colonne, cercare il nome di una
+colonna non prova niente -- quella colonna arriva lo stesso a chi legge, e
+toglierla puo' rompere qualcosa che non la nomina mai. Si guarda quindi ogni
+`select` sulla tabella, non solo quelli che contengono il nome cercato. Il
+15/09/2026 su `vehicle_images` sono stati controllati tutti e nove: nessuno usa
+`*`, e nessuno chiede `updated_at`.
 
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde

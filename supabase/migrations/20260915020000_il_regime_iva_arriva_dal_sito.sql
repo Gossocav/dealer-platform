@@ -1,5 +1,20 @@
 -- Il regime IVA di una vettura, letto dal sito e non piu' indovinato.
 --
+-- **Questa non e' una cancellazione: e' una sostituzione.** `vat_exposed` non
+-- si toglie perche' e' inutile, si toglie perche' **quello che doveva fare lo
+-- fa meglio `vat_regime`**. Un disegno costruito a meta' si completa, non si
+-- conserva.
+--
+-- **Cosa faceva `vat_exposed`, e perche' non bastava.** Doveva dire al
+-- compratore con partita IVA se l'IVA e' esposta -- cioe' se puo' scaricarla,
+-- che su una vettura da trentacinquemila euro sono settemila euro di
+-- differenza. Era un si'/no, e un si'/no **non sa dire "non lo so"**: su
+-- un'auto appena importata da un sito che non lo dichiara, `false` avrebbe
+-- significato "non e' a IVA esposta" quando la verita' e' "nessuno l'ha
+-- ancora detto". E' esattamente il difetto che AGENTS.md chiama "un si'/no che
+-- ammette il vuoto e' un terzo stato che nessuno gestisce", al contrario: qui
+-- il terzo stato serviva e non c'era.
+--
 -- **Cosa c'era.** `vehicles.vat_exposed`, un si'/no. Al 15/09/2026 in
 -- produzione vale `true` su **zero righe su 372**, e **nessuna riga di codice
 -- la legge o la scrive**: zero riferimenti in tutto `src/`, nemmeno nei test.
@@ -34,10 +49,21 @@
 -- fosse spazzatura non produrrebbe questa regolarita'. `vat = 22` diventa
 -- `esposta`, `vat = 0` diventa `margine`.
 --
--- **Si mostra sull'annuncio pubblico**, come faceva `vat_exposed`: per un
--- compratore con partita IVA e' un'informazione che cambia il prezzo vero. Il
--- permesso e' colonna per colonna, quindi va concesso a mano -- una colonna
--- nuova nasce chiusa.
+-- **Il permesso pubblico passa da una colonna all'altra**, e va detto con
+-- precisione perche' la differenza conta.
+--
+-- `vat_exposed` era fra le colonne che il pubblico puo' leggere. `vat_regime`
+-- ne prende il posto: i permessi su `vehicles` sono colonna per colonna, una
+-- colonna nuova nasce chiusa, e senza il `grant` qui sotto il marketplace non
+-- potrebbe leggerla nemmeno volendo.
+--
+-- **Ma nessuna pagina mostra oggi quell'informazione, e non la mostrava
+-- nemmeno prima.** Cercato il 15/09/2026 in tutto `src/`: ne' il marketplace
+-- ne' il gestionale hanno una riga che scriva "IVA esposta" o legga
+-- `vat_exposed`. Il permesso c'era, la schermata no. Questa migration
+-- **conserva il permesso** cosi' che la vetrina possa mostrarlo il giorno che
+-- si costruisce il pezzo che lo mostra -- che e' un lavoro a se', e non e'
+-- questo.
 --
 -- **E resta una proposta finche' il concessionario non conferma**: la fonte
 -- viene scritta in `vehicles.origine_dati` (vedi 20260915010000), e un dato
