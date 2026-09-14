@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { REGOLE_PASSWORD } from "@/lib/password-rules";
 
 function read(path: string) {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -38,9 +39,12 @@ describe("create-password page", () => {
     expect(resetPage).toContain("rule.verifica(password)");
     expect(resetPage).toContain("{rule.etichetta}");
 
-    const regole = read("src/lib/password-rules.ts");
-    for (const etichetta of ["Almeno 8 caratteri", "Una lettera maiuscola", "Una lettera minuscola", "Un numero"]) {
-      expect(regole, `manca la regola "${etichetta}"`).toContain(etichetta);
+    // Le etichette si leggono dall'elenco vero e non si ricopiano qui: erano
+    // ricopiate, e il giorno in cui "Almeno 8 caratteri" e' diventato "Da 8 a
+    // 72 caratteri" -- il limite oltre il quale il server risponde 500 -- a
+    // rompersi e' stato questo test, non la pagina.
+    for (const regola of REGOLE_PASSWORD) {
+      expect(regola.etichetta.trim().length, `la regola ${regola.chiave} non si legge`).toBeGreaterThan(5);
     }
   });
 

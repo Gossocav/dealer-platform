@@ -4,6 +4,7 @@ import { consumaFreno } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { eAttivazioneDiretta } from "@/lib/attivazione-diretta";
 import { escapeHtml } from "@/lib/escape-html";
+import { generaPasswordProvvisoria } from "@/lib/password-rules";
 import { createDemoAccessAuditEntry } from "@/lib/demo-audit";
 import { resolveDemoLifecycleVersion, toHttpStatusFromOutcome } from "../../../../lib/demo-lifecycle-http";
 import { normalizeDemoPlanCode } from "../../../../lib/demo-plan-catalog";
@@ -626,12 +627,12 @@ export async function POST(request: Request) {
     // nessuno e non viene mai spedita: il concessionario ne sceglie una sua dal
     // link dell'email, e questa serve solo perche' l'account possa nascere.
     //
-    // **Deve comunque rispettare le regole della piattaforma.** Dal 02/09/2026
-    // Supabase pretende maiuscole, minuscole, numeri e simboli, e un
-    // identificativo casuale e' tutto in minuscolo: senza la parte iniziale il
-    // server potrebbe rifiutarla, e l'attivazione si fermerebbe prima ancora di
-    // creare la concessionaria -- per una password che non usera' nessuno.
-    const generatedPassword = `Ka1!${crypto.randomUUID()}-${crypto.randomUUID().toUpperCase()}-${Date.now()}`;
+    // **Non si scrive qui.** Deve rispettare le regole della piattaforma, che
+    // stanno in `password-rules.ts` insieme al limite di lunghezza che le
+    // custodisce: scritta qui a mano andrebbe alla deriva senza che nessuno se
+    // ne accorga, ed e' esattamente quello che e' successo dal 02/09/2026 al
+    // 14/09/2026 -- dodici giorni in cui nessuna attivazione riusciva piu'.
+    const generatedPassword = generaPasswordProvvisoria();
     const createdUser = await context.supabaseAdmin.auth.admin.createUser({
       email: targetRequest.email,
       password: generatedPassword,
