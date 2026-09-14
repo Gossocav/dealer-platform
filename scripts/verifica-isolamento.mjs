@@ -44,6 +44,10 @@ const RISERVATE = [
   // chi ha compilato i moduli, e chi la sapesse svuotare disattiverebbe il
   // freno per tutti.
   "rate_limits",
+  // Da dove arriva una vettura e da quando e' in piazzale (15/09/2026). Non
+  // e' roba da vetrina: dice quanto tempo un'auto e' ferma e da che canale
+  // arriva, cioe' come lavora la concessionaria.
+  "vehicle_acquisitions",
 ];
 
 /**

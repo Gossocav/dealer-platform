@@ -540,6 +540,48 @@ chiama e un `search_path` non fissato non permette di scavalcare niente: e'
 un'imprudenza, non un buco. Da sistemare dopo la pulizia, insieme ai tre difetti
 qui sopra.
 
+**"Vuoto" non e' una prova: il criterio per cancellare e' che nessuna riga di
+codice la usi.** I tre account in produzione sono **di prova**, creati dal
+titolare, e non esiste ancora nessun cliente pagante. Quindi *"oggi non lo usa
+nessuno"* non e' mai un argomento: **non c'e' nessuno che possa usarlo**. Una
+tabella vuota oggi puo' essere un guscio mai costruito, oppure una cosa che
+aspetta il primo cliente vero -- e le due si assomigliano moltissimo.
+
+Vale per **tabelle, colonne, funzioni e trigger**. Prima di proporre una
+cancellazione:
+
+1. **si cerca in tutto il progetto** -- `src/`, `scripts/`, `.github/`,
+   `supabase/`, test compresi -- chi la nomina, e si riporta **il risultato
+   grezzo della ricerca**, non la conclusione. Chi legge deve poter vedere le
+   righe trovate e giudicare da se';
+2. **se il codice la usa ma e' vuota, NON si cancella**: si annota come "in
+   attesa del primo cliente";
+3. **se non la usa nessuno, si dice anche a cosa doveva servire**, cosi' il
+   titolare decide se e' un disegno mai costruito o un disegno da costruire;
+4. **nel dubbio non si cancella.** Ricreare una tabella e' facile; ricostruire
+   un'idea persa no.
+
+**Sono due domande diverse e si riportano separate.**
+
+| la domanda | a cosa si risponde | cosa la risponde |
+|---|---|---|
+| **serve a qualcuno?** | se si cancella, qualcosa smette di funzionare | **la ricerca nel codice** |
+| **si perdono dati?** | se si cancella, qualcosa sparisce per sempre | **il conteggio delle righe** |
+
+Riportarle insieme, come se pesassero uguale, fa sembrare che due prove deboli
+ne facciano una forte. Non e' cosi': **solo la prima autorizza a cancellare**,
+la seconda dice se serve un travaso prima di farlo. Il 14/09/2026 le dieci
+tabelle senza codice sono state raccontate con le due prove appaiate, ed era
+un modo sbagliato di dirlo anche se la conclusione reggeva.
+
+**Un passo obbligatorio della ricerca: controllare che nessuno usi `select *`.**
+Se una sola interrogazione chiede tutte le colonne, cercare il nome di una
+colonna non prova niente -- quella colonna arriva lo stesso a chi legge, e
+toglierla puo' rompere qualcosa che non la nomina mai. Si guarda quindi ogni
+`select` sulla tabella, non solo quelli che contengono il nome cercato. Il
+15/09/2026 su `vehicle_images` sono stati controllati tutti e nove: nessuno usa
+`*`, e nessuno chiede `updated_at`.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
