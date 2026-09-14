@@ -8,7 +8,8 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { buildActiveDealerHeaders, getActiveDealerId } from "@/lib/active-tenant";
 import { type OrigineSincronizzata } from "@/lib/sincronizzazioni-veicoli";
 import { messaggioPostiFiniti, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
-import { limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
+import { postiLiberi } from "@/lib/tetto-del-piano-db";
+import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { supabase } from "@/lib/supabaseClient";
@@ -144,6 +145,10 @@ export function VehiclesImportPage() {
   const [feedError, setFeedError] = useState<string | null>(null);
   const [feedAnalysis, setFeedAnalysis] = useState<FeedAnalysisResult | null>(null);
   const [feedImportResult, setFeedImportResult] = useState<FeedImportResult | null>(null);
+  // Il limite del piano lo dice il server: nel browser la funzione che lo
+  // calcola non e' eseguibile, ed e' giusto cosi'.
+  const { limiteAnnunci } = usePianoInVigore();
+
   const [origini, setOrigini] = useState<OrigineSincronizzata[]>([]);
   const [originiErrore, setOriginiErrore] = useState<string | null>(null);
   const [originiTroncate, setOriginiTroncate] = useState(false);
@@ -532,7 +537,14 @@ export function VehiclesImportPage() {
     // c'e' posto le auto entrano com'e' stato chiesto, oltre entrano in attesa
     // di un posto. Prima il database rifiutava riga per riga e il ciclo
     // proseguiva fino in fondo accumulando la stessa frase.
-    const limite = initialStatus === "published" ? await limiteDelPiano(supabase, dealerId) : null;
+    //
+    // Il limite arriva dal **server**, non dal database: qui siamo nel
+    // browser, e `resolve_dealer_listing_cap` e' riservata alla chiave di
+    // servizio (05/09/2026). Chiedendola con la sessione dell'utente si
+    // riceve "permesso negato", e siccome quella lettura ignora l'errore il
+    // limite risultava "non leggibile": la regola del tetto non si applicava
+    // mai su questo percorso. Difetto mio dell'11/09/2026.
+    const limite = initialStatus === "published" ? limiteAnnunci : null;
     let posti = initialStatus === "published" ? await postiLiberi(supabase, dealerId, limite) : null;
     let inAttesaPerIlTetto = 0;
 

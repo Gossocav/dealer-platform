@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   candidataAllaVetrina,
@@ -191,4 +193,57 @@ describe("il posto in vetrina si conta prima, non dopo", () => {
     expect(entra()).toBe(STATO_OLTRE_IL_TETTO);
     expect(posti).toBe(0);
   });
+});
+
+/**
+ * Il tetto si legge con la chiave giusta.
+ *
+ * Il difetto, mio, dell'11/09/2026: `import-feed` chiedeva il limite del piano
+ * con la sessione dell'utente. Ma `resolve_dealer_listing_cap` e' riservata
+ * alla chiave di servizio dal 05/09, quindi rispondeva "permesso negato" --
+ * e siccome `limiteDelPiano` ignora l'errore e restituisce `null`, il limite
+ * risultava "non leggibile" e **la regola del tetto non si applicava mai** su
+ * quel percorso. Non si vedeva: il database rifiutava comunque le auto oltre
+ * il tetto, quindi il limite non veniva superato -- ma le eccedenti venivano
+ * saltate con un errore invece di entrare in attesa di un posto.
+ *
+ * Verificato su Postgres vero: `set role authenticated; select
+ * public.resolve_dealer_listing_cap(...)` risponde "permission denied for
+ * function".
+ *
+ * Questi test leggono il *testo* dei sorgenti: non provano che il codice
+ * funzioni, fissano la decisione. Il permesso di esecuzione resta chiuso di
+ * proposito (src/lib/funzioni-sql-chiuse.test.ts), quindi l'unica strada e'
+ * la chiave di servizio.
+ */
+describe("il limite del piano si chiede con la chiave di servizio", () => {
+  const senzaCommenti = (percorso: string) =>
+    readFileSync(resolve(process.cwd(), percorso), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  it("la pagina Importazione non chiede il limite al database: nel browser non si puo'", () => {
+    // Il browser ha solo la chiave pubblica e la sessione dell'utente, e
+    // `resolve_dealer_listing_cap` non e' eseguibile da li'. Il limite arriva
+    // dal server, con `usePianoInVigore()`. Aprire quella funzione ad
+    // `authenticated` non e' un rimedio: accetta un dealer_id qualsiasi,
+    // quindi chiunque avesse una sessione potrebbe leggere il piano di
+    // un'altra concessionaria.
+    const pagina = senzaCommenti("src/components/vehicles/vehicles-import-page.tsx");
+    expect(pagina, "il browser chiede il limite al database").not.toContain("limiteDelPiano");
+    expect(pagina, "il limite deve arrivare dal server").toContain("usePianoInVigore");
+  });
+
+  for (const rotta of ["src/app/api/vehicles/import-feed/route.ts", "src/app/api/vehicles/import-site/route.ts"]) {
+    it(`${rotta.split("/").slice(-2)[0]}: legge il tetto con la chiave di servizio, non con quella dell'utente`, () => {
+      const testo = senzaCommenti(rotta);
+
+      // Il client della chiave di servizio esiste e si chiama cosi' in tutte e due.
+      expect(testo, "manca il client con la chiave di servizio").toContain("supabaseTetto");
+
+      // E le due funzioni che toccano il tetto ricevono quello, non `supabase`.
+      expect(testo, "il limite viene chiesto con la sessione dell'utente").not.toMatch(/limiteDelPiano\(\s*supabase\s*,/);
+      expect(testo, "il tetto viene applicato con la sessione dell'utente").not.toMatch(/applicaTettoDelPiano\(\s*supabase\s*,/);
+    });
+  }
 });
