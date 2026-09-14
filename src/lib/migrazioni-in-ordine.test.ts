@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -66,7 +66,6 @@ describe("le migration si applicano nell'ordine che ci si aspetta", () => {
 
   it("il file che gira per ultimo dice in cima che gira per ultimo", () => {
     // Chi lo apre fra sei mesi deve saperlo prima di toccarlo, non dopo.
-    const { readFileSync } = require("node:fs") as typeof import("node:fs");
     const sorgente = readFileSync(resolve(process.cwd(), CARTELLA, "rls_vehicles_policies.sql"), "utf8");
     expect(sorgente.slice(0, 400)).toContain("gira per ULTIMO");
   });
