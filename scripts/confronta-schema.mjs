@@ -41,8 +41,25 @@ const FAMIGLIE = [
   ["trigger", "trigger"],
   ["permessi_funzioni", "chi puo' eseguire le funzioni"],
   ["politiche_storage", "regole dei magazzini dei file"],
+  ["permessi_a_chiunque", "permessi dati a chiunque"],
+  ["viste", "viste"],
   ["indici", "indici"],
 ];
+
+/**
+ * Una famiglia che l'inventario produce ma questo elenco non nomina **non
+ * verrebbe confrontata**, e nessuno se ne accorgerebbe: il riepilogo direbbe
+ * "nessuna differenza" su una serratura che non ha nemmeno guardato.
+ *
+ * E' successo il 14/09/2026: l'inventario ha imparato a vedere i permessi
+ * dati a chiunque e le viste, e questo elenco era rimasto a undici voci. La
+ * regola che ne e' nata sta in AGENTS.md: quando una regola nomina un
+ * elenco, la domanda non e' "l'elenco e' giusto?" ma "cosa resta fuori?".
+ */
+function famiglieNonConfrontate(inventario) {
+  const conosciute = new Set(FAMIGLIE.map(([chiave]) => chiave));
+  return Object.keys(inventario ?? {}).filter((chiave) => !conosciute.has(chiave));
+}
 
 function argomento(nome) {
   const i = process.argv.indexOf(nome);
@@ -130,6 +147,28 @@ try {
   console.error("Il controllo non e' stato eseguito.");
   console.error("");
   console.error(errore instanceof Error ? errore.message : String(errore));
+  process.exit(2);
+}
+
+// Prima di confrontare: i due lati stanno usando la stessa versione
+// dell'inventario? Se una famiglia c'e' da una parte e non dall'altra, o non
+// e' nell'elenco, il confronto direbbe "tutto uguale" su cose che non ha
+// guardato. Ci si ferma e lo si dice, invece di dare un numero falso.
+const fuoriElenco = new Set([...famiglieNonConfrontate(daiFile), ...famiglieNonConfrontate(dallaProduzione)]);
+if (fuoriElenco.size > 0) {
+  console.error("Mi fermo: l'inventario produce famiglie che questo confronto non guarda.");
+  console.error(`  fuori dall'elenco: ${[...fuoriElenco].sort().join(", ")}`);
+  console.error("  Aggiungerle a FAMIGLIE qui sopra, altrimenti restano fuori dalla sorveglianza.");
+  process.exit(2);
+}
+
+const soloDaUnLato = [...new Set([...Object.keys(daiFile), ...Object.keys(dallaProduzione)])].filter(
+  (chiave) => (daiFile[chiave] === undefined) !== (dallaProduzione[chiave] === undefined),
+);
+if (soloDaUnLato.length > 0) {
+  console.error("Mi fermo: i due lati non usano la stessa versione di public.inventario_schema().");
+  console.error(`  famiglia presente da una parte sola: ${soloDaUnLato.sort().join(", ")}`);
+  console.error("  Applicare in produzione la migration che aggiorna l'inventario, poi rifare il confronto.");
   process.exit(2);
 }
 

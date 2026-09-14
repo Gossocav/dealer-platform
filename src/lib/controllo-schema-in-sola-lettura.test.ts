@@ -128,6 +128,26 @@ describe("l'inventario sorveglia i permessi di colonna in tutti i comandi", () =
     expect(migrations).toContain("c.relkind in ('v', 'm')");
   });
 
+  it("il confronto guarda tutte le famiglie che l'inventario produce", () => {
+    // Il difetto gemello, trovato lo stesso giorno: l'inventario ha imparato a
+    // vedere due cose nuove e l'elenco delle famiglie confrontate era rimasto
+    // a undici voci. Una famiglia fuori da quell'elenco non viene confrontata
+    // da nessuno, e il riepilogo direbbe "nessuna differenza" su una serratura
+    // che non ha nemmeno guardato.
+    for (const famiglia of ["permessi_a_chiunque", "viste"]) {
+      expect(script, `il confronto non guarda la famiglia ${famiglia}`).toContain(`"${famiglia}"`);
+    }
+    // E si ferma da solo se un domani ne comparisse una terza.
+    expect(script).toContain("famiglieNonConfrontate");
+  });
+
+  it("il confronto si ferma se i due lati usano inventari diversi", () => {
+    // Applicando la migration da un lato solo, la produzione risponde con
+    // undici famiglie e i file con tredici: confrontarle produrrebbe
+    // sessantuno differenze finte. Meglio fermarsi e dire cosa fare.
+    expect(script).toContain("non usano la stessa versione di public.inventario_schema()");
+  });
+
   it("l'inventario resta riservato al ruolo di servizio", () => {
     // A un estraneo direbbe com'e' fatta ogni serratura.
     expect(migrations).toContain("revoke all on function public.inventario_schema() from anon");
