@@ -279,6 +279,21 @@ si legge la motivazione e la si mette alla prova con un numero vero, invece di
 fermarsi davanti al commento. Se cade, si cambia la riga **e** si riscrive la
 motivazione con la data e il caso che l'ha fatta cadere.
 
+**L'importazione da file non sa cosa sia una targa.** In
+`src/lib/vehicle-import.ts` i campi riconosciuti sono ventisette e comprendono il
+telaio (`vin`, con gli alias "telaio" e "chassis"), ma **la targa non c'e'**.
+Una colonna "Targa" in un CSV oggi non viene agganciata a niente: **si perde in
+silenzio**, senza un avviso, e il concessionario crede di averla importata.
+
+Non e' ancora costato niente perche' nessuno ha importato un file con le
+targhe, ma e' una bomba a orologeria: il giorno che un cliente arriva con il
+suo listino, la chiave piu' importante che possiede sparisce durante il
+caricamento. E' il primo lavoro della fase che riempie i dati gestionali.
+
+Quando si aggiunge, la targa passa **sempre** da `src/lib/targa.ts`: una targa
+che non ha una forma italiana valida non si salva come targa, si segnala nel
+riepilogo dell'importazione insieme alle righe ambigue.
+
 **Una targa sbagliata e' peggio di una targa mancante.** Leggendo le schede
 dei tre siti collegati il 14/09/2026, su **62 targhe pubblicate due valevano
 `XXX` e `XXXX`**: segnaposto lasciati nel gestionale del concessionario.

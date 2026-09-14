@@ -270,6 +270,40 @@ tabella con un `revoke all`: le colonne pubbliche di `vehicles` e `dealers`
 `dealers` e `profiles` (tutto tranne piano, stato dell'abbonamento, ruolo e
 concessionaria). Sono nella stessa migration, per esteso.
 
+## La decodifica a pagamento e' rimandata (14/09/2026)
+
+**Non si compra, e non si costruisce la tabella di cache che la servirebbe.**
+E' scritto qui perche' la migration della cache era gia' in elenco, e chi la
+trovera' fra sei mesi deve sapere perche' non e' stata fatta.
+
+**Il motivo.** Le pagine dei siti delle concessionarie pubblicano gia' un
+blocco dati di MotorK da 341 campi, e la sincronizzazione notturna **scarica
+gia' quelle pagine**. Misurato il 14/09/2026 su 126 schede dei tre siti
+collegati: marca, modello, allestimento, data di immatricolazione,
+chilometri, alimentazione, potenza, cilindrata, CO2, porte, posti e colore
+arrivano **gratis e al 100%** dai due siti che pubblicano il blocco ricco.
+Comprarli sarebbe pagare per un dato che gia' abbiamo.
+
+Quello che la decodifica darebbe in piu' -- storico chilometrico e antifrode
+-- ha bisogno della **targa**, che su quei due siti non c'e' affatto (0 su
+105 schede). Pagheremmo un servizio che non potremmo nemmeno interrogare.
+
+**La condizione che la fa tornare sul tavolo: il primo cliente che non sta su
+MotorK.** Quel giorno il suo sito non pubblichera' nessun blocco ricco, e i
+dati tecnici andranno presi da qualche parte. Fino ad allora ogni euro speso
+e' speso per niente.
+
+Due cose da non fare nel frattempo:
+
+- **non ricomprarla "perche' c'era nel piano"**: il piano e' cambiato il
+  14/09/2026 e questa e' la ragione;
+- **non costruire la cache in anticipo.** Una tabella di cache senza niente
+  da mettere dentro e' una delle dieci tabelle fantasma che questo progetto
+  sta gia' togliendo.
+
+La rotta `/api/vehicles/plate-lookup` resta dov'e' e continua a funzionare:
+serve alle auto inserite a mano, che al 14/09/2026 sono **2 su 372**.
+
 ## Credenziali
 
 Il controllo ha bisogno di due segreti su GitHub
