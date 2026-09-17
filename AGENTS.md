@@ -565,6 +565,16 @@ giorno l'ha fatto. Le due regole:
    cinque. Un elenco che cambia contenuto va riscritto con la data e il
    motivo, non aggiustato in silenzio per far tornare il conto.
 
+**Le funzioni che oggi nessuno tocca sono quelle dove aspettarsi le
+sorprese.** "Duplica" e' rimasto rotto **dieci giorni** (dal 06/09 al
+16/09/2026) senza che nessuno se ne accorgesse. Non e' colpa di nessuno: e'
+la conseguenza di non avere clienti. Nessuno lo usa, quindi nessuno lo
+segnala, e un test che non c'era non poteva dirlo. Vale come promemoria per il
+giorno del primo cliente vero: le funzioni che oggi non passano mai sotto un
+clic -- duplicazione, foglio di consegna, perizie, importazione da file,
+archivio documenti -- sono quelle da provare **prima** che le provi lui, e
+per ognuna la prova migliore e' un test comportamentale che le chiami davvero.
+
 **"Vuoto" non e' una prova: il criterio per cancellare e' che nessuna riga di
 codice la usi.** I tre account in produzione sono **di prova**, creati dal
 titolare, e non esiste ancora nessun cliente pagante. Quindi *"oggi non lo usa
@@ -606,6 +616,16 @@ toglierla puo' rompere qualcosa che non la nomina mai. Si guarda quindi ogni
 `select` sulla tabella, non solo quelli che contengono il nome cercato. Il
 15/09/2026 su `vehicle_images` sono stati controllati tutti e nove: nessuno usa
 `*`, e nessuno chiede `updated_at`.
+
+**E un `select *` che poi si riscrive copia anche cio' che non si puo'
+scrivere.** Stesso costrutto, danno diverso: nelle ricerche rende inutile una
+verifica, in una copia rompe l'inserimento. "Duplica" leggeva la scheda con
+`select("*")` e la reinseriva intera: da quando `ricerca_testo` e' una colonna
+**generata** (06/09/2026), Postgres rifiutava ogni copia -- *"cannot insert a
+non-DEFAULT value into column ricerca_testo"* -- e portava con se' anche
+targa, telaio, cliente e l'aggancio al sito dell'originale. Una copia dichiara
+cosa **non** porta, in un posto solo (`src/lib/duplica-veicolo.ts`), e non
+parte mai da "tutto".
 
 **Un controllo si dimentica, un campo che non arriva non si puo' scrivere.**
 Quando una regola dice "questo dato non si tocca", non la si affida a chi

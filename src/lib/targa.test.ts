@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { esitoTarga, messaggioTarga, normalizzaTarga, targaDaSalvare, targaValida } from "@/lib/targa";
+import { esitoTarga, INDICE_TARGA_ATTIVA, messaggioTarga, messaggioTargaDoppia, normalizzaTarga, targaDaSalvare, targaValida } from "@/lib/targa";
 
 /**
  * Il difetto che questi test impediscono, misurato il 14/09/2026 leggendo le
@@ -118,5 +118,33 @@ describe("la forma della targa si decide in un posto solo", () => {
     const sorgente = readFileSync(resolve(process.cwd(), "src/components/vehicles/vehicle-editor-page.tsx"), "utf8");
     expect(sorgente).toContain("plate: targaDaSalvare(state.plate)");
     expect(sorgente).not.toContain("plate: state.plate.trim().toUpperCase()");
+  });
+});
+
+/**
+ * Il difetto che impedisce: il vincolo del database (migration
+ * 20260916010000) risponde "duplicate key value violates unique constraint
+ * vehicles_una_targa_attiva_per_concessionaria", e senza traduzione quella
+ * frase arrivava al concessionario com'era.
+ */
+describe("la targa doppia si spiega, non si mostra come errore tecnico", () => {
+  it("traduce il rifiuto del database", () => {
+    const rifiuto = { code: "23505", message: 'duplicate key value violates unique constraint "vehicles_una_targa_attiva_per_concessionaria"' };
+    expect(messaggioTargaDoppia(rifiuto)).toBe("Hai gia' un'auto attiva con questa targa: controlla in Gestione Veicoli prima di salvarne un'altra.");
+  });
+
+  it("non tocca gli altri errori, nemmeno gli altri vincoli unici", () => {
+    expect(messaggioTargaDoppia({ code: "23505", message: 'duplicate key value violates unique constraint "altro_indice"' })).toBeNull();
+    expect(messaggioTargaDoppia({ code: "42501", message: "permission denied" })).toBeNull();
+    expect(messaggioTargaDoppia(null)).toBeNull();
+  });
+
+  it("il nome dell'indice e' quello scritto nella migration", () => {
+    const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260916010000_una_targa_attiva_per_concessionaria.sql"), "utf8");
+    expect(migration).toContain(`create unique index if not exists ${INDICE_TARGA_ATTIVA}`);
+    // Stessa normalizzazione di `normalizzaTarga`: cambiarne una senza l'altra
+    // farebbe passare "ga 123 bc" accanto a "GA123BC".
+    expect(migration).toContain("upper(regexp_replace(plate, '[\\s.\\-_]', '', 'g'))");
+    expect(migration).toContain("where plate is not null and status not in ('sold', 'archived')");
   });
 });
