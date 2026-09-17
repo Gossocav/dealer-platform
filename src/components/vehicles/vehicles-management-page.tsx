@@ -9,6 +9,7 @@ import { VehiclesKpiGrid } from "@/components/vehicles/vehicles-kpi-grid";
 import { VehiclesPagination } from "@/components/vehicles/vehicles-pagination";
 import { VehiclesTable } from "@/components/vehicles/vehicles-table";
 import { VehiclesToolbar } from "@/components/vehicles/vehicles-toolbar";
+import { copiaDelVeicolo } from "@/lib/duplica-veicolo";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
@@ -1132,19 +1133,11 @@ export function VehiclesManagementPage() {
       return;
     }
 
-    const payload: Record<string, unknown> = { ...source };
-    delete payload.id;
-    delete payload.created_at;
-    delete payload.updated_at;
-
+    // La copia non porta targa, telaio, cliente ne' l'aggancio al sito
+    // dell'originale: cosa resta fuori, e perche', sta in `duplica-veicolo`.
     const { data: inserted, error: insertError } = await supabase
       .from("vehicles")
-      .insert({
-        ...payload,
-        dealer_id: currentDealerId,
-        status: "draft",
-        published: false,
-      })
+      .insert(copiaDelVeicolo(source as unknown as Record<string, unknown>, currentDealerId))
       .select("id")
       .single<{ id: string }>();
 

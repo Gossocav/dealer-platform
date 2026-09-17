@@ -13,7 +13,7 @@ import { campiImmatricolazioneDaModulo } from "@/lib/vehicles";
 import { puoEssereSegnataVenduta } from "@/lib/auto-da-chiudere";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
-import { messaggioTarga, targaDaSalvare } from "@/lib/targa";
+import { messaggioTarga, messaggioTargaDoppia, targaDaSalvare } from "@/lib/targa";
 import { segnaComeScrittoDalDealer } from "@/lib/provenienza-dati";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
@@ -925,7 +925,8 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .single<{ id: string; dealer_id: string | null }>();
 
       if (createError || !data?.id) {
-        setError(createError?.message || "Errore durante creazione veicolo.");
+        // Una targa gia' in uso si spiega; il resto si riporta com'e'.
+        setError(messaggioTargaDoppia(createError) ?? createError?.message ?? "Errore durante creazione veicolo.");
         setSaving(false);
         return;
       }
@@ -1001,7 +1002,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .eq("id", vehicleId)
         .eq("dealer_id", vehicleDealerId);
       if (updateError) {
-        setError(updateError.message || "Errore durante aggiornamento veicolo.");
+        setError(messaggioTargaDoppia(updateError) ?? updateError.message ?? "Errore durante aggiornamento veicolo.");
         setSaving(false);
         return;
       }

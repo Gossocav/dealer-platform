@@ -108,3 +108,23 @@ export function messaggioTarga(valore: unknown): string | null {
   if (esito.stato !== "non-valida") return null;
   return `"${esito.targa}" non sembra una targa: ${esito.motivo}.`;
 }
+
+/** Il nome dell'indice che impedisce due auto attive con la stessa targa (migration 20260916010000). */
+export const INDICE_TARGA_ATTIVA = "vehicles_una_targa_attiva_per_concessionaria";
+
+/**
+ * Il messaggio da mostrare quando il database rifiuta una targa perche' c'e'
+ * gia' un'auto attiva con la stessa, nella stessa concessionaria. `null` per
+ * qualunque altro errore: non e' questo il posto per tradurli tutti.
+ *
+ * Un errore tecnico mostrato al concessionario e' un difetto, non un
+ * dettaglio: "duplicate key value violates unique constraint" non gli dice
+ * ne' cosa e' successo ne' cosa fare.
+ */
+export function messaggioTargaDoppia(errore: { code?: string | null; message?: string | null } | null | undefined): string | null {
+  if (!errore) return null;
+  const nomina = String(errore.message ?? "").includes(INDICE_TARGA_ATTIVA);
+  if (errore.code !== "23505" && !nomina) return null;
+  if (!nomina) return null;
+  return "Hai gia' un'auto attiva con questa targa: controlla in Gestione Veicoli prima di salvarne un'altra.";
+}
