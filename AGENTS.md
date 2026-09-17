@@ -540,6 +540,31 @@ chiama e un `search_path` non fissato non permette di scavalcare niente: e'
 un'imprudenza, non un buco. Da sistemare dopo la pulizia, insieme ai tre difetti
 qui sopra.
 
+**Un controllo che non e' mai diventato rosso non e' un controllo, e' una
+decorazione.** E' la sorella di "zero differenze li' vuol dire non guardato".
+Il 15/09/2026 il guardiano della provenienza (`src/lib/provenienza-dati.test.ts`)
+elencava tre schermate "da collegare" -- ed erano **tre falsi allarmi**: la
+pagina delle perizie scrive su `vehicle_appraisals`, le altre due cambiano
+solo stato e pubblicazione. Il controllo guardava chi **nominava**
+`registration_date` da qualche parte nel file, non chi lo **scriveva** su
+`vehicles`; e proteggeva tre campi invece dei ventidue che il sito manda.
+Intanto le porte vere -- il feed, il file, la duplicazione -- passavano verdi.
+
+Un controllo cosi' rassicura esattamente come uno che funziona, e per un
+giorno l'ha fatto. Le due regole:
+
+1. **prima di fidarsi del verde, si produce il rosso**: si mette una porta
+   finta -- un `.from("vehicles").update({ price: 1 })` in un file qualsiasi
+   -- e si guarda che il test la trovi. Se non la trova, il test non guarda
+   quello che dice di guardare. Rifatto il 16/09/2026 seguendo la catena da
+   `.from("vehicles")` alla scrittura, provato rosso, e da allora ha un caso
+   dentro (`il guardiano vede una porta nuova`) che lo tiene rosso per
+   costruzione;
+2. **un elenco di eccezioni si rilegge quando cambia il controllo.** Le tre
+   di ieri non "si sono accorciate": erano sbagliate, e l'elenco vero ne ha
+   cinque. Un elenco che cambia contenuto va riscritto con la data e il
+   motivo, non aggiustato in silenzio per far tornare il conto.
+
 **"Vuoto" non e' una prova: il criterio per cancellare e' che nessuna riga di
 codice la usi.** I tre account in produzione sono **di prova**, creati dal
 titolare, e non esiste ancora nessun cliente pagante. Quindi *"oggi non lo usa

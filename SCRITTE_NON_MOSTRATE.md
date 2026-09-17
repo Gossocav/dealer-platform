@@ -151,4 +151,44 @@ nomina con il perche', puo' solo accorciarsi, e il test fallisce se ne
 compare una sesta.
 
 **Da fare per prime**, subito dopo l'aggancio del lettore: le due del feed
-(stesso difetto della sincronizzazione, altra porta) e la duplicazione.
+(stesso difetto della sincronizzazione, altra porta). La duplicazione e' un
+difetto a se', deciso il 16/09/2026 di metterlo in elenco e non in questa
+fetta.
+
+### Cosa succede oggi a chi duplica un'auto (verificato sul codice, 16/09/2026)
+
+La duplicazione (`vehicles-management-page.tsx`, `select("*")`) copia ogni
+colonna tranne `id`, `created_at`, `updated_at`, e mette la copia in bozza.
+Quindi la copia porta con se' anche `import_source`, `import_source_id`,
+`origine_dati`, `plate` e `vin`.
+
+Se l'originale e' un'auto **importata dal sito**:
+
+1. **la copia resta agganciata alla pagina dell'originale.** La coda del
+   ripasso (`sincronizza-siti/route.ts`) prende tutte le righe con quel
+   `import_source`: le rilegge tutte e due dalla stessa pagina, e nella copia
+   i campi che il concessionario **non ha corretto** seguono l'originale.
+   Prima del 15/09 seguivano *tutti*: la copia modificata tornava uguale
+   all'originale entro tre ore;
+2. **quando l'originale sparisce dal sito, sparisce anche la copia.** La
+   riconciliazione ragiona per `import_source_id`: se la copia era stata
+   pubblicata, finisce *in revisione* e fuori dal marketplace
+   (`campiVeicoloSparito`); se era in bozza, prende solo la data di
+   sparizione;
+3. **quando l'originale ricompare, la copia puo' salire in vetrina da sola.**
+   `campiVeicoloRitrovato` la mette *in revisione* con `import_source`, e il
+   tetto del piano (`tetto-del-piano.ts:75-76`) pubblica proprio quelle: sul
+   marketplace compaiono due annunci della stessa pagina.
+
+Per **qualunque** originale, importato o no:
+
+4. **targa e telaio vengono copiati**, e nessun vincolo lo impedisce. Sono
+   chiavi: con la stessa targa si segnano vendute tutte e due
+   (`auto-da-chiudere.ts`) e i documenti delle due si mescolano
+   (`archivio-documenti.ts`).
+
+**Quanto e' urgente:** oggi poco -- tre account di prova, e serve che qualcuno
+duplichi un'auto importata. Ma i punti 1-3 sono silenziosi, e il 4 ha lo
+stesso peso di una targa sbagliata. La correzione e' piccola: la copia non
+deve portare `import_source`, `import_source_id`, `import_synced_at`,
+`import_missing_since`, `origine_dati`, `plate`, `vin`.
