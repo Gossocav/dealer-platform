@@ -12,15 +12,22 @@ import {
   PAUSA_FRA_SCHEDE_MS,
 } from "@/lib/dealer-site-fetch";
 import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-site-import";
+import { leggiBloccoMotork } from "@/lib/blocco-motork";
+import { scriviDalSito, dalSito } from "@/lib/provenienza-dati";
 import { indirizzoDellaScheda, segnalaAIndexNow } from "@/lib/indexnow";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
+import { segnalaErrore } from "@/lib/segnala-errore";
 import {
+  CAMPI_DAL_SITO,
+  campiDalBloccoRicco,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
   payloadDatiVeicolo,
   pianoRiconciliazione,
+  type RigaDaRileggere,
   type RigaImportata,
+  valoriInArchivio,
 } from "@/lib/dealer-site-sync";
 
 /**
@@ -52,9 +59,16 @@ type EsitoScheda = {
   titolo?: string;
 };
 
+/**
+ * I campi di servizio della scheda. I **dati** del veicolo non stanno qui:
+ * passano da `scriviDalSito`, che lascia stare quelli corretti dal
+ * concessionario. Prima questa funzione li riscriveva tutti a ogni
+ * reimportazione, esattamente come faceva la sincronizzazione notturna
+ * (difetto del 15/09/2026): il concessionario correggeva un prezzo, premeva
+ * "Importa dal sito" per far entrare due auto nuove, e la correzione spariva.
+ */
 function payloadVeicolo(v: DealerSiteVehicle, dealerId: string, host: string, status: "draft" | "published" | typeof STATO_OLTRE_IL_TETTO) {
   return {
-    ...payloadDatiVeicolo(v),
     dealer_id: dealerId,
     status,
     published: status === "published",
@@ -309,17 +323,29 @@ export async function POST(request: Request) {
 
       const { data: esistente } = await supabase
         .from("vehicles")
-        .select("id")
+        .select("id, import_source_id, origine_dati, " + CAMPI_DAL_SITO.join(", "))
         .eq("dealer_id", dealerId)
         .eq("import_source", host)
         .eq("import_source_id", veicolo.sourceId)
         .limit(1)
-        .maybeSingle<{ id: string }>();
+        .maybeSingle<RigaDaRileggere>();
 
       let vehicleId = esistente?.id ?? null;
 
+      // Quello che il sito dice oggi, campo per campo, con il blocco ricco
+      // quando c'e'. Sulla scheda gia' in archivio si scrive solo cio' che
+      // il concessionario non ha corretto; su una nuova si scrive tutto.
+      const scrittura = scriviDalSito(
+        esistente?.origine_dati ?? {},
+        esistente ? valoriInArchivio(esistente) : {},
+        { ...dalSito(payloadDatiVeicolo(veicolo)), ...campiDalBloccoRicco(leggiBloccoMotork(html, veicolo.sourceId)) },
+        new Date().toISOString().slice(0, 10),
+      );
+      const { entered_on: ingresso, ...datiDalSito } = scrittura.daScrivere;
+      const daScrivere = { ...datiDalSito, origine_dati: scrittura.origineDati, ...payload };
+
       if (vehicleId) {
-        const { error } = await supabase.from("vehicles").update(payload).eq("id", vehicleId).eq("dealer_id", dealerId);
+        const { error } = await supabase.from("vehicles").update(daScrivere).eq("id", vehicleId).eq("dealer_id", dealerId);
         // Anche un aggiornamento occupa un posto, se porta in vetrina un'auto
         // che in vetrina non era: scalare il conto solo sugli inserimenti
         // lasciava superare il tetto da chi reimportava il proprio sito.
@@ -333,7 +359,7 @@ export async function POST(request: Request) {
       } else {
         const { data: inserito, error } = await supabase
           .from("vehicles")
-          .insert(payload)
+          .insert(daScrivere)
           .select("id")
           .maybeSingle<{ id: string }>();
 
@@ -350,6 +376,15 @@ export async function POST(request: Request) {
         if (status === "published" && posti !== null && posti > 0) posti -= 1;
         esiti.push({ sourceId: veicolo.sourceId, url: voce.url, esito: "importato", titolo: veicolo.name });
         idDaSegnalare.push(vehicleId);
+      }
+
+      // La data d'ingresso sta su un'altra tabella, e si scrive solo se il
+      // sito la dichiara e la provenienza dice che si puo'.
+      if (vehicleId && ingresso) {
+        const { error: erroreIngresso } = await supabase
+          .from("vehicle_acquisitions")
+          .upsert({ vehicle_id: vehicleId, dealer_id: dealerId, entered_on: String(ingresso) }, { onConflict: "vehicle_id" });
+        if (erroreIngresso) segnalaErrore("import-site: data d'ingresso non scritta", erroreIngresso, { vehicleId });
       }
 
       if (vehicleId && veicolo.images.length > 0) {

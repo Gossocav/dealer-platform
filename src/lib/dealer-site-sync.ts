@@ -17,7 +17,9 @@
  * scrive si limita a eseguire.
  */
 
+import type { BloccoMotork } from "@/lib/blocco-motork";
 import type { DealerSiteVehicle } from "@/lib/dealer-site-import";
+import { dalSito } from "@/lib/provenienza-dati";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
 import { derivaVersioneDalTitolo, normalizzaModello } from "@/lib/vehicle-label";
@@ -205,4 +207,57 @@ export function payloadDatiVeicolo(v: DealerSiteVehicle) {
     co2_emissions: v.co2Emissions,
     description: v.description,
   };
+}
+
+/**
+ * I campi che si scrivono leggendoli dal sito -- cioe' quelli che il
+ * concessionario puo' anche correggere a mano, e che non gli vengono
+ * sovrascritti. Li usano **tutte e due** le porte: la sincronizzazione
+ * notturna e il bottone "Importa dal sito" del gestionale. Se una terza
+ * porta scrivesse questi campi senza passare da `scriviDalSito`, il
+ * difetto del 15/09/2026 tornerebbe da li'.
+ *
+ * L'elenco e' esattamente quello di `payloadDatiVeicolo`, e i due devono
+ * restare uguali: un campo scritto li' e non elencato qui verrebbe riscritto
+ * senza guardare chi l'aveva messo. Un test lo verifica.
+ */
+export const CAMPI_DAL_SITO = [
+  "brand", "model", "version", "price", "mileage", "fuel", "transmission",
+  "doors", "seats", "color", "body_type", "year", "registration_month",
+  "vehicle_condition", "vehicle_category", "power_kw", "power_cv",
+  "engine_size", "emission_class", "traction", "co2_emissions", "description",
+] as const;
+
+export type RigaDaRileggere = {
+  id: string;
+  import_source_id: string | null;
+  origine_dati: unknown;
+} & Partial<Record<(typeof CAMPI_DAL_SITO)[number], string | number | null>>;
+
+/**
+ * I campi che arrivano dal **blocco ricco** di MotorK, oltre a quelli che la
+ * pagina gia' dava. La sincronizzazione scarica gia' quelle pagine: leggerli
+ * non costa **nessuna richiesta in piu'**.
+ *
+ * `entered_on` sta su `vehicle_acquisitions`, non su `vehicles`: si scrive a
+ * parte, ma la sua provenienza vive nello stesso posto di tutte le altre --
+ * `vehicles.origine_dati` -- perche' la domanda "chi l'ha scritto" e' una sola.
+ *
+ * La **qualita'** della data d'ingresso viaggia con lei: dichiarata dal sito o
+ * dedotta dal suo fornitore. Le due non si confondono mai, e la scheda le
+ * racconta con due frasi diverse.
+ */
+export function campiDalBloccoRicco(blocco: BloccoMotork | null) {
+  if (!blocco) return {};
+  return {
+    ...dalSito({ registration_date: blocco.immatricolazione, vat_regime: blocco.regimeIva }),
+    ...(blocco.ingresso ? dalSito({ entered_on: blocco.ingresso.giorno }, blocco.ingresso.qualita) : {}),
+  };
+}
+
+/** I valori che la scheda ha adesso, per capire se il sito dice un'altra cosa. */
+export function valoriInArchivio(riga: RigaDaRileggere): Record<string, string | number | null> {
+  const valori: Record<string, string | number | null> = {};
+  for (const campo of CAMPI_DAL_SITO) valori[campo] = riga[campo] ?? null;
+  return valori;
 }

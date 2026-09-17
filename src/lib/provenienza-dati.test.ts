@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CAMPI_DAL_SITO } from "@/lib/dealer-site-sync";
 import {
   confermato,
   etichettaProvenienza,
@@ -190,29 +191,50 @@ describe("la dicitura accanto al valore", () => {
  * aggirato in dodici, e delle interrogazioni senza `dealer_id`.
  */
 describe("nessuno scrive i campi protetti per conto suo", () => {
-  const PROTETTI = ["entered_on", "vat_regime", "registration_date"];
+  // Tutti i campi che arrivano dal sito, non solo i tre del blocco ricco:
+  // il prezzo corretto a mano va protetto quanto l'immatricolazione. Il
+  // primo guardiano (15/09/2026) ne guardava tre e per questo vedeva le
+  // schermate sbagliate.
+  const PROTETTI = [...CAMPI_DAL_SITO, "entered_on", "vat_regime", "registration_date"];
 
   /**
-   * **Le quattro schermate dove scrive il concessionario, ancora da collegare.**
+   * **Le porte che scrivono su `vehicles` senza dichiarare chi scrive.**
    *
    * Questo elenco non e' un'eccezione comoda: e' un difetto **gia' esistente**
-   * messo per iscritto, trovato da questo stesso test il 15/09/2026.
+   * messo per iscritto. Il 15/09/2026 ne elencava tre, ed erano tre falsi
+   * allarmi: il primo guardiano guardava se un file *nominava*
+   * `registration_date` da qualche parte, non se lo *scriveva* su `vehicles`.
+   * La pagina delle perizie scrive su `vehicle_appraisals`; le altre due
+   * cambiano solo stato e pubblicazione. Intanto le porte vere -- il feed, il
+   * file, la duplicazione -- restavano fuori. "Una regola scritta giusta puo'
+   * essere applicata a meta'": rifatto il 16/09/2026 seguendo la catena da
+   * `.from("vehicles")` alla scrittura.
    *
-   * Quelle pagine scrivono `registration_date` a mano, e **non segnano il
-   * campo come scritto dal concessionario**. Finche' non lo fanno, la
-   * sincronizzazione lo considera suo e lo riscrive -- perche' oggi riscrive
-   * **tutto** il contenuto letto dal sito a ogni ripasso, ogni tre ore
-   * (`src/app/api/cron/sincronizza-siti/route.ts:404`). Il difetto e' piu'
-   * largo di questi tre campi: riguarda prezzo, chilometri, colore,
-   * carrozzeria e descrizione, cioe' tutto cio' che il concessionario puo'
-   * correggere su un'auto importata.
+   * Le cinque di oggi, e cosa manca a ciascuna:
+   *
+   * - **`feed/route.ts`** e **`import-feed/route.ts`**: riscrivono prezzo,
+   *   chilometri, colore... a ogni passaggio del feed, come faceva la
+   *   sincronizzazione dal sito. Stesso difetto, altra porta: la correzione a
+   *   mano di un'auto da feed sparisce alla prossima lettura del feed.
+   * - **`vehicles-import-page.tsx`**: inserisce dal file del concessionario
+   *   senza segnare i campi come suoi. Non li sovrascrive nessuno, perche'
+   *   quelle righe non hanno un sito che le rilegge; ma la provenienza non
+   *   c'e', e la scheda non potra' dire "scritto da te".
+   * - **`vehicle-delivery-sheet-page.tsx`**: salva sul veicolo i dati
+   *   scritti a mano nel foglio di consegna, senza dichiararli.
+   * - **`vehicles-management-page.tsx`**: la duplicazione copia **tutte** le
+   *   colonne (`select *`), compresi `import_source_id` e la provenienza: la
+   *   copia resta agganciata alla scheda del sito e la sincronizzazione la
+   *   rilegge e la riscrive come l'originale.
    *
    * **L'elenco deve solo accorciarsi.** Il test qui sotto fallisce se qualcuno
-   * ne aggiunge una quinta.
+   * ne aggiunge una sesta.
    */
   const DA_COLLEGARE = new Set([
-    "src/components/perizie/perizia-page.tsx",
-    "src/components/vehicles/vehicle-detail-page.tsx",
+    "src/app/api/vehicles/feed/route.ts",
+    "src/app/api/vehicles/import-feed/route.ts",
+    "src/components/vehicles/vehicles-import-page.tsx",
+    "src/components/vehicles/vehicle-delivery-sheet-page.tsx",
     "src/components/vehicles/vehicles-management-page.tsx",
   ]);
 
@@ -229,31 +251,97 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
     return raccolti;
   }
 
-  it("chi aggiorna un veicolo con un campo protetto passa da provenienza-dati", () => {
+  /**
+   * Le scritture su `vehicles` di un file, con il testo del loro argomento.
+   * Si parte da ogni `.from("vehicles")` e si segue la catena fino alla prima
+   * scrittura; se prima si incontra una lettura (`.select`) o un'altra
+   * tabella, quella catena non scrive.
+   */
+  function scrittureSuVeicoli(sorgente: string): string[] {
+    const trovate: string[] = [];
+    const inizio = /\.from\("vehicles"\)/g;
+    for (const partenza of sorgente.matchAll(inizio)) {
+      const coda = sorgente.slice((partenza.index ?? 0) + partenza[0].length);
+      const prossimo = coda.match(/\.(update|upsert|insert|select|from)\(/);
+      if (!prossimo || prossimo.index === undefined) continue;
+      if (prossimo[1] === "select" || prossimo[1] === "from") continue;
+      // L'argomento: dalla parentesi aperta a quella che la chiude.
+      let livello = 0;
+      let da = prossimo.index + prossimo[0].length - 1;
+      for (let i = da; i < coda.length; i += 1) {
+        if (coda[i] === "(") livello += 1;
+        if (coda[i] === ")") livello -= 1;
+        if (livello === 0) {
+          trovate.push(coda.slice(da + 1, i).trim());
+          break;
+        }
+      }
+      da = 0;
+    }
+    return trovate;
+  }
+
+  /**
+   * Se l'argomento e' `nome(...)`, cio' che quella funzione restituisce: la
+   * si cerca nel file stesso o, se e' importata da `@/lib/...`, in quel file.
+   */
+  function corpoSeFunzioneLocale(sorgente: string, argomento: string): string | null {
+    const chiamata = argomento.match(/^([a-zA-Z_]\w*)\(/);
+    if (!chiamata) return null;
+    const nome = chiamata[1];
+    let dove = sorgente;
+    if (!dove.includes(`function ${nome}(`)) {
+      const importata = sorgente.match(new RegExp(`import \\{[^}]*\\b${nome}\\b[^}]*\\} from "@/lib/([\\w-]+)"`));
+      if (!importata) return null;
+      dove = readFileSync(resolve(process.cwd(), `src/lib/${importata[1]}.ts`), "utf8");
+    }
+    const definizione = dove.indexOf(`function ${nome}(`);
+    if (definizione < 0) return null;
+    const corpo = dove.slice(definizione, dove.indexOf("\n}", definizione));
+    const ritorno = corpo.indexOf("return ");
+    return ritorno < 0 ? corpo : corpo.slice(ritorno + "return ".length).trim();
+  }
+
+  it("chi scrive su vehicles un campo protetto passa da provenienza-dati", () => {
     const colpevoli: string[] = [];
 
     for (const percorso of sorgenti("src")) {
       if (percorso.endsWith("src/lib/provenienza-dati.ts")) continue;
       const sorgente = readFileSync(resolve(process.cwd(), percorso), "utf8");
 
-      // Solo chi scrive davvero: un `select` che nomina la colonna va bene.
-      const scrive = /\.update\(|\.upsert\(|\.insert\(/.test(sorgente);
-      if (!scrive) continue;
-
-      const nomina = PROTETTI.filter((campo) => new RegExp(`\\b${campo}\\s*:`).test(sorgente));
-      if (nomina.length === 0) continue;
+      const porte = scrittureSuVeicoli(sorgente).filter((argomento) => {
+        // Un oggetto scritto per esteso si legge: e' una porta solo se nomina
+        // un campo protetto. Lo stesso vale per la chiamata di una funzione
+        // definita nello stesso file (`campiInVetrina(adesso)`): si legge
+        // cosa restituisce. Una variabile o uno spread non si leggono da
+        // qui, e allora si e' prudenti: chi scrive cosi' deve dichiararsi.
+        const testo = corpoSeFunzioneLocale(sorgente, argomento) ?? argomento;
+        const perEsteso = testo.startsWith("{") && !testo.includes("...");
+        if (!perEsteso) return true;
+        return PROTETTI.some((campo) => new RegExp(`\\b${campo}\\s*:`).test(testo));
+      });
+      if (porte.length === 0) continue;
 
       if (!sorgente.includes("@/lib/provenienza-dati") && !DA_COLLEGARE.has(percorso)) {
-        colpevoli.push(`${percorso} (${nomina.join(", ")})`);
+        colpevoli.push(`${percorso} (${porte.length} scrittur${porte.length === 1 ? "a" : "e"})`);
       }
     }
 
     expect(
       colpevoli,
-      `Questi file scrivono un campo protetto senza passare da provenienza-dati.ts:\n  ${colpevoli.join("\n  ")}\n` +
+      `Questi file scrivono su vehicles senza passare da provenienza-dati.ts:\n  ${colpevoli.join("\n  ")}\n` +
         "Un dato scritto dal concessionario non si sovrascrive mai, e la regola non si applica ricordandosene: " +
-        "si applica chiedendo a scriviDalSito cosa si puo' scrivere.",
+        "si applica chiedendo a scriviDalSito cosa si puo' scrivere, o dichiarando con segnaComeScrittoDalDealer cosa ha scritto lui.",
     ).toEqual([]);
+  });
+
+  it("il guardiano vede una porta nuova", () => {
+    // Un controllo che non e' mai stato visto rosso non si sa se guardi.
+    const finto = 'await supabase.from("vehicles").update({ price: 1 }).eq("id", id);';
+    expect(scrittureSuVeicoli(finto)).toEqual(["{ price: 1 }"]);
+    expect(scrittureSuVeicoli('supabase.from("vehicles").select("id").eq("id", 1)')).toEqual([]);
+    expect(scrittureSuVeicoli('supabase.from("vehicles").update(payload).eq("id", 1)')).toEqual(["payload"]);
+    expect(scrittureSuVeicoli('supabase.from("vehicles").insert({ ...payload, status: "draft" })')).toEqual(['{ ...payload, status: "draft" }']);
   });
 
   it("l'elenco dei campi protetti non e' vuoto", () => {
@@ -264,11 +352,10 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
   it("le schermate da collegare devono solo diminuire", () => {
     // Un elenco di eccezioni che cresce e' un elenco che non serve piu' a
     // niente: e' il modo in cui un controllo diventa rumore.
-    // Erano quattro il 15/09/2026. La scheda in modifica -- quella dove il
-    // concessionario corregge davvero prezzo e chilometri -- e' stata
-    // collegata subito; le altre tre scrivono `registration_date` in contesti
-    // piu' stretti e restano da fare.
-    expect(DA_COLLEGARE.size).toBeLessThanOrEqual(3);
+    // Cinque il 16/09/2026, quando il guardiano ha cominciato a seguire le
+    // scritture vere invece dei nomi dei campi. La scheda in modifica, la
+    // sincronizzazione e "Importa dal sito" sono gia' collegate.
+    expect(DA_COLLEGARE.size).toBeLessThanOrEqual(5);
     for (const percorso of DA_COLLEGARE) {
       expect(sorgenti("src"), `${percorso} non esiste piu': va tolto dall'elenco`).toContain(percorso);
     }
@@ -341,20 +428,32 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
     expect(esito.protetti).toEqual([]);
   });
 
-  it("la sincronizzazione passa davvero da qui, e l'elenco dei campi combacia", () => {
-    // Due elenchi che devono restare uguali: `payloadDatiVeicolo` scrive i
-    // campi, `CAMPI_DAL_SITO` li rilegge per sapere cosa c'e' adesso. Un campo
-    // nel primo e non nel secondo verrebbe riscritto senza guardare chi
-    // l'aveva messo -- cioe' il difetto tornerebbe, ma solo su quel campo.
+  it("tutte e due le porte dal sito passano davvero da qui, e l'elenco dei campi combacia", () => {
+    // Le porte da cui un dato del sito entra in archivio sono **due**: la
+    // sincronizzazione notturna e il bottone "Importa dal sito" del
+    // gestionale. Il 15/09/2026 riscrivevano tutte e due l'intero payload;
+    // proteggerne una sola avrebbe lasciato l'altra a cancellare le
+    // correzioni al primo clic.
     const rotta = readFileSync(resolve(process.cwd(), "src/app/api/cron/sincronizza-siti/route.ts"), "utf8");
+    const importaDalSito = readFileSync(resolve(process.cwd(), "src/app/api/vehicles/import-site/route.ts"), "utf8");
     const sync = readFileSync(resolve(process.cwd(), "src/lib/dealer-site-sync.ts"), "utf8");
 
     expect(rotta).toContain("scriviDalSito(");
     expect(rotta, "il ripasso scrive ancora il payload senza filtrarlo").not.toContain(
       "{ ...payloadDatiVeicolo(letto.vehicle), import_synced_at",
     );
+    expect(importaDalSito).toContain("scriviDalSito(");
+    expect(importaDalSito, "l'importazione a mano scrive ancora il payload intero").not.toContain(".update(payload)");
+    expect(importaDalSito, "l'importazione a mano scrive ancora il payload intero").not.toContain(".insert(payload)");
+    expect(importaDalSito, "payloadVeicolo non deve portare i dati del sito").not.toMatch(
+      /function payloadVeicolo[\s\S]{0,400}\.\.\.payloadDatiVeicolo\(/,
+    );
 
-    const elenco = rotta.slice(rotta.indexOf("const CAMPI_DAL_SITO"), rotta.indexOf("] as const"));
+    // Due elenchi che devono restare uguali: `payloadDatiVeicolo` scrive i
+    // campi, `CAMPI_DAL_SITO` li rilegge per sapere cosa c'e' adesso. Un campo
+    // nel primo e non nel secondo verrebbe riscritto senza guardare chi
+    // l'aveva messo -- cioe' il difetto tornerebbe, ma solo su quel campo.
+    const elenco = sync.slice(sync.indexOf("export const CAMPI_DAL_SITO"), sync.indexOf("] as const"));
     const nelPayload = [
       ...sync.slice(sync.indexOf("export function payloadDatiVeicolo")).matchAll(/^\s{4}([a-z_]+):/gm),
     ].map((m) => m[1]);

@@ -5,13 +5,18 @@ import { elencoStock, leggiPaginaConEsito, PAUSA_FRA_SCHEDE_MS } from "@/lib/dea
 import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
+  CAMPI_DAL_SITO,
+  campiDalBloccoRicco,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
   payloadDatiVeicolo,
   pianoRiconciliazione,
+  type RigaDaRileggere,
   type RigaImportata,
+  valoriInArchivio,
 } from "@/lib/dealer-site-sync";
+import { leggiBloccoMotork } from "@/lib/blocco-motork";
 import { dalSito, scriviDalSito } from "@/lib/provenienza-dati";
 import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
 import { applicaTettoDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
@@ -96,35 +101,6 @@ const MAX_SCHEDE_PER_GIRO = 25;
 const TEMPO_MINIMO_PER_SCHEDA_MS = 3000;
 
 type ApiSupabaseClient = SupabaseClient;
-
-/**
- * I campi che il ripasso scrive leggendoli dal sito -- cioe' quelli che il
- * concessionario puo' anche correggere a mano, e che da oggi non gli vengono
- * piu' sovrascritti.
- *
- * L'elenco e' esattamente quello di `payloadDatiVeicolo`, e i due devono
- * restare uguali: un campo scritto li' e non elencato qui verrebbe riscritto
- * senza guardare chi l'aveva messo. Un test lo verifica.
- */
-const CAMPI_DAL_SITO = [
-  "brand", "model", "version", "price", "mileage", "fuel", "transmission",
-  "doors", "seats", "color", "body_type", "year", "registration_month",
-  "vehicle_condition", "vehicle_category", "power_kw", "power_cv",
-  "engine_size", "emission_class", "traction", "co2_emissions", "description",
-] as const;
-
-type RigaDaRileggere = {
-  id: string;
-  import_source_id: string | null;
-  origine_dati: unknown;
-} & Partial<Record<(typeof CAMPI_DAL_SITO)[number], string | number | null>>;
-
-/** I valori che la scheda ha adesso, per capire se il sito dice un'altra cosa. */
-function valoriInArchivio(riga: RigaDaRileggere): Record<string, string | number | null> {
-  const valori: Record<string, string | number | null> = {};
-  for (const campo of CAMPI_DAL_SITO) valori[campo] = riga[campo] ?? null;
-  return valori;
-}
 
 type Sorgente = { dealer_id: string; import_source: string };
 
@@ -338,10 +314,23 @@ async function importaNuove(
 
       const adesso = new Date().toISOString();
       const inVetrina = posti === null || posti > 0;
+
+      // Una scheda nuova non ha niente del concessionario: tutto arriva dal
+      // sito, e la provenienza lo dice campo per campo. Il blocco ricco, quando
+      // c'e', porta anche immatricolazione, regime IVA e data d'ingresso.
+      const nuova = scriviDalSito(
+        {},
+        {},
+        { ...dalSito(payloadDatiVeicolo(letto.vehicle)), ...campiDalBloccoRicco(leggiBloccoMotork(html, letto.vehicle.sourceId)) },
+        adesso.slice(0, 10),
+      );
+      const { entered_on: ingressoNuova, ...campiNuova } = nuova.daScrivere;
+
       const { data: inserito, error } = await supabase
         .from("vehicles")
         .insert({
-          ...payloadDatiVeicolo(letto.vehicle),
+          ...campiNuova,
+          origine_dati: nuova.origineDati,
           dealer_id: sorgente.dealer_id,
           status: inVetrina ? "published" : STATO_OLTRE_IL_TETTO,
           published: inVetrina,
@@ -358,6 +347,14 @@ async function importaNuove(
         // non ce n'e' per nessuna. Si smette e lo si dice.
         errori.push(`${letto.vehicle.sourceId}: ${error?.message ?? "inserimento non riuscito"}`);
         return "fermati";
+      }
+
+      if (ingressoNuova) {
+        const { error: erroreIngresso } = await supabase.from("vehicle_acquisitions").upsert(
+          { vehicle_id: inserito.id, dealer_id: sorgente.dealer_id, entered_on: String(ingressoNuova) },
+          { onConflict: "vehicle_id" },
+        );
+        if (erroreIngresso && errori.length < 5) errori.push(`${letto.vehicle.sourceId}: ingresso non scritto (${erroreIngresso.message})`);
       }
 
       if (inVetrina && posti !== null) posti -= 1;
@@ -450,13 +447,17 @@ async function rileggi(
         ? scriviDalSito(
             voce.riga.origine_dati,
             valoriInArchivio(voce.riga),
-            dalSito(payloadDatiVeicolo(letto.vehicle)),
+            { ...dalSito(payloadDatiVeicolo(letto.vehicle)), ...campiDalBloccoRicco(leggiBloccoMotork(html, voce.sourceId)) },
             adesso.slice(0, 10),
           )
         : null;
 
+      // `entered_on` non sta su `vehicles`: si toglie da qui e si scrive dopo,
+      // sulla tabella dell'acquisizione.
+      const { entered_on: ingresso, ...suiVeicoli } = scrittura?.daScrivere ?? {};
+
       const campi = scrittura
-        ? { ...scrittura.daScrivere, origine_dati: scrittura.origineDati, import_synced_at: adesso, updated_at: adesso }
+        ? { ...suiVeicoli, origine_dati: scrittura.origineDati, import_synced_at: adesso, updated_at: adesso }
         : { import_synced_at: adesso };
 
       // L'esito si guarda, e si guarda anche **quante righe** ha toccato: una
@@ -472,6 +473,17 @@ async function rileggi(
       if (error) {
         if (errori.length < 5) errori.push(`${voce.sourceId}: ${error.message}`);
         return "saltata";
+      }
+
+      // La data d'ingresso in piazzale, quando il sito la porta. E' un
+      // "meglio se riesce": se questa scrittura fallisce, la scheda e' gia'
+      // aggiornata e il ripasso non deve fermarsi per una data.
+      if (ingresso) {
+        const { error: erroreIngresso } = await supabase.from("vehicle_acquisitions").upsert(
+          { vehicle_id: voce.rigaId, dealer_id: sorgente.dealer_id, entered_on: String(ingresso) },
+          { onConflict: "vehicle_id" },
+        );
+        if (erroreIngresso && errori.length < 5) errori.push(`${voce.sourceId}: ingresso non scritto (${erroreIngresso.message})`);
       }
 
       if ((toccate ?? []).length === 0) {

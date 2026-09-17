@@ -101,3 +101,54 @@ misura.
 
 E su **tutti i piani**, non solo il Pro: oggi un concessionario Base non ha
 nessun modo di sapere da quanto tempo ha un'auto in piazzale.
+
+---
+
+## Il prezzo: comanda quello che scrive il concessionario
+
+**Dal 16/09/2026.** Il prezzo e' uno dei ventidue campi che il sito manda e
+che la sincronizzazione **non riscrive piu'** se il concessionario l'ha
+corretto a mano. Da quel momento, sul marketplace vale **il suo**; se il sito
+cambia, il nuovo valore finisce in `il_sito_dice` e il suo non si tocca.
+
+La conseguenza che nessuna schermata dice ancora: **il marketplace e il sito
+della concessionaria possono mostrare due prezzi diversi** per la stessa
+auto. Non e' un errore, e' voluto -- ma e' una sorpresa per chi non lo sa.
+
+**Cosa dovra' mostrare la scheda**, ogni volta che il prezzo e' `dealer` e
+`il_sito_dice` c'e':
+
+> Prezzo **18.900 €** -- scritto da te.
+> Il tuo sito ora dice **19.400 €**: sul marketplace vale il tuo.
+> [ Adotta quello del sito ]   [ Tieni il mio ]
+
+Vale per tutti i ventidue campi, ma sul prezzo e' l'unico posto dove la
+differenza si vede da fuori, e per questo va detto per primo.
+
+---
+
+## Le cinque porte che scrivono senza dirlo
+
+**Dal 16/09/2026.** La regola "un dato scritto dal concessionario non viene
+sovrascritto" funziona solo se **chi scrive lo dichiara**: la scheda in
+modifica lo fa (`segnaComeScrittoDalDealer`), la sincronizzazione e "Importa
+dal sito" passano da `scriviDalSito`. Cinque porte scrivono ancora su
+`vehicles` senza dichiarare niente:
+
+| porta | cosa scrive | cosa rischia |
+|---|---|---|
+| `src/app/api/vehicles/feed/route.ts` | prezzo, km, colore, versione... dal feed | riscrive le correzioni a mano a ogni passaggio del feed |
+| `src/app/api/vehicles/import-feed/route.ts` | l'intera riga del feed | idem, al clic "Importa" |
+| `src/components/vehicles/vehicles-import-page.tsx` | l'intera riga del file CSV/Excel | nessuna sovrascrittura (nessun sito rilegge quelle righe), ma la scheda non sapra' dire "scritto da te" |
+| `src/components/vehicles/vehicle-delivery-sheet-page.tsx` | i campi scritti a mano nel foglio di consegna | non segnati come suoi |
+| `src/components/vehicles/vehicles-management-page.tsx` | la **duplicazione** copia tutte le colonne (`select *`), compresi `import_source_id` e la provenienza | la copia resta agganciata alla scheda del sito: la sincronizzazione la rilegge e la riscrive come l'originale |
+
+Il 15/09 questo elenco diceva tre schermate diverse, ed erano tre falsi
+allarmi: il guardiano guardava chi *nominava* un campo, non chi lo *scriveva*
+su `vehicles`. Rifatto il 16/09 seguendo la catena da `.from("vehicles")` alla
+scrittura. L'elenco `DA_COLLEGARE` in `src/lib/provenienza-dati.test.ts` le
+nomina con il perche', puo' solo accorciarsi, e il test fallisce se ne
+compare una sesta.
+
+**Da fare per prime**, subito dopo l'aggancio del lettore: le due del feed
+(stesso difetto della sincronizzazione, altra porta) e la duplicazione.
