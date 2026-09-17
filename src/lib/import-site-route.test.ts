@@ -77,7 +77,10 @@ describe("cosa la sincronizzazione notturna non puo' scrivere", () => {
   });
 
   it("chi importa a mano aggiunge lui stato e pubblicazione", () => {
-    expect(route).toContain("...payloadDatiVeicolo(v)");
+    // I dati del veicolo passano da `scriviDalSito` (dal 16/09/2026, perche'
+    // non sovrascrivano le correzioni del concessionario); stato e
+    // pubblicazione restano fuori da quel giro e li mette la rotta.
+    expect(route).toContain("dalSito(payloadDatiVeicolo(veicolo))");
     expect(route).toContain('published: status === "published"');
   });
 });

@@ -5,13 +5,19 @@ import { elencoStock, leggiPaginaConEsito, PAUSA_FRA_SCHEDE_MS } from "@/lib/dea
 import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
+  CAMPI_DAL_SITO,
+  campiDalBloccoRicco,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
   payloadDatiVeicolo,
   pianoRiconciliazione,
+  type RigaDaRileggere,
   type RigaImportata,
+  valoriInArchivio,
 } from "@/lib/dealer-site-sync";
+import { leggiBloccoMotork } from "@/lib/blocco-motork";
+import { dalSito, scriviDalSito } from "@/lib/provenienza-dati";
 import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
 import { applicaTettoDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
@@ -308,10 +314,23 @@ async function importaNuove(
 
       const adesso = new Date().toISOString();
       const inVetrina = posti === null || posti > 0;
+
+      // Una scheda nuova non ha niente del concessionario: tutto arriva dal
+      // sito, e la provenienza lo dice campo per campo. Il blocco ricco, quando
+      // c'e', porta anche immatricolazione, regime IVA e data d'ingresso.
+      const nuova = scriviDalSito(
+        {},
+        {},
+        { ...dalSito(payloadDatiVeicolo(letto.vehicle)), ...campiDalBloccoRicco(leggiBloccoMotork(html, letto.vehicle.sourceId)) },
+        adesso.slice(0, 10),
+      );
+      const { entered_on: ingressoNuova, ...campiNuova } = nuova.daScrivere;
+
       const { data: inserito, error } = await supabase
         .from("vehicles")
         .insert({
-          ...payloadDatiVeicolo(letto.vehicle),
+          ...campiNuova,
+          origine_dati: nuova.origineDati,
           dealer_id: sorgente.dealer_id,
           status: inVetrina ? "published" : STATO_OLTRE_IL_TETTO,
           published: inVetrina,
@@ -328,6 +347,14 @@ async function importaNuove(
         // non ce n'e' per nessuna. Si smette e lo si dice.
         errori.push(`${letto.vehicle.sourceId}: ${error?.message ?? "inserimento non riuscito"}`);
         return "fermati";
+      }
+
+      if (ingressoNuova) {
+        const { error: erroreIngresso } = await supabase.from("vehicle_acquisitions").upsert(
+          { vehicle_id: inserito.id, dealer_id: sorgente.dealer_id, entered_on: String(ingressoNuova) },
+          { onConflict: "vehicle_id" },
+        );
+        if (erroreIngresso && errori.length < 5) errori.push(`${letto.vehicle.sourceId}: ingresso non scritto (${erroreIngresso.message})`);
       }
 
       if (inVetrina && posti !== null) posti -= 1;
@@ -362,9 +389,15 @@ async function rileggi(
 ): Promise<{ fila: EsitoFila; errori: string[]; codaPiena: boolean }> {
   const soglia = new Date(Date.now() - ORE_PRIMA_DI_RILEGGERE * 3600 * 1000).toISOString();
 
+  // Si leggono anche i valori attuali e la provenienza: senza, non si puo'
+  // sapere quali campi ha corretto il concessionario -- e si riscriverebbe
+  // tutto sopra il suo lavoro, che e' il difetto che questa riga chiude.
   let interrogazione = supabase
     .from("vehicles")
-    .select("id, import_source_id")
+    .select(
+      "id, import_source_id, origine_dati, " +
+        CAMPI_DAL_SITO.join(", "),
+    )
     .eq("dealer_id", sorgente.dealer_id)
     .eq("import_source", sorgente.import_source)
     .is("import_missing_since", null)
@@ -378,7 +411,7 @@ async function rileggi(
     .order("import_synced_at", { ascending: true, nullsFirst: true })
     .limit(MAX_SCHEDE_PER_GIRO);
 
-  const daRileggere = (data ?? []) as Array<{ id: string; import_source_id: string | null }>;
+  const daRileggere = (data ?? []) as unknown as RigaDaRileggere[];
   const errori: string[] = [];
 
   // La voce dell'indice e non il solo indirizzo: da li' arriva anche la
@@ -386,8 +419,8 @@ async function rileggi(
   // Passandone una inventata, una km 0 riletta diventerebbe "Usato".
   const voci = daRileggere
     .map((riga) => ({ riga, voce: vociPerSourceId.get(String(riga.import_source_id ?? "")) }))
-    .filter((coppia): coppia is { riga: { id: string; import_source_id: string | null }; voce: DealerSiteEntry } => Boolean(coppia.voce))
-    .map(({ riga, voce }) => ({ ...voce, rigaId: riga.id }));
+    .filter((coppia): coppia is { riga: RigaDaRileggere; voce: DealerSiteEntry } => Boolean(coppia.voce))
+    .map(({ riga, voce }) => ({ ...voce, rigaId: riga.id, riga }));
 
   const fila = await percorriFila({
     voci,
@@ -401,8 +434,30 @@ async function rileggi(
       // Anche una scheda che oggi non si lascia interpretare -- succede quando
       // il sito le toglie le fotografie -- va segnata come riletta: altrimenti
       // resterebbe in testa alla fila per sempre, bloccando le altre.
-      const campi = letto.ok
-        ? { ...payloadDatiVeicolo(letto.vehicle), import_synced_at: adesso, updated_at: adesso }
+      // **Quello che il concessionario ha corretto non si riscrive.** Prima di
+      // questa riga il ripasso rimetteva l'intero contenuto del sito ogni tre
+      // ore: chi correggeva il prezzo di un'auto importata se lo vedeva
+      // tornare come prima, in silenzio, e credeva di aver sbagliato lui.
+      //
+      // La regola non si applica ricordandosene: `scriviDalSito` restituisce
+      // **solo** i campi che si possono scrivere, e quelli del concessionario
+      // non ci sono. Il disaccordo, quando c'e', resta scritto in
+      // `origine_dati` sotto `il_sito_dice`.
+      const scrittura = letto.ok
+        ? scriviDalSito(
+            voce.riga.origine_dati,
+            valoriInArchivio(voce.riga),
+            { ...dalSito(payloadDatiVeicolo(letto.vehicle)), ...campiDalBloccoRicco(leggiBloccoMotork(html, voce.sourceId)) },
+            adesso.slice(0, 10),
+          )
+        : null;
+
+      // `entered_on` non sta su `vehicles`: si toglie da qui e si scrive dopo,
+      // sulla tabella dell'acquisizione.
+      const { entered_on: ingresso, ...suiVeicoli } = scrittura?.daScrivere ?? {};
+
+      const campi = scrittura
+        ? { ...suiVeicoli, origine_dati: scrittura.origineDati, import_synced_at: adesso, updated_at: adesso }
         : { import_synced_at: adesso };
 
       // L'esito si guarda, e si guarda anche **quante righe** ha toccato: una
@@ -418,6 +473,17 @@ async function rileggi(
       if (error) {
         if (errori.length < 5) errori.push(`${voce.sourceId}: ${error.message}`);
         return "saltata";
+      }
+
+      // La data d'ingresso in piazzale, quando il sito la porta. E' un
+      // "meglio se riesce": se questa scrittura fallisce, la scheda e' gia'
+      // aggiornata e il ripasso non deve fermarsi per una data.
+      if (ingresso) {
+        const { error: erroreIngresso } = await supabase.from("vehicle_acquisitions").upsert(
+          { vehicle_id: voce.rigaId, dealer_id: sorgente.dealer_id, entered_on: String(ingresso) },
+          { onConflict: "vehicle_id" },
+        );
+        if (erroreIngresso && errori.length < 5) errori.push(`${voce.sourceId}: ingresso non scritto (${erroreIngresso.message})`);
       }
 
       if ((toccate ?? []).length === 0) {

@@ -14,6 +14,7 @@ import { puoEssereSegnataVenduta } from "@/lib/auto-da-chiudere";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
 import { messaggioTarga, targaDaSalvare } from "@/lib/targa";
+import { segnaComeScrittoDalDealer } from "@/lib/provenienza-dati";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { messaggioPostiFiniti } from "@/lib/tetto-del-piano";
@@ -352,6 +353,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
   // L'anno e il mese che la scheda porta gia': il modulo non li mostra -- ha
   // un solo campo, la data piena -- ma salvando non devono sparire.
   const [annoInArchivio, setAnnoInArchivio] = useState<string | null>(null);
+  /**
+   * Da dove viene ogni campo di questa scheda. Si rilegge com'e' e si
+   * riscrive segnando come **suoi** i campi che il concessionario salva: senza
+   * questo, la sincronizzazione li riscriverebbe al primo ripasso.
+   */
+  const [origineDati, setOrigineDati] = useState<unknown>({});
   const [meseInArchivio, setMeseInArchivio] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -428,7 +435,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       const { data, error: vehicleError } = await supabase
         .from("vehicles")
         .select(
-          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, plate, vin, mileage, fuel, transmission, price, description, video_url, equipment, status, published"
+          "id, dealer_id, vehicle_category, vehicle_condition, body_type, brand, model, version, interior_type, year, registration_month, engine_size, traction, power_kw, power_cv, doors, emission_class, registration_date, color, plate, vin, mileage, fuel, transmission, price, description, video_url, equipment, status, published, origine_dati"
         )
         .eq("id", vehicleId)
         .eq("dealer_id", currentDealerId)
@@ -517,6 +524,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         equipment: normalizeEquipment((data as Record<string, unknown>).equipment),
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
+      setOrigineDati((data as Record<string, unknown>).origine_dati ?? {});
       setAnnoInArchivio(String((data as Record<string, unknown>).year ?? "").trim() || null);
       setMeseInArchivio(String((data as Record<string, unknown>).registration_month ?? "").trim() || null);
       setOriginalStatus(String(data.status ?? (data.published ? "published" : "draft")));
@@ -834,6 +842,21 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     vehiclePayload.status = statusTransition.nextStatus;
     vehiclePayload.published = statusTransition.nextPublished;
 
+    // **Quello che salva qui il concessionario diventa suo, e la
+    // sincronizzazione non lo tocca piu'.** Senza questa riga la protezione non
+    // si accenderebbe mai: il ripasso segna tutto come "letto dal sito", e al
+    // primo giro -- entro tre ore -- riscriverebbe sopra la sua correzione
+    // senza dire niente.
+    //
+    // I campi si prendono da quello che il modulo scrive davvero, non da un
+    // elenco a parte: un campo aggiunto al modulo domani e' protetto da subito.
+    // Stato e pubblicazione restano fuori: non arrivano dal sito, e il tetto
+    // del piano li muove da se'.
+    const provenienzaAggiornata = segnaComeScrittoDalDealer(
+      origineDati,
+      Object.keys(vehiclePayload).filter((campo) => !["dealer_id", "status", "published"].includes(campo)),
+    );
+
     // Il tetto del piano non si supera mai. Si conta solo quando la scheda
     // **sta passando** in vetrina: risalvare un'auto gia' pubblicata non
     // occupa un posto nuovo, e rifiutarla sarebbe assurdo.
@@ -891,7 +914,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     const statusChanged = previousStatus !== nextStatus;
 
     if (mode === "create") {
-      const payload = vehiclePayload;
+      // Una scheda nata qui e' interamente del concessionario: l'ha scritta
+      // lui, campo per campo.
+      const payload = { ...vehiclePayload, origine_dati: provenienzaAggiornata };
 
       const { data, error: createError } = await supabase
         .from("vehicles")
@@ -970,7 +995,9 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     } else {
       const { error: updateError } = await supabase
         .from("vehicles")
-        .update(vehiclePayload)
+        // La provenienza si scrive insieme ai campi: sono la stessa cosa detta
+        // due volte -- il valore, e chi l'ha messo li'.
+        .update({ ...vehiclePayload, origine_dati: provenienzaAggiornata })
         .eq("id", vehicleId)
         .eq("dealer_id", vehicleDealerId);
       if (updateError) {

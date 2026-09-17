@@ -540,6 +540,31 @@ chiama e un `search_path` non fissato non permette di scavalcare niente: e'
 un'imprudenza, non un buco. Da sistemare dopo la pulizia, insieme ai tre difetti
 qui sopra.
 
+**Un controllo che non e' mai diventato rosso non e' un controllo, e' una
+decorazione.** E' la sorella di "zero differenze li' vuol dire non guardato".
+Il 15/09/2026 il guardiano della provenienza (`src/lib/provenienza-dati.test.ts`)
+elencava tre schermate "da collegare" -- ed erano **tre falsi allarmi**: la
+pagina delle perizie scrive su `vehicle_appraisals`, le altre due cambiano
+solo stato e pubblicazione. Il controllo guardava chi **nominava**
+`registration_date` da qualche parte nel file, non chi lo **scriveva** su
+`vehicles`; e proteggeva tre campi invece dei ventidue che il sito manda.
+Intanto le porte vere -- il feed, il file, la duplicazione -- passavano verdi.
+
+Un controllo cosi' rassicura esattamente come uno che funziona, e per un
+giorno l'ha fatto. Le due regole:
+
+1. **prima di fidarsi del verde, si produce il rosso**: si mette una porta
+   finta -- un `.from("vehicles").update({ price: 1 })` in un file qualsiasi
+   -- e si guarda che il test la trovi. Se non la trova, il test non guarda
+   quello che dice di guardare. Rifatto il 16/09/2026 seguendo la catena da
+   `.from("vehicles")` alla scrittura, provato rosso, e da allora ha un caso
+   dentro (`il guardiano vede una porta nuova`) che lo tiene rosso per
+   costruzione;
+2. **un elenco di eccezioni si rilegge quando cambia il controllo.** Le tre
+   di ieri non "si sono accorciate": erano sbagliate, e l'elenco vero ne ha
+   cinque. Un elenco che cambia contenuto va riscritto con la data e il
+   motivo, non aggiustato in silenzio per far tornare il conto.
+
 **"Vuoto" non e' una prova: il criterio per cancellare e' che nessuna riga di
 codice la usi.** I tre account in produzione sono **di prova**, creati dal
 titolare, e non esiste ancora nessun cliente pagante. Quindi *"oggi non lo usa
@@ -581,6 +606,47 @@ toglierla puo' rompere qualcosa che non la nomina mai. Si guarda quindi ogni
 `select` sulla tabella, non solo quelli che contengono il nome cercato. Il
 15/09/2026 su `vehicle_images` sono stati controllati tutti e nove: nessuno usa
 `*`, e nessuno chiede `updated_at`.
+
+**Un controllo si dimentica, un campo che non arriva non si puo' scrivere.**
+Quando una regola dice "questo dato non si tocca", non la si affida a chi
+scrive: **non gli si consegna il dato protetto**. Chi sincronizza passa a
+`scriviDalSito` cio' che il sito dichiara e riceve indietro **solo cio' che
+puo' scrivere** -- i campi del concessionario non compaiono nel risultato,
+quindi non c'e' niente da saltare e niente da dimenticare.
+
+Non e' una questione di stile. Un controllo **dentro** chi scrive si aggira
+aprendo una porta nuova che non lo fa: e' esattamente quello che e' successo al
+tetto del piano, corretto in un posto e aggirato in **dodici**. Una funzione
+che **non restituisce** il campo protetto non si aggira, perche' chi la usa non
+ha in mano niente da scrivere. La regola sta in `src/lib/provenienza-dati.ts`.
+
+**I due test servono a cose diverse, e servono tutti e due.** Il primo --
+comportamentale -- dice che la funzione fa la cosa giusta. Il secondo -- sul
+testo dei sorgenti -- dice che **nessuno puo' farla per conto suo**: nessun
+file, fuori da quella funzione, scrive un campo protetto. Il difetto arrivera'
+da una porta nuova, non da quella gia' scritta, e il primo test non la vedrebbe
+mai.
+
+Quando il secondo trova qualcosa che non si puo' correggere subito, il nome del
+file si scrive in un **elenco esplicito** dentro il test, con il perche' e la
+regola che quell'elenco puo' solo accorciarsi -- come
+`SENZA_DATA_CONOSCIUTI` per le migration senza data. Un elenco di eccezioni che
+cresce e' il modo in cui un controllo diventa rumore.
+
+**Un dato che il sito dichiara e noi scartiamo senza lasciare traccia e'
+indistinguibile da un dato che il sito non ha mai detto.** Vale oltre il caso
+che l'ha prodotto: ogni volta che si sceglie di **non** usare
+un'informazione arrivata, la scelta va registrata da qualche parte, altrimenti
+fra sei mesi nessuno sapra' se quell'informazione non c'era o se c'era e
+l'abbiamo buttata. Sul disaccordo fra sito e concessionario si scrive in
+`origine_dati` sotto `il_sito_dice`, senza toccare il valore.
+
+**Cio' che si scrive e non si mostra ancora va in
+[SCRITTE_NON_MOSTRATE.md](SCRITTE_NON_MOSTRATE.md)**, nello stesso momento in
+cui si scrive il codice che lo salva -- non dopo. Costruire prima il posto dove
+mettere i dati e poi la schermata che li racconta e' l'ordine giusto, ma
+lascia per un po' informazioni che il database ha e lo schermo no: quell'elenco
+esiste perche' nessuna si perda per strada.
 
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
