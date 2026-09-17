@@ -136,19 +136,19 @@ differenza si vede da fuori, e per questo va detto per primo.
 
 ---
 
-## Le tre porte che scrivono senza dirlo
+## Le due porte che scrivono senza dirlo
 
 **Dal 16/09/2026.** La regola "un dato scritto dal concessionario non viene
 sovrascritto" funziona solo se **chi scrive lo dichiara**: la scheda in
 modifica lo fa (`segnaComeScrittoDalDealer`); la sincronizzazione, "Importa
-dal sito" e le due porte del feed passano da `scriviDalSito`. Tre porte
-scrivono ancora su `vehicles` senza dichiarare niente:
+dal sito" e le due porte del feed passano da `scriviDalSito`; la duplicazione
+passa da `copiaDelVeicolo`. Due porte scrivono ancora su `vehicles` senza
+dichiarare niente:
 
 | porta | cosa scrive | cosa rischia |
 |---|---|---|
 | `src/components/vehicles/vehicles-import-page.tsx` | l'intera riga del file CSV/Excel | nessuna sovrascrittura (nessun sito rilegge quelle righe), ma la scheda non sapra' dire "scritto da te" |
 | `src/components/vehicles/vehicle-delivery-sheet-page.tsx` | i campi scritti a mano nel foglio di consegna | non segnati come suoi |
-| `src/components/vehicles/vehicles-management-page.tsx` | la **duplicazione** copia tutte le colonne (`select *`), compresi `import_source_id` e la provenienza | la copia resta agganciata alla scheda del sito: la sincronizzazione la rilegge e la riscrive come l'originale |
 
 Il 15/09 questo elenco diceva tre schermate diverse, ed erano tre falsi
 allarmi: il guardiano guardava chi *nominava* un campo, non chi lo *scriveva*
@@ -157,21 +157,19 @@ scrittura: trovate cinque porte, e le due del feed chiuse lo stesso giorno
 (fonte `feed`, anche `feed/route.ts` che nessuno chiama: e' raggiungibile con
 una sessione valida e scrive con la chiave di servizio). L'elenco
 `DA_COLLEGARE` in `src/lib/provenienza-dati.test.ts` le nomina con il
-perche', puo' solo accorciarsi, e il test fallisce se ne compare una quarta.
+perche', puo' solo accorciarsi, e il test fallisce se ne compare una terza.
 
-**Da fare per prima**: la duplicazione, decisione del 16/09/2026 -- due auto
-con la stessa targa e lo stesso telaio sono un dato sbagliato che si propaga,
-e contraddicono il lavoro sulle targhe finte: impedito di *scrivere* una targa
-finta, non di *duplicare* una targa vera.
+### La duplicazione: cosa faceva e cosa fa (16/09/2026)
 
-### Cosa succede oggi a chi duplica un'auto (verificato sul codice, 16/09/2026)
+Fino al 16/09 "Duplica" (`vehicles-management-page.tsx`, `select("*")`)
+copiava ogni colonna tranne `id`, `created_at`, `updated_at`: la copia
+portava con se' `import_source`, `import_source_id`, `origine_dati`,
+`customer_id`, `plate` e `vin`. Da quel giorno passa da
+`src/lib/duplica-veicolo.ts`, che quelle colonne le lascia all'originale e
+segna ogni campo copiato come scritto dal concessionario. Cosa succedeva
+prima, e perche' era urgente:
 
-La duplicazione (`vehicles-management-page.tsx`, `select("*")`) copia ogni
-colonna tranne `id`, `created_at`, `updated_at`, e mette la copia in bozza.
-Quindi la copia porta con se' anche `import_source`, `import_source_id`,
-`origine_dati`, `plate` e `vin`.
-
-Se l'originale e' un'auto **importata dal sito**:
+Se l'originale era un'auto **importata dal sito**:
 
 1. **la copia resta agganciata alla pagina dell'originale.** La coda del
    ripasso (`sincronizza-siti/route.ts`) prende tutte le righe con quel
@@ -196,8 +194,9 @@ Per **qualunque** originale, importato o no:
    (`auto-da-chiudere.ts`) e i documenti delle due si mescolano
    (`archivio-documenti.ts`).
 
-**Quanto e' urgente:** oggi poco -- tre account di prova, e serve che qualcuno
-duplichi un'auto importata. Ma i punti 1-3 sono silenziosi, e il 4 ha lo
-stesso peso di una targa sbagliata. La correzione e' piccola: la copia non
-deve portare `import_source`, `import_source_id`, `import_synced_at`,
-`import_missing_since`, `origine_dati`, `plate`, `vin`.
+Il punto 4 e' quello che ha deciso l'urgenza (titolare, 16/09/2026): due
+auto con la stessa targa e lo stesso telaio non sono un fastidio, sono un
+dato sbagliato che si propaga, e contraddicevano il lavoro del giorno prima --
+impedito di *scrivere* una targa finta, non di *duplicare* una vera. Le copie
+gia' fatte prima del 16/09 non si correggono da sole: in produzione oggi non
+ce ne sono (0 targhe ripetute nella stessa concessionaria).

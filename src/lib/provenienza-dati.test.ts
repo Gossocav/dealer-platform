@@ -219,7 +219,12 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
    * prezzo, chilometri, colore... a ogni passaggio, come la sincronizzazione
    * dal sito: chiuse il 16/09/2026 con la fonte `feed`.
    *
-   * Le tre che restano, e cosa manca a ciascuna:
+   * La duplicazione (`vehicles-management-page.tsx`) copiava tutte le
+   * colonne con `select("*")`, chiavi comprese: chiusa il 16/09/2026 con
+   * `copiaDelVeicolo`, che lascia all'originale targa, telaio, cliente,
+   * aggancio al sito e provenienza.
+   *
+   * Le due che restano, e cosa manca a ciascuna:
    *
    * - **`vehicles-import-page.tsx`**: inserisce dal file del concessionario
    *   senza segnare i campi come suoi. Non li sovrascrive nessuno, perche'
@@ -227,18 +232,13 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
    *   c'e', e la scheda non potra' dire "scritto da te".
    * - **`vehicle-delivery-sheet-page.tsx`**: salva sul veicolo i dati
    *   scritti a mano nel foglio di consegna, senza dichiararli.
-   * - **`vehicles-management-page.tsx`**: la duplicazione copia **tutte** le
-   *   colonne (`select *`), compresi `import_source_id` e la provenienza: la
-   *   copia resta agganciata alla scheda del sito e la sincronizzazione la
-   *   rilegge e la riscrive come l'originale.
    *
    * **L'elenco deve solo accorciarsi.** Il test qui sotto fallisce se qualcuno
-   * ne aggiunge una quarta.
+   * ne aggiunge una terza.
    */
   const DA_COLLEGARE = new Set([
     "src/components/vehicles/vehicles-import-page.tsx",
     "src/components/vehicles/vehicle-delivery-sheet-page.tsx",
-    "src/components/vehicles/vehicles-management-page.tsx",
   ]);
 
   /** Tutti i file di `src/`, esclusi i test. */
@@ -288,7 +288,7 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
    * Se l'argomento e' `nome(...)`, cio' che quella funzione restituisce: la
    * si cerca nel file stesso o, se e' importata da `@/lib/...`, in quel file.
    */
-  function corpoSeFunzioneLocale(sorgente: string, argomento: string): string | null {
+  function corpoSeFunzioneLocale(sorgente: string, argomento: string): { testo: string; dove: string } | null {
     const chiamata = argomento.match(/^([a-zA-Z_]\w*)\(/);
     if (!chiamata) return null;
     const nome = chiamata[1];
@@ -302,7 +302,7 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
     if (definizione < 0) return null;
     const corpo = dove.slice(definizione, dove.indexOf("\n}", definizione));
     const ritorno = corpo.indexOf("return ");
-    return ritorno < 0 ? corpo : corpo.slice(ritorno + "return ".length).trim();
+    return { testo: ritorno < 0 ? corpo : corpo.slice(ritorno + "return ".length).trim(), dove };
   }
 
   it("chi scrive su vehicles un campo protetto passa da provenienza-dati", () => {
@@ -315,13 +315,16 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
       const porte = scrittureSuVeicoli(sorgente).filter((argomento) => {
         // Un oggetto scritto per esteso si legge: e' una porta solo se nomina
         // un campo protetto. Lo stesso vale per la chiamata di una funzione
-        // definita nello stesso file (`campiInVetrina(adesso)`): si legge
-        // cosa restituisce. Una variabile o uno spread non si leggono da
-        // qui, e allora si e' prudenti: chi scrive cosi' deve dichiararsi.
-        const testo = corpoSeFunzioneLocale(sorgente, argomento) ?? argomento;
+        // definita nello stesso file (`campiInVetrina(adesso)`) o importata
+        // da `@/lib`: si legge cosa restituisce. Una variabile o uno spread
+        // non si leggono da qui, e allora si e' prudenti: chi scrive cosi'
+        // deve dichiararsi -- lui, o la libreria a cui ha delegato la riga
+        // (`copiaDelVeicolo`), che passa dalla provenienza al posto suo.
+        const risolto = corpoSeFunzioneLocale(sorgente, argomento);
+        const testo = risolto?.testo ?? argomento;
         const perEsteso = testo.startsWith("{") && !testo.includes("...");
-        if (!perEsteso) return true;
-        return PROTETTI.some((campo) => new RegExp(`\\b${campo}\\s*:`).test(testo));
+        if (perEsteso && !PROTETTI.some((campo) => new RegExp(`\\b${campo}\\s*:`).test(testo))) return false;
+        return !risolto?.dove.includes("@/lib/provenienza-dati");
       });
       if (porte.length === 0) continue;
 
@@ -358,8 +361,8 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
     // Cinque il 16/09/2026, quando il guardiano ha cominciato a seguire le
     // scritture vere invece dei nomi dei campi; tre lo stesso giorno, chiuse
     // le due porte del feed. La scheda in modifica, la sincronizzazione,
-    // "Importa dal sito" e il feed sono collegati.
-    expect(DA_COLLEGARE.size).toBeLessThanOrEqual(3);
+    // "Importa dal sito", il feed e la duplicazione sono collegati: due.
+    expect(DA_COLLEGARE.size).toBeLessThanOrEqual(2);
     for (const percorso of DA_COLLEGARE) {
       expect(sorgenti("src"), `${percorso} non esiste piu': va tolto dall'elenco`).toContain(percorso);
     }
