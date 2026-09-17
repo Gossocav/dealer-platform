@@ -12,6 +12,7 @@ import {
   pianoRiconciliazione,
   type RigaImportata,
 } from "@/lib/dealer-site-sync";
+import { dalSito, scriviDalSito } from "@/lib/provenienza-dati";
 import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
 import { applicaTettoDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
@@ -95,6 +96,35 @@ const MAX_SCHEDE_PER_GIRO = 25;
 const TEMPO_MINIMO_PER_SCHEDA_MS = 3000;
 
 type ApiSupabaseClient = SupabaseClient;
+
+/**
+ * I campi che il ripasso scrive leggendoli dal sito -- cioe' quelli che il
+ * concessionario puo' anche correggere a mano, e che da oggi non gli vengono
+ * piu' sovrascritti.
+ *
+ * L'elenco e' esattamente quello di `payloadDatiVeicolo`, e i due devono
+ * restare uguali: un campo scritto li' e non elencato qui verrebbe riscritto
+ * senza guardare chi l'aveva messo. Un test lo verifica.
+ */
+const CAMPI_DAL_SITO = [
+  "brand", "model", "version", "price", "mileage", "fuel", "transmission",
+  "doors", "seats", "color", "body_type", "year", "registration_month",
+  "vehicle_condition", "vehicle_category", "power_kw", "power_cv",
+  "engine_size", "emission_class", "traction", "co2_emissions", "description",
+] as const;
+
+type RigaDaRileggere = {
+  id: string;
+  import_source_id: string | null;
+  origine_dati: unknown;
+} & Partial<Record<(typeof CAMPI_DAL_SITO)[number], string | number | null>>;
+
+/** I valori che la scheda ha adesso, per capire se il sito dice un'altra cosa. */
+function valoriInArchivio(riga: RigaDaRileggere): Record<string, string | number | null> {
+  const valori: Record<string, string | number | null> = {};
+  for (const campo of CAMPI_DAL_SITO) valori[campo] = riga[campo] ?? null;
+  return valori;
+}
 
 type Sorgente = { dealer_id: string; import_source: string };
 
@@ -362,9 +392,15 @@ async function rileggi(
 ): Promise<{ fila: EsitoFila; errori: string[]; codaPiena: boolean }> {
   const soglia = new Date(Date.now() - ORE_PRIMA_DI_RILEGGERE * 3600 * 1000).toISOString();
 
+  // Si leggono anche i valori attuali e la provenienza: senza, non si puo'
+  // sapere quali campi ha corretto il concessionario -- e si riscriverebbe
+  // tutto sopra il suo lavoro, che e' il difetto che questa riga chiude.
   let interrogazione = supabase
     .from("vehicles")
-    .select("id, import_source_id")
+    .select(
+      "id, import_source_id, origine_dati, " +
+        CAMPI_DAL_SITO.join(", "),
+    )
     .eq("dealer_id", sorgente.dealer_id)
     .eq("import_source", sorgente.import_source)
     .is("import_missing_since", null)
@@ -378,7 +414,7 @@ async function rileggi(
     .order("import_synced_at", { ascending: true, nullsFirst: true })
     .limit(MAX_SCHEDE_PER_GIRO);
 
-  const daRileggere = (data ?? []) as Array<{ id: string; import_source_id: string | null }>;
+  const daRileggere = (data ?? []) as unknown as RigaDaRileggere[];
   const errori: string[] = [];
 
   // La voce dell'indice e non il solo indirizzo: da li' arriva anche la
@@ -386,8 +422,8 @@ async function rileggi(
   // Passandone una inventata, una km 0 riletta diventerebbe "Usato".
   const voci = daRileggere
     .map((riga) => ({ riga, voce: vociPerSourceId.get(String(riga.import_source_id ?? "")) }))
-    .filter((coppia): coppia is { riga: { id: string; import_source_id: string | null }; voce: DealerSiteEntry } => Boolean(coppia.voce))
-    .map(({ riga, voce }) => ({ ...voce, rigaId: riga.id }));
+    .filter((coppia): coppia is { riga: RigaDaRileggere; voce: DealerSiteEntry } => Boolean(coppia.voce))
+    .map(({ riga, voce }) => ({ ...voce, rigaId: riga.id, riga }));
 
   const fila = await percorriFila({
     voci,
@@ -401,8 +437,26 @@ async function rileggi(
       // Anche una scheda che oggi non si lascia interpretare -- succede quando
       // il sito le toglie le fotografie -- va segnata come riletta: altrimenti
       // resterebbe in testa alla fila per sempre, bloccando le altre.
-      const campi = letto.ok
-        ? { ...payloadDatiVeicolo(letto.vehicle), import_synced_at: adesso, updated_at: adesso }
+      // **Quello che il concessionario ha corretto non si riscrive.** Prima di
+      // questa riga il ripasso rimetteva l'intero contenuto del sito ogni tre
+      // ore: chi correggeva il prezzo di un'auto importata se lo vedeva
+      // tornare come prima, in silenzio, e credeva di aver sbagliato lui.
+      //
+      // La regola non si applica ricordandosene: `scriviDalSito` restituisce
+      // **solo** i campi che si possono scrivere, e quelli del concessionario
+      // non ci sono. Il disaccordo, quando c'e', resta scritto in
+      // `origine_dati` sotto `il_sito_dice`.
+      const scrittura = letto.ok
+        ? scriviDalSito(
+            voce.riga.origine_dati,
+            valoriInArchivio(voce.riga),
+            dalSito(payloadDatiVeicolo(letto.vehicle)),
+            adesso.slice(0, 10),
+          )
+        : null;
+
+      const campi = scrittura
+        ? { ...scrittura.daScrivere, origine_dati: scrittura.origineDati, import_synced_at: adesso, updated_at: adesso }
         : { import_synced_at: adesso };
 
       // L'esito si guarda, e si guarda anche **quante righe** ha toccato: una

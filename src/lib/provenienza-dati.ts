@@ -156,6 +156,24 @@ export function scriviDalSito(
   return { daScrivere, origineDati, protetti };
 }
 
+/**
+ * Comodita' per chi ha gia' un oggetto di valori letti dal sito e vuole
+ * passarlo a `scriviDalSito` senza ripetere la fonte per ogni campo.
+ *
+ * I campi vuoti non si tolgono qui: ci pensa `scriviDalSito`, e la ragione e'
+ * la stessa -- "il sito non lo dice" non vuol dire "il sito dice che non c'e'".
+ */
+export function dalSito(
+  valori: Record<string, string | number | null | undefined>,
+  fonte: "sito" | "dedotto" = "sito",
+): Record<string, LettoDalSito> {
+  const letti: Record<string, LettoDalSito> = {};
+  for (const [campo, valore] of Object.entries(valori)) {
+    letti[campo] = { valore: valore === undefined ? null : valore, fonte };
+  }
+  return letti;
+}
+
 /** Come si segna un campo scritto dal concessionario. Da qui in poi e' suo. */
 export function segnaComeScrittoDalDealer(origineDatiAttuale: unknown, campi: string[]): OrigineDati {
   const partenza = (origineDatiAttuale && typeof origineDatiAttuale === "object" && !Array.isArray(origineDatiAttuale)
