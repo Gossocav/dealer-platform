@@ -387,6 +387,24 @@ di toccarla:
   quasi mai la targa, e nessuno deve inventarsene una per salvare la scheda.
   Quello che non si fa e' salvare come targa qualcosa che targa non e'.
 
+**Una regola messa in un posto solo non chiude le porte che non la
+chiamano.** "Un posto solo" e' dove la regola **vive**, non quante porte la
+usano: il lavoro e' finito solo quando **ogni** scrittura di quella colonna
+passa di li'. Il 15/09/2026 la forma della targa e' entrata in `targa.ts` ed
+e' stata agganciata alla scheda in modifica; **"Segna venduta"** continuava a
+scrivere la targa com'era digitata -- proprio nel momento in cui diventa
+l'unica cosa che identifica l'auto venduta. Trovato il 16/09/2026 facendo la
+stessa cosa per il telaio. E' lo stesso schema del guardiano che guardava le
+schermate sbagliate e del tetto del piano corretto in un posto e aggirato in
+dodici.
+
+Come si evita: quando una regola entra in una libreria, si cerca **chi scrive
+quella colonna** (`grep -rn "plate:" src`, non "chi nomina la targa"), si
+elenca ogni porta trovata, e ognuna passa dalla libreria o finisce in un
+elenco esplicito con il perche'. Poi un test sul testo dei sorgenti fissa
+l'elenco, come `il telaio ha una casa sola` in `src/lib/telaio.test.ts`: il
+difetto arrivera' dalla porta che nessuno ha contato.
+
 **La verifica di sicurezza sulle targhe lette dai siti** (14/09/2026, 126
 pagine): la targa si prende **solo** dal blocco dati il cui identificativo
 coincide con quello della scheda che si sta leggendo. Misurato: 62 targhe

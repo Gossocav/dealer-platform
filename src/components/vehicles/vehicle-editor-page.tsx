@@ -14,6 +14,7 @@ import { puoEssereSegnataVenduta } from "@/lib/auto-da-chiudere";
 import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
 import { messaggioTarga, messaggioTargaDoppia, targaDaSalvare } from "@/lib/targa";
+import { messaggioTelaio, messaggioTelaioDoppio, telaioDaSalvare } from "@/lib/telaio";
 import { segnaComeScrittoDalDealer } from "@/lib/provenienza-dati";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
@@ -683,7 +684,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     // "XXX" e "XXXX". Scritta nell'archivio sarebbe indistinguibile da una
     // vera, e la ricerca a pagamento si paga a interrogazione anche quando la
     // targa non esiste.
-    const avvisoTarga = messaggioTarga(state.plate);
+    const avvisoTarga = messaggioTarga(state.plate) ?? messaggioTelaio(state.vin);
     if (avvisoTarga) {
       setError(avvisoTarga);
       setSaving(false);
@@ -810,7 +811,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
       color: canonicalizeVehicleColorLabel(state.color) || null,
       // Normalizzata, e solo se e' una targa: vedi il controllo al salvataggio.
       plate: targaDaSalvare(state.plate),
-      vin: state.vin.trim().toUpperCase() || null,
+      vin: telaioDaSalvare(state.vin),
       mileage: parseMileageForSave(state.mileage),
       fuel: state.fuel.trim() || null,
       transmission: state.transmission.trim() || null,
@@ -926,7 +927,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
 
       if (createError || !data?.id) {
         // Una targa gia' in uso si spiega; il resto si riporta com'e'.
-        setError(messaggioTargaDoppia(createError) ?? createError?.message ?? "Errore durante creazione veicolo.");
+        setError(messaggioTargaDoppia(createError) ?? messaggioTelaioDoppio(createError) ?? createError?.message ?? "Errore durante creazione veicolo.");
         setSaving(false);
         return;
       }
@@ -1002,7 +1003,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         .eq("id", vehicleId)
         .eq("dealer_id", vehicleDealerId);
       if (updateError) {
-        setError(messaggioTargaDoppia(updateError) ?? updateError.message ?? "Errore durante aggiornamento veicolo.");
+        setError(messaggioTargaDoppia(updateError) ?? messaggioTelaioDoppio(updateError) ?? updateError.message ?? "Errore durante aggiornamento veicolo.");
         setSaving(false);
         return;
       }
@@ -1475,7 +1476,12 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
                 onChange={(value) => updateField("plate", value)}
                 avviso={messaggioTarga(state.plate) ?? undefined}
               />
-              <EditorField label="Telaio" value={state.vin} onChange={(value) => updateField("vin", value)} />
+              <EditorField
+                label="Telaio"
+                value={state.vin}
+                onChange={(value) => updateField("vin", value)}
+                avviso={messaggioTelaio(state.vin) ?? undefined}
+              />
               <EditorField
                 label="Prezzo"
                 value={state.price}
