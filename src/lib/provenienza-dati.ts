@@ -38,8 +38,20 @@ export type Fonte =
   | "sito"
   /** Il sistema del concessionario l'ha riempito da solo: vale meno. */
   | "dedotto"
+  /**
+   * Il feed (o il file) che il concessionario ci manda lo dichiara. Non e'
+   * "il sito": la dicitura lo dice, perche' una provenienza sbagliata e'
+   * peggio di nessuna provenienza.
+   */
+  | "feed"
   /** L'ha scritto il concessionario. **Non si sovrascrive mai.** */
   | "dealer";
+
+/** Le fonti che scrivono da sole, e che quindi si fermano davanti a `dealer`. */
+export type FonteAutomatica = Exclude<Fonte, "dealer">;
+
+/** Un valore come sta in una colonna di `vehicles`: anche gli elenchi (`equipment`). */
+export type Valore = string | number | boolean | string[] | null;
 
 export type SegnoDiProvenienza = {
   fonte: Fonte;
@@ -52,11 +64,11 @@ export type SegnoDiProvenienza = {
 export type OrigineDati = Record<string, SegnoDiProvenienza>;
 
 /** Un valore letto dal sito, con quanto ci si puo' credere. */
-export type LettoDalSito = { valore: string | number | null; fonte: "sito" | "dedotto" };
+export type LettoDalSito = { valore: Valore; fonte: FonteAutomatica };
 
 export type EsitoScrittura = {
   /** Cosa si puo' scrivere davvero. I campi del concessionario non ci sono. */
-  daScrivere: Record<string, string | number | null>;
+  daScrivere: Record<string, Valore>;
   /** Il nuovo `origine_dati` della scheda, gia' pronto da salvare. */
   origineDati: OrigineDati;
   /**
@@ -72,7 +84,7 @@ export function provenienza(origineDati: unknown, campo: string): SegnoDiProveni
   const segno = (origineDati as Record<string, unknown>)[campo];
   if (!segno || typeof segno !== "object" || Array.isArray(segno)) return null;
   const fonte = (segno as { fonte?: unknown }).fonte;
-  if (fonte !== "sito" && fonte !== "dedotto" && fonte !== "dealer") return null;
+  if (fonte !== "sito" && fonte !== "dedotto" && fonte !== "feed" && fonte !== "dealer") return null;
   return segno as SegnoDiProvenienza;
 }
 
@@ -110,7 +122,7 @@ const uguali = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
  */
 export function scriviDalSito(
   origineDatiAttuale: unknown,
-  valoriInArchivio: Record<string, string | number | null>,
+  valoriInArchivio: Record<string, Valore | undefined>,
   lettiDalSito: Record<string, LettoDalSito>,
   oggi: string,
 ): EsitoScrittura {
@@ -119,7 +131,7 @@ export function scriviDalSito(
     : {}) as OrigineDati;
 
   const origineDati: OrigineDati = { ...partenza };
-  const daScrivere: Record<string, string | number | null> = {};
+  const daScrivere: Record<string, Valore> = {};
   const protetti: string[] = [];
 
   for (const [campo, letto] of Object.entries(lettiDalSito)) {
@@ -164,8 +176,8 @@ export function scriviDalSito(
  * la stessa -- "il sito non lo dice" non vuol dire "il sito dice che non c'e'".
  */
 export function dalSito(
-  valori: Record<string, string | number | null | undefined>,
-  fonte: "sito" | "dedotto" = "sito",
+  valori: Record<string, Valore | undefined>,
+  fonte: FonteAutomatica = "sito",
 ): Record<string, LettoDalSito> {
   const letti: Record<string, LettoDalSito> = {};
   for (const [campo, valore] of Object.entries(valori)) {
@@ -191,5 +203,6 @@ export function etichettaProvenienza(origineDati: unknown, campo: string): strin
   if (!segno) return null;
   if (segno.fonte === "dealer") return "scritto da te";
   const daConfermare = segno.confermato_il ? "" : " · da confermare";
+  if (segno.fonte === "feed") return `dal tuo feed${daConfermare}`;
   return segno.fonte === "sito" ? `dal tuo sito${daConfermare}` : `deciso dal tuo sito${daConfermare}`;
 }

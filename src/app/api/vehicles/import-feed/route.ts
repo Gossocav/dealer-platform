@@ -17,6 +17,7 @@ import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { riepilogaSincronizzazioni, type RigaVeicoloImportato } from "@/lib/sincronizzazioni-veicoli";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
+import { dalSito, scriviDalSito, type Valore } from "@/lib/provenienza-dati";
 import { messaggioDelTetto, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
 import { applicaTettoDelPiano, limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 
@@ -295,8 +296,36 @@ export async function POST(request: Request) {
       const inVetrina = desiredStatus === "published" && (posti === null || posti > 0);
       const statoDiQuestaRiga = desiredStatus === "published" && !inVetrina ? STATO_OLTRE_IL_TETTO : desiredStatus;
 
+      // I dati del veicolo come li dice il feed, separati da stato e
+      // pubblicazione. Passano da `scriviDalSito` con la fonte `feed`: sulla
+      // scheda gia' in archivio si scrive solo cio' che il concessionario non
+      // ha corretto a mano. Prima si riscriveva tutto a ogni "Importa", lo
+      // stesso difetto della sincronizzazione dal sito (15/09/2026), su
+      // un'altra porta.
+      const { status: _statoDelFeed, published: _pubblicatoDalFeed, ...datiDelFeed } = buildVehicleInsertPayload(entry.mapped, desiredStatus);
+      void _statoDelFeed;
+      void _pubblicatoDalFeed;
+      const campiDelFeed = Object.keys(datiDelFeed);
+
+      const { data: esistente } = duplicateId
+        ? await supabase
+            .from("vehicles")
+            .select("id, origine_dati, " + campiDelFeed.join(", "))
+            .eq("id", duplicateId)
+            .eq("dealer_id", dealerId)
+            .maybeSingle<{ id: string; origine_dati: unknown } & Record<string, Valore>>()
+        : { data: null };
+
+      const scrittura = scriviDalSito(
+        esistente?.origine_dati ?? {},
+        esistente ? Object.fromEntries(campiDelFeed.map((campo) => [campo, esistente[campo] ?? null])) : {},
+        dalSito(datiDelFeed, "feed"),
+        new Date().toISOString().slice(0, 10),
+      );
+
       const payload = {
-        ...buildVehicleInsertPayload(entry.mapped, desiredStatus),
+        ...scrittura.daScrivere,
+        origine_dati: scrittura.origineDati,
         dealer_id: dealerId,
         status: statoDiQuestaRiga,
         published: statoDiQuestaRiga === "published",

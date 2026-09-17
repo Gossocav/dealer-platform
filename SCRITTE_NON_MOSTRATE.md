@@ -58,11 +58,20 @@ numero nudo.
 Immatricolazione   01/2022        dal tuo sito · da confermare
 Regime IVA         esposta 22%    dal tuo sito
 In piazzale da     12.02.2026     deciso dal tuo sito · da confermare
+Chilometri         118.000        dal tuo feed
 Prezzo d'acquisto  14.500 €       scritto da te
 ```
 
 La funzione che le scrive c'e' gia': `etichettaProvenienza` in
-`src/lib/provenienza-dati.ts`.
+`src/lib/provenienza-dati.ts`. **Dal 16/09/2026** c'e' la quarta fonte,
+`feed`, con la sua dicitura: un dato arrivato dal feed non viene "dal tuo
+sito", e mostrarlo cosi' sarebbe peggio che non mostrare niente. Il disaccordo
+si registra nella stessa chiave `il_sito_dice` anche per il feed: la scheda
+dovra' scegliere la frase in base alla fonte ("il tuo feed ora dice").
+
+*Da sistemare con la prossima migration:* il commento sulla colonna
+`vehicles.origine_dati` elenca tre fonti; ora sono quattro. E' un commento,
+non un vincolo: il database accetta gia' `feed`.
 
 ---
 
@@ -127,18 +136,16 @@ differenza si vede da fuori, e per questo va detto per primo.
 
 ---
 
-## Le cinque porte che scrivono senza dirlo
+## Le tre porte che scrivono senza dirlo
 
 **Dal 16/09/2026.** La regola "un dato scritto dal concessionario non viene
 sovrascritto" funziona solo se **chi scrive lo dichiara**: la scheda in
-modifica lo fa (`segnaComeScrittoDalDealer`), la sincronizzazione e "Importa
-dal sito" passano da `scriviDalSito`. Cinque porte scrivono ancora su
-`vehicles` senza dichiarare niente:
+modifica lo fa (`segnaComeScrittoDalDealer`); la sincronizzazione, "Importa
+dal sito" e le due porte del feed passano da `scriviDalSito`. Tre porte
+scrivono ancora su `vehicles` senza dichiarare niente:
 
 | porta | cosa scrive | cosa rischia |
 |---|---|---|
-| `src/app/api/vehicles/feed/route.ts` | prezzo, km, colore, versione... dal feed | riscrive le correzioni a mano a ogni passaggio del feed |
-| `src/app/api/vehicles/import-feed/route.ts` | l'intera riga del feed | idem, al clic "Importa" |
 | `src/components/vehicles/vehicles-import-page.tsx` | l'intera riga del file CSV/Excel | nessuna sovrascrittura (nessun sito rilegge quelle righe), ma la scheda non sapra' dire "scritto da te" |
 | `src/components/vehicles/vehicle-delivery-sheet-page.tsx` | i campi scritti a mano nel foglio di consegna | non segnati come suoi |
 | `src/components/vehicles/vehicles-management-page.tsx` | la **duplicazione** copia tutte le colonne (`select *`), compresi `import_source_id` e la provenienza | la copia resta agganciata alla scheda del sito: la sincronizzazione la rilegge e la riscrive come l'originale |
@@ -146,14 +153,16 @@ dal sito" passano da `scriviDalSito`. Cinque porte scrivono ancora su
 Il 15/09 questo elenco diceva tre schermate diverse, ed erano tre falsi
 allarmi: il guardiano guardava chi *nominava* un campo, non chi lo *scriveva*
 su `vehicles`. Rifatto il 16/09 seguendo la catena da `.from("vehicles")` alla
-scrittura. L'elenco `DA_COLLEGARE` in `src/lib/provenienza-dati.test.ts` le
-nomina con il perche', puo' solo accorciarsi, e il test fallisce se ne
-compare una sesta.
+scrittura: trovate cinque porte, e le due del feed chiuse lo stesso giorno
+(fonte `feed`, anche `feed/route.ts` che nessuno chiama: e' raggiungibile con
+una sessione valida e scrive con la chiave di servizio). L'elenco
+`DA_COLLEGARE` in `src/lib/provenienza-dati.test.ts` le nomina con il
+perche', puo' solo accorciarsi, e il test fallisce se ne compare una quarta.
 
-**Da fare per prime**, subito dopo l'aggancio del lettore: le due del feed
-(stesso difetto della sincronizzazione, altra porta). La duplicazione e' un
-difetto a se', deciso il 16/09/2026 di metterlo in elenco e non in questa
-fetta.
+**Da fare per prima**: la duplicazione, decisione del 16/09/2026 -- due auto
+con la stessa targa e lo stesso telaio sono un dato sbagliato che si propaga,
+e contraddicono il lavoro sulle targhe finte: impedito di *scrivere* una targa
+finta, non di *duplicare* una targa vera.
 
 ### Cosa succede oggi a chi duplica un'auto (verificato sul codice, 16/09/2026)
 
