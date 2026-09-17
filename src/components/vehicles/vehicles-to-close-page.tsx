@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell";
+import { messaggioTarga, targaDaSalvare } from "@/lib/targa";
+import { messaggioTelaio, telaioDaSalvare } from "@/lib/telaio";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { supabase } from "@/lib/supabaseClient";
@@ -150,6 +152,18 @@ export function VehiclesToClosePage() {
       return;
     }
 
+    // E devono avere la forma giusta: una chiave finta ("XXX", "12345")
+    // scritta qui e' peggio di una mancante, perche' da questo momento e'
+    // l'unica cosa che identifica l'auto venduta. La forma sta in un posto
+    // solo per ciascuna (`targa.ts`, `telaio.ts`); qui la si chiede prima
+    // di scrivere, invece di salvare `null` in silenzio.
+    const formaSbagliata = messaggioTarga(targa) ?? messaggioTelaio(telaio);
+    if (formaSbagliata) {
+      aggiorna(riga.id, { esito: "errore" });
+      setErrore(formaSbagliata);
+      return;
+    }
+
     // Il prezzo invece **non** e' obbligatorio, ed e' una scelta: pretenderlo
     // costringerebbe a inventare una cifra pur di chiudere la riga, ed e' il
     // modo piu' sicuro di riempire l'archivio di numeri falsi. I conti li
@@ -188,8 +202,8 @@ export function VehiclesToClosePage() {
       .update({
         // La sincronizzazione non tocca targa e telaio -- non li legge dal
         // sito -- quindi quello che si scrive qui resta.
-        plate: targa || null,
-        vin: telaio || null,
+        plate: targaDaSalvare(targa),
+        vin: telaioDaSalvare(telaio),
         status: come === "venduta" ? "sold" : "archived",
         published: false,
         // Non aspetta piu' una risposta: l'ha appena data lui.

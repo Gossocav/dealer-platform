@@ -26,6 +26,7 @@
  */
 
 import { esitoTarga } from "@/lib/targa";
+import { telaioDaSalvare } from "@/lib/telaio";
 
 /** Le fonti di un dato letto qui. Chi lo scrive le riporta in `origine_dati`. */
 export type QualitaDato =
@@ -236,7 +237,6 @@ export function leggiBloccoMotork(html: string, sourceId: string): BloccoMotork 
   // lette il 14/09/2026, due valevano "XXX" e "XXXX". Una targa sbagliata e'
   // peggio di una mancante.
   const esito = esitoTarga(dati.numberPlate);
-  const telaio = testo(dati.vin);
 
   return {
     campi: Object.keys(dati).length,
@@ -246,6 +246,8 @@ export function leggiBloccoMotork(html: string, sourceId: string): BloccoMotork 
     chilometri: numero(dati.km),
     ingresso: ingressoAttendibile(ingresso, immatricolazione, categoria) ? ingresso : null,
     targa: esito.stato === "valida" ? esito.targa : null,
-    telaio: telaio && /^[A-HJ-NPR-Z0-9]{17}$/.test(telaio.toUpperCase()) ? telaio.toUpperCase() : null,
+    // Stessa regola della targa: la forma sta in `src/lib/telaio.ts`, e un
+    // segnaposto ("12345", visto in produzione il 16/09/2026) non passa.
+    telaio: telaioDaSalvare(testo(dati.vin)),
   };
 }
