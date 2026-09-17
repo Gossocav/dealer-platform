@@ -4,6 +4,7 @@ import { normalizeVehicleTraction } from "@/lib/vehicles";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { fetchWithSsrfProtection, parseAndValidateExternalHttpUrl } from "@/lib/ssrf-protection";
+import { dalSito, scriviDalSito, type Valore } from "@/lib/provenienza-dati";
 import { STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
 import { limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 
@@ -1123,16 +1124,36 @@ export async function POST(request: Request) {
 
         // Step 3: Aggiorna se trovato
         if (existingVehicle) {
+          // Solo cio' che il concessionario non ha corretto a mano: questa
+          // rotta scrive con la chiave di servizio, e prima riscriveva i
+          // sette campi a ogni passaggio senza guardare chi li aveva messi.
+          const aggiornabili = {
+            price: vehicleData.price,
+            mileage: vehicleData.mileage,
+            fuel: vehicleData.fuel,
+            traction: vehicleData.traction,
+            transmission: vehicleData.transmission,
+            color: vehicleData.color,
+            version: vehicleData.version,
+          };
+          const { data: attuale } = await supabaseAdmin
+            .from("vehicles")
+            .select("origine_dati, " + Object.keys(aggiornabili).join(", "))
+            .eq("id", existingVehicle.id)
+            .eq("dealer_id", dealerId)
+            .maybeSingle<{ origine_dati: unknown } & Record<string, Valore>>();
+          const scrittura = scriviDalSito(
+            attuale?.origine_dati ?? {},
+            Object.fromEntries(Object.keys(aggiornabili).map((campo) => [campo, attuale?.[campo] ?? null])),
+            dalSito(aggiornabili, "feed"),
+            now.slice(0, 10),
+          );
+
           const { error } = await supabaseAdmin
             .from("vehicles")
             .update({
-              price: vehicleData.price,
-              mileage: vehicleData.mileage,
-              fuel: vehicleData.fuel,
-              traction: vehicleData.traction,
-              transmission: vehicleData.transmission,
-              color: vehicleData.color,
-              version: vehicleData.version,
+              ...scrittura.daScrivere,
+              origine_dati: scrittura.origineDati,
               status: vehicleData.status,
               published: vehicleData.published,
               updated_at: now,
@@ -1153,11 +1174,18 @@ export async function POST(request: Request) {
             }
           }
         } else {
-          // Step 4: Crea nuovo se non trovato
+          // Step 4: Crea nuovo se non trovato. Tutto viene dal feed, e la
+          // provenienza lo dice campo per campo.
+          const { status, published, dealer_id, ...datiDelFeed } = vehicleData;
+          const nuova = scriviDalSito({}, {}, dalSito(datiDelFeed, "feed"), now.slice(0, 10));
           const { data: inserted, error } = await supabaseAdmin
             .from("vehicles")
             .insert({
-              ...vehicleData,
+              ...nuova.daScrivere,
+              origine_dati: nuova.origineDati,
+              status,
+              published,
+              dealer_id,
               created_at: now,
               updated_at: now,
             })

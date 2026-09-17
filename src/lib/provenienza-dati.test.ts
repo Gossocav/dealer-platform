@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CAMPI_DAL_SITO } from "@/lib/dealer-site-sync";
 import {
+  dalSito,
   confermato,
   etichettaProvenienza,
   provenienza,
@@ -175,6 +176,10 @@ describe("la dicitura accanto al valore", () => {
     expect(etichettaProvenienza({ a: { fonte: "sito" } }, "a")).toBe("dal tuo sito · da confermare");
     expect(etichettaProvenienza({ a: { fonte: "sito", confermato_il: "2026-09-16" } }, "a")).toBe("dal tuo sito");
     expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe("deciso dal tuo sito · da confermare");
+    // Un dato da feed non viene "dal tuo sito": una provenienza sbagliata e'
+    // peggio di nessuna provenienza (deciso il 16/09/2026).
+    expect(etichettaProvenienza({ a: { fonte: "feed" } }, "a")).toBe("dal tuo feed · da confermare");
+    expect(etichettaProvenienza({ a: { fonte: "feed", confermato_il: "2026-09-16" } }, "a")).toBe("dal tuo feed");
     expect(etichettaProvenienza({}, "a")).toBeNull();
   });
 });
@@ -210,12 +215,12 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
    * essere applicata a meta'": rifatto il 16/09/2026 seguendo la catena da
    * `.from("vehicles")` alla scrittura.
    *
-   * Le cinque di oggi, e cosa manca a ciascuna:
+   * Le due del feed (`feed/route.ts`, `import-feed/route.ts`) riscrivevano
+   * prezzo, chilometri, colore... a ogni passaggio, come la sincronizzazione
+   * dal sito: chiuse il 16/09/2026 con la fonte `feed`.
    *
-   * - **`feed/route.ts`** e **`import-feed/route.ts`**: riscrivono prezzo,
-   *   chilometri, colore... a ogni passaggio del feed, come faceva la
-   *   sincronizzazione dal sito. Stesso difetto, altra porta: la correzione a
-   *   mano di un'auto da feed sparisce alla prossima lettura del feed.
+   * Le tre che restano, e cosa manca a ciascuna:
+   *
    * - **`vehicles-import-page.tsx`**: inserisce dal file del concessionario
    *   senza segnare i campi come suoi. Non li sovrascrive nessuno, perche'
    *   quelle righe non hanno un sito che le rilegge; ma la provenienza non
@@ -228,11 +233,9 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
    *   rilegge e la riscrive come l'originale.
    *
    * **L'elenco deve solo accorciarsi.** Il test qui sotto fallisce se qualcuno
-   * ne aggiunge una sesta.
+   * ne aggiunge una quarta.
    */
   const DA_COLLEGARE = new Set([
-    "src/app/api/vehicles/feed/route.ts",
-    "src/app/api/vehicles/import-feed/route.ts",
     "src/components/vehicles/vehicles-import-page.tsx",
     "src/components/vehicles/vehicle-delivery-sheet-page.tsx",
     "src/components/vehicles/vehicles-management-page.tsx",
@@ -353,9 +356,10 @@ describe("nessuno scrive i campi protetti per conto suo", () => {
     // Un elenco di eccezioni che cresce e' un elenco che non serve piu' a
     // niente: e' il modo in cui un controllo diventa rumore.
     // Cinque il 16/09/2026, quando il guardiano ha cominciato a seguire le
-    // scritture vere invece dei nomi dei campi. La scheda in modifica, la
-    // sincronizzazione e "Importa dal sito" sono gia' collegate.
-    expect(DA_COLLEGARE.size).toBeLessThanOrEqual(5);
+    // scritture vere invece dei nomi dei campi; tre lo stesso giorno, chiuse
+    // le due porte del feed. La scheda in modifica, la sincronizzazione,
+    // "Importa dal sito" e il feed sono collegati.
+    expect(DA_COLLEGARE.size).toBeLessThanOrEqual(3);
     for (const percorso of DA_COLLEGARE) {
       expect(sorgenti("src"), `${percorso} non esiste piu': va tolto dall'elenco`).toContain(percorso);
     }
@@ -428,7 +432,23 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
     expect(esito.protetti).toEqual([]);
   });
 
-  it("tutte e due le porte dal sito passano davvero da qui, e l'elenco dei campi combacia", () => {
+  it("il feed si ferma davanti a quello che ha scritto il concessionario, e si firma come feed", () => {
+    // Stesso difetto della sincronizzazione, altra porta: il feed riscriveva
+    // tutti i campi a ogni "Importa". Zero righe da feed in produzione il
+    // 16/09/2026, ma una porta che nessuno usa e' comunque una porta.
+    const esito = scriviDalSito(
+      { price: { fonte: "dealer" } },
+      { price: 9500, mileage: 120000, equipment: ["Clima", "Navigatore"] },
+      dalSito({ price: 8900, mileage: 118000, equipment: ["Clima", "Navigatore"] }, "feed"),
+      "2026-09-16",
+    );
+    expect(esito.daScrivere).toEqual({ mileage: 118000, equipment: ["Clima", "Navigatore"] });
+    expect(esito.protetti).toEqual(["price"]);
+    expect(esito.origineDati.price).toEqual({ fonte: "dealer", il_sito_dice: { valore: "8900", visto_il: "2026-09-16" } });
+    expect(esito.origineDati.mileage).toEqual({ fonte: "feed", confermato_il: null });
+  });
+
+  it("tutte le porte automatiche passano davvero da qui, e l'elenco dei campi combacia", () => {
     // Le porte da cui un dato del sito entra in archivio sono **due**: la
     // sincronizzazione notturna e il bottone "Importa dal sito" del
     // gestionale. Il 15/09/2026 riscrivevano tutte e due l'intero payload;
@@ -448,6 +468,20 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
     expect(importaDalSito, "payloadVeicolo non deve portare i dati del sito").not.toMatch(
       /function payloadVeicolo[\s\S]{0,400}\.\.\.payloadDatiVeicolo\(/,
     );
+
+    // Le due porte del feed, chiuse il 16/09/2026: la fonte deve essere
+    // `feed`, non `sito`, perche' la dicitura a schermo la legge da li'.
+    for (const percorso of ["src/app/api/vehicles/import-feed/route.ts", "src/app/api/vehicles/feed/route.ts"]) {
+      const feed = readFileSync(resolve(process.cwd(), percorso), "utf8");
+      expect(feed, `${percorso} non passa da scriviDalSito`).toContain("scriviDalSito(");
+      expect(feed, `${percorso} non si firma come feed`).toMatch(/dalSito\([^)]*,\s*"feed"\)/);
+      expect(feed, `${percorso} si firma come sito`).not.toMatch(/dalSito\([^)]*,\s*"sito"\)/);
+    }
+    const importaDalFeed = readFileSync(resolve(process.cwd(), "src/app/api/vehicles/import-feed/route.ts"), "utf8");
+    expect(importaDalFeed, "il payload del feed viene ancora scritto intero").not.toContain("...buildVehicleInsertPayload(");
+    const feedServizio = readFileSync(resolve(process.cwd(), "src/app/api/vehicles/feed/route.ts"), "utf8");
+    expect(feedServizio, "l'aggiornamento scrive ancora i campi a mano").not.toMatch(/\.update\(\{\s*price: vehicleData\.price/);
+    expect(feedServizio, "l'inserimento scrive ancora vehicleData intero").not.toContain("...vehicleData,");
 
     // Due elenchi che devono restare uguali: `payloadDatiVeicolo` scrive i
     // campi, `CAMPI_DAL_SITO` li rilegge per sapere cosa c'e' adesso. Un campo
