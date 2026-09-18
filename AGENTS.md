@@ -715,6 +715,17 @@ modifica che parla d'altro. In ordine di quanto gia' fanno danno:
    oggi, senza un modo per confermare, escluderla farebbe scendere il
    punteggio di tutti senza che nessuno possa farci niente.
 
+5. **Il tipo veicolo dice "dal tuo sito" e dal sito non arriva.**
+   `payloadDatiVeicolo` scrive `vehicle_category: "Auto"` come **costante
+   nostra**, ma passa dallo stesso giro degli altri campi e quindi il ripasso
+   lo segna `sito`. Sulla scheda si legge "dal tuo sito · da confermare" su
+   un valore che il sito non ha mai dichiarato: e' la provenienza sbagliata,
+   in piccolo. Si corregge nel ripasso -- o lasciandolo senza segno, o dandogli
+   la sua dicitura -- non replicandola altrove. **Attenzione a chi la
+   corregge**: oggi quel segno e' l'unica cosa che distingue una scheda
+   segnata dal ripasso da una segnata dalla migration del 18/09/2026, e il
+   suo ritorno si appoggia proprio a quello.
+
 E una nota sul guardiano dei nomi dei fornitori: cerca soltanto la parola
 "Supabase". "MotorK" o "DealerK" in una dicitura non verrebbero fermati. La
 forma resta "deciso dal tuo sito", per disciplina e non per guardiano.
