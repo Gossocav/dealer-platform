@@ -116,6 +116,51 @@ function aGiorno(valore: string | null | undefined): number | null {
   return Date.UTC(Number(trovato[1]), Number(trovato[2]) - 1, Number(trovato[3]));
 }
 
+/**
+ * Da quanto tempo la vettura e' in piazzale, detto **come si puo' dire**.
+ *
+ * Sono due frasi diverse perche' sono due cose diverse, e confonderle sarebbe
+ * il difetto piu' ripetuto di questo progetto in una forma nuova:
+ *
+ * - la data che il sito **dichiara** e' una misura: "In piazzale da 214
+ *   giorni";
+ * - la data che il suo fornitore ha **dedotto** nasce insieme alla scheda sul
+ *   sito, quindi dice solo da quando l'annuncio e' pubblicato: e' un **limite
+ *   inferiore**, e la frase lo dice con "da almeno". Misurato il 18/09/2026 su
+ *   Autogepy: tutte e 116 le date sono dedotte e **diciannove portano lo
+ *   stesso giorno**, quello in cui il fornitore ha ricreato le schede.
+ *
+ * **Per ogni altro caso la frase non c'e'.** Niente ripieghi: una fonte che
+ * oggi non esiste su questo campo (`feed`, `dealer`), una qualita' non
+ * registrata, un numero di giorni che manca o che e' negativo -- una data
+ * d'ingresso nel futuro -- non producono una frase sbagliata, producono
+ * silenzio, e chi chiama dice perche'.
+ */
+export function fraseIngresso(giorni: number | null, fonte: string | null | undefined): string | null {
+  if (giorni === null || !Number.isFinite(giorni) || giorni < 0) return null;
+  const quanto = giorni === 0 ? "oggi" : giorni === 1 ? "1 giorno" : `${giorni} giorni`;
+  if (fonte === "sito") return `In piazzale da ${quanto}`;
+  if (fonte === "dedotto") {
+    return giorni === 0
+      ? "In vetrina sul tuo sito da oggi"
+      : `In vetrina sul tuo sito da almeno ${quanto}`;
+  }
+  return null;
+}
+
+/** Perche' la frase dell'ingresso non c'e'. Un trattino non va mai da solo. */
+export function percheNienteIngresso(input: {
+  enteredOn: string | null | undefined;
+  fonte: string | null | undefined;
+  giorni: number | null;
+}): string | null {
+  if (!String(input.enteredOn ?? "").trim()) return "il tuo sito non dice quando e' entrata";
+  if (input.giorni === null) return "la data d'ingresso non si legge";
+  if (input.giorni < 0) return "la data d'ingresso e' nel futuro";
+  if (input.fonte !== "sito" && input.fonte !== "dedotto") return "non sappiamo da dove arriva questa data";
+  return null;
+}
+
 /** In quale fascia cade un numero di giorni. */
 export function fasciaDi(giorni: number): FasciaId {
   const trovata = FASCE.find((fascia) => giorni >= fascia.da && (fascia.a === null || giorni <= fascia.a));
