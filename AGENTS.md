@@ -613,6 +613,24 @@ rosso prima di fidarsi del verde (una interrogazione finta senza `dealer_id`).
 Vale per le tabelle, e per qualunque famiglia che un controllo enumera:
 colonne, ruoli, tipi di notifica, cartelle.
 
+**E quando un controllo legge il codice con un'espressione, l'espressione e'
+parte del controllo.** Un guardiano che scandisce i sorgenti con una regex
+non guarda i file: guarda **quello che la regex cattura**, e cio' che le
+sfugge risponde "tutto a posto" esattamente come cio' che e' sano.
+
+Il 18/09/2026: il guardiano che verifica che ogni campo scritto da
+`payloadDatiVeicolo` sia elencato in `CAMPI_DAL_SITO` leggeva i nomi con
+`[a-z_]+`. **Le cifre non ci sono dentro**, quindi saltava in silenzio ogni
+campo con un numero nel nome. Ce n'era uno solo, `co2_emissions`, e per
+fortuna era gia' in elenco: il difetto non e' costato niente, ma il controllo
+non lo stava guardando da quando esiste. Trovato scrivendo un altro test che
+usava la stessa espressione e che non tornava il conto.
+
+La prova che serve e' sempre la stessa: **si pianta un caso finto che la
+regex dovrebbe trovare** -- qui un campo nuovo chiamato `euro6_ready` -- e si
+guarda che il test diventi rosso. Se resta verde, non e' il codice a essere
+sano: e' il controllo a non guardare.
+
 **Le funzioni che oggi nessuno tocca sono quelle dove aspettarsi le
 sorprese.** "Duplica" e' rimasto rotto **dieci giorni** (dal 06/09 al
 16/09/2026) senza che nessuno se ne accorgesse. Non e' colpa di nessuno: e'

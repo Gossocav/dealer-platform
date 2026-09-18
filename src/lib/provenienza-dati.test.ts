@@ -502,7 +502,12 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
     // l'aveva messo -- cioe' il difetto tornerebbe, ma solo su quel campo.
     const elenco = sync.slice(sync.indexOf("export const CAMPI_DAL_SITO"), sync.indexOf("] as const"));
     const nelPayload = [
-      ...sync.slice(sync.indexOf("export function payloadDatiVeicolo")).matchAll(/^\s{4}([a-z_]+):/gm),
+      // `[a-z0-9_]` e non `[a-z_]`: fino al 18/09/2026 la cifra mancava, e
+      // questo controllo saltava in silenzio **ogni** campo con un numero nel
+      // nome -- `co2_emissions` era l'unico, ed era per fortuna gia' in
+      // elenco. Un controllo che non guarda una riga risponde "tutto a posto"
+      // esattamente come uno che l'ha guardata.
+      ...sync.slice(sync.indexOf("export function payloadDatiVeicolo")).matchAll(/^\s{4}([a-z0-9_]+):/gm),
     ].map((m) => m[1]);
 
     const mancanti = nelPayload.filter((campo) => !elenco.includes(`"${campo}"`));
