@@ -284,6 +284,26 @@ export function etichettaProvenienza(origineDati: unknown, campo: string): strin
 }
 
 /**
+ * La dicitura da mettere sotto un valore: **la sua provenienza, oppure il
+ * perche' manca**. Sono due cose diverse e la schermata non deve sceglierle a
+ * mano, o fra tre schermate diventano tre regole.
+ *
+ * Un campo vuoto non ha provenienza: il sito non lo scrive, quindi non lascia
+ * nessun segno. Dire "provenienza non registrata" accanto a un trattino
+ * risponderebbe a una domanda che nessuno ha fatto; quello che chi guarda
+ * vuole sapere e' **perche' non c'e'**.
+ */
+export function notaDelCampo(origineDati: unknown, campo: string, valore: unknown, daUnSito: boolean): string {
+  const vuoto =
+    valore === null ||
+    valore === undefined ||
+    (typeof valore === "string" && valore.trim() === "") ||
+    (Array.isArray(valore) && valore.length === 0);
+  if (vuoto) return daUnSito ? "il tuo sito non lo dichiara" : "non e' stato indicato";
+  return etichettaProvenienza(origineDati, campo);
+}
+
+/**
  * La dicitura per un valore che **non e' stato letto da nessuna parte: l'ha
  * contato KeyAuto**. I giorni in piazzale, un totale, una percentuale.
  *

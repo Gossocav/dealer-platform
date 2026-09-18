@@ -24,14 +24,26 @@ import { pickCoverPreviewUrl, resolveVehicleImageRows, type ResolvedVehicleImage
 import { buildVehicleTimelineEvents, listVehicleTimelineAuditEvents, writeVehicleTimelineEvent, type VehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import { useRouter } from "next/navigation";
 import {
-  formatCurrency,
+  campoDellImmatricolazione,
   formatDate,
-  formatRegistrationLabel,
   formatVehicleStatus,
+  giornoDaMostrare,
+  immatricolazioneDaMostrare,
+  prezzoDaMostrare,
   safeText,
   validateVehicleStatusTransitionForCrud,
   type VehicleRow,
 } from "@/lib/vehicles";
+import { fraseIngresso, giorniTra, oggiIso, percheNienteIngresso } from "@/lib/giacenza";
+import {
+  calcolatoDaKeyAuto,
+  disaccordo,
+  etichettaProvenienza,
+  fraseDelDisaccordo,
+  notaDelCampo,
+  provenienza,
+} from "@/lib/provenienza-dati";
+import { regimeIvaDaMostrare } from "@/lib/regime-iva";
 
 type VehicleDetailPageProps = {
   vehicleId: string;
@@ -57,6 +69,17 @@ type VehicleWithEquipment = VehicleRow & {
   plate?: string | null;
   vin?: string | null;
   equipment?: string[] | string | null;
+  co2_emissions?: string | number | null;
+  vat_regime?: string | null;
+  import_source?: string | null;
+  /** Da dove viene ogni campo. Si legge solo con le funzioni di provenienza-dati. */
+  origine_dati?: unknown;
+  /**
+   * L'acquisizione, incorporata: una sola riga per vettura. La produzione la
+   * consegna come oggetto (verificato il 18/09/2026), ma si accetta anche
+   * l'elenco -- una forma inattesa farebbe sparire la data in silenzio.
+   */
+  vehicle_acquisitions?: { entered_on: string | null } | { entered_on: string | null }[] | null;
 };
 
 type ViewImage = ResolvedVehicleImage;
@@ -156,7 +179,7 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
         supabase
           .from("vehicles")
           .select(
-            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, video_url, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, plate, vin, equipment, created_at, updated_at"
+            "id, dealer_id, brand, model, version, vehicle_category, vehicle_condition, year, mileage, fuel, transmission, traction, price, status, published, city, province, description, video_url, body_type, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, plate, vin, equipment, created_at, updated_at, co2_emissions, vat_regime, import_source, origine_dati, vehicle_acquisitions(entered_on)"
           )
           .eq("id", vehicleId)
           .eq("dealer_id", dealerId)
@@ -217,6 +240,68 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
     if (!vehicle) return false;
     return String(vehicle.status ?? "").toLowerCase() === "published" || Boolean(vehicle.published);
   }, [vehicle]);
+
+  /**
+   * **Da dove viene ogni dato di questa scheda.**
+   *
+   * Un'auto agganciata a un sito e una scritta a mano hanno due ragioni
+   * diverse per non avere un campo, e la nota lo dice: "il tuo sito non lo
+   * dichiara" contro "non e' stato indicato".
+   */
+  const daUnSito = Boolean(String(vehicle?.import_source ?? "").trim());
+  const nota = (campo: string, valore: unknown) => notaDelCampo(vehicle?.origine_dati, campo, valore, daUnSito);
+
+  /** Il prezzo, che senza valore non vale zero, e il disaccordo con il sito. */
+  const prezzo = prezzoDaMostrare(vehicle?.price);
+  const prezzoInDisaccordo = disaccordo(vehicle?.origine_dati, "price");
+  const fraseSulPrezzo = prezzoInDisaccordo
+    ? fraseDelDisaccordo(prezzoDaMostrare(prezzoInDisaccordo.valore).testo, prezzoInDisaccordo.fonte)
+    : null;
+
+  /**
+   * L'immatricolazione: il testo lo decide la fonte -- una data letta dal
+   * sito non ha il giorno -- e la dicitura segue **il campo che ha prodotto
+   * la scritta**, che puo' essere la data piena, il mese con l'anno o il solo
+   * anno. Leggere sempre il segno di `registration_date` direbbe "dal tuo
+   * sito" a un'auto importata da un file, che quel campo non l'ha mai avuto.
+   */
+  const campiImmatricolazione = {
+    registration_date: vehicle?.registration_date ?? null,
+    registration_month: vehicle?.registration_month ?? null,
+    year: vehicle?.year ?? null,
+  };
+  const campoImmatricolazione = campoDellImmatricolazione(campiImmatricolazione);
+  const fonteImmatricolazione = campoImmatricolazione
+    ? provenienza(vehicle?.origine_dati, campoImmatricolazione)?.fonte ?? null
+    : null;
+  const immatricolazione = immatricolazioneDaMostrare(campiImmatricolazione, fonteImmatricolazione);
+
+  const regimeIva = regimeIvaDaMostrare(vehicle?.vat_regime, daUnSito);
+
+  /**
+   * **Da quanto tempo la vettura e' in piazzale.** La data sta su un'altra
+   * tabella, la sua qualita' sulla scheda: dichiarata dal sito e' una misura,
+   * dedotta dal suo fornitore e' un limite inferiore, e le due hanno frasi
+   * diverse. Per ogni altro caso non c'e' frase e si dice perche'.
+   *
+   * Si vede su **tutti i piani**: un concessionario Base oggi non ha nessun
+   * modo di sapere da quanto ha un'auto ferma.
+   */
+  const acquisizione = Array.isArray(vehicle?.vehicle_acquisitions)
+    ? vehicle?.vehicle_acquisitions[0] ?? null
+    : vehicle?.vehicle_acquisitions ?? null;
+  const ingresso = acquisizione?.entered_on ?? null;
+  const fonteIngresso = provenienza(vehicle?.origine_dati, "entered_on")?.fonte ?? null;
+  const giorniInPiazzale = giorniTra(ingresso, oggiIso());
+  const frasePiazzale = fraseIngresso(giorniInPiazzale, fonteIngresso);
+  const perchePiazzale = percheNienteIngresso({ enteredOn: ingresso, fonte: fonteIngresso, giorni: giorniInPiazzale });
+  const notaPiazzale = frasePiazzale
+    ? [
+        `dalla data d'ingresso ${giornoDaMostrare(ingresso) ?? ingresso}`,
+        etichettaProvenienza(vehicle?.origine_dati, "entered_on"),
+        calcolatoDaKeyAuto(),
+      ].join(" · ")
+    : perchePiazzale;
 
   const togglePublished = async () => {
     if (!vehicle) return;
@@ -357,7 +442,19 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
             <h2 className="mt-1 text-2xl font-semibold text-slate-900">
               {safeText(vehicle.brand)} {safeText(vehicle.model)} {safeText(vehicle.version)}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">Inserito il {formatDate(vehicle.created_at)}</p>
+            {/* **Due date vicine, e sono cose diverse.** Per un'auto letta da
+                un sito `created_at` e' il giorno della prima sincronizzazione,
+                non quello in cui e' entrata in piazzale: senza dirlo, le due
+                si leggono come la stessa. */}
+            <div className="mt-2 space-y-1">
+              <p className="text-sm text-slate-600">
+                Registrato su KeyAuto il {formatDate(vehicle.created_at)}
+              </p>
+              <p className="text-sm font-medium text-slate-700">
+                {frasePiazzale ?? "Da quanto e' in piazzale: —"}
+              </p>
+              {notaPiazzale ? <p className="text-xs text-slate-500">{notaPiazzale}</p> : null}
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
@@ -476,39 +573,43 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
               <div className="grid gap-3 sm:grid-cols-2">
                 {/* Same order as the creation form, so checking a vehicle
                     against what was typed in is a straight read down the list. */}
-                <Detail label="Tipo veicolo" value={safeText(vehicle.vehicle_category)} />
-                <Detail label="Condizioni" value={safeText(vehicle.vehicle_condition)} />
-                <Detail label="Carrozzeria" value={safeText(vehicle.body_type)} />
-                <Detail label="Marca" value={safeText(vehicle.brand)} />
-                <Detail label="Modello" value={safeText(vehicle.model)} />
-                <Detail label="Versione" value={safeText(vehicle.version)} />
-                <Detail label="Prezzo" value={formatCurrency(Number(vehicle.price ?? 0))} />
+                <Detail label="Tipo veicolo" value={safeText(vehicle.vehicle_category)} nota={nota("vehicle_category", vehicle.vehicle_category)} />
+                <Detail label="Condizioni" value={safeText(vehicle.vehicle_condition)} nota={nota("vehicle_condition", vehicle.vehicle_condition)} />
+                <Detail label="Carrozzeria" value={safeText(vehicle.body_type)} nota={nota("body_type", vehicle.body_type)} />
+                <Detail label="Marca" value={safeText(vehicle.brand)} nota={nota("brand", vehicle.brand)} />
+                <Detail label="Modello" value={safeText(vehicle.model)} nota={nota("model", vehicle.model)} />
+                <Detail label="Versione" value={safeText(vehicle.version)} nota={nota("version", vehicle.version)} />
+                <Detail
+                  label="Prezzo"
+                  value={prezzo.testo}
+                  nota={prezzo.perche ?? nota("price", vehicle.price)}
+                  disaccordo={fraseSulPrezzo}
+                />
+                {/* Lo stato non arriva dal sito: lo muovono il concessionario e
+                    il tetto del piano, e per questo non ha provenienza. */}
                 <Detail label="Stato" value={formatVehicleStatus(vehicle.status, vehicle.published)} />
-                <Detail label="Alimentazione" value={safeText(vehicle.fuel)} />
-                <Detail label="Cambio" value={safeText(vehicle.transmission)} />
-                <Detail label="Chilometraggio" value={formatMileageForDetail(vehicle.mileage)} />
-                <Detail label="Trazione" value={safeText(vehicle.traction)} />
-                <Detail label="Cilindrata" value={safeText(vehicle.engine_size)} />
-                <Detail label="Potenza kW" value={safeText(vehicle.power_kw)} />
-                <Detail label="Potenza CV" value={safeText(vehicle.power_cv)} />
-                <Detail label="Porte" value={safeText(vehicle.doors)} />
-                <Detail label="Posti" value={safeText(vehicle.seats)} />
-                <Detail label="Classe Euro" value={safeText(vehicle.emission_class)} />
+                <Detail label="Alimentazione" value={safeText(vehicle.fuel)} nota={nota("fuel", vehicle.fuel)} />
+                <Detail label="Cambio" value={safeText(vehicle.transmission)} nota={nota("transmission", vehicle.transmission)} />
+                <Detail label="Chilometraggio" value={formatMileageForDetail(vehicle.mileage)} nota={nota("mileage", vehicle.mileage)} />
+                <Detail label="Trazione" value={safeText(vehicle.traction)} nota={nota("traction", vehicle.traction)} />
+                <Detail label="Cilindrata" value={safeText(vehicle.engine_size)} nota={nota("engine_size", vehicle.engine_size)} />
+                <Detail label="Potenza kW" value={safeText(vehicle.power_kw)} nota={nota("power_kw", vehicle.power_kw)} />
+                <Detail label="Potenza CV" value={safeText(vehicle.power_cv)} nota={nota("power_cv", vehicle.power_cv)} />
+                <Detail label="Porte" value={safeText(vehicle.doors)} nota={nota("doors", vehicle.doors)} />
+                <Detail label="Posti" value={safeText(vehicle.seats)} nota={nota("seats", vehicle.seats)} />
+                <Detail label="Classe Euro" value={safeText(vehicle.emission_class)} nota={nota("emission_class", vehicle.emission_class)} />
+                <Detail label="Emissioni CO2" value={safeText(vehicle.co2_emissions)} nota={nota("co2_emissions", vehicle.co2_emissions)} />
                 <Detail
                   label="Immatricolazione"
-                  value={
-                    formatRegistrationLabel({
-                      registration_date: vehicle.registration_date,
-                      registration_month: vehicle.registration_month,
-                      year: vehicle.year,
-                    }) ?? "-"
-                  }
+                  value={immatricolazione ?? "—"}
+                  nota={campoImmatricolazione ? nota(campoImmatricolazione, immatricolazione) : nota("registration_date", null)}
                 />
-                <Detail label="Colore" value={safeText(vehicle.color)} />
-                <Detail label="Interni" value={safeText(vehicle.interior_type)} />
-                <Detail label="Garanzia" value={safeText(vehicle.warranty)} />
-                <Detail label="Targa" value={safeText(vehicle.plate)} />
-                <Detail label="Telaio" value={safeText(vehicle.vin)} />
+                <Detail label="Regime IVA" value={regimeIva.testo} nota={regimeIva.perche ?? nota("vat_regime", vehicle.vat_regime)} />
+                <Detail label="Colore" value={safeText(vehicle.color)} nota={nota("color", vehicle.color)} />
+                <Detail label="Interni" value={safeText(vehicle.interior_type)} nota={nota("interior_type", vehicle.interior_type)} />
+                <Detail label="Garanzia" value={safeText(vehicle.warranty)} nota={nota("warranty", vehicle.warranty)} />
+                <Detail label="Targa" value={safeText(vehicle.plate)} nota={nota("plate", vehicle.plate)} />
+                <Detail label="Telaio" value={safeText(vehicle.vin)} nota={nota("vin", vehicle.vin)} />
               </div>
 
               <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-2xl bg-slate-50 p-4">
@@ -653,7 +754,28 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   );
 }
 
-function Detail({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+/**
+ * Un campo della scheda: etichetta, valore, e **sotto la sua nota**.
+ *
+ * La nota non e' un ornamento: e' la regola che un numero non si mostra mai
+ * nudo. Dice da dove viene il valore, oppure perche' non c'e'. Quando il sito
+ * dichiara una cosa diversa da quella scritta dal concessionario, il
+ * disaccordo si legge sotto, in ambra, senza toccare il valore: qui si
+ * mostra e basta, scegliere sara' un'altra volta.
+ */
+function Detail({
+  label,
+  value,
+  icon,
+  nota,
+  disaccordo,
+}: {
+  label: string;
+  value: string;
+  icon?: ReactNode;
+  nota?: string | null;
+  disaccordo?: string | null;
+}) {
   return (
     <div className="rounded-xl bg-slate-50 px-3 py-2.5">
       <p className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -661,6 +783,8 @@ function Detail({ label, value, icon }: { label: string; value: string; icon?: R
         {label}
       </p>
       <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
+      {nota ? <p className="mt-0.5 text-xs text-slate-500">{nota}</p> : null}
+      {disaccordo ? <p className="mt-1 text-xs font-medium text-amber-700">{disaccordo}</p> : null}
     </div>
   );
 }
