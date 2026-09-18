@@ -270,7 +270,16 @@ in questo progetto e' gia' costata tre volte:
    11.500 di margine, visto su una riga vera in produzione (31/08/2026);
 3. il **costo totale**, che sommava le altre voci ignorando l'acquisto
    mancante: 500 euro di trasporto su una vettura pagata 14.000 rispondevano
-   "costo totale 500 euro" (14/09/2026).
+   "costo totale 500 euro" (14/09/2026);
+4. il **prezzo d'acquisto scritto a zero**, che il modulo del conto economico
+   rilegge come **vuoto** (`vehicle-economics-card.tsx`: un importo pari a
+   zero diventa stringa vuota, e la stringa vuota torna `null`). A schermo
+   compare "manca il prezzo di acquisto" su una vettura il cui prezzo
+   d'acquisto c'e' ed e' zero -- una permuta a saldo, un'auto della casa
+   madre. E' la stessa famiglia al contrario: qui non e' il vuoto che diventa
+   zero, e' lo zero che diventa vuoto, e la regola che li distingue e' la
+   stessa. **Trovato leggendo il 18/09/2026, non ancora provato su una riga
+   vera: si prova prima di correggere.**
 
 La forma e' sempre la stessa: **un numero plausibile al posto di "non lo so"**.
 Chi guarda lo schermo non ha nessun modo di distinguerli, e ci crede. Le
@@ -644,6 +653,79 @@ non-DEFAULT value into column ricerca_testo"* -- e portava con se' anche
 targa, telaio, cliente e l'aggancio al sito dell'originale. Una copia dichiara
 cosa **non** porta, in un posto solo (`src/lib/duplica-veicolo.ts`), e non
 parte mai da "tutto".
+
+**Difetti trovati leggendo il 18/09/2026, annotati e non corretti.** Sono
+usciti preparando la fetta che mostra i dati, e nessuno si corregge dentro una
+modifica che parla d'altro. In ordine di quanto gia' fanno danno:
+
+1. **Lo zero riletto come vuoto nel conto economico** -- vedi il punto 4 qui
+   sopra. E' un numero falso **gia' a video**, non un difetto latente: si
+   prova su una riga vera e si corregge **subito dopo la fetta che mostra**.
+2. **Il prezzo assente mostrato come "0 €"** sulla scheda del veicolo e in
+   Gestione Veicoli (`formatCurrency(Number(vehicle.price ?? 0))`): un'auto
+   senza prezzo dichiara zero euro. Anche questo e' gia' a video, e si
+   corregge **dentro** la fetta che mostra, perche' mettergli accanto "dal tuo
+   sito" lo trasformerebbe in un numero falso **firmato**.
+3. **"Invia al cliente" e l'email rispondono in due modi allo stesso vuoto**:
+   la finestra scrive "Su richiesta" per un prezzo assente, l'email scrive
+   "-". "Su richiesta" e' per giunta una frase che il concessionario non ha
+   detto.
+4. **La "Completezza" della Salute veicolo conta un dato proposto** come se
+   fosse acquisito (conta `registration_date` senza guardare se e'
+   confermato). Va sistemata **quando esistera' la conferma**, non prima:
+   oggi, senza un modo per confermare, escluderla farebbe scendere il
+   punteggio di tutti senza che nessuno possa farci niente.
+
+E una nota sul guardiano dei nomi dei fornitori: cerca soltanto la parola
+"Supabase". "MotorK" o "DealerK" in una dicitura non verrebbero fermati. La
+forma resta "deciso dal tuo sito", per disciplina e non per guardiano.
+
+**Un numero e la sua forma scritta non sono la stessa cosa.** Confrontare due
+numeri **come stringhe** produce differenze che non esistono: il database
+restituisce un prezzo come `"9500.00"`, il modulo lo rimanda come `9500`, e
+`"9500.00" !== "9500"`. E' la stessa cifra.
+
+Il 18/09/2026 quel confronto decideva due cose insieme: quali campi il
+concessionario aveva davvero cambiato salvando una scheda, e se il sito era
+in disaccordo con lui. Le schede si sarebbero riempite di disaccordi falsi su
+prezzi **identici** -- *"il tuo sito ora dice 9.500 €, tu avevi scritto
+9.500 €"* -- e nessuno avrebbe capito perche'.
+
+**Il rovescio vale altrettanto, ed e' la parte che si sbaglia correggendo:**
+per i campi di testo il confronto resta testuale. `GA123BC` e `GA123BD` sono
+targhe davvero diverse, e un confronto che le "normalizzasse" a numero le
+farebbe diventare la stessa cosa. La regola e' una sola riga: **si confronta
+come numeri solo quando tutti e due i lati si leggono come numeri**, e il
+vuoto non e' mai un numero.
+
+**Come si e' trovata: lavorando su altro.** Non l'ha segnalata nessuno e
+nessuna schermata la mostrava ancora. Le prossime si troveranno allo stesso
+modo, quindi **vale la pena guardare i confronti anche dove nessuno si
+lamenta**: un confronto sbagliato non fa rumore, fa dati sbagliati.
+
+**Chi non conosce il valore in archivio non dichiara nessun disaccordo -- e
+non ne cancella uno.** E' il principio generale, e vale per **qualsiasi**
+confronto, non solo per i tre campi che l'hanno prodotto.
+
+Il caso: il ripasso **proponeva** tre campi letti dal blocco ricco e ne
+**rileggeva** dall'archivio soltanto ventidue. Per un campo che il
+concessionario aveva scritto, il confronto era fra il valore del sito e il
+**vuoto**: sempre diverso, quindi un disaccordo anche fra due date identiche.
+Il vuoto li' non voleva dire "il concessionario non ha scritto niente",
+voleva dire **"non ho guardato"**, ed e' la stessa distinzione fra `null` e
+`0` che questo progetto ha gia' pagato.
+
+Quindi: prima di dire che due valori sono diversi, si guarda se si ha
+davvero il secondo. Non sapere non e' un disaccordo, e nemmeno un accordo:
+il segno resta **com'era**.
+
+**E il guardiano non elenca i nomi, controlla la regola.** Quello scritto per
+questo difetto non dice "immatricolazione, regime IVA, data d'ingresso": dice
+**"ogni campo che il blocco ricco propone deve essere anche riletto
+dall'archivio"**. Un quarto campo aggiunto domani lo fa fallire da solo. Un
+elenco si dimentica di aggiornare, una regola no -- ed e' la stessa
+differenza fra `CAMPI_DAL_SITO` ricavato dal payload e un elenco scritto a
+mano da qualche altra parte.
 
 **Un controllo si dimentica, un campo che non arriva non si puo' scrivere.**
 Quando una regola dice "questo dato non si tocca", non la si affida a chi

@@ -145,6 +145,41 @@ differenza si vede da fuori, e per questo va detto per primo.
 
 ---
 
+## Il debito: "da confermare" su tutto, e nessun modo di confermare
+
+**Dal 18/09/2026, e va chiuso per primo.** La fetta che mostra i dati scrive
+accanto a ogni valore arrivato dal sito la dicitura **"· da confermare"**,
+perche' `confermato_il` non lo scrive nessuno: nessuna schermata ha un modo
+per dire "si', e' giusto". Sono tutte le immatricolazioni e tutti i regimi IVA
+di ogni concessionaria collegata -- 78 e 78 su Ponginibbi, 114 e 5 su Autogepy
+il 18/09/2026.
+
+E' voluto: **prima si mostra, poi si chiede**, e un invito prima di un regalo
+non funziona. Ma il concessionario leggera' su ogni riga una richiesta a cui
+non puo' rispondere, e questo **non deve durare settimane**.
+
+**La fetta successiva comincia da qui**, insieme ai due bottoni del
+disaccordo:
+
+- **"Adotta quello del sito" / "Tieni il mio"** sul prezzo e sugli altri campi
+  in disaccordo (vedi piu' sopra). Tre decisioni da prendere prima di
+  disegnarli: cosa scrive "Adotta" nella provenienza (segnarlo `dealer`
+  direbbe "scritto da te" su un valore del sito); dove si scrive "Tieni il
+  mio", perche' oggi il disaccordo si riscrive a ogni giro e il riquadro
+  ricomparirebbe entro tre ore; e se la conferma vale per un campo o per la
+  scheda.
+- **Confermare un dato proposto**, che e' la stessa azione vista dall'altra
+  parte: un campo confermato smette di dire "da confermare" e -- questa e' la
+  conseguenza vera -- **puo' entrare nei conti**, perche' oggi la regola e'
+  "un dato proposto si mostra ma non si usa".
+
+Finche' non esiste la conferma, nessun dato proposto entra in giacenza, nel
+margine o nella completezza. La "Completezza" della Salute veicolo oggi lo fa
+gia', ed e' annotato in [AGENTS.md](AGENTS.md): si sistema quando la conferma
+esiste, non prima.
+
+---
+
 ## Le due porte che scrivono senza dirlo
 
 **Dal 16/09/2026.** La regola "un dato scritto dal concessionario non viene
