@@ -254,6 +254,19 @@ export function prezzoDaMostrare(valore: unknown): { testo: string; perche: stri
   return { testo: formatCurrency(numero), perche: null };
 }
 
+/**
+ * Una data "AAAA-MM-GG" come si scrive in italiano.
+ *
+ * Non passa da `new Date`: la scheda gira nel browser, e una data senza ora
+ * letta come mezzanotte UTC diventa il giorno prima per chiunque stia a ovest
+ * di Greenwich. Una vettura entrata in piazzale il primo del mese
+ * risulterebbe entrata l'ultimo del mese prima.
+ */
+export function giornoDaMostrare(valore: unknown): string | null {
+  const pezzi = String(valore ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return pezzi ? `${pezzi[3]}/${pezzi[2]}/${pezzi[1]}` : null;
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",

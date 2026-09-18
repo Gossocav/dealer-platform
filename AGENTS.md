@@ -592,6 +592,27 @@ giorno l'ha fatto. Le due regole:
    cinque. Un elenco che cambia contenuto va riscritto con la data e il
    motivo, non aggiustato in silenzio per far tornare il conto.
 
+**Un guardiano si rilegge quando una tabella comincia a essere usata, non
+solo quando viene creata.** E' la terza faccia di "zero differenze li' vuol
+dire non guardato", e si presenta sempre allo stesso modo: un controllo che
+risponde **zero** perche' non c'e' niente da controllare, e che resta cosi'
+anche il giorno in cui qualcosa da controllare c'e'.
+
+Il 18/09/2026 `vehicle_acquisitions` non era fra le tabelle sorvegliate da
+`src/lib/tenant-scoped-queries.test.ts`. Non era una svista: quando la tabella
+e' nata, il 15/09, **nessuna schermata la leggeva** -- la scriveva soltanto la
+sincronizzazione -- e un elenco di tabelle da sorvegliare non serviva a
+niente. Tre giorni dopo la scheda del veicolo ha cominciato a leggerla, e da
+quel momento una interrogazione senza `dealer_id` sarebbe passata **verde**:
+non perche' fosse giusta, ma perche' nessuno la stava guardando.
+
+Il momento in cui rileggere un guardiano non e' quello in cui si crea la
+tabella: e' quello in cui **la prima schermata la apre**. Nella stessa
+modifica che la legge si aggiunge il suo nome all'elenco, e si produce il
+rosso prima di fidarsi del verde (una interrogazione finta senza `dealer_id`).
+Vale per le tabelle, e per qualunque famiglia che un controllo enumera:
+colonne, ruoli, tipi di notifica, cartelle.
+
 **Le funzioni che oggi nessuno tocca sono quelle dove aspettarsi le
 sorprese.** "Duplica" e' rimasto rotto **dieci giorni** (dal 06/09 al
 16/09/2026) senza che nessuno se ne accorgesse. Non e' colpa di nessuno: e'

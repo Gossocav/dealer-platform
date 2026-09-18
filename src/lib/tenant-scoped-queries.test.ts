@@ -18,6 +18,11 @@ const TABELLE_DI_CONCESSIONARIA = [
   // Sta in una tabella a parte proprio perche' non deve mai uscire, e vale
   // la stessa regola di tutte le altre.
   "vehicle_economics",
+  // Da dove arriva una vettura e quando e' entrata in piazzale. Aggiunta il
+  // 18/09/2026, quando la scheda ha cominciato a leggerla: fino a quel giorno
+  // nessuna schermata la toccava e il guardiano rispondeva zero -- che e'
+  // esattamente "zero differenze li' vuol dire non guardato".
+  "vehicle_acquisitions",
 ];
 
 const CARTELLE = [
