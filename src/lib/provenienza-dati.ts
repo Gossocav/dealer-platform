@@ -57,8 +57,16 @@ export type SegnoDiProvenienza = {
   fonte: Fonte;
   /** Quando il concessionario l'ha confermato. Assente = e' una proposta. */
   confermato_il?: string | null;
-  /** Cosa dice il sito adesso, quando non e' d'accordo con il concessionario. */
-  il_sito_dice?: { valore: string; visto_il: string } | null;
+  /**
+   * Cosa dice il sito adesso, quando non e' d'accordo con il concessionario.
+   *
+   * `fonte` dice **chi** non e' d'accordo: il sito della concessionaria o il
+   * feed che ci manda. Senza, la scheda avrebbe dovuto scegliere una frase a
+   * caso, e "il tuo sito ora dice" a chi manda un feed e' una provenienza
+   * sbagliata -- peggio di nessuna. Manca sui disaccordi registrati prima del
+   * 18/09/2026 (in produzione: nessuno).
+   */
+  il_sito_dice?: { valore: string; visto_il: string; fonte?: FonteAutomatica } | null;
 };
 
 export type OrigineDati = Record<string, SegnoDiProvenienza>;
@@ -177,7 +185,7 @@ export function scriviDalSito(
       if (uguali(valoriInArchivio[campo], letto.valore)) {
         delete nuovo.il_sito_dice;
       } else {
-        nuovo.il_sito_dice = { valore: String(letto.valore), visto_il: oggi };
+        nuovo.il_sito_dice = { valore: String(letto.valore), visto_il: oggi, fonte: letto.fonte };
       }
       origineDati[campo] = nuovo;
       continue;
@@ -251,12 +259,69 @@ export function campiDavveroCambiati(
   );
 }
 
-/** La dicitura da mettere accanto al valore. Un numero non si mostra mai nudo. */
-export function etichettaProvenienza(origineDati: unknown, campo: string): string | null {
+/**
+ * La dicitura per un campo che non ha nessun segno.
+ *
+ * Non e' un dettaglio: le schede nate prima del 15/09/2026, quelle importate
+ * da un file e quelle toccate dal foglio di consegna hanno `origine_dati`
+ * vuoto, e sono tante. Tacere lascerebbe un numero nudo -- la regola
+ * applicata a meta' -- e dedurre "scritto da te" dall'assenza sarebbe
+ * inventare. Quello che sappiamo e' che non lo sappiamo, e si dice.
+ */
+export const SENZA_SEGNO = "provenienza non registrata";
+
+/**
+ * La dicitura da mettere accanto al valore. **Risponde sempre**: un numero
+ * non si mostra mai nudo, nemmeno quando la sua provenienza non e' scritta.
+ */
+export function etichettaProvenienza(origineDati: unknown, campo: string): string {
   const segno = provenienza(origineDati, campo);
-  if (!segno) return null;
+  if (!segno) return SENZA_SEGNO;
   if (segno.fonte === "dealer") return "scritto da te";
   const daConfermare = segno.confermato_il ? "" : " · da confermare";
   if (segno.fonte === "feed") return `dal tuo feed${daConfermare}`;
   return segno.fonte === "sito" ? `dal tuo sito${daConfermare}` : `deciso dal tuo sito${daConfermare}`;
+}
+
+/**
+ * La dicitura per un valore che **non e' stato letto da nessuna parte: l'ha
+ * contato KeyAuto**. I giorni in piazzale, un totale, una percentuale.
+ *
+ * `da` dice **da cosa**, e non e' facoltativo per abitudine: due numeri
+ * calcolati dalla stessa schermata su due date diverse -- l'ingresso dal sito
+ * e l'acquisto scritto a mano -- si leggono come lo stesso numero se non si
+ * dice da dove vengono.
+ */
+export function calcolatoDaKeyAuto(da?: string | null): string {
+  const origine = String(da ?? "").trim();
+  return origine ? `calcolato da KeyAuto ${origine}` : "calcolato da KeyAuto";
+}
+
+/** Il disaccordo registrato su un campo, se c'e' ed e' leggibile. */
+export function disaccordo(
+  origineDati: unknown,
+  campo: string,
+): { valore: string; vistoIl: string; fonte: FonteAutomatica | null } | null {
+  const segno = provenienza(origineDati, campo);
+  // Un disaccordo esiste solo contro qualcosa che ha scritto il
+  // concessionario: su un campo che arriva dal sito, il sito non e' in
+  // disaccordo con se stesso -- lo riscrive e basta.
+  if (!segno || segno.fonte !== "dealer" || !segno.il_sito_dice) return null;
+  const detto = segno.il_sito_dice;
+  const fonte = detto.fonte === "sito" || detto.fonte === "dedotto" || detto.fonte === "feed" ? detto.fonte : null;
+  return { valore: String(detto.valore ?? ""), vistoIl: String(detto.visto_il ?? ""), fonte };
+}
+
+/**
+ * La frase del disaccordo, gia' scritta. `valoreFormattato` lo prepara chi
+ * chiama, perche' solo lui sa se quel campo e' un prezzo, una data o dei
+ * chilometri.
+ *
+ * Quando non si sa **chi** non e' d'accordo (disaccordi registrati prima del
+ * 18/09/2026) si dice "dove l'abbiamo letto": non si sceglie "il tuo sito"
+ * per default, che su una concessionaria a feed sarebbe falso.
+ */
+export function fraseDelDisaccordo(valoreFormattato: string, fonte: FonteAutomatica | null): string {
+  const chi = fonte === "feed" ? "Il tuo feed" : fonte === null ? "Dove l'abbiamo letto" : "Il tuo sito";
+  return `${chi} ora dice ${valoreFormattato}: sul marketplace vale il tuo.`;
 }

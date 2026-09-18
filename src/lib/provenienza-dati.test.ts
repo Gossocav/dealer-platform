@@ -102,7 +102,10 @@ describe("il disaccordo non si perde in silenzio", () => {
     expect(esito.origineDati.entered_on).toEqual({
       fonte: "dealer",
       confermato_il: "2026-09-16",
-      il_sito_dice: { valore: "2022-03-01", visto_il: OGGI },
+      // Dal 18/09/2026 il segno porta anche **chi** non era d'accordo: senza,
+      // la scheda avrebbe dovuto scegliere fra "il tuo sito" e "il tuo feed"
+      // a caso, e una provenienza sbagliata e' peggio di nessuna.
+      il_sito_dice: { valore: "2022-03-01", visto_il: OGGI, fonte: "sito" },
     });
   });
 
@@ -131,7 +134,7 @@ describe("il disaccordo non si perde in silenzio", () => {
       OGGI,
     );
 
-    expect(esito.origineDati.entered_on.il_sito_dice).toEqual({ valore: "2022-05-01", visto_il: OGGI });
+    expect(esito.origineDati.entered_on.il_sito_dice).toEqual({ valore: "2022-05-01", visto_il: OGGI, fonte: "sito" });
   });
 });
 
@@ -181,7 +184,10 @@ describe("la dicitura accanto al valore", () => {
     // peggio di nessuna provenienza (deciso il 16/09/2026).
     expect(etichettaProvenienza({ a: { fonte: "feed" } }, "a")).toBe("dal tuo feed · da confermare");
     expect(etichettaProvenienza({ a: { fonte: "feed", confermato_il: "2026-09-16" } }, "a")).toBe("dal tuo feed");
-    expect(etichettaProvenienza({}, "a")).toBeNull();
+    // Dal 18/09/2026 risponde **sempre**: prima taceva, e il silenzio su una
+    // scheda senza provenienza registrata lasciava un numero nudo -- la
+    // regola applicata a meta' proprio dove il parco e' piu' vecchio.
+    expect(etichettaProvenienza({}, "a")).toBe("provenienza non registrata");
   });
 });
 
@@ -424,7 +430,7 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
 
     expect(esito.origineDati.price).toEqual({
       fonte: "dealer",
-      il_sito_dice: { valore: "12000", visto_il: OGGI },
+      il_sito_dice: { valore: "12000", visto_il: OGGI, fonte: "sito" },
     });
   });
 
@@ -448,7 +454,10 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
     );
     expect(esito.daScrivere).toEqual({ mileage: 118000, equipment: ["Clima", "Navigatore"] });
     expect(esito.protetti).toEqual(["price"]);
-    expect(esito.origineDati.price).toEqual({ fonte: "dealer", il_sito_dice: { valore: "8900", visto_il: "2026-09-16" } });
+    expect(esito.origineDati.price).toEqual({
+      fonte: "dealer",
+      il_sito_dice: { valore: "8900", visto_il: "2026-09-16", fonte: "feed" },
+    });
     expect(esito.origineDati.mileage).toEqual({ fonte: "feed", confermato_il: null });
   });
 
@@ -596,7 +605,11 @@ describe("un disaccordo non si inventa", () => {
       dalSito({ registration_date: "2021-05-01" }),
       "2026-09-18",
     );
-    expect(diverso.origineDati.registration_date?.il_sito_dice).toEqual({ valore: "2021-05-01", visto_il: "2026-09-18" });
+    expect(diverso.origineDati.registration_date?.il_sito_dice).toEqual({
+      valore: "2021-05-01",
+      visto_il: "2026-09-18",
+      fonte: "sito",
+    });
 
     const uguale = scriviDalSito(
       { registration_date: { fonte: "dealer", il_sito_dice: { valore: "2021-05-01", visto_il: "2026-09-17" } } },

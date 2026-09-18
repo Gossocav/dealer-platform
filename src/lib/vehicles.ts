@@ -235,6 +235,25 @@ export const priceBandOptions = [
   { value: "40001-plus", label: "Oltre EUR 40.000" },
 ] as const;
 
+/**
+ * Il prezzo come si mostra, e **perche' manca quando manca**.
+ *
+ * Il difetto che chiude, trovato il 18/09/2026 e gia' a video da mesi: la
+ * scheda e l'elenco scrivevano `formatCurrency(Number(price ?? 0))`, quindi
+ * un'auto **senza prezzo** dichiarava "0 €". E' la famiglia di
+ * "un dato mancante non vale zero", e accanto a una dicitura di provenienza
+ * sarebbe diventato un numero finto **firmato**: "0 € -- dal tuo sito".
+ *
+ * Zero resta zero: una vettura messa a zero e' un dato, e si mostra.
+ */
+export function prezzoDaMostrare(valore: unknown): { testo: string; perche: string | null } {
+  const numero = typeof valore === "number" ? valore : Number(String(valore ?? "").trim());
+  if (valore === null || valore === undefined || String(valore).trim() === "" || !Number.isFinite(numero)) {
+    return { testo: "—", perche: "nessun prezzo indicato" };
+  }
+  return { testo: formatCurrency(numero), perche: null };
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -372,6 +391,59 @@ export function formatRegistrationLabel(input: {
   }
 
   return rawYear;
+}
+
+/**
+ * Quale campo ha davvero prodotto la scritta dell'immatricolazione.
+ *
+ * Serve per non attribuire a un campo la provenienza di un altro: la stessa
+ * riga a video puo' venire dalla data piena, dal mese piu' l'anno, o dal solo
+ * anno, e i tre hanno segni diversi. Un'auto importata da un file, che ha
+ * solo l'anno, direbbe "dal tuo sito" leggendo il segno di
+ * `registration_date`, che non ha mai avuto.
+ */
+export function campoDellImmatricolazione(input: {
+  registration_date?: string | null;
+  registration_month?: string | number | null;
+  year?: string | number | null;
+}): "registration_date" | "registration_month" | "year" | null {
+  if (String(input.registration_date ?? "").trim()) return "registration_date";
+  if (!String(input.year ?? "").trim()) return null;
+  const mese = Number(String(input.registration_month ?? "").trim());
+  return Number.isInteger(mese) && mese >= 1 && mese <= 12 ? "registration_month" : "year";
+}
+
+/**
+ * L'immatricolazione come si mostra, sapendo da dove viene il dato.
+ *
+ * **Una data letta da un sito non ha il giorno.** Il blocco dei siti dichiara
+ * "2022-01-01" per tutto cio' che e' immatricolato a gennaio 2022: quel "01"
+ * non e' il giorno vero, e' il modo del fornitore di scrivere un mese.
+ * Mostrarlo come "01/01/2022" e' una precisione che non esiste -- la stessa
+ * famiglia del margine a zero -- quindi da una fonte automatica si scrive
+ * "01/2022".
+ *
+ * Quando l'ha scritta il concessionario, il giorno e' un giorno e si mostra
+ * per intero. Quando non si sa da dove viene, si mostra cio' che c'e' scritto
+ * e la dicitura accanto dice che la provenienza non e' registrata.
+ *
+ * La data si scompone dal testo e non con `new Date`: la scheda gira nel
+ * browser, e "2022-01-01" letta come mezzanotte UTC diventa il 31 dicembre
+ * per chiunque stia a ovest di Greenwich.
+ */
+export function immatricolazioneDaMostrare(
+  input: {
+    registration_date?: string | null;
+    registration_month?: string | number | null;
+    year?: string | number | null;
+  },
+  fonte: "sito" | "dedotto" | "feed" | "dealer" | null,
+): string | null {
+  const rawDate = String(input.registration_date ?? "").trim();
+  const pezzi = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (pezzi && fonte !== "dealer" && fonte !== null) return `${pezzi[2]}/${pezzi[1]}`;
+  if (pezzi) return `${pezzi[3]}/${pezzi[2]}/${pezzi[1]}`;
+  return formatRegistrationLabel(input);
 }
 
 /**
