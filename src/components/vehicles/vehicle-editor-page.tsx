@@ -15,7 +15,7 @@ import { VEHICLE_BRAND_OPTIONS } from "@/lib/vehicle-brands";
 import { AVVISO_VIDEO_NON_VALIDO, identificativoVideo, indirizzoDaSalvare } from "@/lib/video-annuncio";
 import { messaggioTarga, messaggioTargaDoppia, targaDaSalvare } from "@/lib/targa";
 import { messaggioTelaio, messaggioTelaioDoppio, telaioDaSalvare } from "@/lib/telaio";
-import { segnaComeScrittoDalDealer } from "@/lib/provenienza-dati";
+import { campiDavveroCambiati, segnaComeScrittoDalDealer } from "@/lib/provenienza-dati";
 import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { messaggioPostiFiniti } from "@/lib/tetto-del-piano";
@@ -360,6 +360,11 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
    * questo, la sincronizzazione li riscriverebbe al primo ripasso.
    */
   const [origineDati, setOrigineDati] = useState<unknown>({});
+  /**
+   * La scheda com'era prima delle modifiche. Serve a sapere quali campi il
+   * concessionario ha **davvero** cambiato: solo quelli diventano suoi.
+   */
+  const [rigaInArchivio, setRigaInArchivio] = useState<Record<string, unknown> | null>(null);
   const [meseInArchivio, setMeseInArchivio] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -526,6 +531,7 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
         status: String(data.status ?? (data.published ? "published" : "draft")),
       });
       setOrigineDati((data as Record<string, unknown>).origine_dati ?? {});
+      setRigaInArchivio(data as unknown as Record<string, unknown>);
       setAnnoInArchivio(String((data as Record<string, unknown>).year ?? "").trim() || null);
       setMeseInArchivio(String((data as Record<string, unknown>).registration_month ?? "").trim() || null);
       setOriginalStatus(String(data.status ?? (data.published ? "published" : "draft")));
@@ -853,9 +859,14 @@ export function VehicleEditorPage({ mode, vehicleId }: VehicleEditorPageProps) {
     // elenco a parte: un campo aggiunto al modulo domani e' protetto da subito.
     // Stato e pubblicazione restano fuori: non arrivano dal sito, e il tetto
     // del piano li muove da se'.
+    //
+    // Ma **solo quelli che cambiano davvero**. Il modulo rimanda tutti i suoi
+    // campi a ogni salvataggio: segnarli tutti voleva dire che aprire un'auto
+    // importata e premere Salva la faceva diventare tutta "scritta da te" --
+    // su numeri letti dal sito -- cancellando disaccordi e conferme.
     const provenienzaAggiornata = segnaComeScrittoDalDealer(
       origineDati,
-      Object.keys(vehiclePayload).filter((campo) => !["dealer_id", "status", "published"].includes(campo)),
+      campiDavveroCambiati(rigaInArchivio, vehiclePayload, ["dealer_id", "status", "published"]),
     );
 
     // Il tetto del piano non si supera mai. Si conta solo quando la scheda

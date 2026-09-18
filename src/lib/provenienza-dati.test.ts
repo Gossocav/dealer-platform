@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CAMPI_DAL_SITO } from "@/lib/dealer-site-sync";
 import {
+  campiDavveroCambiati,
   dalSito,
   confermato,
   etichettaProvenienza,
@@ -500,6 +501,60 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
   });
 });
 
+describe("un campo non toccato non diventa \"scritto da te\"", () => {
+  const inArchivio = {
+    brand: "Opel",
+    price: "9500.00",
+    mileage: 120000,
+    equipment: ["Clima", "Navigatore"],
+    registration_date: "2022-01-01",
+    status: "published",
+    published: true,
+  };
+
+  it("cambia solo quello che cambia", () => {
+    const daSalvare = { ...inArchivio, price: 8900, status: "draft", published: false };
+    expect(campiDavveroCambiati(inArchivio, daSalvare, ["dealer_id", "status", "published"])).toEqual(["price"]);
+  });
+
+  it("un salvataggio che non cambia niente non segna niente", () => {
+    // E' il caso vero: aprire un'auto importata e premere Salva. Prima del
+    // 18/09/2026 usciva con venticinque campi "scritto da te".
+    const daSalvare = { ...inArchivio, price: 9500 };
+    expect(campiDavveroCambiati(inArchivio, daSalvare, ["dealer_id", "status", "published"])).toEqual([]);
+  });
+
+  it("il prezzo del database e quello del modulo sono lo stesso prezzo", () => {
+    // Il database restituisce "9500.00", il modulo rimanda 9500: due forme
+    // della stessa cifra. Confrontate come testo sembrano diverse, e il
+    // prezzo risultava cambiato a ogni salvataggio.
+    expect(campiDavveroCambiati({ price: "9500.00" }, { price: 9500 })).toEqual([]);
+    expect(campiDavveroCambiati({ price: "9500.00" }, { price: 9501 })).toEqual(["price"]);
+    // Il testo resta testo: "01" e "1" su una targa non sono lo stesso.
+    expect(campiDavveroCambiati({ plate: "GA123BC" }, { plate: "GA123BD" })).toEqual(["plate"]);
+  });
+
+  it("vuoto e valore non si confondono, in nessuna delle due direzioni", () => {
+    expect(campiDavveroCambiati({ color: null }, { color: "Rosso" })).toEqual(["color"]);
+    expect(campiDavveroCambiati({ color: "Rosso" }, { color: null })).toEqual(["color"]);
+    expect(campiDavveroCambiati({ color: null }, { color: "" })).toEqual([]);
+    // Una scheda nuova non ha archivio: tutto quello che ha un valore e' suo.
+    expect(campiDavveroCambiati(null, { brand: "Fiat", color: null })).toEqual(["brand"]);
+  });
+
+  it("nemmeno la sincronizzazione vede un disaccordo dove non c'e'", () => {
+    // Stessa cifra scritta in due forme: prima usciva
+    // "il tuo sito ora dice 9500" su un prezzo identico a quello in archivio.
+    const esito = scriviDalSito(
+      { price: { fonte: "dealer", confermato_il: "2026-09-01" } },
+      { price: "9500.00" },
+      dalSito({ price: 9500 }),
+      "2026-09-18",
+    );
+    expect(esito.origineDati.price?.il_sito_dice).toBeUndefined();
+  });
+});
+
 /** Come `dalSito`, scritta qui per non dipendere dall'ordine degli import. */
 function dalSitoTest(valori: Record<string, string | number | null>) {
   const letti: Record<string, { valore: string | number | null; fonte: "sito" }> = {};
@@ -522,7 +577,21 @@ describe("la scheda in modifica segna come suoi i campi che salva", () => {
   it("i campi protetti si prendono da quello che il modulo scrive, non da un elenco a parte", () => {
     // Un elenco a parte si dimentica di aggiornare: un campo aggiunto al
     // modulo domani resterebbe sovrascrivibile senza che nessuno se ne accorga.
-    expect(editor).toContain("Object.keys(vehiclePayload).filter(");
+    // Dal 18/09/2026 l'elenco si ricava lo stesso dal payload, ma passando da
+    // `campiDavveroCambiati`, che toglie i campi non toccati: prima era
+    // `Object.keys(vehiclePayload).filter(...)` e segnava tutto.
+    expect(editor).toContain("campiDavveroCambiati(rigaInArchivio, vehiclePayload,");
+    expect(editor, "la scheda non sa piu' com'era prima delle modifiche").toContain("setRigaInArchivio(");
+  });
+
+  it("segna solo i campi che il concessionario ha davvero cambiato", () => {
+    // Il difetto, visto il 18/09/2026 mentre si disegnava la fetta che mostra
+    // la provenienza: aprire un'auto importata e premere Salva senza toccare
+    // niente segnava **venticinque** campi come "scritto da te" -- su numeri
+    // letti dal sito -- e con loro cancellava disaccordi e conferme.
+    expect(editor, "il salvataggio segna ancora tutti i campi del modulo").not.toMatch(
+      /segnaComeScrittoDalDealer\(\s*origineDati,\s*Object\.keys\(vehiclePayload\)/,
+    );
   });
 
   it("stato e pubblicazione restano fuori", () => {
