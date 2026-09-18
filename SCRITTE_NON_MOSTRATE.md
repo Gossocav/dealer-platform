@@ -91,6 +91,15 @@ vuoto quando il sito non lo dice.
 stata mostrata da nessuna parte. Non si sta riprendendo una cosa che si
 vedeva: si sta costruendo per la prima volta.
 
+**Una domanda da fare quando si guarderanno le schede di Autogepy da vicino
+(18/09/2026).** Dopo tre giri del lettore, Autogepy ha il regime IVA su **5
+auto su 122** rilette; Ponginibbi su 78 su 78. Letta una delle 117 senza: il
+blocco ricco c'e' (343 campi) e il campo IVA **non c'e'**. Oggi resta vuoto,
+che e' la risposta onesta. Ma se per quel fornitore "assente" volesse dire
+*margine* -- e non "non dichiarato" -- sarebbero **117 auto** che potremmo
+etichettare. Non si decide su un campione di una pagina: si decide guardando
+le schede, e chiedendo al concessionario.
+
 ---
 
 ## `vehicle_acquisitions.entered_on` e la sua qualita'

@@ -351,6 +351,42 @@ Due cose da non fare nel frattempo:
 La rotta `/api/vehicles/plate-lookup` resta dov'e' e continua a funzionare:
 serve alle auto inserite a mano, che al 14/09/2026 sono **2 su 372**.
 
+## Un dato dedotto vale meno: la prova sui numeri veri (18/09/2026)
+
+La prima misura del lettore del blocco ricco, dopo tre giri notturni, ha dato
+**da 3 a 192 date di immatricolazione** senza che nessuno digitasse niente:
+Autogepy 114 su 122 rilette (93%), Ponginibbi 78 su 78, De Lorenzi 0 su 76
+perche' il suo sito manda solo il blocco magro -- e lo zero e' il risultato
+giusto, non un difetto. Ma le due cose che valgono piu' della tabella sono
+sulla **data d'ingresso in piazzale**, e spiegano con numeri veri cosa vuol
+dire *"un dato dedotto vale meno"*.
+
+**1. Per Autogepy la giacenza vera dal sito non si sapra' mai.** Tutte le 116
+date d'ingresso lette dal suo sito sono *dedotte* (`enteredInStockDate` uguale
+a `dateCreated`: la data nasce con la scheda), e **19 auto su 116 portano la
+stessa data, 18/06/2026** -- il giorno in cui il fornitore ha ricreato le
+schede, non il giorno in cui le auto sono entrate. Una data cosi' e' un
+limite inferiore, non una misura: si mostra come *"in vetrina sul tuo sito da
+almeno N giorni"*, mai come *"in piazzale da N giorni"*, e la data vera si
+chiede al concessionario. Fingere di saperla sarebbe la barra del pannello
+(PR #146) con un altro vestito.
+
+**2. Il controllo di attendibilita' ha scartato 10 date, e ha fatto il suo
+mestiere.** Su Ponginibbi 68 date sono entrate e 10 no: il lettore le ha
+rifiutate perche' precedevano l'immatricolazione di 128-680 giorni
+(`ingressoAttendibile` in `src/lib/blocco-motork.ts`). Lette a mano sulle
+pagine: **tre delle dieci hanno la stessa data, 25/06/2024, altre due il
+20-21/07/2023** -- caricamenti in blocco nel gestionale del fornitore, non
+ingressi in piazzale. Le 68 accettate hanno **59 date distinte**: il segno che
+sono vere. E' la prova che serviva: un controllo che non avesse mai scartato
+niente non si sarebbe potuto dire che guardava (vedi in AGENTS.md *"un
+controllo che non e' mai diventato rosso"*).
+
+La regola che ne esce, per chiunque tocchi questi dati: **la qualita' viaggia
+con il valore** (`origine_dati.entered_on.fonte`: `sito` oppure `dedotto`), e
+la schermata sceglie la frase in base a quella. Due frasi diverse per due
+cose diverse, e la seconda non promette mai piu' di quello che sa.
+
 ## Credenziali
 
 Il controllo ha bisogno di due segreti su GitHub
