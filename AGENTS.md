@@ -501,16 +501,31 @@ queste quattro non sarebbero comparse.
 **Il ritorno di una migration non si manda mai insieme alla migration.** E'
 l'unica cosa che non deve essere eseguita per sbaglio, e due blocchi di SQL
 uno sotto l'altro in uno stesso messaggio si somigliano abbastanza da
-scambiarli. Successo il 18/09/2026: il titolare ha eseguito il ritorno al
-posto della migration. Non ha fatto danni per un caso -- il ritorno non
-trovava niente da annullare, perche' la migration non era ancora passata --
-ma se l'ordine fosse stato l'inverso avrebbe disfatto il lavoro appena fatto.
+scambiarli.
+
+Successo il 18/09/2026: il titolare ha eseguito il ritorno al posto della
+migration. E il motivo per cui questa regola esiste e' tutto qui:
+
+> **Non ha fatto danni per un caso.** Il ritorno non trovava niente da
+> annullare, perche' la migration non era ancora passata. Con l'ordine
+> inverso avrebbe disfatto il lavoro appena fatto, **e il conteggio finale
+> avrebbe detto zero senza nessun errore**.
+
+Quest'ultima riga e' la parte che conta: non ci sarebbe stato niente da
+vedere. Nessun messaggio rosso, nessuna eccezione, solo un numero a zero che
+somiglia moltissimo a "non c'era niente da fare".
 
 La regola: **prima si manda solo la migration**. Il ritorno si manda dopo, in
 un messaggio separato, e solo se serve davvero o se il titolare lo chiede; in
-cima ci va scritto cosa annulla. Nel repository i due file stanno gia' in
-cartelle diverse (`supabase/migrations/` e `supabase/ritorni/`) proprio per
-questo: la separazione vale anche nei messaggi.
+cima ci va scritto cosa annulla.
+
+**E una precauzione che esiste nel progetto va rispettata anche in chat.** I
+due file stanno gia' in cartelle diverse -- `supabase/migrations/` e
+`supabase/ritorni/` -- proprio perche' non si confondano. Quella separazione
+e' stata buttata via nel modo di presentarli, incollandoli uno sotto l'altro
+in un messaggio. Vale in generale, non solo per le migration: se il progetto
+tiene due cose lontane, tenerle vicine nel messaggio che le consegna e' come
+non averle mai separate.
 
 **E i numeri attesi si scrivono solo per cio' che la migration fa.** Nello
 stesso giorno, il riepilogo di quella migration dichiarava un valore atteso
