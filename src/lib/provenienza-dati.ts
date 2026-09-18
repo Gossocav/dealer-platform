@@ -301,7 +301,13 @@ export function etichettaProvenienza(origineDati: unknown, campo: string): strin
   if (segno.fonte === "dealer") return "scritto da te";
   const daConfermare = segno.confermato_il ? "" : " · da confermare";
   if (segno.fonte === "feed") return `dal tuo feed${daConfermare}`;
-  return segno.fonte === "sito" ? `dal tuo sito${daConfermare}` : `deciso dal tuo sito${daConfermare}`;
+  // "deciso dal tuo sito" era la dicitura di `dedotto`, e si leggeva come una
+  // dichiarazione del sito: e' il contrario di quello che vuol dire. Un dato
+  // dedotto il sito non lo dichiara, ce l'ha messo il suo sistema. Corretto il
+  // 18/09/2026 dopo averlo visto a schermo accanto a "in vetrina da almeno",
+  // dove le due meta' della stessa riga si contraddicevano.
+  if (segno.fonte === "dedotto") return `non dichiarato dal tuo sito, riempito dal suo sistema${daConfermare}`;
+  return `dal tuo sito${daConfermare}`;
 }
 
 /**

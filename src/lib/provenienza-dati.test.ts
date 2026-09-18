@@ -179,7 +179,12 @@ describe("la dicitura accanto al valore", () => {
     expect(etichettaProvenienza({ a: { fonte: "dealer" } }, "a")).toBe("scritto da te");
     expect(etichettaProvenienza({ a: { fonte: "sito" } }, "a")).toBe("dal tuo sito · da confermare");
     expect(etichettaProvenienza({ a: { fonte: "sito", confermato_il: "2026-09-16" } }, "a")).toBe("dal tuo sito");
-    expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe("deciso dal tuo sito · da confermare");
+    // Cambiata il 18/09/2026: "deciso dal tuo sito" suonava come una
+    // dichiarazione del sito, ed e' il contrario di cio' che `dedotto` vuol
+    // dire.
+    expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe(
+      "non dichiarato dal tuo sito, riempito dal suo sistema · da confermare",
+    );
     // Un dato da feed non viene "dal tuo sito": una provenienza sbagliata e'
     // peggio di nessuna provenienza (deciso il 16/09/2026).
     expect(etichettaProvenienza({ a: { fonte: "feed" } }, "a")).toBe("dal tuo feed · da confermare");
