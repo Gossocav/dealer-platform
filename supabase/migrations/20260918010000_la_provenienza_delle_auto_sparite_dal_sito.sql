@@ -98,6 +98,9 @@
 -- **Attesa in produzione: 57 schede segnate, 1031 campi**, da 11 a 21 campi
 -- per scheda, e **1 scheda che resta senza provenienza** (quella salvata a
 -- mano). I numeri sono contati sui dati veri prima di scrivere questo SQL.
+--
+-- **Applicata il 18/09/2026: 57 schede, 1031 campi, 1 fuori.** Esattamente
+-- quelli.
 
 begin;
 
@@ -218,8 +221,21 @@ select
   ) as gia_segnate_dal_ripasso,
   -- Le due ipotesi su cui poggia la scelta di non toccare questi due campi,
   -- trasformate in numeri che si leggono davvero invece di restare scritte in
-  -- un commento. Attesi: **1 e 0** -- l'unica immatricolazione piena sta su
-  -- una scheda gia' segnata dal ripasso, non fra quelle che si toccano qui.
+  -- un commento.
+  --
+  -- **Questi tre numeri non hanno un valore atteso, e non e' una svista.**
+  -- Contano le schede che il **ripasso** ha segnato, non questa migration: la
+  -- sincronizzazione gira ogni tre ore, segna le auto ancora vive, e ognuna
+  -- che sparisce dal sito il giorno dopo entra in questo conto. Crescono da
+  -- sole, e fra il momento in cui si scrive una migration e quello in cui la
+  -- si esegue sono gia' cambiati. Il 18/09/2026 valevano 2, 1 e 0 mentre
+  -- scrivevo, e 4, 3 e 2 quando il titolare l'ha eseguita.
+  --
+  -- Scriverli come "attesi" e' stato uno sbaglio: **un numero atteso che non
+  -- torna fa dubitare di tutto il resto**, compresi i tre che contano davvero
+  -- e che invece erano giusti. I numeri da confrontare sono soltanto i primi
+  -- tre, che descrivono cio' che questa migration ha fatto. Questi ultimi tre
+  -- si leggono, non si verificano.
   count(*) filter (where v.registration_date is not null) as con_immatricolazione_piena,
   count(*) filter (where v.vat_regime is not null) as con_regime_iva
 from public.vehicles v
