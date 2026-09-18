@@ -162,6 +162,15 @@ export function scriviDalSito(
     if (segno?.fonte === "dealer") {
       protetti.push(campo);
 
+      // **Chi non sa cosa c'e' in archivio non puo' dire che c'e' un
+      // disaccordo.** Se il campo non e' fra i valori riletti, il confronto
+      // sarebbe fra il valore del sito e il vuoto: esce sempre "diverso", e
+      // la scheda direbbe "il tuo sito ora dice 01/01/2022, tu avevi scritto
+      // 01/01/2022". E' successo con i tre campi del blocco ricco, che il
+      // ripasso proponeva senza rileggerli (18/09/2026). Il segno resta
+      // com'era: ne' un disaccordo inventato, ne' uno cancellato per sbaglio.
+      if (!(campo in valoriInArchivio)) continue;
+
       // Il disaccordo si registra; il valore no. Quando il sito torna a dire
       // la stessa cosa, il segno sparisce da solo.
       const nuovo: SegnoDiProvenienza = { ...segno };

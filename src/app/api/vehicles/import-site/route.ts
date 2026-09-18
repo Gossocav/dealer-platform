@@ -18,7 +18,7 @@ import { indirizzoDellaScheda, segnalaAIndexNow } from "@/lib/indexnow";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import { segnalaErrore } from "@/lib/segnala-errore";
 import {
-  CAMPI_DAL_SITO,
+  COLONNE_DA_RILEGGERE,
   campiDalBloccoRicco,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
@@ -323,7 +323,7 @@ export async function POST(request: Request) {
 
       const { data: esistente } = await supabase
         .from("vehicles")
-        .select("id, import_source_id, origine_dati, " + CAMPI_DAL_SITO.join(", "))
+        .select(COLONNE_DA_RILEGGERE)
         .eq("dealer_id", dealerId)
         .eq("import_source", host)
         .eq("import_source_id", veicolo.sourceId)
