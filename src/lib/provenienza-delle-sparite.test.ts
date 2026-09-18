@@ -119,11 +119,29 @@ describe("la provenienza delle auto sparite dal sito", () => {
     expect(migration).toContain("btrim(v.import_source) <> ''");
   });
 
-  it("il segno e' quello di una scheda viva appena letta: nessuna conferma, nessun disaccordo", () => {
-    expect(migration).toContain("jsonb_build_object('fonte', 'sito', 'confermato_il', null)");
+  it("il segno dice che e' stato ricostruito, non osservato", () => {
+    // Un segno normale nasce mentre si legge il sito: si e' visto quel valore
+    // arrivare. Qui il sito non si puo' piu' leggere e il segno e' dedotto da
+    // quello che l'importazione aveva scritto. Tacerlo sarebbe buttare
+    // un'informazione vera -- ed e' anche l'unico modo che il ritorno ha di
+    // riconoscere le sue schede senza appoggiarsi a niente di esterno.
+    expect(migration).toContain(
+      "jsonb_build_object('fonte', 'sito', 'confermato_il', null, 'ricostruito_il', '2026-09-18')",
+    );
     expect(migration, "una conferma inventata direbbe che il concessionario ha detto di si'").not.toContain(
       "il_sito_dice",
     );
+  });
+
+  it("e la libreria sa cosa vuol dire quel segno, invece di trovarselo addosso", () => {
+    // La forma del segno e' di `provenienza-dati.ts` sola: una chiave che il
+    // database scrive e il codice non conosce e' un contratto rotto di
+    // nascosto.
+    const libreria = readFileSync(resolve(process.cwd(), "src/lib/provenienza-dati.ts"), "utf8");
+    expect(libreria).toContain("ricostruito_il?: string | null;");
+    // E sparisce da solo quando la scheda viene riletta davvero: `scriviDalSito`
+    // sostituisce il segno intero invece di aggiungerci qualcosa.
+    expect(libreria).toContain("fonte: letto.fonte,");
   });
 
   it("tocca solo le schede sparite dal sito e ancora senza segno", () => {
@@ -148,21 +166,29 @@ describe("la provenienza delle auto sparite dal sito", () => {
     expect(ritorno.slice(ritorno.lastIndexOf("commit;") + "commit;".length)).toContain("select");
   });
 
-  it("il ritorno cancella solo cio' che questa migration ha scritto", () => {
-    // **Il difetto vero, trovato prima di eseguire.** La prima versione
-    // riconosceva le schede dalla forma dei segni -- tutti
+  it("il ritorno riconosce le sue schede senza appoggiarsi a niente di esterno", () => {
+    // **Due difetti, uno dietro l'altro, tutti e due trovati prima di
+    // eseguire.**
+    //
+    // La prima versione riconosceva le schede dalla forma dei segni -- tutti
     // {"fonte":"sito","confermato_il":null} -- ma quella forma e' identica a
     // quella di una scheda segnata dal ripasso mentre era ancora sul sito e
     // sparita il giorno dopo. In produzione ce ne sono due, e una delle due
-    // sarebbe stata cancellata da un ritorno che prometteva di non toccarla.
+    // sarebbe stata svuotata.
     //
-    // Il segno che distingue e' `vehicle_category`: il ripasso lo scrive
-    // sempre, questa migration mai. Verificato sulle due schede vere.
-    expect(ritorno).toContain("not (v.origine_dati ? 'vehicle_category')");
-    expect(ritorno).toContain("jsonb_build_object('fonte', 'sito', 'confermato_il', null)");
-    expect(ritorno).toContain("v.import_missing_since is not null");
-    expect(ritorno, "il ritorno non dice da quando questa distinzione smettera' di valere").toContain(
-      "si usa subito, non fra mesi",
-    );
+    // La seconda le distingueva da `vehicle_category`, che il ripasso segna
+    // sempre. Funzionava, ma quello e' un difetto che va corretto: il giorno
+    // della correzione il ritorno si sarebbe rotto **in silenzio**.
+    //
+    // Questa cerca `ricostruito_il`, che scrive solo quella migration.
+    expect(ritorno).toContain("'ricostruito_il', '2026-09-18'");
+    // Il controllo guarda **cio' che si esegue**, non i commenti: la storia
+    // delle due versioni sbagliate sta scritta li' apposta, e nominare
+    // `vehicle_category` per spiegare perche' non lo si usa piu' e' giusto.
+    const eseguibile = ritorno
+      .split("\n")
+      .filter((riga) => !riga.trimStart().startsWith("--"))
+      .join("\n");
+    expect(eseguibile, "il ritorno dipende ancora da un difetto che va corretto").not.toContain("vehicle_category");
   });
 });

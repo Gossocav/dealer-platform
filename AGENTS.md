@@ -721,10 +721,11 @@ modifica che parla d'altro. In ordine di quanto gia' fanno danno:
    lo segna `sito`. Sulla scheda si legge "dal tuo sito · da confermare" su
    un valore che il sito non ha mai dichiarato: e' la provenienza sbagliata,
    in piccolo. Si corregge nel ripasso -- o lasciandolo senza segno, o dandogli
-   la sua dicitura -- non replicandola altrove. **Attenzione a chi la
-   corregge**: oggi quel segno e' l'unica cosa che distingue una scheda
-   segnata dal ripasso da una segnata dalla migration del 18/09/2026, e il
-   suo ritorno si appoggia proprio a quello.
+   la sua dicitura -- non replicandola altrove. Si puo' correggere quando si
+   vuole: la migration del 18/09/2026 e il suo ritorno **non ci si
+   appoggiano** (una prima versione lo faceva, ed e' stata rifatta proprio per
+   questo: un ritorno che si rompe il giorno in cui si corregge un difetto e'
+   una trappola con la miccia lunga).
 
 E una nota sul guardiano dei nomi dei fornitori: cerca soltanto la parola
 "Supabase". "MotorK" o "DealerK" in una dicitura non verrebbero fermati. La

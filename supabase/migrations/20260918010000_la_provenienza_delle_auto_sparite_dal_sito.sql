@@ -41,9 +41,8 @@
 --   (Nota per chi legge: sulle schede **vive** oggi quel campo viene segnato
 --   `sito` dal ripasso, perche' passa da `payloadDatiVeicolo` come gli altri.
 --   E' un'imprecisione del codice, non di questa migration, ed e' segnalata
---   a parte: si corregge li', non replicandola qui. Quell'imprecisione ha
---   pero' un uso qui sotto, nel ritorno: e' l'unica cosa che distingue una
---   scheda segnata da questa migration da una segnata dal ripasso.)
+--   a parte: si corregge li', non replicandola qui. Correggerla **non rompe
+--   niente**: ne' questa migration ne' il suo ritorno ci si appoggiano.)
 --
 -- **Una scheda che il concessionario ha aperto e salvato resta fuori.** E' il
 -- caso piu' insidioso, e non si vede ragionando: prima del 15/09/2026 una
@@ -66,9 +65,26 @@
 -- nata da un feed. Il giorno che una concessionaria mandasse anche un feed,
 -- questa esclusione andrebbe allargata.
 --
--- **Nessuna conferma e nessun disaccordo.** Il segno e' esattamente quello di
--- una scheda viva appena letta: `{"fonte": "sito", "confermato_il": null}`.
--- La scheda dira' "dal tuo sito · da confermare", come per tutte le altre.
+-- **Nessuna conferma e nessun disaccordo**, e una cosa in piu' che dice la
+-- verita': `ricostruito_il`.
+--
+--     {"fonte": "sito", "confermato_il": null, "ricostruito_il": "2026-09-18"}
+--
+-- Un segno normale nasce mentre si legge il sito: si e' **visto** quel valore
+-- arrivare, quel giorno. Qui il sito non si puo' piu' leggere, e il segno e'
+-- **dedotto** da quello che l'importazione aveva scritto. Il valore viene dal
+-- sito -- questo si sa -- ma nessuno l'ha visto arrivare in quel momento: e'
+-- la stessa distinzione fra "misurato" e "dedotto" che vale per la data
+-- d'ingresso, e tacerla sarebbe buttare un'informazione vera.
+--
+-- A schermo non cambia niente: la scheda continua a dire "dal tuo sito · da
+-- confermare", perche' quella frase resta vera. E il segno **sparisce da
+-- solo** se quella scheda tornasse sul sito e venisse riletta davvero:
+-- `scriviDalSito` sostituisce il segno intero, e la ricostruzione lascia il
+-- posto a un'osservazione.
+--
+-- E' anche cio' che permette al ritorno di riconoscere **le sue** schede senza
+-- appoggiarsi a niente di esterno: vedi il file in `supabase/ritorni/`.
 --
 -- **Si puo' rieseguire senza danno**: tocca solo le righe che hanno
 -- `origine_dati` ancora vuoto, quindi la seconda volta non trova niente.
@@ -118,7 +134,10 @@ with da_segnare as (
   select
     v.id,
     (
-      select jsonb_object_agg(c.campo, jsonb_build_object('fonte', 'sito', 'confermato_il', null))
+      select jsonb_object_agg(
+               c.campo,
+               jsonb_build_object('fonte', 'sito', 'confermato_il', null, 'ricostruito_il', '2026-09-18')
+             )
         from (values
           ('brand',              v.brand::text),
           ('model',              v.model::text),
@@ -183,21 +202,20 @@ commit;
 -- non il `commit`, che non restituisce niente e mostrerebbe soltanto
 -- "Success. No rows returned".
 --
--- Le schede segnate da questa migration si riconoscono perche' **non** hanno
--- il segno su `vehicle_category`: quelle segnate dal ripasso ce l'hanno
--- sempre. Prima di eseguire erano zero.
+-- Le schede segnate da questa migration si riconoscono dal segno che portano,
+-- `ricostruito_il`: nessun'altra porta lo scrive, quindi questo conto non
+-- dipende da niente che possa cambiare altrove. Prima di eseguire erano zero.
 select
-  count(*) filter (
-    where v.origine_dati <> '{}'::jsonb and not (v.origine_dati ? 'vehicle_category')
-  ) as schede_segnate_da_questa_migration,
+  count(*) filter (where v.origine_dati @? '$.*.ricostruito_il') as schede_segnate_da_questa_migration,
   coalesce(
-    sum((select count(*) from jsonb_object_keys(v.origine_dati))) filter (
-      where v.origine_dati <> '{}'::jsonb and not (v.origine_dati ? 'vehicle_category')
-    ),
+    sum((select count(*) from jsonb_object_keys(v.origine_dati)))
+      filter (where v.origine_dati @? '$.*.ricostruito_il'),
     0
   ) as campi_segnati,
   count(*) filter (where v.origine_dati = '{}'::jsonb) as ancora_senza_provenienza,
-  count(*) filter (where v.origine_dati ? 'vehicle_category') as gia_segnate_dal_ripasso,
+  count(*) filter (
+    where v.origine_dati <> '{}'::jsonb and not (v.origine_dati @? '$.*.ricostruito_il')
+  ) as gia_segnate_dal_ripasso,
   -- Le due ipotesi su cui poggia la scelta di non toccare questi due campi,
   -- trasformate in numeri che si leggono davvero invece di restare scritte in
   -- un commento. Attesi: **1 e 0** -- l'unica immatricolazione piena sta su

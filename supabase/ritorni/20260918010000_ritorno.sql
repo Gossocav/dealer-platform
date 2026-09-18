@@ -1,23 +1,35 @@
 -- Ritorno di 20260918010000_la_provenienza_delle_auto_sparite_dal_sito.sql.
 --
--- Rimette a vuoto `origine_dati` **solo** sulle schede che questa migration ha
--- scritto. Riconoscerle non e' banale, e la prima versione di questo file
--- sbagliava: cercava le schede sparite dal sito con ogni segno uguale a
--- `{"fonte": "sito", "confermato_il": null}`, ma quella forma e' **identica** a
--- quella di una scheda che il ripasso aveva segnato mentre era ancora sul sito
--- e che e' sparita il giorno dopo. In produzione ce ne sono due, e una delle
--- due sarebbe stata cancellata da un ritorno che prometteva di non toccarla.
+-- Rimette a vuoto `origine_dati` **solo** sulle schede che quella migration ha
+-- scritto. Riconoscerle e' il punto delicato di tutto il file, e ci sono
+-- volute tre versioni.
 --
--- Il segno che le distingue e' `vehicle_category`: il ripasso lo scrive sempre
--- (passa da `payloadDatiVeicolo`), questa migration **mai** -- di proposito,
--- perche' quel campo dal sito non arriva. Verificato sulle due schede vere: ce
--- l'hanno tutte e due.
+-- **La prima era sbagliata.** Cercava le schede sparite dal sito con ogni
+-- segno uguale a `{"fonte": "sito", "confermato_il": null}`, ma quella forma
+-- e' **identica** a quella di una scheda che il ripasso aveva segnato mentre
+-- era ancora sul sito e che e' sparita il giorno dopo. In produzione ce ne
+-- sono due, e una delle due sarebbe stata svuotata da un ritorno che
+-- prometteva di non toccarla. Un piano di ritorno che cancella cio' che
+-- dichiarava di rispettare e' peggio di non averlo, perche' lo si usa proprio
+-- quando le cose vanno gia' male.
 --
--- **Questo ritorno si usa subito, non fra mesi.** Il giorno in cui si
--- correggera' l'imprecisione del ripasso su `vehicle_category` -- ed e' da
--- correggere -- questa distinzione smettera' di valere. Chi si trovasse qui
--- dopo quella correzione deve riconoscere le schede in un altro modo, non
--- eseguire questo file e sperare.
+-- **La seconda distingueva le schede da `vehicle_category`**, che il ripasso
+-- segna sempre e la migration mai. Funzionava, ma si appoggiava a
+-- un'imprecisione del ripasso che va corretta: il giorno della correzione
+-- questo ritorno si sarebbe rotto **in silenzio**, e nessuno avrebbe fatto il
+-- collegamento.
+--
+-- **Questa versione non si appoggia a niente di esterno.** La migration
+-- scrive in ogni segno `ricostruito_il`, che dice una cosa vera -- quel segno
+-- e' stato dedotto, non osservato -- e che **nessun'altra porta scrive**. Il
+-- ritorno cerca esattamente quello: o il segno c'e', e allora l'ha scritto
+-- quella migration, o non c'e'. Nessuna correzione futura del ripasso, dei
+-- campi o delle diciture puo' farlo sbagliare.
+--
+-- E se una di quelle schede tornasse sul sito e venisse riletta davvero, il
+-- ripasso sostituirebbe il segno intero: `ricostruito_il` sparirebbe e il
+-- ritorno la lascerebbe stare. Che e' la cosa giusta, perche' quel segno non
+-- sarebbe piu' suo.
 --
 -- Nessun dato del veicolo si perde: si cancella soltanto la registrazione di
 -- **da dove** arrivava, e le schede tornano a dire "provenienza non
@@ -27,17 +39,18 @@ begin;
 
 update public.vehicles v
    set origine_dati = '{}'::jsonb
- where v.import_source is not null
-   and v.import_missing_since is not null
-   and v.origine_dati <> '{}'::jsonb
-   -- Segnata dal ripasso, non da qui: non si tocca.
-   and not (v.origine_dati ? 'vehicle_category')
-   -- E ogni segno deve avere esattamente la forma che questa migration
-   -- scrive: nessuna conferma, nessun disaccordo, nessuna fonte diversa.
+ where v.origine_dati <> '{}'::jsonb
+   -- Ogni segno della scheda deve essere esattamente quello che la migration
+   -- scrive. Basta un segno diverso -- una conferma, un disaccordo, una fonte
+   -- diversa, un campo riletto davvero -- perche' la scheda resti com'e'.
    and not exists (
      select 1
        from jsonb_each(v.origine_dati) as s(campo, segno)
-      where s.segno <> jsonb_build_object('fonte', 'sito', 'confermato_il', null)
+      where s.segno <> jsonb_build_object(
+              'fonte', 'sito',
+              'confermato_il', null,
+              'ricostruito_il', '2026-09-18'
+            )
    );
 
 commit;
@@ -46,11 +59,11 @@ commit;
 -- direbbe soltanto "Success. No rows returned" e non si saprebbe quante
 -- schede sono tornate indietro.
 select
-  count(*) filter (
-    where v.origine_dati <> '{}'::jsonb and not (v.origine_dati ? 'vehicle_category')
-  ) as schede_ancora_segnate_da_quella_migration,
+  count(*) filter (where v.origine_dati @? '$.*.ricostruito_il') as schede_ancora_ricostruite,
   count(*) filter (where v.origine_dati = '{}'::jsonb) as schede_senza_provenienza,
-  count(*) filter (where v.origine_dati ? 'vehicle_category') as segnate_dal_ripasso_intatte
+  count(*) filter (
+    where v.origine_dati <> '{}'::jsonb and not (v.origine_dati @? '$.*.ricostruito_il')
+  ) as segnate_dal_ripasso_intatte
 from public.vehicles v
 where v.import_source is not null
   and v.import_missing_since is not null;

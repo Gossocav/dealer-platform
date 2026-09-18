@@ -58,6 +58,27 @@ export type SegnoDiProvenienza = {
   /** Quando il concessionario l'ha confermato. Assente = e' una proposta. */
   confermato_il?: string | null;
   /**
+   * Quando questo segno e' stato **ricostruito** invece che osservato.
+   *
+   * Un segno normale nasce mentre si legge il sito: si e' visto quel valore
+   * arrivare, quel giorno. Le schede sparite dal sito non si possono piu'
+   * leggere, e il segno che portano e' stato **dedotto da quello che
+   * l'importazione aveva scritto** (migration `20260918010000`): il valore
+   * viene dal sito, questo si sa, ma nessuno l'ha visto arrivare in quel
+   * momento.
+   *
+   * Non e' un marcatore tecnico, e' la stessa distinzione fra "misurato" e
+   * "dedotto" che vale per la data d'ingresso. Serve anche a una cosa
+   * pratica: e' l'unico modo che il ritorno di quella migration ha di
+   * riconoscere **le sue** schede, senza appoggiarsi a indizi che una
+   * correzione futura potrebbe far sparire.
+   *
+   * Sparisce da solo: se quella scheda tornasse sul sito e venisse riletta
+   * davvero, `scriviDalSito` sostituisce il segno intero e la ricostruzione
+   * lascia il posto a un'osservazione.
+   */
+  ricostruito_il?: string | null;
+  /**
    * Cosa dice il sito adesso, quando non e' d'accordo con il concessionario.
    *
    * `fonte` dice **chi** non e' d'accordo: il sito della concessionaria o il
