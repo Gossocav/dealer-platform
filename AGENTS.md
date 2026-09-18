@@ -669,6 +669,26 @@ regex dovrebbe trovare** -- qui un campo nuovo chiamato `euro6_ready` -- e si
 guarda che il test diventi rosso. Se resta verde, non e' il codice a essere
 sano: e' il controllo a non guardare.
 
+**E vale anche per il verde di GitHub: un verde si legge sempre insieme al
+commit a cui si riferisce.** Il 18/09/2026, cinque minuti dopo aver scritto la
+regola qui sopra, la CI di una PR e' stata letta come "passata" mentre quel
+risultato era del commit **precedente**: il push appena fatto ne aveva avviato
+un altro, ancora in corso. La fusione e' stata rifiutata da GitHub, che
+guardava la cosa giusta.
+
+Il giro dopo e' andata peggio, e per la stessa ragione: `git push` ha
+risposto *"Everything up-to-date"* -- il commit era finito su `main` invece
+che sul ramo -- ma quella risposta era **filtrata via** da un `grep`, e al suo
+posto compariva un rassicurante "spinto". Il verde letto subito dopo era di
+nuovo quello del commit di prima, e GitHub rispondeva *"No commit found for
+SHA"* a chi glielo chiedeva per nome.
+
+Le due regole che ne escono, e sono la stessa: **si confronta sempre la testa
+del ramo con il commit su cui il controllo ha girato**
+(`git rev-parse HEAD` contro `.head_sha` del run), e **l'esito di un comando
+non si filtra mai**. `gh pr checks` dice anche `pending`, e un controllo che
+non ha finito non e' un controllo che ha detto di si'.
+
 **Le funzioni che oggi nessuno tocca sono quelle dove aspettarsi le
 sorprese.** "Duplica" e' rimasto rotto **dieci giorni** (dal 06/09 al
 16/09/2026) senza che nessuno se ne accorgesse. Non e' colpa di nessuno: e'
