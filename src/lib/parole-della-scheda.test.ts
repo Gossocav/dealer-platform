@@ -7,12 +7,13 @@ import {
   disaccordo,
   etichettaProvenienza,
   fraseDelDisaccordo,
+  notaDelCampo,
   scriviDalSito,
   dalSito,
   SENZA_SEGNO,
 } from "@/lib/provenienza-dati";
 import { regimeIvaDaMostrare } from "@/lib/regime-iva";
-import { campoDellImmatricolazione, immatricolazioneDaMostrare, prezzoDaMostrare } from "@/lib/vehicles";
+import { campoDellImmatricolazione, giornoDaMostrare, immatricolazioneDaMostrare, prezzoDaMostrare } from "@/lib/vehicles";
 
 /**
  * **Le parole che compaiono a schermo si provano qui.**
@@ -38,6 +39,33 @@ describe("ogni valore ha la sua provenienza, sempre", () => {
     expect(etichettaProvenienza({ a: { fonte: "sito", confermato_il: "2026-09-18" } }, "a")).toBe("dal tuo sito");
     expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe("deciso dal tuo sito · da confermare");
     expect(etichettaProvenienza({ a: { fonte: "feed" } }, "a")).toBe("dal tuo feed · da confermare");
+  });
+
+  it("un campo vuoto dice perche' e' vuoto, non da dove sarebbe venuto", () => {
+    // Sono due domande diverse. Accanto a un trattino, "provenienza non
+    // registrata" risponde a una che nessuno ha fatto: chi guarda vuole
+    // sapere perche' il dato non c'e'. E la ragione cambia: su un'auto
+    // agganciata a un sito il dato manca perche' il sito non lo dichiara, su
+    // una scritta a mano perche' nessuno l'ha scritto.
+    expect(notaDelCampo({}, "color", null, true)).toBe("il tuo sito non lo dichiara");
+    expect(notaDelCampo({}, "color", "", true)).toBe("il tuo sito non lo dichiara");
+    expect(notaDelCampo({}, "equipment", [], true)).toBe("il tuo sito non lo dichiara");
+    expect(notaDelCampo({}, "color", null, false)).toBe("non e' stato indicato");
+    // Con un valore, torna la provenienza.
+    expect(notaDelCampo({ color: { fonte: "sito" } }, "color", "Rosso", true)).toBe("dal tuo sito · da confermare");
+    expect(notaDelCampo({}, "color", "Rosso", true)).toBe(SENZA_SEGNO);
+    // Zero e' un valore, non un vuoto.
+    expect(notaDelCampo({ price: { fonte: "dealer" } }, "price", 0, true)).toBe("scritto da te");
+  });
+
+  it("una data si scrive senza passare dal fuso di chi guarda", () => {
+    // "2026-02-12" letta come mezzanotte UTC diventa l'11 febbraio per chi
+    // sta a ovest di Greenwich: la data d'ingresso di un'auto entrata il
+    // primo del mese risulterebbe dell'ultimo giorno del mese prima.
+    expect(giornoDaMostrare("2026-02-12")).toBe("12/02/2026");
+    expect(giornoDaMostrare("2026-02-12T00:00:00Z")).toBe("12/02/2026");
+    expect(giornoDaMostrare(null)).toBeNull();
+    expect(giornoDaMostrare("non una data")).toBeNull();
   });
 
   it("un numero contato da noi dice da cosa l'abbiamo contato", () => {
