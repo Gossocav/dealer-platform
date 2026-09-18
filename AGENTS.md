@@ -270,7 +270,16 @@ in questo progetto e' gia' costata tre volte:
    11.500 di margine, visto su una riga vera in produzione (31/08/2026);
 3. il **costo totale**, che sommava le altre voci ignorando l'acquisto
    mancante: 500 euro di trasporto su una vettura pagata 14.000 rispondevano
-   "costo totale 500 euro" (14/09/2026).
+   "costo totale 500 euro" (14/09/2026);
+4. il **prezzo d'acquisto scritto a zero**, che il modulo del conto economico
+   rilegge come **vuoto** (`vehicle-economics-card.tsx`: un importo pari a
+   zero diventa stringa vuota, e la stringa vuota torna `null`). A schermo
+   compare "manca il prezzo di acquisto" su una vettura il cui prezzo
+   d'acquisto c'e' ed e' zero -- una permuta a saldo, un'auto della casa
+   madre. E' la stessa famiglia al contrario: qui non e' il vuoto che diventa
+   zero, e' lo zero che diventa vuoto, e la regola che li distingue e' la
+   stessa. **Trovato leggendo il 18/09/2026, non ancora provato su una riga
+   vera: si prova prima di correggere.**
 
 La forma e' sempre la stessa: **un numero plausibile al posto di "non lo so"**.
 Chi guarda lo schermo non ha nessun modo di distinguerli, e ci crede. Le
@@ -644,6 +653,32 @@ non-DEFAULT value into column ricerca_testo"* -- e portava con se' anche
 targa, telaio, cliente e l'aggancio al sito dell'originale. Una copia dichiara
 cosa **non** porta, in un posto solo (`src/lib/duplica-veicolo.ts`), e non
 parte mai da "tutto".
+
+**Difetti trovati leggendo il 18/09/2026, annotati e non corretti.** Sono
+usciti preparando la fetta che mostra i dati, e nessuno si corregge dentro una
+modifica che parla d'altro. In ordine di quanto gia' fanno danno:
+
+1. **Lo zero riletto come vuoto nel conto economico** -- vedi il punto 4 qui
+   sopra. E' un numero falso **gia' a video**, non un difetto latente: si
+   prova su una riga vera e si corregge **subito dopo la fetta che mostra**.
+2. **Il prezzo assente mostrato come "0 €"** sulla scheda del veicolo e in
+   Gestione Veicoli (`formatCurrency(Number(vehicle.price ?? 0))`): un'auto
+   senza prezzo dichiara zero euro. Anche questo e' gia' a video, e si
+   corregge **dentro** la fetta che mostra, perche' mettergli accanto "dal tuo
+   sito" lo trasformerebbe in un numero falso **firmato**.
+3. **"Invia al cliente" e l'email rispondono in due modi allo stesso vuoto**:
+   la finestra scrive "Su richiesta" per un prezzo assente, l'email scrive
+   "-". "Su richiesta" e' per giunta una frase che il concessionario non ha
+   detto.
+4. **La "Completezza" della Salute veicolo conta un dato proposto** come se
+   fosse acquisito (conta `registration_date` senza guardare se e'
+   confermato). Va sistemata **quando esistera' la conferma**, non prima:
+   oggi, senza un modo per confermare, escluderla farebbe scendere il
+   punteggio di tutti senza che nessuno possa farci niente.
+
+E una nota sul guardiano dei nomi dei fornitori: cerca soltanto la parola
+"Supabase". "MotorK" o "DealerK" in una dicitura non verrebbero fermati. La
+forma resta "deciso dal tuo sito", per disciplina e non per guardiano.
 
 **Un controllo si dimentica, un campo che non arriva non si puo' scrivere.**
 Quando una regola dice "questo dato non si tocca", non la si affida a chi
