@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CAMPI_DAL_SITO } from "@/lib/dealer-site-sync";
+import { campiDalBloccoRicco, CAMPI_DAL_SITO, valoriInArchivio } from "@/lib/dealer-site-sync";
 import {
   campiDavveroCambiati,
   dalSito,
@@ -552,6 +552,100 @@ describe("un campo non toccato non diventa \"scritto da te\"", () => {
       "2026-09-18",
     );
     expect(esito.origineDati.price?.il_sito_dice).toBeUndefined();
+  });
+});
+
+/**
+ * **Il difetto, provato con un caso vero il 18/09/2026.**
+ *
+ * Il ripasso proponeva tre campi letti dal blocco ricco -- immatricolazione,
+ * regime IVA, data d'ingresso -- ma ne rileggeva dall'archivio soltanto i
+ * ventidue della pagina. Su una scheda dove il concessionario aveva scritto
+ * l'immatricolazione, il confronto avveniva fra il valore del sito e il
+ * **vuoto**: sempre diverso, quindi un disaccordo registrato anche quando le
+ * due date erano identiche. A schermo sarebbe diventato "il tuo sito ora dice
+ * 01/01/2022, tu avevi scritto 01/01/2022".
+ *
+ * In produzione non aveva ancora toccato niente -- zero campi "scritto da te"
+ * su 372 auto -- ma sarebbe scattato al primo salvataggio seguito da un giro
+ * notturno.
+ */
+describe("un disaccordo non si inventa", () => {
+  it("chi non sa cosa c'e' in archivio non dichiara un disaccordo", () => {
+    const esito = scriviDalSito(
+      { registration_date: { fonte: "dealer" } },
+      { price: 9500 }, // l'immatricolazione non e' stata riletta
+      dalSito({ registration_date: "2022-01-01" }),
+      "2026-09-18",
+    );
+    expect(esito.origineDati.registration_date).toEqual({ fonte: "dealer" });
+    expect(esito.daScrivere.registration_date).toBeUndefined();
+    expect(esito.protetti).toContain("registration_date");
+  });
+
+  it("e non cancella per sbaglio un disaccordo che c'era", () => {
+    const prima = { fonte: "dealer" as const, il_sito_dice: { valore: "2021-05-01", visto_il: "2026-09-17" } };
+    const esito = scriviDalSito({ registration_date: prima }, {}, dalSito({ registration_date: "2021-05-01" }), "2026-09-18");
+    expect(esito.origineDati.registration_date).toEqual(prima);
+  });
+
+  it("quando il valore c'e' davvero, il disaccordo si vede e sparisce da solo", () => {
+    const diverso = scriviDalSito(
+      { registration_date: { fonte: "dealer" } },
+      { registration_date: "2022-01-01" },
+      dalSito({ registration_date: "2021-05-01" }),
+      "2026-09-18",
+    );
+    expect(diverso.origineDati.registration_date?.il_sito_dice).toEqual({ valore: "2021-05-01", visto_il: "2026-09-18" });
+
+    const uguale = scriviDalSito(
+      { registration_date: { fonte: "dealer", il_sito_dice: { valore: "2021-05-01", visto_il: "2026-09-17" } } },
+      { registration_date: "2022-01-01" },
+      dalSito({ registration_date: "2022-01-01" }),
+      "2026-09-18",
+    );
+    expect(uguale.origineDati.registration_date?.il_sito_dice).toBeUndefined();
+  });
+
+  it("ogni campo che il blocco ricco propone viene anche riletto dall'archivio", () => {
+    // E' il guardiano vero: la regola non e' "questi tre campi", e' "cio' che
+    // si propone si rilegge". Un quarto campo aggiunto al blocco ricco senza
+    // rileggerlo rifarebbe lo stesso difetto, su un altro campo.
+    const blocco = {
+      campi: 341,
+      immatricolazione: "2022-01-01",
+      regimeIva: "esposta" as const,
+      categoria: "USED",
+      chilometri: 12000,
+      ingresso: { giorno: "2026-01-10", qualita: "sito" as const },
+      targa: null,
+      telaio: null,
+    };
+    const proposti = Object.keys(campiDalBloccoRicco(blocco));
+    const riletti = Object.keys(valoriInArchivio({ id: "v", import_source_id: "1", origine_dati: {} }));
+    const dimenticati = proposti.filter((campo) => !riletti.includes(campo));
+    expect(dimenticati, `campi proposti al sito e mai riletti dall'archivio: ${dimenticati.join(", ")}`).toEqual([]);
+  });
+
+  it("la data d'ingresso si rilegge comunque il database consegni la riga", () => {
+    // Una vettura per riga (vehicle_id e' la chiave primaria): la produzione
+    // consegna un oggetto -- verificato il 18/09/2026 -- ma una forma diversa
+    // farebbe sparire il valore in silenzio.
+    const base = { id: "v", import_source_id: "1", origine_dati: {} };
+    expect(valoriInArchivio({ ...base, vehicle_acquisitions: { entered_on: "2026-01-10" } }).entered_on).toBe("2026-01-10");
+    expect(valoriInArchivio({ ...base, vehicle_acquisitions: [{ entered_on: "2026-01-10" }] }).entered_on).toBe("2026-01-10");
+    expect(valoriInArchivio({ ...base, vehicle_acquisitions: null }).entered_on).toBeNull();
+    expect(valoriInArchivio(base).entered_on).toBeNull();
+  });
+
+  it("tutte e due le porte dal sito rileggono le stesse colonne", () => {
+    // Un campo riletto da una porta e non dall'altra e' lo stesso difetto su
+    // una sola delle due strade: si troverebbe al doppio del tempo.
+    for (const percorso of ["src/app/api/cron/sincronizza-siti/route.ts", "src/app/api/vehicles/import-site/route.ts"]) {
+      const rotta = readFileSync(resolve(process.cwd(), percorso), "utf8");
+      expect(rotta, `${percorso} non usa l'elenco comune`).toContain("COLONNE_DA_RILEGGERE");
+      expect(rotta, `${percorso} si e' riscritto l'elenco da solo`).not.toContain('"id, import_source_id, origine_dati, "');
+    }
   });
 });
 

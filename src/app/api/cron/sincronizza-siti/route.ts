@@ -5,7 +5,7 @@ import { elencoStock, leggiPaginaConEsito, PAUSA_FRA_SCHEDE_MS } from "@/lib/dea
 import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
 import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
-  CAMPI_DAL_SITO,
+  COLONNE_DA_RILEGGERE,
   campiDalBloccoRicco,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
@@ -394,10 +394,7 @@ async function rileggi(
   // tutto sopra il suo lavoro, che e' il difetto che questa riga chiude.
   let interrogazione = supabase
     .from("vehicles")
-    .select(
-      "id, import_source_id, origine_dati, " +
-        CAMPI_DAL_SITO.join(", "),
-    )
+    .select(COLONNE_DA_RILEGGERE)
     .eq("dealer_id", sorgente.dealer_id)
     .eq("import_source", sorgente.import_source)
     .is("import_missing_since", null)

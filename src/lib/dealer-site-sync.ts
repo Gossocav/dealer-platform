@@ -217,21 +217,35 @@ export function payloadDatiVeicolo(v: DealerSiteVehicle) {
  * porta scrivesse questi campi senza passare da `scriviDalSito`, il
  * difetto del 15/09/2026 tornerebbe da li'.
  *
- * L'elenco e' esattamente quello di `payloadDatiVeicolo`, e i due devono
- * restare uguali: un campo scritto li' e non elencato qui verrebbe riscritto
- * senza guardare chi l'aveva messo. Un test lo verifica.
+ * Comprende tutti quelli di `payloadDatiVeicolo` -- un campo scritto li' e non
+ * elencato qui verrebbe riscritto senza guardare chi l'aveva messo, e un test
+ * lo verifica -- piu' i due che arrivano dal **blocco ricco** e stanno sulla
+ * stessa tabella (`registration_date`, `vat_regime`). Anche quelli vanno
+ * riletti: chi propone un valore senza sapere cosa c'e' in archivio non puo'
+ * dire se il concessionario e' d'accordo, e finiva per registrare un
+ * disaccordo che non esisteva (18/09/2026).
  */
 export const CAMPI_DAL_SITO = [
   "brand", "model", "version", "price", "mileage", "fuel", "transmission",
   "doors", "seats", "color", "body_type", "year", "registration_month",
   "vehicle_condition", "vehicle_category", "power_kw", "power_cv",
   "engine_size", "emission_class", "traction", "co2_emissions", "description",
+  "registration_date", "vat_regime",
 ] as const;
 
 export type RigaDaRileggere = {
   id: string;
   import_source_id: string | null;
   origine_dati: unknown;
+  /**
+   * La riga dell'acquisizione, incorporata nella stessa interrogazione. Una
+   * sola per vettura (`vehicle_id` e' la chiave primaria), e il database la
+   * consegna come oggetto -- verificato sulla produzione il 18/09/2026 -- ma
+   * si accetta anche l'elenco: e' la stessa prudenza di `primoConto` nella
+   * pagina Giacenza, e una forma inattesa qui farebbe sparire il valore in
+   * silenzio.
+   */
+  vehicle_acquisitions?: { entered_on: string | null } | { entered_on: string | null }[] | null;
 } & Partial<Record<(typeof CAMPI_DAL_SITO)[number], string | number | null>>;
 
 /**
@@ -255,9 +269,42 @@ export function campiDalBloccoRicco(blocco: BloccoMotork | null) {
   };
 }
 
-/** I valori che la scheda ha adesso, per capire se il sito dice un'altra cosa. */
+/**
+ * Cosa si chiede al database per sapere com'e' la scheda adesso. **Una sola
+ * stringa per tutte e due le porte** (sincronizzazione notturna e "Importa
+ * dal sito"): un campo riletto da una e non dall'altra e' un disaccordo
+ * inventato su una sola delle due strade, cioe' un difetto che si trova al
+ * doppio del tempo.
+ */
+export const COLONNE_DA_RILEGGERE = [
+  "id",
+  "import_source_id",
+  "origine_dati",
+  ...CAMPI_DAL_SITO,
+  // La data d'ingresso sta su un'altra tabella: si incorpora qui, cosi' non
+  // serve una seconda interrogazione per vettura.
+  "vehicle_acquisitions(entered_on)",
+].join(", ");
+
+/** La data d'ingresso gia' scritta, comunque il database abbia consegnato la riga. */
+export function ingressoInArchivio(riga: RigaDaRileggere): string | null {
+  const incorporata = riga.vehicle_acquisitions;
+  if (!incorporata) return null;
+  const prima = Array.isArray(incorporata) ? incorporata[0] : incorporata;
+  return prima?.entered_on ?? null;
+}
+
+/**
+ * I valori che la scheda ha adesso, per capire se il sito dice un'altra cosa.
+ *
+ * **Ogni campo che si propone deve stare qui.** La data d'ingresso vive su
+ * un'altra tabella e per questo si legge a parte, ma non e' un'eccezione:
+ * senza il suo valore attuale, proporla a una scheda dove l'ha scritta il
+ * concessionario avrebbe prodotto un disaccordo inventato.
+ */
 export function valoriInArchivio(riga: RigaDaRileggere): Record<string, string | number | null> {
   const valori: Record<string, string | number | null> = {};
   for (const campo of CAMPI_DAL_SITO) valori[campo] = riga[campo] ?? null;
+  valori.entered_on = ingressoInArchivio(riga);
   return valori;
 }
