@@ -108,7 +108,25 @@ export function confermato(origineDati: unknown, campo: string): boolean {
   return Boolean(segno.confermato_il);
 }
 
-const uguali = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
+/**
+ * Se due valori sono lo **stesso** valore.
+ *
+ * Il confronto e' per testo, con una eccezione che conta: quando tutti e due
+ * si leggono come numeri si confrontano **come numeri**. Il database
+ * restituisce un prezzo come `"9500.00"` e il modulo lo rimanda come `9500`:
+ * sono la stessa cifra, e chiamarle diverse fa credere che il concessionario
+ * abbia cambiato il prezzo quando non l'ha toccato -- e, nella
+ * sincronizzazione, fa registrare un disaccordo che non esiste.
+ */
+const uguali = (a: unknown, b: unknown) => {
+  const testoA = String(a ?? "").trim();
+  const testoB = String(b ?? "").trim();
+  if (testoA === testoB) return true;
+  const numeroA = Number(testoA);
+  const numeroB = Number(testoB);
+  if (testoA === "" || testoB === "") return false;
+  return Number.isFinite(numeroA) && Number.isFinite(numeroB) && numeroA === numeroB;
+};
 
 /**
  * Cosa si puo' scrivere, avendo letto il sito.
@@ -195,6 +213,33 @@ export function segnaComeScrittoDalDealer(origineDatiAttuale: unknown, campi: st
   const origineDati: OrigineDati = { ...partenza };
   for (const campo of campi) origineDati[campo] = { fonte: "dealer" };
   return origineDati;
+}
+
+/**
+ * I campi che stanno **davvero cambiando** rispetto a quello che c'e' in
+ * archivio.
+ *
+ * **Perche' esiste.** Salvando una scheda, il modulo rimanda tutti i suoi
+ * campi, toccati o no. Segnarli tutti come "scritti dal concessionario"
+ * voleva dire, aprendo un'auto importata e premendo Salva senza cambiare
+ * niente: venticinque campi che dicono "scritto da te" su numeri che ha
+ * scritto il sito, tutti i disaccordi cancellati e tutte le conferme perse.
+ * Finche' nessuna schermata mostrava la provenienza non si vedeva; il giorno
+ * che la mostra, diventa una bugia su ogni riga della scheda (18/09/2026).
+ *
+ * Un campo non toccato **non si tocca**: il suo segno resta com'era, con la
+ * sua fonte, la sua conferma e il suo eventuale disaccordo.
+ */
+export function campiDavveroCambiati(
+  valoriInArchivio: Record<string, unknown> | null | undefined,
+  valoriDaSalvare: Record<string, unknown>,
+  daIgnorare: readonly string[] = [],
+): string[] {
+  const archivio = valoriInArchivio ?? {};
+  const fuori = new Set(daIgnorare);
+  return Object.keys(valoriDaSalvare).filter(
+    (campo) => !fuori.has(campo) && !uguali(archivio[campo], valoriDaSalvare[campo]),
+  );
 }
 
 /** La dicitura da mettere accanto al valore. Un numero non si mostra mai nudo. */
