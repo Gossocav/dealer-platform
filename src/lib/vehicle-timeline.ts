@@ -102,7 +102,14 @@ function getActionTitle(action: VehicleTimelineAction) {
   return "Lead ricevuto";
 }
 
-function getActionDescription(action: VehicleTimelineAction, metadata: Record<string, unknown>) {
+/**
+ * La frase che il concessionario legge sotto ogni riga della cronologia.
+ *
+ * Esportata per poterla provare davvero: e' testo mostrato a schermo, e
+ * l'unico modo di verificarlo senza credere a una lettura del sorgente e'
+ * chiamarla.
+ */
+export function getActionDescription(action: VehicleTimelineAction, metadata: Record<string, unknown>) {
   if (action === "vehicle.status_changed") {
     const fromState = String(metadata.fromStatus ?? "").trim();
     const toState = String(metadata.toStatus ?? "").trim();
@@ -132,8 +139,19 @@ function getActionDescription(action: VehicleTimelineAction, metadata: Record<st
   }
 
   if (action === "vehicle.lead_received") {
-    const source = String(metadata.source ?? "marketplace").trim();
-    return `Nuovo lead ricevuto (${source}).`;
+    // **L'origine si scrive solo se e' stata registrata.** Il ripiego era
+    // `?? "marketplace"`: quando l'evento non portava l'origine, la
+    // cronologia la **dichiarava** marketplace -- una provenienza inventata
+    // da noi, in un posto che si legge e non si controlla.
+    //
+    // Non diceva il falso, ma **per combinazione**: oggi i contatti nascono
+    // solo da `/api/marketplace/lead`, che l'origine la scrive. Il giorno
+    // che il gestionale avra' "nuovo contatto" -- previsto, vedi AGENTS.md
+    // -- avrebbe cominciato a mentire da solo.
+    //
+    // Senza l'origine la frase e' piu' corta ed e' vera.
+    const source = String(metadata.source ?? "").trim();
+    return source ? `Nuovo lead ricevuto (${source}).` : "Nuovo lead ricevuto.";
   }
 
   if (action === "vehicle.updated") {
