@@ -330,13 +330,32 @@ E' la piu' difficile da vedere delle tre, per due motivi che si sommano:
   lo schermo, e non lo trova nemmeno chi prova la pagina: si trova solo
   leggendo la riga e chiedendosi cosa succede quando il primo valore manca.
 
-La regola: **`??` e `||` su un numero che finisce sotto gli occhi di
-qualcuno sono sempre sospetti.** La domanda da farsi e' *"il valore a destra
-risponde alla stessa domanda di quello a sinistra?"* -- e quasi sempre la
-risposta e' no, perche' se rispondesse alla stessa domanda non servirebbero
-due strade per ottenerlo. Quando non risponde, il ripiego giusto e' **non
-mostrare niente**: in home il riquadro che non si sa adesso non compare, e
-restano tre numeri veri invece di quattro di cui uno inventato.
+La regola, e **non vale solo per i numeri**: **`??` e `||` su un valore
+mostrato sono sempre sospetti, perche' il valore a destra deve rispondere
+alla stessa domanda di quello a sinistra.** Quasi sempre non ci risponde --
+se ci rispondesse non servirebbero due strade per ottenerlo. Quando non
+risponde, il ripiego giusto e' **non mostrare niente**: in home il riquadro
+che non si sa adesso non compare, e restano tre numeri veri invece di quattro
+di cui uno inventato.
+
+**Fuori dai numeri fa gli stessi danni, e su cose piu' difficili da
+smentire.** Un nome, una data, una **provenienza**: un ripiego li rende
+indistinguibili da un dato dichiarato. Nella cronologia del veicolo
+(`src/lib/vehicle-timeline.ts`) la riga di un contatto ricevuto si scrive
+`String(metadata.source ?? "marketplace")` e stampa *"Nuovo lead ricevuto
+(marketplace)."*: se l'origine non era stata registrata, la cronologia la
+**dichiara** marketplace. Oggi non dice il falso, ma per combinazione -- i
+contatti nascono in un posto solo -- non per costruzione; il giorno che si
+aggiunge "nuovo contatto" dal gestionale comincia a mentire da sola, e
+nessuno la smentira' perche' una cronologia si legge e non si controlla.
+**Trovato il 19/09/2026 cercando un esempio per questa regola, segnalato e
+non corretto.**
+
+Il modo giusto sta due file piu' in la', e vale la pena tenerlo accanto:
+`nomeCliente` ripiega su `"Cliente senza nome"` (`src/lib/compratore.ts`).
+Anche quello e' un `??` su un valore mostrato, ma il valore a destra risponde
+alla domanda giusta: **dice che il nome non c'e'**, invece di inventarne uno
+plausibile.
 
 **E un si'/no che ammette il vuoto e' un terzo stato che nessuno gestisce.**
 E' la stessa famiglia, sulle colonne invece che sui conti. Misurato il
@@ -783,6 +802,46 @@ del ramo con il commit su cui il controllo ha girato**
 (`git rev-parse HEAD` contro `.head_sha` del run), e **l'esito di un comando
 non si filtra mai**. `gh pr checks` dice anche `pending`, e un controllo che
 non ha finito non e' un controllo che ha detto di si'.
+
+**E c'e' un rosso che non e' un guasto, ed e' il piu' pericoloso di tutti:
+quello che nessun evento cancella.** Il controllo *"Lo schema di produzione
+combacia con i file"* gira su `main` **solo** quando cambiano i file sotto
+`supabase/migrations/`, piu' il cron del lunedi'. In questo progetto la
+migration entra nei file **prima** di essere applicata a mano: quindi il
+controllo, appena il file arriva, trova la differenza e diventa rosso --
+giustissimo -- e quando il titolare applica e la differenza sparisce **non
+succede niente**, perche' nessun evento lo rilancia.
+
+Il 19/09/2026: verde alle 08:37, rosso alle 09:17 su cinque righe (la vista
+`vetrina_per_concessionaria`, nei file e non ancora in produzione), vista
+applicata pochi minuti dopo, **e il rosso e' rimasto appeso per ore** su una
+produzione che nel frattempo combaciava. Verificato ricostruendo lo schema in
+Docker e rilanciando lo stesso confronto della CI: zero differenze su tutte e
+tredici le famiglie.
+
+Il punto non e' il rosso: e' che **fra il merge e l'applicazione il rosso e'
+lo stato normale del progetto, e un allarme che e' normale non e' un
+allarme**. E' la stessa famiglia di *"un controllo che non e' mai diventato
+rosso"*, girata al contrario -- li' era il verde a non voler dire niente, qui
+e' il rosso.
+
+La prova che il meccanismo funziona, e funziona contro di noi: quel rosso, in
+questo stesso file, era stato liquidato in una nota di servizio con *"e'
+quello vecchio, non riguarda questo lavoro"* -- **da chi aveva appena
+scritto la regola**. Il titolare non se l'e' bevuta e ha chiesto quale dei
+due esiti dicesse. Era il terzo: differenze vere.
+
+Le due regole, finche' il controllo non distingue da solo lo stato "in
+attesa":
+
+1. **davanti a un rosso si legge quale dei tre esiti ha risposto** --
+   *"mancano i segreti"*, *"non sono riuscito a leggere la produzione"*,
+   *"non dicono la stessa cosa"* -- e sono tre cose diverse. "Non riguarda
+   questo lavoro" non e' nessuna delle tre;
+2. **dopo ogni migration applicata a mano si rilancia il controllo**
+   (*Actions* → *Lo schema di produzione combacia con i file* → *Run
+   workflow*). Lo fa il titolare: un agente riceve 403 sia sul lancio sia
+   sulla riesecuzione.
 
 **Il modulo che porta i clienti era la parte meno curata del sito.** E' la
 lezione del 19/09/2026, e vale piu' dei due difetti che l'hanno prodotta.
