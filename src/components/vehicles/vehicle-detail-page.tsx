@@ -34,11 +34,9 @@ import {
   validateVehicleStatusTransitionForCrud,
   type VehicleRow,
 } from "@/lib/vehicles";
-import { fraseIngresso, giorniTra, oggiIso, percheNienteIngresso } from "@/lib/giacenza";
+import { fraseIngresso, giorniTra, notaIngresso, oggiIso, percheNienteIngresso } from "@/lib/giacenza";
 import {
-  calcolatoDaKeyAuto,
   disaccordo,
-  etichettaProvenienza,
   fraseDelDisaccordo,
   notaDelCampo,
   provenienza,
@@ -295,12 +293,11 @@ export function VehicleDetailPage({ vehicleId }: VehicleDetailPageProps) {
   const giorniInPiazzale = giorniTra(ingresso, oggiIso());
   const frasePiazzale = fraseIngresso(giorniInPiazzale, fonteIngresso);
   const perchePiazzale = percheNienteIngresso({ enteredOn: ingresso, fonte: fonteIngresso, giorni: giorniInPiazzale });
+  // Due frasi, non tre diciture in fila: da dove viene la data, e chi ha
+  // contato i giorni. La regola sta in `giacenza.ts`, con il caso che l'ha
+  // prodotta.
   const notaPiazzale = frasePiazzale
-    ? [
-        `dalla data d'ingresso ${giornoDaMostrare(ingresso) ?? ingresso}`,
-        etichettaProvenienza(vehicle?.origine_dati, "entered_on"),
-        calcolatoDaKeyAuto(),
-      ].join(" · ")
+    ? notaIngresso(giornoDaMostrare(ingresso) ?? ingresso, fonteIngresso)
     : perchePiazzale;
 
   const togglePublished = async () => {

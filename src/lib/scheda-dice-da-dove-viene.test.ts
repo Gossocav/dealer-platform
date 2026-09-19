@@ -50,8 +50,10 @@ describe("nessun valore resta nudo", () => {
     // Tre schermate che se la scrivono da sole sono tre regole che fra sei
     // mesi diranno cose diverse.
     expect(scheda).toContain("notaDelCampo(");
-    expect(scheda).toContain("etichettaProvenienza(");
-    expect(scheda).toContain("calcolatoDaKeyAuto()");
+    // La nota dell'ingresso e' una frase, non una fila di diciture: dal
+    // 18/09/2026 la compone `notaIngresso` invece della pagina.
+    expect(scheda).toContain("notaIngresso(");
+    expect(scheda, "la nota dell'ingresso e' tornata una fila di diciture").not.toContain('.join(" · ")');
   });
 
   it("il prezzo assente non vale piu' zero", () => {

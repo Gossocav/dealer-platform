@@ -179,7 +179,12 @@ describe("la dicitura accanto al valore", () => {
     expect(etichettaProvenienza({ a: { fonte: "dealer" } }, "a")).toBe("scritto da te");
     expect(etichettaProvenienza({ a: { fonte: "sito" } }, "a")).toBe("dal tuo sito · da confermare");
     expect(etichettaProvenienza({ a: { fonte: "sito", confermato_il: "2026-09-16" } }, "a")).toBe("dal tuo sito");
-    expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe("deciso dal tuo sito · da confermare");
+    // Cambiata il 18/09/2026: "deciso dal tuo sito" suonava come una
+    // dichiarazione del sito, ed e' il contrario di cio' che `dedotto` vuol
+    // dire.
+    expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe(
+      "non dichiarato dal tuo sito, riempito dal suo sistema · da confermare",
+    );
     // Un dato da feed non viene "dal tuo sito": una provenienza sbagliata e'
     // peggio di nessuna provenienza (deciso il 16/09/2026).
     expect(etichettaProvenienza({ a: { fonte: "feed" } }, "a")).toBe("dal tuo feed · da confermare");
@@ -502,7 +507,12 @@ describe("il ripasso non riscrive quello che ha corretto il concessionario", () 
     // l'aveva messo -- cioe' il difetto tornerebbe, ma solo su quel campo.
     const elenco = sync.slice(sync.indexOf("export const CAMPI_DAL_SITO"), sync.indexOf("] as const"));
     const nelPayload = [
-      ...sync.slice(sync.indexOf("export function payloadDatiVeicolo")).matchAll(/^\s{4}([a-z_]+):/gm),
+      // `[a-z0-9_]` e non `[a-z_]`: fino al 18/09/2026 la cifra mancava, e
+      // questo controllo saltava in silenzio **ogni** campo con un numero nel
+      // nome -- `co2_emissions` era l'unico, ed era per fortuna gia' in
+      // elenco. Un controllo che non guarda una riga risponde "tutto a posto"
+      // esattamente come uno che l'ha guardata.
+      ...sync.slice(sync.indexOf("export function payloadDatiVeicolo")).matchAll(/^\s{4}([a-z0-9_]+):/gm),
     ].map((m) => m[1]);
 
     const mancanti = nelPayload.filter((campo) => !elenco.includes(`"${campo}"`));

@@ -498,6 +498,44 @@ prova su Postgres vero **prima** di consegnarla, sempre -- ricostruendo lo
 schema da zero, non su una tabella finta scritta a mano, perche' meta' di
 queste quattro non sarebbero comparse.
 
+**Il ritorno di una migration non si manda mai insieme alla migration.** E'
+l'unica cosa che non deve essere eseguita per sbaglio, e due blocchi di SQL
+uno sotto l'altro in uno stesso messaggio si somigliano abbastanza da
+scambiarli.
+
+Successo il 18/09/2026: il titolare ha eseguito il ritorno al posto della
+migration. E il motivo per cui questa regola esiste e' tutto qui:
+
+> **Non ha fatto danni per un caso.** Il ritorno non trovava niente da
+> annullare, perche' la migration non era ancora passata. Con l'ordine
+> inverso avrebbe disfatto il lavoro appena fatto, **e il conteggio finale
+> avrebbe detto zero senza nessun errore**.
+
+Quest'ultima riga e' la parte che conta: non ci sarebbe stato niente da
+vedere. Nessun messaggio rosso, nessuna eccezione, solo un numero a zero che
+somiglia moltissimo a "non c'era niente da fare".
+
+La regola: **prima si manda solo la migration**. Il ritorno si manda dopo, in
+un messaggio separato, e solo se serve davvero o se il titolare lo chiede; in
+cima ci va scritto cosa annulla.
+
+**E una precauzione che esiste nel progetto va rispettata anche in chat.** I
+due file stanno gia' in cartelle diverse -- `supabase/migrations/` e
+`supabase/ritorni/` -- proprio perche' non si confondano. Quella separazione
+e' stata buttata via nel modo di presentarli, incollandoli uno sotto l'altro
+in un messaggio. Vale in generale, non solo per le migration: se il progetto
+tiene due cose lontane, tenerle vicine nel messaggio che le consegna e' come
+non averle mai separate.
+
+**E i numeri attesi si scrivono solo per cio' che la migration fa.** Nello
+stesso giorno, il riepilogo di quella migration dichiarava un valore atteso
+anche per tre colonne che contano righe scritte **da altro** -- dalla
+sincronizzazione notturna, che gira ogni tre ore. Fra la scrittura e
+l'esecuzione erano cambiati, e il titolare ha letto tre numeri che non
+tornavano accanto a tre che tornavano. **Un numero atteso che non torna fa
+dubitare di tutto il resto**: un valore atteso si scrive solo dove nessun
+altro puo' muoverlo, e per il resto si dice "si legge, non si verifica".
+
 **Ogni migration ha la data nel nome, e un file che non ce l'ha gira per
 ultimo.** In una ricostruzione le migration si applicano in ordine
 **alfabetico** (`scripts/ricostruisci-schema.sh`), e nell'alfabeto del computer
@@ -613,6 +651,44 @@ rosso prima di fidarsi del verde (una interrogazione finta senza `dealer_id`).
 Vale per le tabelle, e per qualunque famiglia che un controllo enumera:
 colonne, ruoli, tipi di notifica, cartelle.
 
+**E quando un controllo legge il codice con un'espressione, l'espressione e'
+parte del controllo.** Un guardiano che scandisce i sorgenti con una regex
+non guarda i file: guarda **quello che la regex cattura**, e cio' che le
+sfugge risponde "tutto a posto" esattamente come cio' che e' sano.
+
+Il 18/09/2026: il guardiano che verifica che ogni campo scritto da
+`payloadDatiVeicolo` sia elencato in `CAMPI_DAL_SITO` leggeva i nomi con
+`[a-z_]+`. **Le cifre non ci sono dentro**, quindi saltava in silenzio ogni
+campo con un numero nel nome. Ce n'era uno solo, `co2_emissions`, e per
+fortuna era gia' in elenco: il difetto non e' costato niente, ma il controllo
+non lo stava guardando da quando esiste. Trovato scrivendo un altro test che
+usava la stessa espressione e che non tornava il conto.
+
+La prova che serve e' sempre la stessa: **si pianta un caso finto che la
+regex dovrebbe trovare** -- qui un campo nuovo chiamato `euro6_ready` -- e si
+guarda che il test diventi rosso. Se resta verde, non e' il codice a essere
+sano: e' il controllo a non guardare.
+
+**E vale anche per il verde di GitHub: un verde si legge sempre insieme al
+commit a cui si riferisce.** Il 18/09/2026, cinque minuti dopo aver scritto la
+regola qui sopra, la CI di una PR e' stata letta come "passata" mentre quel
+risultato era del commit **precedente**: il push appena fatto ne aveva avviato
+un altro, ancora in corso. La fusione e' stata rifiutata da GitHub, che
+guardava la cosa giusta.
+
+Il giro dopo e' andata peggio, e per la stessa ragione: `git push` ha
+risposto *"Everything up-to-date"* -- il commit era finito su `main` invece
+che sul ramo -- ma quella risposta era **filtrata via** da un `grep`, e al suo
+posto compariva un rassicurante "spinto". Il verde letto subito dopo era di
+nuovo quello del commit di prima, e GitHub rispondeva *"No commit found for
+SHA"* a chi glielo chiedeva per nome.
+
+Le due regole che ne escono, e sono la stessa: **si confronta sempre la testa
+del ramo con il commit su cui il controllo ha girato**
+(`git rev-parse HEAD` contro `.head_sha` del run), e **l'esito di un comando
+non si filtra mai**. `gh pr checks` dice anche `pending`, e un controllo che
+non ha finito non e' un controllo che ha detto di si'.
+
 **Le funzioni che oggi nessuno tocca sono quelle dove aspettarsi le
 sorprese.** "Duplica" e' rimasto rotto **dieci giorni** (dal 06/09 al
 16/09/2026) senza che nessuno se ne accorgesse. Non e' colpa di nessuno: e'
@@ -696,6 +772,18 @@ modifica che parla d'altro. In ordine di quanto gia' fanno danno:
    confermato). Va sistemata **quando esistera' la conferma**, non prima:
    oggi, senza un modo per confermare, escluderla farebbe scendere il
    punteggio di tutti senza che nessuno possa farci niente.
+
+5. **Il tipo veicolo dice "dal tuo sito" e dal sito non arriva.**
+   `payloadDatiVeicolo` scrive `vehicle_category: "Auto"` come **costante
+   nostra**, ma passa dallo stesso giro degli altri campi e quindi il ripasso
+   lo segna `sito`. Sulla scheda si legge "dal tuo sito · da confermare" su
+   un valore che il sito non ha mai dichiarato: e' la provenienza sbagliata,
+   in piccolo. Si corregge nel ripasso -- o lasciandolo senza segno, o dandogli
+   la sua dicitura -- non replicandola altrove. Si puo' correggere quando si
+   vuole: la migration del 18/09/2026 e il suo ritorno **non ci si
+   appoggiano** (una prima versione lo faceva, ed e' stata rifatta proprio per
+   questo: un ritorno che si rompe il giorno in cui si corregge un difetto e'
+   una trappola con la miccia lunga).
 
 E una nota sul guardiano dei nomi dei fornitori: cerca soltanto la parola
 "Supabase". "MotorK" o "DealerK" in una dicitura non verrebbero fermati. La

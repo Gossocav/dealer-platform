@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fraseIngresso, percheNienteIngresso } from "@/lib/giacenza";
+import { fraseIngresso, notaIngresso, percheNienteIngresso } from "@/lib/giacenza";
 import {
   calcolatoDaKeyAuto,
   disaccordo,
@@ -37,7 +37,14 @@ describe("ogni valore ha la sua provenienza, sempre", () => {
     expect(etichettaProvenienza({ a: { fonte: "dealer" } }, "a")).toBe("scritto da te");
     expect(etichettaProvenienza({ a: { fonte: "sito" } }, "a")).toBe("dal tuo sito · da confermare");
     expect(etichettaProvenienza({ a: { fonte: "sito", confermato_il: "2026-09-18" } }, "a")).toBe("dal tuo sito");
-    expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe("deciso dal tuo sito · da confermare");
+    // "deciso dal tuo sito" si leggeva come una dichiarazione del sito, ed e'
+    // il contrario di quello che vuol dire `dedotto`: quel dato il sito non lo
+    // dichiara, ce l'ha messo il suo sistema. Visto a schermo il 18/09/2026
+    // accanto a "in vetrina da almeno", dove le due meta' della stessa riga si
+    // contraddicevano.
+    expect(etichettaProvenienza({ a: { fonte: "dedotto" } }, "a")).toBe(
+      "non dichiarato dal tuo sito, riempito dal suo sistema · da confermare",
+    );
     expect(etichettaProvenienza({ a: { fonte: "feed" } }, "a")).toBe("dal tuo feed · da confermare");
   });
 
@@ -140,6 +147,38 @@ describe("la giacenza ha due frasi, e per tutto il resto tace", () => {
       "non sappiamo da dove arriva questa data",
     );
     expect(percheNienteIngresso({ enteredOn: "2026-01-10", fonte: "sito", giorni: 5 })).toBeNull();
+  });
+});
+
+describe("la nota dell'ingresso dice due cose, in due frasi", () => {
+  it("una data dichiarata e una dedotta si raccontano in modo diverso", () => {
+    // Il difetto, visto su una scheda vera: "dalla data d'ingresso 24/10/2024 ·
+    // deciso dal tuo sito · da confermare · calcolato da KeyAuto". Tre
+    // diciture in fila, due delle quali sembravano dire cose opposte, e la
+    // prima era anche falsa su un dato dedotto.
+    expect(notaIngresso("21/06/2026", "sito")).toBe(
+      "Data d'ingresso dichiarata dal tuo sito: 21/06/2026. I giorni li conta KeyAuto.",
+    );
+    expect(notaIngresso("24/10/2024", "dedotto")).toBe(
+      "Il tuo sito non dichiara quando e' entrata in piazzale: il 24/10/2024 e' il giorno in cui la scheda e' comparsa. I giorni li conta KeyAuto.",
+    );
+  });
+
+  it("niente nota per una fonte che non sa dire da quando, e niente senza data", () => {
+    expect(notaIngresso("21/06/2026", "feed")).toBeNull();
+    expect(notaIngresso("21/06/2026", null)).toBeNull();
+    expect(notaIngresso(null, "sito")).toBeNull();
+    expect(notaIngresso("", "sito")).toBeNull();
+  });
+
+  it("chi conta i giorni e chi ha dato la data non si confondono mai", () => {
+    // La prova del difetto: nella stessa nota non devono comparire due
+    // affermazioni che chi legge puo' prendere per contraddittorie.
+    for (const fonte of ["sito", "dedotto"]) {
+      const nota = notaIngresso("24/10/2024", fonte) ?? "";
+      expect(nota, "la nota e' tornata a essere una fila di diciture").not.toContain(" · ");
+      expect(nota).toContain("KeyAuto");
+    }
   });
 });
 

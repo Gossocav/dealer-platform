@@ -148,6 +148,40 @@ export function fraseIngresso(giorni: number | null, fonte: string | null | unde
   return null;
 }
 
+/**
+ * La riga che spiega **da dove viene la data** e **chi ha contato i giorni**.
+ *
+ * Il difetto che chiude, visto su una scheda vera il 18/09/2026. La nota era
+ * una fila di tre diciture separate da punti:
+ *
+ *     dalla data d'ingresso 24/10/2024 · deciso dal tuo sito · da confermare · calcolato da KeyAuto
+ *
+ * Due cose non andavano, e la seconda era grave:
+ *
+ * 1. **"deciso dal tuo sito" e "calcolato da KeyAuto" nella stessa riga si
+ *    leggono come due affermazioni opposte.** Parlano di due cose diverse --
+ *    la data viene dal sito, i giorni li contiamo noi -- ma chi legge vede una
+ *    riga sola e non ha nessun modo di capirlo.
+ * 2. **"deciso dal tuo sito" era falso proprio dove compariva.** Quella data
+ *    e' *dedotta*: e' il giorno in cui la scheda e' comparsa sul sito, non
+ *    quello in cui l'auto e' entrata in piazzale. La riga sopra diceva "in
+ *    vetrina da almeno", proprio perche' e' dedotta: le due meta' della stessa
+ *    riga si contraddicevano.
+ *
+ * Adesso sono due frasi in italiano, e ognuna dice una cosa sola.
+ */
+export function notaIngresso(giornoFormattato: string | null, fonte: string | null | undefined): string | null {
+  const giorno = String(giornoFormattato ?? "").trim();
+  if (!giorno) return null;
+  if (fonte === "sito") {
+    return `Data d'ingresso dichiarata dal tuo sito: ${giorno}. I giorni li conta KeyAuto.`;
+  }
+  if (fonte === "dedotto") {
+    return `Il tuo sito non dichiara quando e' entrata in piazzale: il ${giorno} e' il giorno in cui la scheda e' comparsa. I giorni li conta KeyAuto.`;
+  }
+  return null;
+}
+
 /** Perche' la frase dell'ingresso non c'e'. Un trattino non va mai da solo. */
 export function percheNienteIngresso(input: {
   enteredOn: string | null | undefined;

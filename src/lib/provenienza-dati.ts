@@ -58,6 +58,27 @@ export type SegnoDiProvenienza = {
   /** Quando il concessionario l'ha confermato. Assente = e' una proposta. */
   confermato_il?: string | null;
   /**
+   * Quando questo segno e' stato **ricostruito** invece che osservato.
+   *
+   * Un segno normale nasce mentre si legge il sito: si e' visto quel valore
+   * arrivare, quel giorno. Le schede sparite dal sito non si possono piu'
+   * leggere, e il segno che portano e' stato **dedotto da quello che
+   * l'importazione aveva scritto** (migration `20260918010000`): il valore
+   * viene dal sito, questo si sa, ma nessuno l'ha visto arrivare in quel
+   * momento.
+   *
+   * Non e' un marcatore tecnico, e' la stessa distinzione fra "misurato" e
+   * "dedotto" che vale per la data d'ingresso. Serve anche a una cosa
+   * pratica: e' l'unico modo che il ritorno di quella migration ha di
+   * riconoscere **le sue** schede, senza appoggiarsi a indizi che una
+   * correzione futura potrebbe far sparire.
+   *
+   * Sparisce da solo: se quella scheda tornasse sul sito e venisse riletta
+   * davvero, `scriviDalSito` sostituisce il segno intero e la ricostruzione
+   * lascia il posto a un'osservazione.
+   */
+  ricostruito_il?: string | null;
+  /**
    * Cosa dice il sito adesso, quando non e' d'accordo con il concessionario.
    *
    * `fonte` dice **chi** non e' d'accordo: il sito della concessionaria o il
@@ -280,7 +301,13 @@ export function etichettaProvenienza(origineDati: unknown, campo: string): strin
   if (segno.fonte === "dealer") return "scritto da te";
   const daConfermare = segno.confermato_il ? "" : " · da confermare";
   if (segno.fonte === "feed") return `dal tuo feed${daConfermare}`;
-  return segno.fonte === "sito" ? `dal tuo sito${daConfermare}` : `deciso dal tuo sito${daConfermare}`;
+  // "deciso dal tuo sito" era la dicitura di `dedotto`, e si leggeva come una
+  // dichiarazione del sito: e' il contrario di quello che vuol dire. Un dato
+  // dedotto il sito non lo dichiara, ce l'ha messo il suo sistema. Corretto il
+  // 18/09/2026 dopo averlo visto a schermo accanto a "in vetrina da almeno",
+  // dove le due meta' della stessa riga si contraddicevano.
+  if (segno.fonte === "dedotto") return `non dichiarato dal tuo sito, riempito dal suo sistema${daConfermare}`;
+  return `dal tuo sito${daConfermare}`;
 }
 
 /**
