@@ -300,6 +300,44 @@ regole:
 I guardiani sono in `src/lib/conto-economico.test.ts`, sotto "un dato mancante
 non vale zero".
 
+**E la terza forma che prende questa famiglia: il ripiego silenzioso.** Le
+prime due si riconoscono perche' il numero e' **inventato** (le due
+importazioni mai avvenute) o **incompleto** (il costo totale che ignora
+l'acquisto mancante). Questa no: il numero e' **vero**, contato bene -- solo
+che e' il conto di un'altra cosa.
+
+Il caso, 19/09/2026, in home. I quattro riquadri in cima al marketplace
+aprono con "Veicoli pubblicati", e il codice diceva
+`totalVehicleCount ?? vehicles.length`. A sinistra il conteggio vero, chiesto
+al database con `count: "exact"`. A destra le **ventiquattro** auto delle
+"ultime arrivate", cioe' la finestra che la home carica per mostrarle piu' in
+basso nella pagina.
+
+Il giorno in cui quel conteggio non fosse riuscito -- una richiesta in piu'
+che non torna, niente di raro -- il sito avrebbe annunciato **"24 veicoli
+pubblicati"** come totale dell'intero marketplace: le ultime arrivate
+mostrate come se fossero tutto. Non un numero impreciso. **Un numero di
+un'altra cosa, con la stessa faccia.** Ventiquattro e' esatto; e' la risposta
+a una domanda che nessuno ha fatto.
+
+E' la piu' difficile da vedere delle tre, per due motivi che si sommano:
+
+- **il ripiego si scrive mentre si fa la cosa giusta.** Chi ha aggiunto il
+  conteggio vero ha aggiunto anche il `??`, in buona fede, per non lasciare
+  un buco nella pagina. Nel diff sembra prudenza;
+- **non si manifesta finche' tutto funziona.** Un difetto che compare solo
+  quando qualcos'altro e' gia' andato storto non lo trova nessuno guardando
+  lo schermo, e non lo trova nemmeno chi prova la pagina: si trova solo
+  leggendo la riga e chiedendosi cosa succede quando il primo valore manca.
+
+La regola: **`??` e `||` su un numero che finisce sotto gli occhi di
+qualcuno sono sempre sospetti.** La domanda da farsi e' *"il valore a destra
+risponde alla stessa domanda di quello a sinistra?"* -- e quasi sempre la
+risposta e' no, perche' se rispondesse alla stessa domanda non servirebbero
+due strade per ottenerlo. Quando non risponde, il ripiego giusto e' **non
+mostrare niente**: in home il riquadro che non si sa adesso non compare, e
+restano tre numeri veri invece di quattro di cui uno inventato.
+
 **E un si'/no che ammette il vuoto e' un terzo stato che nessuno gestisce.**
 E' la stessa famiglia, sulle colonne invece che sui conti. Misurato il
 14/09/2026: in produzione `vehicles.published` ammetteva il vuoto. Il tetto del
@@ -343,6 +381,35 @@ tabella la scavalcava); `revoke ... from public` che non toglie il permesso
 che Supabase concede ad `anon` (sette funzioni `security definer` restavano
 eseguibili dal sito, per due mesi); e `dealer_users`, dove si toglievano
 `insert/update/delete` ma non `all`.
+
+**E una frase del titolare non e' piu' vera di una mia solo perche' l'ha
+detta lui.** E' la stessa forma delle due regole qui sopra -- un commento che
+motiva una scelta, una regola scritta bene -- spostata su **chi parla**
+invece che su cosa e' scritto: l'autorita' di una fonte non e' una verifica.
+
+Il caso, 19/09/2026. Il prezzo minimo sbagliato sulla scheda della
+concessionaria e' stato raccontato cosi': *"quelle auto sotto gli 8.000 €
+esistevano, erano pubblicate, e chi cercava in quella fascia non le
+trovava"*. Era una frase del titolare, in un messaggio che chiedeva di
+metterla agli atti. Copiarla era la cosa piu' naturale del mondo, e sarebbe
+stata una riga falsa dentro il documento in cui si raccolgono le lezioni
+vere.
+
+**Si trovavano.** La ricerca del marketplace filtra il prezzo nel database,
+non sull'elenco caricato, e le cinque auto sotto quella soglia -- 5.800,
+6.475, 7.500, 7.800, 7.900 -- sono state ritrovate una per una interrogando
+la produzione con la sola chiave pubblica. Quello che era falso era il
+**biglietto da visita**: "a partire da 7.500 €" su una vetrina che partiva da
+5.800, e chi apriva quella pagina poteva chiuderla li'. Meno grave, stesso
+difetto.
+
+La regola vale in tutte e due le direzioni, ed e' la ragione per cui sta
+scritta qui: **una premessa si verifica prima di scriverla, da chiunque
+arrivi**. Quando la verifica la corregge, si scrive la forma giusta **e si
+dice al titolare cosa e' stato cambiato e perche'** -- non si corregge in
+silenzio, e non si riporta la sua versione per cortesia. Una lezione
+sbagliata in questo file e' peggio di una lezione mancante: verra' riletta
+come vera per mesi, e nessuno avra' motivo di dubitarne.
 
 **Come si evita la quinta volta.** Quando una regola nomina un elenco --
 comandi, ruoli, tabelle, tipi di oggetto -- la domanda non e' "l'elenco e'
