@@ -1263,7 +1263,7 @@ di lasciarlo intendere.
 - [README.md](README.md) — cos'e' il progetto e come si fa girare
 - [ARCHITECTURE.md](ARCHITECTURE.md) — architettura e modello multi-concessionaria
 - [PRODUCT_BOOK.md](PRODUCT_BOOK.md) — prodotto e ambito funzionale
-- [supabase/MIGRAZIONI.md](supabase/MIGRAZIONI.md) — come si applica una modifica al database
+- [supabase/MIGRAZIONI.md](supabase/MIGRAZIONI.md) — come si applica una modifica al database, e in cima **da dove si riprende**: l'ordine dei lavori aperti, deciso dal titolare e non da ricostruire ogni volta
 - `.github/instructions/` — regole valide per percorsi specifici
 
 ## Variabili d'ambiente

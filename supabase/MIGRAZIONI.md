@@ -17,7 +17,75 @@ lo leggeva più.
 
 Il controllo **legge soltanto**. Non applica niente.
 
+## Da dove si riprende (19/09/2026)
+
+**Questo e' il punto di ripartenza buono.** L'ordine e' stato deciso dal
+titolare il 19/09/2026 e scritto qui apposta: la prossima volta si riparte da
+questo elenco, non ricostruendolo da un riepilogo.
+
+1. **I due numeri falsi ancora a video.** Sono gia' visibili oggi, e sono
+   della stessa famiglia chiusa il 19/09 -- un numero plausibile al posto di
+   "non lo so":
+   - il **prezzo assente mostrato come "0 €"** sulla scheda del veicolo e in
+     Gestione Veicoli (`formatCurrency(Number(vehicle.price ?? 0))`): un'auto
+     senza prezzo dichiara zero euro;
+   - il **prezzo d'acquisto scritto a zero** che il modulo del conto
+     economico rilegge come **vuoto** (`vehicle-economics-card.tsx`), e a
+     schermo compare "manca il prezzo di acquisto" su una vettura che il
+     prezzo ce l'ha ed e' zero -- una permuta a saldo, un'auto della casa
+     madre. **Si prova su una riga vera prima di correggere.**
+
+2. **Il quarto esito del controllo dello schema.** Oggi "differenze trovate"
+   copre tre stati che non si somigliano: allineato, **in attesa di essere
+   applicata**, derivato davvero. Il quarto esito vale solo se **tutte** le
+   differenze vanno in una direzione sola (nei file e non in produzione) e
+   solo **entro una scadenza** calcolata sull'arrivo dell'ultima migration in
+   `main`; oltre, diventa un guasto con un nome suo. La direzione opposta --
+   in produzione e non nei file, o stessa impronta diversa -- resta sempre
+   guasto pieno. Poi il cron da settimanale a giornaliero, che serve solo a
+   far scattare la scadenza entro un giorno.
+
+   **Ha dimostrato di servire il 19/09**, e non in teoria: il passo "rilancia
+   il controllo" era gia' scritto nella procedura qui sotto e non e' stato
+   fatto lo stesso, e il rosso e' rimasto appeso per ore su una produzione
+   allineata. Il messaggio del quarto esito deve contenere **il percorso dei
+   clic**: chi legge "migration in attesa" deve trovare li' cosa fare, non in
+   un altro file.
+
+3. **Il blocco unico su usabilita' e trattini**, che non si fa a pezzi.
+   Dentro il blocco, **i 19 trattini muti nelle email vengono per primi**:
+   sono righe che partono verso persone vere, e un *"Scadenza: -"* in
+   un'email a una concessionaria e' una riga che non doveva partire. Le
+   misure di tutto il blocco stanno in AGENTS.md, sotto *"Il blocco unico
+   sull'usabilita', e quanto e' grande"*.
+
+4. **"Contatta la concessionaria".** Non e' grafica, e' **mancanza di
+   prodotto**: oggi si puo' scrivere solo a proposito di un'auto, e chi apre
+   la pagina di una concessionaria non ha modo di contattarla. Telefono e
+   WhatsApp in evidenza, piu' un modulo senza veicolo. Da verificare prima di
+   costruirlo: un contatto senza `vehicle_id` passa, o il trigger lo rifiuta?
+
+5. **Il resto delle cose interne**: le due porte ancora scollegate dalla
+   provenienza (importazione da file, foglio di consegna) e
+   `vehicle_category` che dice "dal tuo sito" su un valore che dal sito non
+   arriva.
+
+**Fuori dall'ordine, e apposta: le tre voci del piano multiutente.** Le
+notifiche leggibili fra colleghi, il `cross join` sugli utenti nelle due
+interrogazioni, e la correzione su `dealer_users`. **Sono legate alla loro
+condizione, non a una data**: si chiudono **prima di vendere un piano con
+piu' di un utente**, Elite compreso, e finche' ogni piano ha un utente solo
+non fanno danni. Vanno guardate tutte e tre insieme il giorno che quella
+condizione si avvera.
+
 ## Dove siamo rimasti (10/09/2026)
+
+> **Sezione storica, superata.** I passi del suo *"Da dove riprendere"* che
+> riguardavano lo schema sono chiusi: il controllo del 19/09/2026 e' verde,
+> e un verde li' vuol dire che la produzione combacia con i file su tutte e
+> tredici le famiglie. Resta aperto soltanto quello che non riguardava il
+> database -- la decisione sui clienti con contatti collegati -- e non e'
+> stato verificato qui. Per riprendere si legge la sezione **sopra**.
 
 ### Già applicato in produzione
 
