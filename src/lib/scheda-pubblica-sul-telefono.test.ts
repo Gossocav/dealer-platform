@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { descrizioneVaAccorciata, RIGHE_DESCRIZIONE_VISIBILI } from "@/lib/descrizione-annuncio";
@@ -75,15 +75,73 @@ describe("nemmeno i contatti della concessionaria vengono tagliati", () => {
   });
 });
 
-describe("il taglio non torna da un'altra parte", () => {
-  it("nessun valore della scheda pubblica viene troncato", () => {
-    // Il difetto l'ho trovato in un punto, e nella pagina era in **tre**:
-    // scheda tecnica, caselle in cima, contatti della concessionaria. Un
-    // elenco di tre posti si dimentica; la regola no. `truncate` taglia il
-    // testo e ci mette tre puntini: su una scheda pubblica, dove chi legge
-    // sta decidendo se chiamare, non si usa.
-    const usi = codice.split("truncate").length - 1;
-    expect(usi, `la pagina taglia ancora il testo in ${usi} punti`).toBe(0);
+describe("il taglio non torna da un'altra parte, in nessuna pagina pubblica", () => {
+  /**
+   * **Il guardiano non elenca i posti, conta gli usi.** Il difetto l'avevo
+   * trovato in un punto e nella sola scheda auto era in **tre**: scheda
+   * tecnica, caselle in cima, contatti della concessionaria. Un elenco di tre
+   * posti si dimentica; una regola no.
+   *
+   * Allargato a **tutto il marketplace** il 19/09/2026, prima che il titolare
+   * aprisse le altre pagine dal telefono: cosi' quello che trova guardando e'
+   * solo cio' che un test non puo' vedere.
+   *
+   * `truncate` taglia su una riga sola e ci mette tre puntini. Su una pagina
+   * pubblica, dove chi legge sta decidendo se comprare un'automobile, non si
+   * usa. **`line-clamp` e' un'altra cosa e resta ammesso**: tiene piu' righe,
+   * si usa sui titoli delle schede in elenco, e il testo intero e' a un tocco
+   * di distanza sulla pagina dell'auto.
+   */
+  function sorgenti(cartella: string, raccolti: string[] = []): string[] {
+    for (const nome of readdirSync(resolve(process.cwd(), cartella))) {
+      const percorso = `${cartella}/${nome}`;
+      if (statSync(resolve(process.cwd(), percorso)).isDirectory()) sorgenti(percorso, raccolti);
+      else if (nome.endsWith(".tsx")) raccolti.push(percorso);
+    }
+    return raccolti;
+  }
+
+  /**
+   * L'unica eccezione, con il suo perche'. Puo' solo accorciarsi.
+   *
+   * La striscia dei nomi delle concessionarie in home scorre di lato come un
+   * nastro: e' `whitespace-nowrap` per costruzione, e mandarla a capo la
+   * romperebbe. Non taglia niente -- il testo scorre tutto.
+   */
+  const NASTRO_CHE_SCORRE = "src/components/marketplace/marquee-dealers.tsx";
+
+  it("nessuna pagina pubblica taglia il testo su una riga sola", () => {
+    const colpevoli: string[] = [];
+    for (const percorso of [...sorgenti("src/app/(marketplace)"), ...sorgenti("src/components/marketplace")]) {
+      const testo = readFileSync(resolve(process.cwd(), percorso), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/^[ \t]*\/\/.*$/gm, " ");
+      // `truncate` come classe intera: `line-clamp-2` non contiene la parola,
+      // ma un `sm:truncate` si'.
+      if (/(^|["'\s:])truncate(["'\s]|$)/.test(testo)) colpevoli.push(percorso);
+    }
+    expect(
+      colpevoli,
+      `Queste pagine pubbliche tagliano ancora il testo:\n  ${colpevoli.join("\n  ")}\n` +
+        "Su una pagina che guarda chi sta comprando, un dato tagliato e' un dato perso: il 18/09/2026 erano tre " +
+        "indirizzi email su cinque, ed e' il campo da cui nasce il contatto.",
+    ).toEqual([]);
+  });
+
+  it("il nastro che scorre resta l'unica eccezione, e si sa perche'", () => {
+    const nastro = readFileSync(resolve(process.cwd(), NASTRO_CHE_SCORRE), "utf8");
+    expect(nastro, `${NASTRO_CHE_SCORRE} non e' piu' un nastro: l'eccezione va tolta`).toContain("whitespace-nowrap");
+    // E non deve nemmeno lui tagliare: scorre, non tronca.
+    expect(nastro).not.toContain("truncate");
+  });
+
+  it("e il guardiano vede davvero un taglio nuovo", () => {
+    // Un controllo mai visto rosso non e' un controllo.
+    const forma = /(^|["'\s:])truncate(["'\s]|$)/;
+    expect(forma.test('className="min-w-0 truncate text-sm"')).toBe(true);
+    expect(forma.test('className="sm:truncate"')).toBe(true);
+    expect(forma.test('className="line-clamp-2 min-w-0"')).toBe(false);
+    expect(forma.test("// niente truncate qui")).toBe(true);
   });
 });
 

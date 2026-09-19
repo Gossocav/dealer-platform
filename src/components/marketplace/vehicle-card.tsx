@@ -90,7 +90,14 @@ export async function VehicleCard({ vehicle }: VehicleCardProps) {
                   "KA"
                 )}
               </span>
-              <span className="truncate">{dealerName}</span>
+              {/* **Non si taglia il nome di chi vende.** Era `truncate`: su
+                  una scheda stretta "Ferrari Automobili Srl" -- ventidue
+                  caratteri, il piu' lungo in produzione -- finiva a tre
+                  puntini. E' la stessa famiglia del difetto trovato il
+                  18/09/2026 sulla scheda auto, dove a tagliarsi erano gli
+                  indirizzi email. Qui costa meno, ma il nome del venditore su
+                  un marketplace non e' un dettaglio: va a capo. */}
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{dealerName}</span>
             </span>
           </div>
           <div className="flex flex-none gap-2">

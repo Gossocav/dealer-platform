@@ -877,6 +877,34 @@ mettere i dati e poi la schermata che li racconta e' l'ordine giusto, ma
 lascia per un po' informazioni che il database ha e lo schermo no: quell'elenco
 esiste perche' nessuna si perda per strada.
 
+**Una scelta consapevole fra due cose giuste va scritta con la condizione
+che la farebbe cambiare**, altrimenti fra sei mesi qualcuno la legge come un
+errore e la "corregge".
+
+Il caso, 19/09/2026, sulla descrizione della scheda auto pubblica. Il testo
+si accorcia a cinque righe con "Mostra tutta la descrizione", e sta dentro
+`<summary>` invece che nel corpo di `<details>`. Sembra sbagliato e non lo
+e':
+
+- **perche' cosi'**: `<summary>` si vede **sempre**, aperto o chiuso. Quello
+  che cambia aprendo e' solo il taglio delle righe, che e' CSS. Il testo non
+  finisce mai dentro una parte nascosta della pagina, e la descrizione e'
+  anche cio' che porta le persone sulla scheda dai motori di ricerca. Nel
+  corpo di `<details>` sarebbe indicizzata lo stesso, ma "lo stesso" e' una
+  cosa che si crede, non che si verifica;
+- **cosa costa**: un lettore di schermo annuncia il contenuto di `<summary>`
+  come etichetta del comando che apre, quindi legge tutta la descrizione
+  insieme a "Mostra tutta la descrizione". Chi usa quegli strumenti il testo
+  lo riceve intero, ma in una forma meno pulita;
+- **cosa la farebbe cambiare**: il giorno in cui si potesse verificare -- non
+  supporre -- che il testo nel corpo di `<details>` vale quanto quello
+  visibile per chi indicizza la pagina, allora il corpo e' il posto giusto e
+  il costo sui lettori di schermo sparisce.
+
+La forma vale oltre il caso: **perche' cosi', cosa costa, cosa la farebbe
+cambiare**. Le prime due si scrivono sempre; e' la terza che impedisce a una
+scelta di diventare un dogma.
+
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde
 "non trovato" e sembra che tutto funzioni. Per provare sui dati veri si
