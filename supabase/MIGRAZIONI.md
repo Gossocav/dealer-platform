@@ -179,12 +179,27 @@ Si legge, si usa, si cancella.
 2. Menu di sinistra → **SQL Editor** → **New query**.
 3. Incolla il contenuto del file `.sql` indicato dal controllo.
 4. **Run**. La risposta attesa è `Success. No rows returned`.
-5. Rilancia il controllo da GitHub (scheda **Actions** → *Lo schema di
-   produzione combacia con i file* → **Run workflow**) e verifica che diventi
-   verde.
+5. **Rilancia il controllo**, e non è un passo facoltativo: su GitHub, scheda
+   **Actions** → nella colonna di sinistra *Lo schema di produzione combacia
+   con i file* → il bottone **Run workflow** in alto a destra → di nuovo **Run
+   workflow**. Verifica che diventi verde.
+
+   **Finché non lo rilanci, il rosso resta appeso anche se la produzione è già
+   allineata.** Il controllo parte da solo soltanto quando cambiano i file
+   delle migration, e quelli sono già cambiati prima che tu applicassi: il
+   momento in cui la differenza sparisce non fa scattare niente. Nessun altro
+   lo rimetterà a posto fino al lunedì.
 
 Applica i file **in ordine di data**, dal più vecchio al più recente: alcuni
 danno per scontato quello che ha fatto il precedente.
+
+**Perché il motivo è stato aggiunto il 19/09/2026.** Il passo 5
+c'era già, con lo stesso percorso di clic, e quel giorno non è stato fatto: la
+vista `vetrina_per_concessionaria` è stata applicata poco dopo le 09:17 e il
+rosso è rimasto su `main` per ore, su una produzione che nel frattempo
+combaciava. Un passo senza il motivo si legge come una cortesia e si salta; con
+il motivo si capisce che saltarlo lascia un allarme acceso su una cosa a posto,
+che è il modo in cui si smette di leggerli.
 
 ## Perché non le applichiamo automaticamente
 
