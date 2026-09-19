@@ -29,6 +29,7 @@ import { caricaTutto } from "@/lib/carica-tutto";
 import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
 import { indirizzoDelRiquadro } from "@/lib/video-annuncio";
 import { caricaConcessionarieElite } from "@/lib/concessionarie-elite";
+import { descrizioneVaAccorciata } from "@/lib/descrizione-annuncio";
 import { righeSchedaTecnica } from "@/lib/scheda-tecnica";
 import { descrizioneSeoVeicolo, titoloSeoVeicolo } from "@/lib/vehicle-seo";
 import { JsonLd } from "@/components/marketplace/json-ld";
@@ -411,8 +412,17 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-400/15 text-cyan-300">
                     <SpecIcon name={spec.icon} />
                   </span>
-                  <p className="mt-2.5 min-w-0 truncate text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{spec.label}</p>
-                  <p className="mt-0.5 min-w-0 truncate text-sm font-bold text-white">{spec.value}</p>
+                  {/* **Anche qui si andava a tre puntini**, e su queste
+                      caselle a tagliarsi era pure il **nome** del campo:
+                      "Immatricolazione" sono sedici caratteri, e sul telefono
+                      le caselle stanno due per riga. Si leggeva
+                      "Immatricolaz...". Fra i valori, "Meccanico
+                      Sequenziale" faceva la stessa fine. Adesso vanno a capo:
+                      la casella cresce di una riga, il dato si legge. */}
+                  <p className="mt-2.5 min-w-0 break-words text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    {spec.label}
+                  </p>
+                  <p className="mt-0.5 min-w-0 break-words text-sm font-bold text-white [overflow-wrap:anywhere]">{spec.value}</p>
                 </div>
               ))}
             </div>
@@ -424,12 +434,44 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   su 85 delle 235 automobili pubblicate. Una sezione che non
                   c'e' e' meglio di una sezione vuota, che sembra un guasto. */}
               {descrizione ? (
-                <div className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-white/[0.03] px-5 py-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Descrizione</p>
-                  <p className="mt-3 min-w-0 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 [overflow-wrap:anywhere]">
-                    {descrizione}
-                  </p>
-                </div>
+                /* **La descrizione si accorcia, ma non si nasconde.**
+                 *
+                 * Sul telefono arrivava fino a ~1400 pixel -- due schermate di
+                 * solo testo -- fra le fotografie e la scheda tecnica.
+                 *
+                 * Il testo sta dentro `<summary>`, non nel corpo di
+                 * `<details>`: `<summary>` si vede **sempre**, aperto o
+                 * chiuso. Quello che cambia aprendo e' solo il taglio delle
+                 * righe, che e' un fatto di CSS. Cosi' il testo non finisce
+                 * mai dentro una parte nascosta della pagina, e chi la legge
+                 * -- persona o motore di ricerca -- lo trova sempre.
+                 *
+                 * Niente JavaScript: la scheda e' precompilata e in cache, e
+                 * un componente interattivo manderebbe codice al browser su
+                 * ogni annuncio. Lo stesso `<details>` lo usano gia' il menu
+                 * del telefono e le domande frequenti.
+                 */
+                <details
+                  open={!descrizioneVaAccorciata(descrizione)}
+                  className="group min-w-0 max-w-full overflow-hidden rounded-2xl bg-white/[0.03] px-5 py-5 [&_summary::-webkit-details-marker]:hidden"
+                >
+                  <summary className="list-none [&::marker]:hidden">
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Descrizione</p>
+                    <p
+                      className={`mt-3 min-w-0 max-w-full whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 [overflow-wrap:anywhere] ${
+                        descrizioneVaAccorciata(descrizione) ? "line-clamp-5 group-open:line-clamp-none" : ""
+                      }`}
+                    >
+                      {descrizione}
+                    </p>
+                    {descrizioneVaAccorciata(descrizione) ? (
+                      <span className="mt-3 inline-flex cursor-pointer text-xs font-semibold text-cyan-300 underline-offset-4 hover:underline">
+                        <span className="group-open:hidden">Mostra tutta la descrizione</span>
+                        <span className="hidden group-open:inline">Mostra meno</span>
+                      </span>
+                    ) : null}
+                  </summary>
+                </details>
               ) : null}
 
               {/* Come per la descrizione: senza video il riquadro non si
@@ -450,17 +492,28 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               <div className="mt-4 grid gap-x-8 sm:grid-cols-2">
                 <dl className="divide-y divide-white/5">
                   {technicalSpecsVisibili.filter((_, i) => i % 2 === 0).map((spec) => (
-                    <div key={spec.label} className="flex items-center justify-between gap-4 py-3 first:pt-0">
+                    <div key={spec.label} className="flex flex-col gap-0.5 py-3 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                       <dt className="text-sm text-slate-500">{spec.label}</dt>
-                      <dd className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-white">{spec.value}</dd>
+                      {/* **Niente `truncate`.** Il valore andava a capo mai e
+                          veniva tagliato a tre puntini dopo il 60% della riga:
+                          su 174 delle 279 automobili pubblicate -- il 62% -- la
+                          **Versione** arrivava monca, ed e' proprio il dato che
+                          distingue un allestimento da un altro. Sul telefono
+                          l'etichetta sta sopra, cosi' il valore ha tutta la
+                          larghezza. */}
+                      <dd className="min-w-0 break-words text-sm font-semibold text-white [overflow-wrap:anywhere] sm:max-w-[60%] sm:text-right">
+                        {spec.value}
+                      </dd>
                     </div>
                   ))}
                 </dl>
                 <dl className="divide-y divide-white/5">
                   {technicalSpecsVisibili.filter((_, i) => i % 2 === 1).map((spec) => (
-                    <div key={spec.label} className="flex items-center justify-between gap-4 py-3 first:pt-0 sm:first:pt-3">
+                    <div key={spec.label} className="flex flex-col gap-0.5 py-3 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4 sm:first:pt-3">
                       <dt className="text-sm text-slate-500">{spec.label}</dt>
-                      <dd className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-white">{spec.value}</dd>
+                      <dd className="min-w-0 break-words text-sm font-semibold text-white [overflow-wrap:anywhere] sm:max-w-[60%] sm:text-right">
+                        {spec.value}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -563,11 +616,24 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   );
 }
 
+/**
+ * Una riga dei contatti della concessionaria: citta', telefono, WhatsApp,
+ * email.
+ *
+ * **Aveva lo stesso taglio della scheda tecnica, e qui costava di piu'.** Il
+ * valore finiva a tre puntini dopo il 60% della riga, e su uno schermo
+ * stretto sono una ventina di caratteri: il 18/09/2026, **tre indirizzi email
+ * su cinque** erano piu' lunghi di cosi'. Una versione tagliata si legge
+ * male; un'email tagliata non si puo' scrivere, ed e' il modo in cui il
+ * compratore avrebbe chiamato.
+ */
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-4 border-b border-white/5 pb-2.5">
+    <div className="flex min-w-0 flex-col gap-0.5 border-b border-white/5 pb-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
       <span className="text-sm text-slate-500">{label}</span>
-      <span className="min-w-0 max-w-[60%] truncate text-right text-sm font-semibold text-white">{value}</span>
+      <span className="min-w-0 break-words text-sm font-semibold text-white [overflow-wrap:anywhere] sm:max-w-[60%] sm:text-right">
+        {value}
+      </span>
     </div>
   );
 }
