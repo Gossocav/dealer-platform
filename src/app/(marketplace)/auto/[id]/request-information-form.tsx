@@ -202,11 +202,11 @@ export default function RequestInformationForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome *" value={firstName} onChange={setFirstName} required />
-          <Field label="Cognome" value={lastName} onChange={setLastName} />
+          <Field label="Nome *" value={firstName} onChange={setFirstName} required autoComplete="given-name" />
+          <Field label="Cognome" value={lastName} onChange={setLastName} autoComplete="family-name" />
         </div>
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
-        <Field label="Telefono" type="tel" value={phone} onChange={setPhone} />
+        <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
+        <Field label="Telefono" type="tel" value={phone} onChange={setPhone} autoComplete="tel" />
         <p className="-mt-1 text-xs text-slate-400">Basta uno dei due: ti ricontattano dove preferisci.</p>
 
         <label className="block">
@@ -241,18 +241,29 @@ export default function RequestInformationForm({
   );
 }
 
+/**
+ * **`autoComplete` non e' un dettaglio: e' la differenza fra quattro campi da
+ * digitare col pollice e quattro tocchi.** Senza, il telefono non offre il
+ * nome e l'indirizzo che ha gia' salvati, e su un modulo compilato in
+ * piazzale davanti a un'auto ogni campo in piu' e' un motivo per lasciar
+ * perdere. Il modulo gemello della registrazione li dichiarava gia' tutti e
+ * cinque dal primo giorno: la competenza c'era, mancava di averla applicata
+ * **dove porta i clienti**.
+ */
 function Field({
   label,
   value,
   onChange,
   required,
   type = "text",
+  autoComplete,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   type?: string;
+  autoComplete?: string;
 }) {
   return (
     <label className="block">
@@ -262,6 +273,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
+        autoComplete={autoComplete}
         suppressHydrationWarning
         style={{ color: "#f8fafc" }}
         className="mt-2 w-full rounded-3xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm outline-none transition focus:border-blue-400/50 focus:bg-white/[0.06]"

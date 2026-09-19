@@ -3,6 +3,7 @@ import {
   DEALER_FILTERS_EMPTY,
   contaFiltriAttivi,
   filtraEOrdina,
+  fraseConteggioVeicoli,
   opzioniFiltri,
   ordinaVeicoli,
   veicoloCorrisponde,
@@ -151,5 +152,50 @@ describe("i filtri si combinano", () => {
 
   it("senza filtri l'elenco resta completo e ordinato dal piu' recente", () => {
     expect(filtraEOrdina(STOCK, DEALER_FILTERS_EMPTY).map((v) => v.id)).toEqual(["tucson", "panda", "500e"]);
+  });
+});
+
+/**
+ * **La riga che conta i veicoli non deve contare quelli caricati.**
+ *
+ * Il 19/09/2026 la pagina della concessionaria mostrava tre numeri contati
+ * sulle prime trecento auto caricate: quanti veicoli, il prezzo medio e il
+ * **prezzo minimo**. Su De Lorenzi il minimo diceva 7.500 € mentre in vetrina
+ * c'era un Ducato a 5.800. Nessun errore da nessuna parte: solo un limite in
+ * una richiesta.
+ *
+ * I primi due sono passati alla vista `vetrina_per_concessionaria`, che conta
+ * nel database. Questa riga era il terzo, ed e' l'unico rimasto dentro il
+ * browser: qui il totale vero arriva come parametro, e **non e' facoltativo**.
+ */
+describe("fraseConteggioVeicoli", () => {
+  it("senza filtri e con tutto caricato dice solo quanti ne ha", () => {
+    expect(fraseConteggioVeicoli(93, 93, 93)).toBe("93 veicoli");
+    expect(fraseConteggioVeicoli(1, 1, 1)).toBe("1 veicolo");
+  });
+
+  it("con i filtri dice quanti se ne vedono su quanti", () => {
+    expect(fraseConteggioVeicoli(12, 93, 93)).toBe("12 veicoli su 93");
+  });
+
+  it("quando la pagina ne ha caricati meno del vero lo dice, invece di contare i suoi", () => {
+    // Il caso che rompeva tutto: 420 in vetrina, la pagina ne carica 300.
+    // Prima si leggeva "300 veicoli" -- preciso, credibile, sbagliato di 120.
+    expect(fraseConteggioVeicoli(300, 300, 420)).toBe("Primi 300 veicoli su 420 in vetrina");
+    expect(fraseConteggioVeicoli(12, 300, 420)).toBe("12 veicoli sui primi 300 caricati, di 420 in vetrina");
+  });
+
+  it("quando il totale vero non si sa non lo inventa", () => {
+    // La vista non risponde: si dice quello che si sa, senza "su quanti".
+    // Un numero plausibile al posto di "non lo so" e' il difetto piu'
+    // ripetuto di questo progetto.
+    expect(fraseConteggioVeicoli(93, 93, null)).toBe("93 veicoli");
+    expect(fraseConteggioVeicoli(12, 93, null)).toBe("12 veicoli su 93");
+  });
+
+  it("un totale piu' piccolo del caricato non genera frasi assurde", () => {
+    // Puo' succedere per un attimo: la vista e l'elenco sono due letture
+    // diverse, e fra l'una e l'altra un'auto puo' essere stata tolta.
+    expect(fraseConteggioVeicoli(93, 93, 90)).toBe("93 veicoli");
   });
 });

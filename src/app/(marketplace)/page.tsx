@@ -106,7 +106,7 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function MarketplaceHomePage() {
-  const [{ data, error }, { count: totalVehicleCount }, { righe: publishedRows, troncato: elencoTroncato }] = await Promise.all([
+  const [{ data, error }, { count: totalVehicleCount }, { righe: publishedRows, troncato: elencoTroncato, error: erroreElenco }] = await Promise.all([
     publicSupabase
       .from("vehicles")
       .select(
@@ -234,6 +234,32 @@ export default async function MarketplaceHomePage() {
       publishedRows.filter((row) => formatText(row.brand) === brand).map((row) => row.model)
     );
   }
+
+  // **Un numero che non si sa non si mostra.** I quattro riquadri qui sotto
+  // sono i primi numeri che un visitatore legge del marketplace, e finche'
+  // erano scritti a mano nel disegno sembravano sempre giusti.
+  //
+  // "Veicoli pubblicati" aveva un ripiego: `totalVehicleCount ?? vehicles.length`.
+  // Quel conteggio e' l'unico numero vero della riga -- lo chiede al database
+  // con `count: "exact"` -- ma quando la richiesta non riesce `vehicles` sono
+  // le **ventiquattro** delle "ultime arrivate", e la home avrebbe annunciato
+  // "24 veicoli pubblicati" su tutto il marketplace. Gli altri tre nascono da
+  // `publishedRows`: se quella lettura fallisce restano insiemi vuoti, e si
+  // leggerebbe "0 concessionarie partner" -- che e' un guasto raccontato come
+  // un fatto.
+  //
+  // Adesso il riquadro che non si sa **non compare**. Meglio tre numeri veri
+  // che quattro di cui uno inventato.
+  const statistiche = [
+    ...(totalVehicleCount !== null ? [{ value: totalVehicleCount, label: "Veicoli pubblicati" }] : []),
+    ...(erroreElenco
+      ? []
+      : [
+          { value: totalDealerCount, label: "Concessionarie partner" },
+          { value: coveredCities, suffix: "+", label: "Citta' coperte" },
+          { value: brands.length, suffix: "+", label: "Marche disponibili" },
+        ]),
+  ];
 
   const latestVehicleCards = await Promise.all(latestVehicles.map((vehicle) => buildVehicleCard(vehicle)));
   const eliteShowcase = await resolveEliteShowcaseVehicle();
@@ -371,14 +397,19 @@ export default async function MarketplaceHomePage() {
       <MarqueeDealers dealers={marqueeDealers} />
 
       {/* ============ STATS ============ */}
-      <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
-        <RevealOnScroll className="mx-auto grid max-w-5xl grid-cols-2 gap-x-6 gap-y-10 text-center sm:grid-cols-4">
-          <Stat value={totalVehicleCount ?? vehicles.length} label="Veicoli pubblicati" />
-          <Stat value={totalDealerCount} label="Concessionarie partner" />
-          <Stat value={coveredCities} suffix="+" label="Città coperte" />
-          <Stat value={brands.length} suffix="+" label="Marche disponibili" />
-        </RevealOnScroll>
-      </section>
+      {statistiche.length > 0 ? (
+        <section className="bg-slate-950 px-4 py-20 sm:px-6 lg:px-8">
+          <RevealOnScroll
+            className={`mx-auto grid max-w-5xl gap-x-6 gap-y-10 text-center ${
+              statistiche.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-3"
+            }`}
+          >
+            {statistiche.map((statistica) => (
+              <Stat key={statistica.label} value={statistica.value} suffix={statistica.suffix} label={statistica.label} />
+            ))}
+          </RevealOnScroll>
+        </section>
+      ) : null}
 
       {/* ============ CATEGORIES ============ */}
       {categories.length > 0 || quickChips.length > 0 ? (

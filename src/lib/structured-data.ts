@@ -210,7 +210,13 @@ type DealerJsonLdInput = {
   phone: string | null;
   email: string | null;
   website: string | null;
-  vehiclesCount: number;
+  /**
+   * Quante automobili ha in vetrina. **`null` vuol dire "non lo sappiamo"**,
+   * e allora non si dichiara niente a Google: un conteggio inventato
+   * consegnato a un motore di ricerca resta li' per mesi, ed e' la stessa
+   * regola che vale a schermo.
+   */
+  vehiclesCount: number | null;
 };
 
 export function buildDealerJsonLd(input: DealerJsonLdInput): JsonLdObject {
@@ -237,6 +243,9 @@ export function buildDealerJsonLd(input: DealerJsonLdInput): JsonLdObject {
           addressCountry: "IT",
         })
       : undefined,
-    makesOffer: input.vehiclesCount > 0 ? { "@type": "Offer", itemOffered: { "@type": "Car" } } : undefined,
+    makesOffer:
+      input.vehiclesCount !== null && input.vehiclesCount > 0
+        ? { "@type": "Offer", itemOffered: { "@type": "Car" } }
+        : undefined,
   });
 }

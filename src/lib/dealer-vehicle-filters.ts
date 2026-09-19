@@ -258,3 +258,40 @@ export function opzioniFiltri(veicoli: DealerVehicleFacets[], state: DealerFilte
       .map((anno) => String(anno)),
   };
 }
+
+/**
+ * La riga che dice quanti veicoli si stanno guardando.
+ *
+ * **Perche' non basta contare quelli che ci sono nella pagina.** La pagina
+ * della concessionaria ne carica al massimo trecento
+ * (`DEALER_PAGE_VEHICLES_LIMIT`), e fin qui va bene: trecento schede sono
+ * gia' tante da scorrere. Quello che non va bene e' **contarli e dire il
+ * numero**: il giorno che una concessionaria ne pubblica quattrocentoventi,
+ * la riga direbbe "300 veicoli" -- un numero preciso, credibile, e sbagliato
+ * di centoventi. E' la stessa famiglia del prezzo minimo che diceva 7.500
+ * mentre in vetrina c'era un Ducato a 5.800: nessun errore da nessuna parte,
+ * solo un limite in una richiesta.
+ *
+ * Qui il totale vero arriva dal database (la vista
+ * `vetrina_per_concessionaria`) e la frase dice **tutte e due** le cose:
+ * quanti se ne vedono e quanti ce ne sono. Quando il totale vero non si sa
+ * -- la vista non risponde -- non si inventa: si dice solo cio' che si e'
+ * caricato, senza "su quanti".
+ *
+ * @param mostrati quanti ne restano dopo i filtri
+ * @param caricati quanti ne ha caricati la pagina
+ * @param totaleInVetrina quanti ne ha davvero in vetrina, o `null` se non si sa
+ */
+export function fraseConteggioVeicoli(mostrati: number, caricati: number, totaleInVetrina: number | null): string {
+  const veicoli = (quanti: number) => `${quanti} ${quanti === 1 ? "veicolo" : "veicoli"}`;
+  const laPaginaNeHaMenoDelVero = totaleInVetrina !== null && totaleInVetrina > caricati;
+  const nessunFiltro = mostrati === caricati;
+
+  if (nessunFiltro) {
+    return laPaginaNeHaMenoDelVero ? `Primi ${veicoli(caricati)} su ${totaleInVetrina} in vetrina` : veicoli(caricati);
+  }
+
+  return laPaginaNeHaMenoDelVero
+    ? `${veicoli(mostrati)} sui primi ${caricati} caricati, di ${totaleInVetrina} in vetrina`
+    : `${veicoli(mostrati)} su ${caricati}`;
+}

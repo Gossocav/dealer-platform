@@ -6,6 +6,7 @@ import {
   DEALER_SORT_OPTIONS,
   contaFiltriAttivi,
   filtraEOrdina,
+  fraseConteggioVeicoli,
   opzioniFiltri,
   type DealerFilterState,
   type DealerSortValue,
@@ -16,6 +17,12 @@ type DealerVehicleSearchProps = {
   /** Un elemento per veicolo, **nello stesso ordine** di `vehicles`. */
   children: ReactNode;
   vehicles: DealerVehicleFacets[];
+  /**
+   * Quanti ne ha in vetrina **davvero**, contati dal database, o `null` se
+   * non si e' riusciti a saperlo. Non e' `vehicles.length`: quello e' quanti
+   * ne ha caricati la pagina, e ha un tetto.
+   */
+  totaleInVetrina: number | null;
 };
 
 /**
@@ -30,7 +37,7 @@ type DealerVehicleSearchProps = {
  * completo: chi non puo' filtrare vede comunque tutti i veicoli, invece di un
  * modulo che non porta da nessuna parte.
  */
-export function DealerVehicleSearch({ children, vehicles }: DealerVehicleSearchProps) {
+export function DealerVehicleSearch({ children, vehicles, totaleInVetrina }: DealerVehicleSearchProps) {
   const [filtri, setFiltri] = useState<DealerFilterState>(DEALER_FILTERS_EMPTY);
 
   const schede = useMemo(() => Children.toArray(children), [children]);
@@ -101,9 +108,7 @@ export function DealerVehicleSearch({ children, vehicles }: DealerVehicleSearchP
 
       <div className="mt-6 flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm text-slate-400" aria-live="polite">
-          {risultati.length === vehicles.length
-            ? `${vehicles.length} ${vehicles.length === 1 ? "veicolo" : "veicoli"}`
-            : `${risultati.length} ${risultati.length === 1 ? "veicolo" : "veicoli"} su ${vehicles.length}`}
+          {fraseConteggioVeicoli(risultati.length, vehicles.length, totaleInVetrina)}
         </p>
       </div>
 
