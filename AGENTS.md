@@ -630,6 +630,34 @@ giorno l'ha fatto. Le due regole:
    cinque. Un elenco che cambia contenuto va riscritto con la data e il
    motivo, non aggiustato in silenzio per far tornare il conto.
 
+**E c'e' un terzo modo in cui un controllo puo' essere sbagliato: guardare
+una cosa diversa da quella che dice di guardare.** I primi due si scoprono
+perche' restano **verdi** quando dovrebbero accendersi. Questo si scopre al
+contrario -- diventa **rosso quando non dovrebbe** -- e per questo e' piu'
+insidioso: sembra che il codice sia sbagliato, e la tentazione e' rimettere
+le cose com'erano.
+
+Il 19/09/2026, togliendo il taglio dal nome del venditore sulla scheda in
+elenco, e' caduto `vehicle-card-clickable.test.ts`. Il suo commento diceva:
+*"Il nome del venditore resta testo semplice accanto al prezzo: reso
+toccabile aveva bisogno di spazio sopra e sotto, e la scheda cresceva di 12
+px"*. Giustissimo -- ma l'asserzione fissava la **riga intera**, classe
+`truncate` compresa, che con quella ragione non c'entra niente. Il controllo
+diceva "non deve diventare un collegamento" e in realta' guardava "non deve
+cambiare".
+
+**Come si riconosce:** un test cade e la sua spiegazione non parla di quello
+che hai cambiato. Allora non si "aggiusta" e non si rimette indietro il
+codice: si rilegge il commento, si capisce cosa voleva davvero impedire, e
+si riscrive l'asserzione perche' guardi quello. Poi la si prova rossa sul
+difetto vero -- qui, rimettendo un collegamento intorno al nome.
+
+**Come si evita scrivendolo:** un'asserzione che copia una riga di codice
+per intero fissa tutto quello che c'e' dentro, comprese le cose che a chi
+l'ha scritta non interessavano. Si fissa **la proprieta'**, non il testo:
+"l'elemento che contiene il nome e' uno `span`", non `<span
+className="truncate">{dealerName}</span>`.
+
 **Un guardiano si rilegge quando una tabella comincia a essere usata, non
 solo quando viene creata.** E' la terza faccia di "zero differenze li' vuol
 dire non guardato", e si presenta sempre allo stesso modo: un controllo che
@@ -876,6 +904,34 @@ cui si scrive il codice che lo salva -- non dopo. Costruire prima il posto dove
 mettere i dati e poi la schermata che li racconta e' l'ordine giusto, ma
 lascia per un po' informazioni che il database ha e lo schermo no: quell'elenco
 esiste perche' nessuna si perda per strada.
+
+**Una scelta consapevole fra due cose giuste va scritta con la condizione
+che la farebbe cambiare**, altrimenti fra sei mesi qualcuno la legge come un
+errore e la "corregge".
+
+Il caso, 19/09/2026, sulla descrizione della scheda auto pubblica. Il testo
+si accorcia a cinque righe con "Mostra tutta la descrizione", e sta dentro
+`<summary>` invece che nel corpo di `<details>`. Sembra sbagliato e non lo
+e':
+
+- **perche' cosi'**: `<summary>` si vede **sempre**, aperto o chiuso. Quello
+  che cambia aprendo e' solo il taglio delle righe, che e' CSS. Il testo non
+  finisce mai dentro una parte nascosta della pagina, e la descrizione e'
+  anche cio' che porta le persone sulla scheda dai motori di ricerca. Nel
+  corpo di `<details>` sarebbe indicizzata lo stesso, ma "lo stesso" e' una
+  cosa che si crede, non che si verifica;
+- **cosa costa**: un lettore di schermo annuncia il contenuto di `<summary>`
+  come etichetta del comando che apre, quindi legge tutta la descrizione
+  insieme a "Mostra tutta la descrizione". Chi usa quegli strumenti il testo
+  lo riceve intero, ma in una forma meno pulita;
+- **cosa la farebbe cambiare**: il giorno in cui si potesse verificare -- non
+  supporre -- che il testo nel corpo di `<details>` vale quanto quello
+  visibile per chi indicizza la pagina, allora il corpo e' il posto giusto e
+  il costo sui lettori di schermo sparisce.
+
+La forma vale oltre il caso: **perche' cosi', cosa costa, cosa la farebbe
+cambiare**. Le prime due si scrivono sempre; e' la terza che impedisce a una
+scelta di diventare un dogma.
 
 **`.env.local` batte `.env.production`.** Una prova in locale legge il database
 di sviluppo anche quando si crede di guardare la produzione: la pagina risponde

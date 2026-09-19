@@ -62,8 +62,18 @@ describe("scheda apribile toccandola", () => {
     // toccabile aveva bisogno di spazio sopra e sotto, e la scheda cresceva
     // di 12 px -- meta' di quanto ne avevamo appena guadagnati accorciando la
     // foto.
+    //
+    // **Riscritto il 19/09/2026.** Il controllo fissava la riga intera,
+    // compresa la classe `truncate`, che con la ragione qui sopra non
+    // c'entra niente: il punto e' che il nome **non sia un collegamento**,
+    // non come sia scritto il testo. Quando il taglio e' stato tolto -- su
+    // una scheda stretta "Ferrari Automobili Srl" finiva a tre puntini -- il
+    // test e' caduto per il motivo sbagliato. Adesso guarda quello che la
+    // sua spiegazione dice di guardare.
     const bottom = card.slice(card.indexOf("border-t border-white/10 pt-4"));
-    expect(bottom).toContain("<span className=\"truncate\">{dealerName}</span>");
+    const primaDelNome = bottom.slice(0, bottom.indexOf("{dealerName}"));
+    const elementoCheLoContiene = primaDelNome.slice(primaDelNome.lastIndexOf("<"));
+    expect(elementoCheLoContiene, "il nome del venditore e' diventato un collegamento").toMatch(/^<span/);
   });
 
   it("porta ancora all'annuncio giusto", () => {
