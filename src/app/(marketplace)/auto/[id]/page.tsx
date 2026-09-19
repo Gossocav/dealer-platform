@@ -564,7 +564,12 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <ShareVehicleButton title={shareTitle} text={shareText} url={shareUrl} />
               </div>
               <div id="contatta-venditore">
-                <RequestInformationForm vehicleId={vehicle.id} vehicleLabel={resolveVehicleLabel(vehicle)} />
+                <RequestInformationForm
+                  vehicleId={vehicle.id}
+                  vehicleLabel={resolveVehicleLabel(vehicle)}
+                  dealerName={dealerDisplayName}
+                  dealerPhone={dealerPhone}
+                />
               </div>
             </div>
 

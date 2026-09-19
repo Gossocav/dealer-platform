@@ -32,8 +32,20 @@ export function MarqueeDealers({ dealers }: { dealers: MarqueeDealer[] }) {
 
       {!scorre ? (
         // Ferme e centrate: ognuna compare una volta sola.
-        <div className="flex flex-wrap items-center justify-center gap-14 px-4">
-          <MarqueeRow dealers={dealers} />
+        //
+        // **Il `flex-wrap` stava sul contenitore sbagliato.** Era qui, su un
+        // riquadro che ha **un figlio solo** -- l'elenco -- quindi non
+        // mandava a capo niente: i nomi restavano su una riga sola larga 583
+        // pixel dentro uno schermo da 360, centrata, e la fascia li tagliava
+        // **su tutti e due i lati**. Il 19/09/2026 si leggeva per intero solo
+        // "DE LORENZI SRL"; degli altri due restava un quarto. Ed erano i tre
+        // collegamenti alle pagine delle concessionarie.
+        //
+        // Adesso e' l'elenco stesso ad andare a capo (`aCapo`), e sul
+        // telefono lo stacco fra i nomi si stringe: cinquantasei pixel fra
+        // due parole sono tanti su schermo largo e assurdi su uno stretto.
+        <div className="flex items-center justify-center px-4">
+          <MarqueeRow dealers={dealers} aCapo />
         </div>
       ) : (
         // Lo scorrimento si ferma quando ci passi sopra col mouse o quando ci
@@ -55,9 +67,25 @@ export function MarqueeDealers({ dealers }: { dealers: MarqueeDealer[] }) {
   );
 }
 
-function MarqueeRow({ dealers, duplicate = false }: { dealers: MarqueeDealer[]; duplicate?: boolean }) {
+function MarqueeRow({
+  dealers,
+  duplicate = false,
+  aCapo = false,
+}: {
+  dealers: MarqueeDealer[];
+  duplicate?: boolean;
+  /** Solo quando la striscia e' ferma: scorrendo, andare a capo la romperebbe. */
+  aCapo?: boolean;
+}) {
   return (
-    <ul className="flex gap-14" aria-hidden={duplicate ? "true" : undefined}>
+    <ul
+      className={
+        aCapo
+          ? "flex flex-wrap items-center justify-center gap-x-8 gap-y-3 sm:gap-x-14 sm:gap-y-4"
+          : "flex gap-14"
+      }
+      aria-hidden={duplicate ? "true" : undefined}
+    >
       {dealers.map((dealer) => (
         <li key={`${duplicate ? "copia" : "originale"}-${dealer.slug}-${dealer.name}`}>
           <Link

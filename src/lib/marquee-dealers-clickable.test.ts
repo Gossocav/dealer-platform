@@ -88,9 +88,16 @@ describe("con poche concessionarie i nomi non si raddoppiano", () => {
     expect(marquee).toContain("MIN_DEALERS_FOR_MARQUEE");
     expect(marquee).toContain("const scorre = dealers.length >= MIN_DEALERS_FOR_MARQUEE");
     // Il ramo fermo disegna una riga sola: nessun "duplicate".
+    //
+    // **Riscritto il 19/09/2026.** L'asserzione fissava la riga intera,
+    // `<MarqueeRow dealers={dealers} />`, mentre la sua spiegazione parla
+    // solo del doppione. Quando alla riga ferma e' stato aggiunto `aCapo` --
+    // perche' i tre nomi stavano su una riga sola larga 583px dentro uno
+    // schermo da 360 e venivano tagliati da tutti e due i lati -- il test e'
+    // caduto per il motivo sbagliato. Adesso guarda quello che dice.
     const ramoFermo = marquee.slice(marquee.indexOf("{!scorre ? ("), marquee.indexOf(") : ("));
-    expect(ramoFermo).toContain("<MarqueeRow dealers={dealers} />");
-    expect(ramoFermo).not.toContain("duplicate");
+    expect(ramoFermo).toContain("<MarqueeRow dealers={dealers}");
+    expect(ramoFermo, "nel ramo fermo e' ricomparso il doppione").not.toContain("duplicate");
   });
 
   it("sopra la soglia la seconda copia resta, altrimenti lo scorrimento avrebbe uno stacco", () => {

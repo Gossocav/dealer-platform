@@ -717,6 +717,35 @@ del ramo con il commit su cui il controllo ha girato**
 non si filtra mai**. `gh pr checks` dice anche `pending`, e un controllo che
 non ha finito non e' un controllo che ha detto di si'.
 
+**Il modulo che porta i clienti era la parte meno curata del sito.** E' la
+lezione del 19/09/2026, e vale piu' dei due difetti che l'hanno prodotta.
+
+Guardando le pagine pubbliche da un telefono, il punto peggiore di tutto il
+marketplace e' risultato essere **l'unico che produce contatti veri**:
+
+- chi inviava **non vedeva nessuna conferma**. Il messaggio nasceva in cima
+  al riquadro, il bottone stava in fondo: su un telefono settecento pixel,
+  piu' di una schermata. I campi si svuotavano e basta, quindi chi non
+  vedeva niente **rimandava** -- e la concessionaria riceveva due contatti
+  che sembrano due persone diverse;
+- chi aveva la rete debole **restava bloccato per sempre**. Nessun
+  `try/catch` intorno all'invio: la promessa veniva rifiutata, il bottone
+  restava disabilitato con scritto "Invio in corso...", e si usciva solo
+  ricaricando e ridigitando tutto.
+
+Sono i due modi piu' stupidi di perdere un contatto, e succedevano **al
+cento per cento degli invii**. Per giunta il modulo gemello della
+registrazione -- che porta concessionari, non compratori -- aveva gia' tutte
+e due le protezioni: `catch` con un messaggio utile, `autoComplete` sui
+campi, l'errore che si cancella mentre correggi. La buona pratica esisteva
+nel progetto e mancava proprio dove conta di piu'.
+
+**La regola che ne esce:** il punto in cui il sito guadagna -- un modulo di
+contatto, un carrello, un'iscrizione -- si guarda **per primo** e si prova
+nelle condizioni peggiori, non in quelle buone: rete che cade, schermo
+stretto, tastiera aperta. Un difetto li' non fa rumore e non lascia traccia:
+non c'e' nessun errore da leggere, c'e' solo un cliente che non ha scritto.
+
 **Le funzioni che oggi nessuno tocca sono quelle dove aspettarsi le
 sorprese.** "Duplica" e' rimasto rotto **dieci giorni** (dal 06/09 al
 16/09/2026) senza che nessuno se ne accorgesse. Non e' colpa di nessuno: e'
