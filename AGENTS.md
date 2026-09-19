@@ -843,6 +843,40 @@ attesa":
    workflow*). Lo fa il titolare: un agente riceve 403 sia sul lancio sia
    sulla riesecuzione.
 
+**Una procedura senza il perche' si legge come una cortesia e si salta.** E'
+la regola generale che esce dal caso qui sopra, e vale ben oltre le
+migration.
+
+Il passo *"rilancia il controllo"* **era gia' scritto** nella procedura di
+`supabase/MIGRAZIONI.md`, punto 5, con lo stesso percorso di clic. Il
+19/09/2026 non e' stato fatto lo stesso. La diagnosi sbagliata -- data qui,
+in questo file, prima di andare a guardare -- e' stata *"quel passo non e'
+scritto da nessuna parte"*, e la proposta che ne seguiva era di scriverlo.
+Sarebbe stata **una seconda copia di una riga che gia' c'era**, e non avrebbe
+cambiato niente.
+
+Quello che mancava non era il passo: era **la ragione**. Un elenco numerato
+dice cosa fare e non dice cosa succede se non lo fai, quindi l'ultimo punto
+sembra sempre quello facoltativo -- la pulizia dopo il lavoro vero. Con
+accanto *"finche' non lo rilanci, il rosso resta appeso anche se la
+produzione e' gia' allineata"* non e' piu' pulizia: e' la differenza fra un
+allarme spento e uno acceso su una cosa a posto.
+
+**La conseguenza, ed e' la parte operativa: quando una procedura scritta
+viene saltata, la risposta non e' riscriverla, e' capire cosa la rendeva
+saltabile.** Le cause si somigliano tutte -- manca il perche', il passo sta
+dopo la parola "fine", il costo di farlo e' immediato e il costo di non farlo
+arriva dopo, oppure nessuno vede mai la conseguenza. Riscrivere piu' forte
+("**importante**", "**non dimenticare**") e' la risposta istintiva ed e' la
+meno efficace: alza il volume di una frase che gia' nessuno collegava a
+niente.
+
+E vale anche per chi la diagnosi la fa: **prima di dire che una cosa non e'
+scritta, si apre il file.** Qui non e' stato fatto, e la raccomandazione che
+ne e' uscita era costruita su una premessa falsa -- lo stesso difetto
+descritto poco sopra, *"una frase non e' piu' vera perche' l'ha detta
+qualcuno"*, applicato a se stessi.
+
 **Il modulo che porta i clienti era la parte meno curata del sito.** E' la
 lezione del 19/09/2026, e vale piu' dei due difetti che l'hanno prodotta.
 
@@ -1187,6 +1221,29 @@ senza `catch`, e numeri contati su un elenco che ha un tetto.
 elenco esplicito dentro il test con il perche'. E' voluto: il debito e' vero e
 noto, e l'elenco **puo' solo accorciarsi**. Un controllo che non nasce perche'
 oggi troverebbe qualcosa e' un controllo che non nascera' mai.
+
+**Il blocco unico sull'usabilita', e quanto e' grande.** Il resto di quello
+che si vede usando il prodotto non si fa a pezzi: si affronta in una volta
+sola, perche' sono tutte cose che si giudicano con l'occhio e conviene averle
+davanti insieme. Deciso il 19/09/2026. Cosa comprende, con le misure prese
+quel giorno:
+
+| cosa | quanto |
+|---|---|
+| testo sotto i dodici pixel | 6 punti, elencati in `pagine-pubbliche-si-guardano-da-sole.test.ts` |
+| campi dei moduli a quattordici pixel (Safari ingrandisce la pagina) | 7 file, stesso elenco |
+| **il trattino muto** (`?? "-"`) | **50 righe** |
+| filtri, bersagli troppo piccoli per un pollice, contrasto, un menu che non si chiude | da misurare quando ci si arriva |
+
+Il trattino muto merita una riga in piu', perche' il numero da solo
+ingannerebbe: delle cinquanta, **2** stanno sulle pagine pubbliche, **19**
+dentro **email che partono verso persone vere** (fra cui quella che la
+concessionaria riceve a ogni contatto e quella che il concessionario manda al
+cliente), **22** nelle schermate del gestionale e **7** nel pannello
+amministrativo. Non e' quindi un lavoro "da telefono": e' la stessa regola --
+*il trattino non va mai da solo, accanto si scrive perche' manca* -- sparsa
+su quattro superfici diverse. Sta in questo blocco perche' si trova usando il
+prodotto, non perche' riguardi lo schermo piccolo.
 
 ## Come si lavora
 
