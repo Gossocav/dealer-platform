@@ -115,6 +115,10 @@ export function VehiclesCardGrid({ items, selectedVehicleIds, onToggleSelect, on
                 <p className="rounded-xl bg-slate-50 px-3 py-2">
                   <span className="block text-xs uppercase tracking-[0.12em] text-slate-400">Prezzo</span>
                   {vehicle.priceLabel}
+                  {/* Perche' manca, non solo che manca. */}
+                  {vehicle.prezzoAssente ? (
+                    <span className="block text-xs text-slate-500">{vehicle.prezzoAssente}</span>
+                  ) : null}
                 </p>
                 {/* Qui c'erano "Lead" e "Visualizzazioni". Le visualizzazioni
                     non venivano registrate da nessuna parte: quello zero era

@@ -31,7 +31,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   applyPriceBandFilters,
   defaultVehicleFilters,
-  formatCurrency,
+  prezzoDaMostrare,
   formatMileage,
   formatRegistrationLabel,
   formatVehicleStatus,
@@ -244,7 +244,10 @@ export function VehiclesManagementPage() {
   // "pubblicata" e' la stessa del trigger che impone il tetto -- in giro per
   // il gestionale ce ne sono altre due, che contano cose diverse.
   const [pubblicate, setPubblicate] = useState<number | null>(null);
-  const [inAttesa, setInAttesa] = useState(0);
+  // `null` = non si e' riusciti a contarle, che non e' "nessuna in attesa":
+  // con zero l'avviso del tetto sparirebbe e il concessionario non saprebbe
+  // che ha auto ferme fuori dalla vetrina.
+  const [inAttesa, setInAttesa] = useState<number | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -581,8 +584,16 @@ export function VehiclesManagementPage() {
       );
 
       const nextItems = rows.map((row) => {
-        const priceValue = Number(row.price ?? 0);
-        const normalizedPrice = Number.isFinite(priceValue) ? priceValue : 0;
+        // **Un'auto senza prezzo non costa zero euro.** Qui si scriveva
+        // `Number(row.price ?? 0)` e poi `formatCurrency` di quello zero:
+        // l'elenco dichiarava "0 €" su una vettura di cui il prezzo non si
+        // sa. Oggi in produzione non capita -- tutte e 372 ce l'hanno,
+        // contate il 19/09/2026 -- ma il prezzo e' una colonna che ammette
+        // il vuoto, e basta un'importazione da file senza quella colonna.
+        //
+        // `prezzoDaMostrare` dice anche **perche'** manca: un trattino da
+        // solo si legge come zero o come un guasto.
+        const prezzo = prezzoDaMostrare(row.price);
         const status = normalizeVehicleStatus(row.status, row.published);
 
         return {
@@ -596,8 +607,9 @@ export function VehiclesManagementPage() {
               registration_month: row.registration_month,
               year: row.year,
             }) ?? "-",
-          priceValue: normalizedPrice,
-          priceLabel: formatCurrency(normalizedPrice),
+          priceValue: typeof row.price === "number" && Number.isFinite(row.price) ? row.price : null,
+          priceLabel: prezzo.testo,
+          prezzoAssente: prezzo.perche,
           status,
           statusLabel: formatVehicleStatus(row.status, row.published),
           // Un veicolo che la sincronizzazione ha tolto dalla vetrina deve

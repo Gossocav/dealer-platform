@@ -144,8 +144,12 @@ export function messaggioPostiFiniti(limite: number | null): string {
  * qualcuna: un avviso che compare sempre e' un avviso che si smette di
  * leggere.
  */
-export function messaggioDelTetto(limite: number | null, escluse: number): string | null {
-  if (limite === null || escluse <= 0) return null;
+export function messaggioDelTetto(limite: number | null, escluse: number | null): string | null {
+  // `escluse === null` vuol dire "non si e' riusciti a contarle", e non e' la
+  // stessa cosa di "nessuna": con zero l'avviso sparirebbe in silenzio, e il
+  // concessionario non saprebbe di avere auto ferme fuori dalla vetrina.
+  // Senza il numero non si scrive una frase che contiene quel numero.
+  if (limite === null || escluse === null || escluse <= 0) return null;
   const auto = escluse === 1 ? "1 auto del tuo sito non e' pubblicata" : `${escluse} auto del tuo sito non sono pubblicate`;
   return `Il tuo piano include ${limite} auto: ${auto}. Passa a un piano superiore per pubblicarle tutte.`;
 }

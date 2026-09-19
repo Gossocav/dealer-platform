@@ -83,8 +83,14 @@ export type VehicleListItem = {
   model: string;
   version: string;
   registration: string;
-  priceValue: number;
+  /** `null` quando l'auto non ha un prezzo: non e' zero euro. */
+  priceValue: number | null;
   priceLabel: string;
+  /**
+   * Perche' il prezzo manca, quando manca -- `null` se c'e'. Il trattino non
+   * va mai da solo: accanto si scrive il motivo, o si legge come zero.
+   */
+  prezzoAssente?: string | null;
   status: VehicleStatus;
   statusLabel: string;
   badge: string;
@@ -267,6 +273,31 @@ export function giornoDaMostrare(valore: unknown): string | null {
   return pezzi ? `${pezzi[3]}/${pezzi[2]}/${pezzi[1]}` : null;
 }
 
+/**
+ * Come si scrive il prezzo in cio' che **parte verso il cliente finale**: la
+ * finestra "Invia al cliente" e l'email che ne segue.
+ *
+ * Sta qui, in un posto solo, perche' prima erano due: la finestra scriveva
+ * "Su richiesta" e l'email scriveva "-" per lo stesso identico vuoto, nello
+ * stesso invio. Due risposte diverse alla stessa domanda.
+ *
+ * Due difetti chiusi il 19/09/2026:
+ *
+ * - **la guardia era `> 0`**, quindi un'auto messa a **zero** -- una
+ *   permuta, una vettura di cortesia -- veniva annunciata "Su richiesta".
+ *   Lo zero e' un dato: si scrive;
+ * - **"Su richiesta" e' una frase che il concessionario non ha detto.** Un
+ *   prezzo che non abbiamo in archivio non e' un prezzo su richiesta: e' un
+ *   prezzo che non sappiamo, e dirlo cosi' impegna il concessionario a una
+ *   condizione di vendita che nessuno ha scelto.
+ */
+export const PREZZO_DA_CONCORDARE = "Prezzo da concordare con la concessionaria";
+
+export function prezzoPerIlCliente(valore: unknown): string {
+  const { testo, perche } = prezzoDaMostrare(valore);
+  return perche === null ? testo : PREZZO_DA_CONCORDARE;
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -290,9 +321,23 @@ export function formatMileage(value: number | null | undefined): string {
   return `${new Intl.NumberFormat("it-IT").format(Math.round(numero))} km`;
 }
 
-export function parsePrice(value: string | number | null | undefined): number {
-  const amount = Number(value ?? 0);
-  return Number.isFinite(amount) ? amount : 0;
+/**
+ * Il prezzo come numero, e `null` quando non c'e'.
+ *
+ * **Restituiva `0`** per un valore assente o illeggibile, ed era una trappola
+ * con la miccia lunga: oggi non la chiama nessuno, ma il nome invita a usarla
+ * e il primo che lo facesse si porterebbe dietro un'auto da zero euro. E'
+ * esattamente il difetto corretto il 19/09/2026 in Gestione Veicoli e nella
+ * pagina Clienti.
+ *
+ * **Zero resta zero**: un'auto messa a zero e' un dato, e si distingue da una
+ * senza prezzo. Per mostrarlo si usa `prezzoDaMostrare`, che dice anche
+ * perche' manca.
+ */
+export function parsePrice(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : null;
 }
 
 export function formatVehicleStatus(status: string | null | undefined, published?: boolean | null): string {

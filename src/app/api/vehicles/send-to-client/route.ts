@@ -5,7 +5,7 @@ import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
 import { writeVehicleTimelineEvent } from "@/lib/vehicle-timeline";
 import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
-import { formatRegistrationLabel } from "@/lib/vehicles";
+import { formatRegistrationLabel, prezzoPerIlCliente } from "@/lib/vehicles";
 
 type SendToClientBody = {
   vehicleId?: string;
@@ -160,7 +160,12 @@ export async function POST(request: Request) {
     const mileage = ownedVehicle.mileage === null ? "-" : String(ownedVehicle.mileage);
     const fuel = normalizeText(ownedVehicle.fuel) ?? "-";
     const transmission = normalizeText(ownedVehicle.transmission) ?? "-";
-    const price = ownedVehicle.price === null ? "-" : String(ownedVehicle.price);
+    // La stessa frase della finestra, e da un posto solo: prima la finestra
+    // diceva "Su richiesta" e questa email diceva "-" per lo stesso vuoto,
+    // nello stesso invio. Il prezzo lo rilegge il server dal veicolo, non lo
+    // prende da chi chiama: quello che arriva nel corpo della richiesta non
+    // si usa.
+    const price = prezzoPerIlCliente(ownedVehicle.price);
 
     console.info("Vehicle send-to-client API called", {
       hasVehicleId: true,

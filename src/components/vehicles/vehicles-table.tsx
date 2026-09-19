@@ -279,7 +279,14 @@ export function VehiclesTable({
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">{vehicle.registration}</td>
-                  <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{vehicle.priceLabel}</td>
+                  {/* Il trattino non va mai da solo: accanto si scrive perche'
+                      manca, altrimenti si legge come zero o come un guasto. */}
+                  <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">
+                    {vehicle.priceLabel}
+                    {vehicle.prezzoAssente ? (
+                      <span className="block whitespace-normal text-xs font-normal text-slate-500">{vehicle.prezzoAssente}</span>
+                    ) : null}
+                  </td>
                   <td className="px-3 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses(vehicle.status)}`}>
                       {vehicle.statusLabel}

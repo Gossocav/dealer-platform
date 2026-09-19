@@ -34,8 +34,17 @@ describe("le cifre restano dentro il loro riquadro", () => {
   });
 
   it("gli importi passano dal formattatore comune", () => {
-    expect(statistiche).toContain("formattaEuroTondo(totalValue)");
-    expect(statistiche).toContain("formattaEuroTondo(averagePrice)");
+    // **Si controlla che l'importo entri nel formattatore, non come ci
+    // entra.** L'asserzione fissava `formattaEuroTondo(totalValue)` parola
+    // per parola, ed e' caduta il 19/09/2026 per una modifica che con la
+    // formattazione non c'entrava niente: il valore del parco adesso e'
+    // `null` quando nessuna auto ha un prezzo, invece di dire "0 €". La
+    // regola qui sopra -- "passano dal formattatore comune" -- reggeva
+    // benissimo; era l'asserzione a guardare altro.
+    for (const importo of ["totalValue", "averagePrice"]) {
+      const passa = new RegExp(`formattaEuroTondo\\([^)]*\\b${importo}\\b`);
+      expect(statistiche, `${importo} deve passare da formattaEuroTondo`).toMatch(passa);
+    }
   });
 });
 

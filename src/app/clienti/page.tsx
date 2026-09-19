@@ -6,6 +6,7 @@ import { DealerDashboardShell } from "@/components/layout/dealer-dashboard-shell
 import { resolveDealerIdForCurrentUser } from "@/lib/active-tenant";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { supabase } from "@/lib/supabaseClient";
+import { prezzoDaMostrare } from "@/lib/vehicles";
 
 type Customer = {
   id: string;
@@ -355,7 +356,7 @@ export default function ClientiPage() {
       events.push({
         id: `vehicle-${vehicle.id}`,
         title: "Veicolo acquistato",
-        description: `${formatVehicleLabel(vehicle)} - ${formatCurrency(vehicle.price)}`,
+        description: `${formatVehicleLabel(vehicle)} - ${prezzoConIlPerche(vehicle.price)}`,
         date: vehicle.created_at,
         badgeClassName: "bg-emerald-100 text-emerald-700",
       });
@@ -694,7 +695,7 @@ export default function ClientiPage() {
                         <li key={vehicle.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                           <p className="text-sm font-semibold text-slate-900">{formatVehicleLabel(vehicle)}</p>
                           <p className="mt-1 text-xs text-slate-600">
-                            {formatVehicleStatus(vehicle)} - {formatCurrency(vehicle.price)}
+                            {formatVehicleStatus(vehicle)} - {prezzoConIlPerche(vehicle.price)}
                           </p>
                         </li>
                       ))}
@@ -884,16 +885,21 @@ function formatVehicleStatus(vehicle: Vehicle) {
   return "Bozza";
 }
 
-function formatCurrency(value: string | number | null | undefined) {
-  const amount = parsePrice(value);
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
-}
-
-function parsePrice(value: string | number | null | undefined) {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const digits = value.replace(/[€\s,.]/g, "").replace(/[^0-9]/g, "");
-  return digits ? Number(digits) : 0;
+/**
+ * Il prezzo di un veicolo nella scheda di un cliente.
+ *
+ * **Passava da `parsePrice`, che per un prezzo assente restituiva `0`**, e la
+ * riga "Veicolo acquistato" diceva "0 €" su una vettura di cui il prezzo non
+ * si sa -- con accanto il nome del cliente, cioe' nel posto peggiore in cui
+ * dirlo. Corretto il 19/09/2026 insieme a Gestione Veicoli: e' la stessa
+ * riga scritta in due punti.
+ *
+ * Zero resta zero. Quando il prezzo non c'e' si dice **perche'**, invece di
+ * lasciare un trattino che si legge come zero.
+ */
+function prezzoConIlPerche(value: string | number | null | undefined) {
+  const { testo, perche } = prezzoDaMostrare(value);
+  return perche ? `${testo} (${perche})` : testo;
 }
 
 function formatDate(value: string | null) {

@@ -134,7 +134,15 @@ export async function sendDemoLifecycleEmail(input: {
     reminder: `
       <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
         <h2 style="margin:0 0 12px;">Demo in scadenza</h2>
-        <p style="margin:0 0 12px;">La tua demo KeyAuto scade tra ${input.daysRemaining ?? 0} giorni.</p>
+        <p style="margin:0 0 12px;">${
+          // Senza i giorni non si scrive un numero: `?? 0` diceva "scade tra 0
+          // giorni", cioe "oggi", a chi magari ne aveva ancora cinque. Un
+          // numero sbagliato in un'email di scadenza fa agire, o smettere di
+          // credere alle prossime.
+          typeof input.daysRemaining === "number" && Number.isFinite(input.daysRemaining)
+            ? `La tua demo KeyAuto scade tra ${input.daysRemaining} giorni.`
+            : "La tua demo KeyAuto sta per scadere."
+        }</p>
         <p style="margin:0 0 12px;">Per attivare il piano completo, rispondi a questa email o contatta il supporto.</p>
       </div>
     `,
