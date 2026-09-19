@@ -300,6 +300,37 @@ regole:
 I guardiani sono in `src/lib/conto-economico.test.ts`, sotto "un dato mancante
 non vale zero".
 
+**La passata del 19/09/2026, e cosa e' rimasto fuori.** Cercando ovunque il
+vuoto che diventa zero **e** lo zero che diventa vuoto ne sono usciti nove,
+tutti chiusi in una volta con `src/lib/lo-zero-e-il-vuoto.test.ts` come
+guardiano. Due cose vanno sapute prima di toccare quella zona.
+
+**Nessuno dei nove era visibile quel giorno**, ed e' il motivo per cui erano
+li' da mesi: in produzione **372 auto su 372 hanno un prezzo**, e delle dieci
+righe di conto economico **nessuna ha l'acquisto a zero** (nove vuote, una da
+4.000 €). Erano tutti carichi, non incendi. Non e' un argomento per
+rimandarli: un difetto che aspetta il primo cliente con un listino incompleto
+e' peggio di uno che si vede subito, perche' si manifesta il giorno peggiore.
+
+**E due sono rimasti fuori apposta:**
+
+1. **Le dieci colonne `cost_*` del conto economico sono obbligatorie con
+   valore predefinito zero.** Li' "non l'ho registrato" e "non e' costato
+   niente" **non si possono distinguere**, e non e' un difetto del codice: e'
+   lo schema che non ha il posto dove scrivere la differenza. Per questo il
+   modulo mostra la casella vuota quando una `cost_*` vale zero, mentre
+   mostra "0" per `purchase_price` e `sale_price`, che il vuoto lo ammettono.
+   Chi vorra' distinguerle deve passare da una migration, non da una
+   modifica al modulo.
+2. **La perizia scrive "0 €" su ogni voce non compilata**
+   (`perizia-page.tsx`, la funzione `numero()`). Sembra lo stesso difetto e
+   potrebbe non esserlo: in una perizia una riga lasciata in bianco vuol dire
+   plausibilmente "qui non c'e' da fare niente", cioe' **zero davvero** -- e
+   lo stesso file distingue gia' `null` per il prezzo offerto, segno che chi
+   l'ha scritto ci aveva pensato. Cambiarlo metterebbe trattini dove il
+   perito intendeva zeri. **E' una domanda di prodotto, non di codice**, e
+   va posta prima di toccarla.
+
 **E la terza forma che prende questa famiglia: il ripiego silenzioso.** Le
 prime due si riconoscono perche' il numero e' **inventato** (le due
 importazioni mai avvenute) o **incompleto** (il costo totale che ignora

@@ -278,9 +278,16 @@ function costruisci(vetture: VetturaGiacenza[], calcola: (v: VetturaGiacenza) =>
 
 /** Quanto capitale e' fermo in una fascia: la somma dei prezzi che ci sono. */
 export function capitaleFermo(vetture: VetturaConGiorni[]): number | null {
-  const conPrezzo = vetture.filter((v) => typeof v.prezzo === "number" && Number.isFinite(v.prezzo));
-  if (conPrezzo.length === 0) return null;
-  return conPrezzo.reduce((somma, v) => somma + (v.prezzo ?? 0), 0);
+  // I prezzi si estraggono **prima** di sommarli. La somma scriveva
+  // `v.prezzo ?? 0` su una lista gia' filtrata: quello zero non si
+  // raggiungeva mai, ma sembrava dire "un'auto senza prezzo vale zero" --
+  // che e' l'opposto di quello che fa questa funzione, e il guardiano dei
+  // ripieghi sul prezzo lo segnalava giustamente.
+  const prezzi = vetture
+    .map((v) => v.prezzo)
+    .filter((prezzo): prezzo is number => typeof prezzo === "number" && Number.isFinite(prezzo));
+  if (prezzi.length === 0) return null;
+  return prezzi.reduce((somma, prezzo) => somma + prezzo, 0);
 }
 
 /** "Bozza", "Pubblicato", "Venduto": il nome che il concessionario legge altrove. */

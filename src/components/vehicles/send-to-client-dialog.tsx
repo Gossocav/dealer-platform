@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { AVVISO_FOTOGRAFIE } from "@/lib/avviso-fotografie";
-import { formatCurrency, formatRegistrationLabel, safeText } from "@/lib/vehicles";
+import { formatRegistrationLabel, prezzoPerIlCliente, safeText } from "@/lib/vehicles";
 import { supabase } from "@/lib/supabaseClient";
+
 
 type SendMode = "email" | "whatsapp" | "copy-link";
 
@@ -48,8 +49,7 @@ function buildMessage(vehicle: SendToClientDialogProps["vehicle"], publicUrl: st
   const version = safeText(vehicle.version);
   const registration = registrationLabel(vehicle);
   const mileage = formatMileage(vehicle.mileage);
-  const rawPrice = Number(vehicle.price ?? 0);
-  const price = Number.isFinite(rawPrice) && rawPrice > 0 ? formatCurrency(rawPrice) : "Su richiesta";
+  const price = prezzoPerIlCliente(vehicle.price);
 
   return [
     "Buongiorno,",
@@ -174,8 +174,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
   const canSubmit = !missingFirstName && !missingLastName && !missingEmail && !missingPhone && !submitting;
 
   const shareMessage = useMemo(() => {
-    const rawPrice = Number(vehicle.price ?? 0);
-    const price = Number.isFinite(rawPrice) && rawPrice > 0 ? formatCurrency(rawPrice) : "Su richiesta";
+    const price = prezzoPerIlCliente(vehicle.price);
     return [
       `Marca: ${safeText(vehicle.brand)}`,
       `Modello: ${safeText(vehicle.model)}`,
@@ -305,7 +304,7 @@ export function SendToClientDialog({ open, onOpenChange, vehicle }: SendToClient
           mileage: formatMileage(vehicle.mileage),
           fuel: safeText(vehicle.fuel),
           transmission: safeText(vehicle.transmission),
-          price: Number.isFinite(Number(vehicle.price ?? 0)) && Number(vehicle.price ?? 0) > 0 ? formatCurrency(Number(vehicle.price ?? 0)) : "Su richiesta",
+          price: prezzoPerIlCliente(vehicle.price),
         }),
       });
 

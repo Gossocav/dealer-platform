@@ -72,10 +72,43 @@ const MODULO_VUOTO: Modulo = {
   notes: "",
 };
 
-function scrivi(valore: number | null | undefined): string {
-  return typeof valore === "number" && Number.isFinite(valore) && valore !== 0
-    ? String(valore).replace(".", ",")
-    : "";
+/**
+ * Gli importi che nel database **ammettono il vuoto**, e per cui quindi zero
+ * vuol dire qualcosa di diverso da "non compilato".
+ *
+ * Letto dallo schema di produzione il 19/09/2026: `purchase_price` e
+ * `sale_price` sono le uniche due colonne di importo che ammettono `null`.
+ * Le dieci `cost_*` sono obbligatorie con valore predefinito zero, quindi li'
+ * lo zero **e'** il campo vuoto e non c'e' niente da distinguere: mostrarle
+ * tutte e dieci con uno "0" scritto dentro riempirebbe il modulo di zeri che
+ * nessuno ha digitato.
+ */
+export const LO_ZERO_VUOL_DIRE_QUALCOSA = new Set(["purchase_price", "sale_price"]);
+
+/**
+ * Da numero del database a testo nella casella.
+ *
+ * **Il difetto che chiude** (trovato leggendo il 18/09/2026, corretto il
+ * 19/09): la condizione era `valore !== 0`, quindi un prezzo d'acquisto
+ * scritto **zero** tornava stringa vuota. Da li' in poi si perdeva tutto:
+ * la casella appariva vuota, `leggiImporto("")` rispondeva `null`, il costo
+ * totale diventava `null` e la scheda annunciava **"manca il prezzo di
+ * acquisto"** su una vettura che quel prezzo ce l'ha ed e' zero -- una
+ * permuta a saldo, un'auto della casa madre.
+ *
+ * E c'era di peggio del messaggio sbagliato: al primo salvataggio successivo
+ * il modulo **riscriveva `null` nel database** al posto dello zero, senza
+ * che nessuno avesse toccato quel campo. Non si perdeva una frase, si
+ * perdeva il dato.
+ *
+ * E' la famiglia di "un dato mancante non vale zero" **al contrario**: qui
+ * non e' il vuoto che diventa zero, e' lo zero che diventa vuoto, e la
+ * regola che li distingue e' la stessa.
+ */
+export function scrivi(valore: number | null | undefined, campo?: string): string {
+  if (typeof valore !== "number" || !Number.isFinite(valore)) return "";
+  if (valore === 0 && !(campo !== undefined && LO_ZERO_VUOL_DIRE_QUALCOSA.has(campo))) return "";
+  return String(valore).replace(".", ",");
 }
 
 function voci(modulo: Modulo): VociConto {
@@ -124,18 +157,18 @@ export function VehicleEconomicsCard({ vehicleId, dealerId }: { vehicleId: strin
 
       if (data) {
         setModulo({
-          purchase_price: scrivi(data.purchase_price),
-          cost_minivoltura: scrivi(data.cost_minivoltura),
-          cost_bollo: scrivi(data.cost_bollo),
-          cost_transport: scrivi(data.cost_transport),
-          cost_bodywork: scrivi(data.cost_bodywork),
-          cost_workshop: scrivi(data.cost_workshop),
-          cost_tyres: scrivi(data.cost_tyres),
-          cost_preparation: scrivi(data.cost_preparation),
-          cost_parts: scrivi(data.cost_parts),
-          cost_commission: scrivi(data.cost_commission),
-          cost_other: scrivi(data.cost_other),
-          sale_price: scrivi(data.sale_price),
+          purchase_price: scrivi(data.purchase_price, "purchase_price"),
+          cost_minivoltura: scrivi(data.cost_minivoltura, "cost_minivoltura"),
+          cost_bollo: scrivi(data.cost_bollo, "cost_bollo"),
+          cost_transport: scrivi(data.cost_transport, "cost_transport"),
+          cost_bodywork: scrivi(data.cost_bodywork, "cost_bodywork"),
+          cost_workshop: scrivi(data.cost_workshop, "cost_workshop"),
+          cost_tyres: scrivi(data.cost_tyres, "cost_tyres"),
+          cost_preparation: scrivi(data.cost_preparation, "cost_preparation"),
+          cost_parts: scrivi(data.cost_parts, "cost_parts"),
+          cost_commission: scrivi(data.cost_commission, "cost_commission"),
+          cost_other: scrivi(data.cost_other, "cost_other"),
+          sale_price: scrivi(data.sale_price, "sale_price"),
           purchase_date: data.purchase_date ?? "",
           bollo_expires_on: data.bollo_expires_on ?? "",
           supplier: data.supplier ?? "",

@@ -30,8 +30,22 @@ describe("larghezza delle colonne nella tabella dei veicoli", () => {
 
   it("tiene su una riga sola i valori brevi: data, prezzo, chilometri", () => {
     expect(tabella).toContain('<td className="whitespace-nowrap px-3 py-3">{vehicle.registration}</td>');
-    expect(tabella).toContain('<td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-900">{vehicle.priceLabel}</td>');
     expect(tabella).toContain('<td className="whitespace-nowrap px-3 py-3">{vehicle.mileageLabel}</td>');
+
+    // **La cella del prezzo si controlla per proprieta', non per testo.**
+    // L'asserzione copiava la riga intera, `{vehicle.priceLabel}` compreso,
+    // e il 19/09/2026 e' caduta per una modifica che con l'andare a capo non
+    // c'entrava niente: sotto il prezzo assente si e' aggiunto il motivo per
+    // cui manca. L'intento scritto qui sopra e' "su una riga sola", e quello
+    // si controlla guardando la classe.
+    const cellaDelPrezzo = tabella.match(/<td className="([^"]*)"[^>]*>\s*\{vehicle\.priceLabel\}/);
+    expect(cellaDelPrezzo, "la cella del prezzo non si trova piu'").not.toBeNull();
+    expect(cellaDelPrezzo?.[1]).toContain("whitespace-nowrap");
+
+    // Il motivo sotto al prezzo invece **puo'** andare a capo: e' una frase,
+    // e tenerla su una riga sola allargherebbe la colonna per tutti.
+    expect(tabella).toMatch(/\{vehicle\.prezzoAssente\}/);
+    expect(tabella).toContain("block whitespace-normal text-xs");
   });
 });
 

@@ -79,30 +79,44 @@ export async function applicaTettoDelPiano(supabase: SupabaseClient, dealerId: s
  * che il database accetterebbe, o lasciandone passare una che rifiutera'.
  * Questa e' l'unica da riusare.
  */
-export async function contaPubblicate(supabase: SupabaseClient, dealerId: string): Promise<number> {
-  const { count } = await supabase
+export async function contaPubblicate(supabase: SupabaseClient, dealerId: string): Promise<number | null> {
+  const { count, error } = await supabase
     .from("vehicles")
     .select("id", { count: "exact", head: true })
     .eq("dealer_id", dealerId)
     .eq("published", true)
     .eq("status", "published");
-  return count ?? 0;
+  // **Un conteggio che non riesce non vale zero**, e qui valeva: `count ?? 0`
+  // rispondeva "nessuna pubblicata" a una richiesta fallita, cioe' "c'e'
+  // posto per tutto". Da li' i posti liberi risultavano pari all'intero
+  // piano e un clic che il database avrebbe rifiutato passava il controllo
+  // preventivo, per finire respinto a meta' con la frase del database --
+  // esattamente cio' che quel controllo esiste per evitare.
+  //
+  // `null` vuol dire "non lo so", e chi chiama lo sa gia' gestire.
+  return error || count === null ? null : count;
 }
 
-/** Quante auto del sito aspettano un posto in vetrina. */
-export async function contaInAttesa(supabase: SupabaseClient, dealerId: string): Promise<number> {
-  const { count } = await supabase
+/** Quante auto del sito aspettano un posto in vetrina. `null` se non si e' riusciti a contarle. */
+export async function contaInAttesa(supabase: SupabaseClient, dealerId: string): Promise<number | null> {
+  const { count, error } = await supabase
     .from("vehicles")
     .select("id", { count: "exact", head: true })
     .eq("dealer_id", dealerId)
     .eq("status", STATO_OLTRE_IL_TETTO)
     .not("import_source", "is", null)
     .is("import_missing_since", null);
-  return count ?? 0;
+  return error || count === null ? null : count;
 }
 
 /** Quante auto possono ancora entrare pubblicate adesso. `null` senza un limite leggibile. */
 export async function postiLiberi(supabase: SupabaseClient, dealerId: string, limite: number | null): Promise<number | null> {
   if (limite === null) return null;
-  return Math.max(0, limite - (await contaPubblicate(supabase, dealerId)));
+  // Senza il conteggio non si sa quanti posti restano, e si risponde "non lo
+  // so" come quando il piano non ha un tetto leggibile: chi chiama tratta
+  // gia' `null` cosi'. Rispondere con un numero calcolato su uno zero finto
+  // sarebbe peggio del non saperlo.
+  const pubblicate = await contaPubblicate(supabase, dealerId);
+  if (pubblicate === null) return null;
+  return Math.max(0, limite - pubblicate);
 }

@@ -14,7 +14,7 @@ import { pianoComprende } from "@/lib/funzioni-per-piano";
 import { usePianoInVigore } from "@/lib/use-piano-in-vigore";
 import { resolveVehicleLabel } from "@/lib/public-marketplace";
 import { supabase } from "@/lib/supabaseClient";
-import { formatRegistrationLabel } from "@/lib/vehicles";
+import { formatRegistrationLabel, parsePrice } from "@/lib/vehicles";
 
 type Vehicle = {
   id: string;
@@ -87,12 +87,7 @@ const formatDate = (timestamp: string | null | undefined) => {
   }
 };
 
-const parsePrice = (value: string | number | null | undefined) => {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") return value;
-  const digits = value.replace(/[€\s.,]/g, "").replace(/[^0-9]/g, "");
-  return digits ? Number(digits) : 0;
-};
+
 
 export default function StatistichePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -229,8 +224,27 @@ export default function StatistichePage() {
   const totalLeads = totals.leads;
   const totalCustomers = totals.customers;
   const totalAppointments = totals.appointments;
-  const totalValue = vehicles.reduce((sum, vehicle) => sum + parsePrice(vehicle.price), 0);
-  const averagePrice = totalVehicles > 0 ? Math.round(totalValue / totalVehicles) : 0;
+  // **Il valore del parco si somma sui prezzi che ci sono.** Il `parsePrice`
+  // locale rispondeva `0` a un prezzo assente, quindi un'auto senza prezzo
+  // entrava nella somma come se valesse zero: il totale usciva piu' basso
+  // del vero, scritto come se fosse esatto. E il prezzo medio era peggio,
+  // perche' divideva per **tutte** le auto, comprese quelle che non avevano
+  // contribuito niente -- una sola auto senza prezzo su dieci abbassava la
+  // media del dieci per cento.
+  //
+  // Ora si sommano solo i prezzi noti, la media si fa su quelli, e se
+  // qualcuna resta fuori **lo si scrive accanto al numero**: un totale
+  // parziale non dichiarato e' un totale sbagliato.
+  const prezziNoti = vehicles
+    .map((vehicle) => parsePrice(vehicle.price))
+    .filter((prezzo): prezzo is number => prezzo !== null);
+  const senzaPrezzo = vehicles.length - prezziNoti.length;
+  const totalValue = prezziNoti.reduce((somma, prezzo) => somma + prezzo, 0);
+  const averagePrice = prezziNoti.length > 0 ? Math.round(totalValue / prezziNoti.length) : null;
+  const notaSuiPrezzi =
+    senzaPrezzo === 0
+      ? "somma dei prezzi in vetrina"
+      : `somma dei prezzi in vetrina · ${senzaPrezzo} ${senzaPrezzo === 1 ? "auto senza prezzo" : "auto senza prezzo"}, fuori dal conto`;
 
   // I veicoli arrivano gia' ordinati dal database. Qui prima c'era .sort(),
   // che riordina l'elenco *sul posto*: modificava lo stato di React invece di
@@ -319,15 +333,15 @@ export default function StatistichePage() {
           />
           <MetricCard
             label="Valore del parco"
-            value={formattaEuroTondo(totalValue)}
-            delta="somma dei prezzi in vetrina"
+            value={formattaEuroTondo(prezziNoti.length > 0 ? totalValue : null)}
+            delta={notaSuiPrezzi}
             icon={Wallet}
             accent="viola"
           />
           <MetricCard
             label="Prezzo medio"
             value={formattaEuroTondo(averagePrice)}
-            delta="per vettura"
+            delta={senzaPrezzo === 0 ? "per vettura" : "per vettura con un prezzo"}
             icon={Tag}
             accent="viola"
           />
@@ -410,7 +424,7 @@ export default function StatistichePage() {
                   year: vehicle.year,
                 }) ?? "—"}
                 {" · "}
-                {formattaEuroTondo(parsePrice(vehicle.price) || null)}
+                {formattaEuroTondo(parsePrice(vehicle.price))}
               </p>
             </Link>
           ))}
