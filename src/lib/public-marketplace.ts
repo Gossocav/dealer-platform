@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 import { formatRegistrationLabel } from "@/lib/vehicles";
 import { normalizzaModello, ripulisciTitoloVeicolo, stripLeadingRepeat } from "@/lib/vehicle-label";
 
@@ -496,4 +497,40 @@ function normalizePhoneDigits(phone: string | null | undefined) {
   }
 
   return `39${digits}`;
+}
+
+/**
+ * Quante automobili ha in vetrina una concessionaria, **contate dal
+ * database**.
+ *
+ * Il difetto che chiude, e che in questo progetto e' gia' costato una volta:
+ * il numero si ricavava dalla lunghezza di un elenco scaricato con un tetto.
+ * Sull'elenco delle concessionarie il tetto era 240 su 279 pubblicate e i
+ * numeri erano **falsi** (19/09/2026: AUTOGEPY ne mostrava 114 invece di
+ * 135). Sulla pagina della singola concessionaria il tetto e' 300 e oggi
+ * nessuno lo supera: il numero e' giusto **per caso**, e mentirebbe in
+ * silenzio il giorno che una concessionaria cresce.
+ *
+ * Torna `null` -- e non zero -- quando la vista non c'e' ancora: le
+ * modifiche al database le applica a mano il titolare, e fra il codice in
+ * linea e la vista creata c'e' sempre una finestra. Zero direbbe "non ha
+ * automobili", che e' un'altra cosa.
+ */
+export async function contaVetrinaConcessionaria(dealerId: string): Promise<number | null> {
+  const { data, error } = await publicSupabase
+    .from("vetrina_per_concessionaria")
+    .select("veicoli_pubblicati")
+    .eq("dealer_id", dealerId)
+    .maybeSingle<{ veicoli_pubblicati: number | string }>();
+
+  if (error) {
+    if (!tabellaNonAncoraCreata(error.message, "vetrina_per_concessionaria")) {
+      logMarketplaceQueryError("conta-vetrina", error);
+    }
+    return null;
+  }
+
+  if (!data) return 0;
+  const quante = Number(data.veicoli_pubblicati);
+  return Number.isFinite(quante) ? quante : null;
 }

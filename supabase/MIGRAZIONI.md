@@ -387,6 +387,57 @@ con il valore** (`origine_dati.entered_on.fonte`: `sito` oppure `dedotto`), e
 la schermata sceglie la frase in base a quella. Due frasi diverse per due
 cose diverse, e la seconda non promette mai piu' di quello che sa.
 
+## Il prezzo minimo che non esisteva (19/09/2026)
+
+La vista `vetrina_per_concessionaria` e' stata applicata in produzione e
+verificata: **135, 93 e 50 veicoli** per le tre concessionarie, e il prezzo
+minimo di De Lorenzi e' passato da **7.500 € a 5.800 €**.
+
+Vale la pena raccontarla per intero, perche' e' il senso di tutto il lavoro
+di quella mattina.
+
+La pagina della concessionaria caricava le prime **trecento** auto e su
+quelle calcolava tre numeri: quanti veicoli, il prezzo medio e il prezzo
+minimo. Sotto le trecento il conto tornava, e infatti tornava -- oggi la piu'
+grande ne ha centotrentacinque. Ma il prezzo minimo non e' un conteggio: e'
+un **estremo**, e un estremo calcolato su una parte dell'elenco e' sbagliato
+appena l'elenco viene ordinato in un modo qualsiasi che non sia il prezzo.
+L'elenco era ordinato per data. Il Ducato a 5.800 € stava fuori dalla
+finestra, e la scheda annunciava **"a partire da 7.500 €"**.
+
+**Non c'era nessun errore da nessuna parte.** Nessuna eccezione, nessun log,
+nessuna riga rossa: solo un limite in una richiesta, scritto per una buona
+ragione (trecento schede sono gia' tante da scorrere) e usato per una cosa
+per cui non valeva.
+
+Una precisazione che conta, perche' la prima versione di questa nota diceva
+di piu' di quello che era stato verificato: **le auto sotto gli 8.000 € si
+trovavano lo stesso**. La ricerca del marketplace filtra il prezzo nel
+database, non sull'elenco caricato, e cinque auto sotto quella soglia --
+5.800, 6.475, 7.500, 7.800, 7.900 -- sono state ritrovate una per una
+interrogando la produzione con la sola chiave pubblica. Quello che era falso
+era il **biglietto da visita della concessionaria**: chi apriva la pagina di
+De Lorenzi leggeva che si parte da 7.500 e poteva chiudere li'. E' meno grave
+di "sparite dalla ricerca", ed e' esattamente lo stesso difetto.
+
+La correzione: i conteggi si fanno **nel database**, con una vista. Due cose
+da sapere prima di scriverne un'altra.
+
+**I conteggi di PostgREST su questo progetto sono spenti.** La strada ovvia --
+chiedere `min(price)` direttamente dall'interrogazione -- risponde
+`PGRST123: "Use of aggregate functions is not allowed"`. E' una difesa
+ragionevole (un estraneo non deve poter far macinare l'intero archivio con
+una richiesta), e non si tocca: la vista e' la strada giusta anche per
+questo, perche' il conto lo decide chi scrive la migration, non chi chiama.
+
+**`with (security_invoker = on)` e' la riga che conta.** Senza, la vista gira
+con i permessi di chi l'ha creata e le protezioni per riga delle tabelle che
+legge **non valgono**: sarebbe una porta sullo stock di tutte le
+concessionarie aperta senza toccare nessuna politica, e nessun controllo
+sarebbe diventato rosso. Con quella riga la vista gira con i permessi di chi
+la chiama. Adesso c'e' un test che lo pretende per ogni vista futura
+(`src/lib/viste-con-security-invoker.test.ts`).
+
 ## Credenziali
 
 Il controllo ha bisogno di due segreti su GitHub

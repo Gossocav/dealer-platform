@@ -5,7 +5,7 @@ import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { SegnalaVisita } from "@/components/marketplace/segnala-visita";
 import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-search";
 import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { contaVetrinaConcessionaria, MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 
@@ -152,7 +152,20 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   // pubblicati - Bard". Una citta' sbagliata, presa da un dato che nessuno
   // compila piu'.
   const dealerLocality = resolveDealerLocality(matchedDealer as unknown as MarketplaceDealer);
-  const totalVehicles = dealerVehicles.length;
+
+  // **Quante automobili ha davvero, non quante ne sono arrivate qui.**
+  //
+  // Era `dealerVehicles.length`, cioe' la lunghezza di un elenco con un
+  // tetto di trecento. Oggi la piu' grande ne ha centotrentacinque e il
+  // numero e' giusto per caso: il giorno che una concessionaria supera il
+  // tetto, questa pagina annuncerebbe "300 veicoli pubblicati" a chi ne ha
+  // quattrocento, **senza nessun errore da nessuna parte**. E' lo stesso
+  // difetto che l'elenco delle concessionarie aveva gia' pagato davvero.
+  //
+  // Adesso il conto arriva dal database. Se la vista non c'e' ancora, il
+  // numero non si mostra: meglio nessuno che uno sbagliato.
+  const veicoliInVetrina = await contaVetrinaConcessionaria(matchedDealer.id);
+  const totalVehicles = veicoliInVetrina;
 
   // Il minimo indispensabile perche' il browser possa filtrare: nessuna foto,
   // nessun testo lungo. Le schede restano disegnate dal server.
@@ -185,6 +198,8 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     // anche altrove" e' un rimando al sito della concessionaria come gli
     // altri, e i rimandi verso l'esterno sono stati tolti tutti.
     website: null,
+    // Anche i dati strutturati per Google prendono il numero vero: un conto
+    // sbagliato dichiarato a un motore di ricerca resta li' per mesi.
     vehiclesCount: totalVehicles,
   });
 
@@ -217,14 +232,16 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
                 {dealerName}
               </h1>
               <p className="mt-4 text-base leading-7 text-slate-400 sm:text-lg">
-                {totalVehicles} veicoli pubblicati{dealerLocality ? ` • ${dealerLocality}` : ""}
+                {totalVehicles === null
+                  ? dealerLocality
+                  : `${totalVehicles} ${totalVehicles === 1 ? "veicolo pubblicato" : "veicoli pubblicati"}${dealerLocality ? ` • ${dealerLocality}` : ""}`}
               </p>
             </div>
 
           </div>
         </section>
 
-        <DealerVehicleSearch vehicles={searchFacets}>
+        <DealerVehicleSearch vehicles={searchFacets} totaleInVetrina={veicoliInVetrina}>
           {dealerVehicles.map((vehicle) => (
             <VehicleCard key={vehicle.id} vehicle={vehicle} />
           ))}

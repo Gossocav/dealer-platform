@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { caricaTutto } from "@/lib/carica-tutto";
 import Link from "next/link";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { VEHICLE_BODY_TYPES } from "@/lib/vehicle-body-types";
@@ -11,7 +12,7 @@ import {
   resolveComunePoint,
   resolvePlaceQuery,
 } from "@/lib/geo-search";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, logMarketplaceTruncatedList, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
 import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
@@ -19,7 +20,6 @@ import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distint
 export const dynamic = "force-dynamic";
 
 const MARKETPLACE_SEARCH_PAGE_SIZE = 24;
-const MARKETPLACE_OPTIONS_LIMIT = 1000;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -225,13 +225,40 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
   const { data, error, count } = await query.range(from, to);
 
-  const { data: optionRows } = await publicSupabase
-    .from("vehicles")
-    .select("brand, model, fuel, transmission, registration_date, dealers!inner(status)")
-    .eq("published", true)
-    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
-    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
-    .limit(MARKETPLACE_OPTIONS_LIMIT);
+  // **Le voci delle tendine si leggono per intero, non le prime mille.**
+  //
+  // Erano un `.limit(1000)`: oggi le automobili pubblicate sono 279 e le
+  // tendine sono complete **per caso**. Superate le mille, una marca
+  // sarebbe semplicemente sparita dall'elenco dei filtri -- senza nessun
+  // errore, senza nessun avviso -- e chi la cercava avrebbe concluso che su
+  // KeyAuto quella marca non c'e'.
+  //
+  // Qui non serve un conto, serve l'elenco completo: `caricaTutto` lo legge
+  // a blocchi e **dice se ha toccato il tetto**, che e' la differenza fra
+  // sapere di avere una lista parziale e crederla intera. E' la stessa
+  // strada che la home usa gia' per contare carrozzerie e citta'.
+  const { righe: optionRows, troncato: opzioniTroncate } = await caricaTutto<{
+    brand: string | null;
+    model: string | null;
+    fuel: string | null;
+    transmission: string | null;
+    registration_date: string | null;
+  }>((da, a) =>
+    publicSupabase
+      .from("vehicles")
+      .select("brand, model, fuel, transmission, registration_date, dealers!inner(status)")
+      .eq("published", true)
+      .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+      .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+      // Un ordine stabile serve a caricaTutto: senza, due blocchi possono
+      // consegnare la stessa riga e saltarne un'altra.
+      .order("id", { ascending: true })
+      .range(da, a),
+  );
+
+  if (opzioniTroncate) {
+    logMarketplaceTruncatedList("search-options", optionRows.length);
+  }
 
   if (error) {
     logMarketplaceQueryError("search", error);

@@ -497,10 +497,29 @@ function DemoRequestPage() {
     formData.set("websiteTrap", values.websiteTrap);
     formData.set("chamberDocument", chamberDocument);
 
-    const response = await fetch("/api/demo/request", {
-      method: "POST",
-      body: formData,
-    });
+    // **Se la rete cade, la richiesta non deve restare appesa.** E' lo stesso
+    // difetto trovato il 19/09/2026 sul modulo della scheda auto, e qui pesa
+    // di piu': chi arriva a questo punto ha compilato due passaggi **e
+    // caricato la visura camerale**. Senza `try/catch` la promessa veniva
+    // rifiutata, `setIsSubmitting(false)` non arrivava mai, e il bottone
+    // restava disabilitato con scritto "Invio in corso..." per sempre: si
+    // usciva solo ricaricando la pagina, e il file andava ricaricato da capo.
+    // I campi e la visura **restano dove sono**: non si azzera niente prima
+    // di sapere che la richiesta e' arrivata.
+    let response: Response;
+    try {
+      response = await fetch("/api/demo/request", {
+        method: "POST",
+        body: formData,
+      });
+    } catch {
+      setIsSubmitting(false);
+      setIsSubmitted(false);
+      setServerMessage(
+        "Non siamo riusciti a inviare la richiesta: controlla la connessione e riprova. I dati che hai scritto e la visura sono ancora qui.",
+      );
+      return;
+    }
 
     const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
 
@@ -718,17 +737,17 @@ function DemoRequestPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-300">Email *</label>
-                    <input ref={emailRef} id="email" type="email" value={values.email} onChange={handleChange("email")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.email))} placeholder="nome@concessionaria.it" required />
+                    <input ref={emailRef} id="email" type="email" autoComplete="email" value={values.email} onChange={handleChange("email")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.email))} placeholder="nome@concessionaria.it" required />
                     {errors.email ? <p className="mt-1 text-xs font-medium text-red-600">{errors.email}</p> : null}
                   </div>
                   <div>
                     <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-300">Telefono fisso *</label>
-                    <input ref={phoneRef} id="phone" type="tel" value={values.phone} onChange={handleChange("phone")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.phone))} placeholder="+39 ..." required />
+                    <input ref={phoneRef} id="phone" type="tel" autoComplete="tel" value={values.phone} onChange={handleChange("phone")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.phone))} placeholder="+39 ..." required />
                     {errors.phone ? <p className="mt-1 text-xs font-medium text-red-600">{errors.phone}</p> : null}
                   </div>
                   <div>
                     <label htmlFor="mobilePhone" className="mb-2 block text-sm font-medium text-slate-300">Cellulare *</label>
-                    <input ref={mobilePhoneRef} id="mobilePhone" type="tel" value={values.mobilePhone} onChange={handleChange("mobilePhone")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.mobilePhone))} placeholder="+39 ..." required />
+                    <input ref={mobilePhoneRef} id="mobilePhone" type="tel" autoComplete="tel" value={values.mobilePhone} onChange={handleChange("mobilePhone")} style={fieldTextStyle} className={getFieldClassName(Boolean(errors.mobilePhone))} placeholder="+39 ..." required />
                     {errors.mobilePhone ? <p className="mt-1 text-xs font-medium text-red-600">{errors.mobilePhone}</p> : null}
                   </div>
                 </div>

@@ -991,6 +991,77 @@ volta sola.
 sta ancora chiudendo. Si spegne il processo, si controlla che la porta sia
 libera, poi si cancella.
 
+**Ogni vista nasce con `security_invoker`, e un test lo pretende.** Una vista
+in Postgres gira con i permessi di **chi l'ha creata**, non di chi la
+interroga: le protezioni per riga delle tabelle che legge non si applicano.
+Una vista e' quindi il modo piu' silenzioso di scavalcare l'isolamento fra
+concessionarie -- non tocca nessuna politica, non rompe niente, e nessun
+controllo diventa rosso. `with (security_invoker = on)` la fa girare con i
+permessi di chi la chiama, e `current_dealer_id()` torna a valere.
+
+La prima vista del progetto (`vetrina_per_concessionaria`, 19/09/2026) calcola
+tre numeri pubblici e innocui; la vista che li calcola non sarebbe stata
+innocua per niente. Il guardiano e'
+`src/lib/viste-con-security-invoker.test.ts`, e riconosce anche il caso piu'
+probabile: una vista con **un'altra** opzione fra parentesi e non quella.
+
+Nota utile quando si e' tentati di evitare la vista: **i conteggi di PostgREST
+su questo progetto sono spenti**. Chiedere `min(price)` o `count` dentro
+l'interrogazione risponde `PGRST123: "Use of aggregate functions is not
+allowed"`. E' una difesa voluta e non si tocca.
+
+**Il punto in cui il sito guadagna si guarda per primo.** Questo progetto ha
+due moduli da cui entra il denaro: la richiesta informazioni su un'auto (porta
+i clienti alle concessionarie) e la richiesta di demo (porta le concessionarie
+a noi). Tutto il resto -- le schede, la ricerca, la home -- serve a portare
+qualcuno **fino a li'**.
+
+Il 19/09/2026 quei due moduli erano la parte **meno curata** del sito
+pubblico. Sul modulo della scheda auto: la conferma nasceva settecento pixel
+sopra il bottone e non si vedeva, quindi si inviava due volte e la
+concessionaria riceveva due persone dove ce n'era una; se cadeva la rete il
+bottone restava su "Invio in corso..." per sempre; nessun campo diceva al
+telefono cosa suggerire. Sul modulo della demo mancava la stessa protezione
+sulla rete, e li' chi arriva in fondo ha anche caricato la visura camerale.
+
+**La parte piu' utile della lezione e' dove quelle protezioni c'erano gia'.**
+Il modulo gemello della registrazione -- stesso progetto, stesse mani -- aveva
+il `try/catch` sulla rete **e** tutti e cinque gli `autoComplete`, dal primo
+giorno. Non mancava la competenza: mancava di averla applicata **dove porta i
+clienti**. Quando si cerca un difetto, la domanda non e' "sappiamo farlo?" ma
+**"lo abbiamo fatto nel punto che conta?"** -- ed e' quasi sempre il punto che
+nessuno di noi usa mai, perche' il modulo di contatto lo compila il cliente,
+non chi costruisce.
+
+**Il giro a mano sulle cinque pagine pubbliche.** Una volta al mese, e **prima
+di ogni cliente nuovo**, le pagine pubbliche si aprono da un telefono vero e
+si guardano una per una. Non e' un di piu': le pagine del gestionale chiedono
+credenziali che un agente non ha, ma le pagine pubbliche no -- e sono quelle
+che vede chi compra.
+
+L'ordine non e' casuale, segue il punto in cui il sito guadagna:
+
+1. **il modulo di contatto di una scheda auto** -- si compila davvero, fino
+   alla conferma, e si guarda che la conferma si veda senza scorrere;
+2. **la scheda auto** che lo contiene (dati tecnici, descrizione, foto);
+3. **la pagina di una concessionaria** (i numeri in cima, i filtri);
+4. **la ricerca** e le sue tendine;
+5. **la home**.
+
+Quello che un test non puo' vedere e per cui serve l'occhio: il contrasto di
+un grigio su fondo scuro, un menu che non si chiude, una foto che non si
+capisce, un bersaglio troppo piccolo per un pollice, una frase che suona
+sbagliata. Quello che invece un test vede da solo sta in
+`src/lib/pagine-pubbliche-si-guardano-da-sole.test.ts`: testo sotto i dodici
+pixel, campi sotto i sedici (Safari su iPhone ingrandisce la pagina da solo e
+non torna piu' indietro), campi email e telefono senza `autoComplete`, invii
+senza `catch`, e numeri contati su un elenco che ha un tetto.
+
+**Quattro di quei cinque controlli nascono con un debito**, scritto in un
+elenco esplicito dentro il test con il perche'. E' voluto: il debito e' vero e
+noto, e l'elenco **puo' solo accorciarsi**. Un controllo che non nasce perche'
+oggi troverebbe qualcosa e' un controllo che non nascera' mai.
+
 ## Come si lavora
 
 Modifica minima, sullo scopo richiesto. Se serve toccare altro, lo si dice
