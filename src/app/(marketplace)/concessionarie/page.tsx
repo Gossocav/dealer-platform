@@ -15,6 +15,7 @@ import {
   type MarketplaceVehicle,
 } from "@/lib/public-marketplace";
 import { resolveVehicleImageUrl } from "@/lib/marketplace-foto-firmate";
+import { tabellaNonAncoraCreata } from "@/lib/tabella-mancante";
 
 // Cinque minuti: l'elenco delle concessionarie cambia molto piu' di rado del
 // catalogo dei veicoli.
@@ -34,15 +35,75 @@ export const metadata: Metadata = {
   },
 };
 
-const MARKETPLACE_DEALERS_VEHICLES_LIMIT = 240;
+/**
+ * Le automobili che si scaricano, e a cosa servono **adesso**.
+ *
+ * Servivano a due cose e una delle due era sbagliata: facevano da copertina
+ * alle schede, e da questo elenco si contavano i veicoli di ogni
+ * concessionaria e se ne calcolavano i prezzi. Al 19/09/2026 le pubblicate
+ * erano 279 e questo tetto 240: **i numeri a video erano falsi** --
+ * AUTOGEPY mostrava 114 automobili invece di 135, e il prezzo minimo di De
+ * Lorenzi 7.500 euro invece di 5.800.
+ *
+ * Adesso i numeri li conta il database (`vetrina_per_concessionaria`) e
+ * questo elenco serve **solo alle fotografie**. Il tetto resta, ma quello
+ * che si perde superandolo e' una copertina, non un numero: una
+ * concessionaria oltre il taglio compare lo stesso, con i suoi numeri giusti
+ * e senza immagine.
+ */
+const COPERTINE_DA_SCARICARE = 240;
 
 type DealerGroup = {
   dealerId: string;
   dealer: MarketplaceDealer | null;
+  /** Solo per la copertina e per il collegamento "Primo veicolo". */
   vehicles: MarketplaceVehicle[];
+  /** I numeri contati dal database. `null` se la vista non c'e' ancora. */
+  numeri: NumeriVetrina | null;
 };
 
+type NumeriVetrina = {
+  veicoli_pubblicati: number;
+  prezzo_medio: number | null;
+  prezzo_minimo: number | null;
+};
+
+/**
+ * I numeri di ogni concessionaria, contati dal database.
+ *
+ * Torna `null` -- e non un elenco vuoto -- quando la vista non esiste
+ * ancora: in questo progetto le modifiche al database le applica a mano il
+ * titolare, quindi c'e' sempre una finestra fra il codice in linea e la
+ * vista creata. Dentro quella finestra la pagina mostra le concessionarie
+ * **senza numeri**, che e' la risposta onesta: meglio nessun numero che uno
+ * sbagliato.
+ */
+async function numeriDellaVetrina(): Promise<Map<string, NumeriVetrina> | null> {
+  const { data, error } = await publicSupabase
+    .from("vetrina_per_concessionaria")
+    .select("dealer_id, veicoli_pubblicati, prezzo_medio, prezzo_minimo");
+
+  if (error) {
+    if (tabellaNonAncoraCreata(error.message, "vetrina_per_concessionaria")) return null;
+    logMarketplaceQueryError("dealers-list-numeri", error);
+    return null;
+  }
+
+  const per = new Map<string, NumeriVetrina>();
+  for (const riga of (data ?? []) as Array<Record<string, unknown>>) {
+    const id = String(riga.dealer_id ?? "").trim();
+    if (!id) continue;
+    per.set(id, {
+      veicoli_pubblicati: Number(riga.veicoli_pubblicati ?? 0),
+      prezzo_medio: riga.prezzo_medio === null || riga.prezzo_medio === undefined ? null : Number(riga.prezzo_medio),
+      prezzo_minimo: riga.prezzo_minimo === null || riga.prezzo_minimo === undefined ? null : Number(riga.prezzo_minimo),
+    });
+  }
+  return per;
+}
+
 export default async function DealersListPage() {
+  const numeri = await numeriDellaVetrina();
   const { data, error } = await publicSupabase
     .from("vehicles")
     .select("id, brand, model, version, year, mileage, price, fuel, transmission, city, status, created_at, dealer_id, dealers!inner(id, name, logo_url, legal_name, status, city, province), vehicle_images(image_url, position, is_cover)")
@@ -50,7 +111,7 @@ export default async function DealersListPage() {
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
     .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
     .order("created_at", { ascending: false })
-    .limit(MARKETPLACE_DEALERS_VEHICLES_LIMIT);
+    .limit(COPERTINE_DA_SCARICARE);
 
   if (error) {
     logMarketplaceQueryError("dealers-list", error);
@@ -66,7 +127,7 @@ export default async function DealersListPage() {
   }
 
   const vehicles = (data ?? []) as unknown as MarketplaceVehicle[];
-  const groups = groupDealers(vehicles);
+  const groups = groupDealers(vehicles, numeri);
 
   return (
     <main className="bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
@@ -112,9 +173,10 @@ async function DealerCard({ group }: { group: DealerGroup }) {
   // erano compilate una per auto e potevano dire tutt'altro.
   const dealerLocality = resolveDealerLocality(group.dealer ? [group.dealer] : null);
   const cities = dealerLocality ? [dealerLocality] : [];
-  const prices = group.vehicles.map((vehicle) => Number(vehicle.price ?? 0)).filter((price) => price > 0);
-  const avgPrice = prices.length > 0 ? prices.reduce((sum, price) => sum + price, 0) / prices.length : 0;
-  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+  // **Nessun numero si ricava piu' dalle automobili scaricate.** Se la vista
+  // non c'e' ancora, la scheda non mostra numeri: meglio nessuno che uno
+  // sbagliato, ed e' la stessa regola del costo totale e dello storico finto.
+  const numeri = group.numeri;
 
   return (
     <article className="group overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/70 to-slate-900 transition hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_30px_90px_-40px_rgba(0,0,0,0.7)]">
@@ -139,14 +201,20 @@ async function DealerCard({ group }: { group: DealerGroup }) {
       </div>
       <div className="space-y-4 p-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">{group.vehicles.length} veicoli pubblicati</p>
+          {numeri ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">
+              {numeri.veicoli_pubblicati} {numeri.veicoli_pubblicati === 1 ? "veicolo pubblicato" : "veicoli pubblicati"}
+            </p>
+          ) : null}
           <h2 className="mt-2 text-xl font-bold text-white">{dealerName}</h2>
           <p className="mt-2 text-sm text-slate-400">{cities.length > 0 ? cities.join(" • ") : "Città non disponibile"}</p>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <Spec label="Prezzo medio" value={formatPrice(avgPrice)} />
-          <Spec label="Prezzo minimo" value={formatPrice(minPrice)} />
-        </div>
+        {numeri && (numeri.prezzo_medio !== null || numeri.prezzo_minimo !== null) ? (
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <Spec label="Prezzo medio" value={numeri.prezzo_medio === null ? "—" : formatPrice(numeri.prezzo_medio)} />
+            <Spec label="Prezzo minimo" value={numeri.prezzo_minimo === null ? "—" : formatPrice(numeri.prezzo_minimo)} />
+          </div>
+        ) : null}
         <div className="flex gap-2 pt-1">
           <Link
             href={`/concessionarie/${dealerSlug}`}
@@ -177,18 +245,23 @@ function Spec({ label, value }: { label: string; value: string }) {
   );
 }
 
-function groupDealers(vehicles: MarketplaceVehicle[]) {
+function groupDealers(vehicles: MarketplaceVehicle[], numeri: Map<string, NumeriVetrina> | null) {
   const map = new Map<string, DealerGroup>();
 
   for (const vehicle of vehicles) {
     const dealer = Array.isArray(vehicle.dealers) ? vehicle.dealers[0] ?? null : vehicle.dealers ?? null;
     const dealerId = String(vehicle.dealer_id ?? dealer?.id ?? resolveDealerSlug(vehicle.dealers));
     if (!map.has(dealerId)) {
-      map.set(dealerId, { dealerId, dealer, vehicles: [] });
+      map.set(dealerId, { dealerId, dealer, vehicles: [], numeri: numeri?.get(dealerId) ?? null });
     }
 
     map.get(dealerId)?.vehicles.push(vehicle);
   }
 
-  return [...map.values()].sort((a, b) => b.vehicles.length - a.vehicles.length);
+  // L'ordine segue **i numeri veri**, non quante automobili sono finite
+  // nell'elenco delle copertine: con il tetto a 240 una concessionaria
+  // grande poteva comparire dopo una piu' piccola.
+  return [...map.values()].sort(
+    (a, b) => (b.numeri?.veicoli_pubblicati ?? b.vehicles.length) - (a.numeri?.veicoli_pubblicati ?? a.vehicles.length),
+  );
 }
