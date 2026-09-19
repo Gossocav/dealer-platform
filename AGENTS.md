@@ -630,6 +630,34 @@ giorno l'ha fatto. Le due regole:
    cinque. Un elenco che cambia contenuto va riscritto con la data e il
    motivo, non aggiustato in silenzio per far tornare il conto.
 
+**E c'e' un terzo modo in cui un controllo puo' essere sbagliato: guardare
+una cosa diversa da quella che dice di guardare.** I primi due si scoprono
+perche' restano **verdi** quando dovrebbero accendersi. Questo si scopre al
+contrario -- diventa **rosso quando non dovrebbe** -- e per questo e' piu'
+insidioso: sembra che il codice sia sbagliato, e la tentazione e' rimettere
+le cose com'erano.
+
+Il 19/09/2026, togliendo il taglio dal nome del venditore sulla scheda in
+elenco, e' caduto `vehicle-card-clickable.test.ts`. Il suo commento diceva:
+*"Il nome del venditore resta testo semplice accanto al prezzo: reso
+toccabile aveva bisogno di spazio sopra e sotto, e la scheda cresceva di 12
+px"*. Giustissimo -- ma l'asserzione fissava la **riga intera**, classe
+`truncate` compresa, che con quella ragione non c'entra niente. Il controllo
+diceva "non deve diventare un collegamento" e in realta' guardava "non deve
+cambiare".
+
+**Come si riconosce:** un test cade e la sua spiegazione non parla di quello
+che hai cambiato. Allora non si "aggiusta" e non si rimette indietro il
+codice: si rilegge il commento, si capisce cosa voleva davvero impedire, e
+si riscrive l'asserzione perche' guardi quello. Poi la si prova rossa sul
+difetto vero -- qui, rimettendo un collegamento intorno al nome.
+
+**Come si evita scrivendolo:** un'asserzione che copia una riga di codice
+per intero fissa tutto quello che c'e' dentro, comprese le cose che a chi
+l'ha scritta non interessavano. Si fissa **la proprieta'**, non il testo:
+"l'elemento che contiene il nome e' uno `span`", non `<span
+className="truncate">{dealerName}</span>`.
+
 **Un guardiano si rilegge quando una tabella comincia a essere usata, non
 solo quando viene creata.** E' la terza faccia di "zero differenze li' vuol
 dire non guardato", e si presenta sempre allo stesso modo: un controllo che
