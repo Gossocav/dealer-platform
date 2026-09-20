@@ -379,7 +379,16 @@ function numeriContatiSuUnElenco(sorgente: string): string[] {
  * il numero esce con un "+" accanto. E' l'esempio di come si fa, non di cosa
  * si tollera.
  */
-const CONTEGGI_LEGITTIMI = new Set(["src/app/(marketplace)/page.tsx · numero passato per nome: value: brands.length"]);
+const CONTEGGI_LEGITTIMI = new Set([
+  "src/app/(marketplace)/page.tsx · numero passato per nome: value: brands.length",
+  // **Questo numero non e' mostrato da solo.** `mostrati` entra in
+  // `fraseConteggioVeicoli` insieme al totale vero letto dalla vista, ed e'
+  // quella funzione a decidere cosa scrivere: se ne mostra meno del totale
+  // dice "Prime 300 auto su 420 in vetrina", non "300". Il conteggio su un
+  // elenco tagliato qui e' **dichiarato**, che e' l'unico modo in cui puo'
+  // stare in una pagina. Aggiunto il 20/09/2026 con i filtri al server.
+  "src/app/(marketplace)/concessionarie/[slug]/page.tsx · interpolazione nuda: {dealerVehicles.length}",
+]);
 
 describe("nessun numero mostrato si conta su un elenco con un tetto", () => {
   it("le pagine pubbliche non mostrano conteggi presi dalle righe caricate", () => {

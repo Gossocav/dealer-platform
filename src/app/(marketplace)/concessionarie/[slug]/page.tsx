@@ -4,27 +4,41 @@ import { notFound } from "next/navigation";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { SegnalaVisita } from "@/components/marketplace/segnala-visita";
 import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-search";
-import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
-import { contaVetrinaConcessionaria, MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { opzioniFiltri, type DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
+import { caricaTutto } from "@/lib/carica-tutto";
+import { contaVetrinaConcessionaria, MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
-
-// Cinque minuti: l'elenco delle concessionarie cambia molto piu' di rado del
-// catalogo dei veicoli.
-export const revalidate = 300;
+import {
+  applicaFiltriConcessionaria,
+  filtriConcessionariaDaIndirizzo,
+  ordinaConcessionaria,
+  valoriDeiFiltri,
+  type CostruttoreDiRichiesta,
+} from "@/lib/filtri-concessionaria-db";
+import { contaFiltriImpostati } from "@/lib/filtri-richiudibili";
 
 /**
- * Perche' un elenco vuoto e non l'assenza di questa funzione: senza,
- * "revalidate" su una pagina a indirizzo variabile non ha effetto e ogni
- * visita ricalcola tutto -- e' scritto nella documentazione di Next.
+ * **Questa pagina si costruisce a ogni visita, e prima non era cosi'.**
  *
- * Vuoto e non pieno perche' il catalogo cambia di continuo: le pagine non si
- * costruiscono in anticipo, si costruiscono alla prima visita e da li' si
- * conservano per il minuto dichiarato sopra.
+ * Aveva `revalidate = 300`: si costruiva alla prima visita e si conservava
+ * cinque minuti. Da quando i filtri li applica il database, la pagina legge
+ * l'indirizzo -- e una pagina conservata per percorso non puo' servire
+ * `?brand=Jeep`, perche' il percorso e' lo stesso. Tenendo le due cose
+ * insieme Next rispondeva **500** (`DYNAMIC_SERVER_USAGE`) su ogni visita,
+ * anche senza filtri: verificato in locale sulla produzione, non dedotto.
+ *
+ * `force-dynamic` e' la stessa dichiarazione che hanno gia' `/ricerca` e
+ * `/auto`, cioe' le altre due pagine del marketplace che leggono
+ * l'indirizzo: una terza convenzione qui sarebbe peggio.
+ *
+ * **Cosa costa, detto chiaro:** senza la conservazione, ogni visita rilegge
+ * il database. Oggi sono tre richieste e fino a 300 righe -- e' il motivo
+ * per cui la divisione in pagine da ventiquattro viene subito dopo: con
+ * quella, ogni visita ne leggera' ventiquattro e questo costo sparisce
+ * quasi tutto.
  */
-export async function generateStaticParams() {
-  return [];
-}
+export const dynamic = "force-dynamic";
 
 
 // Il tetto del piano piu' capiente (Elite, 300 annunci): la ricerca avanzata
@@ -96,8 +110,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function DealerPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function DealerPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { slug } = await params;
+  const filtri = filtriConcessionariaDaIndirizzo(await searchParams);
+  const filtriAttivi = contaFiltriImpostati(valoriDeiFiltri(filtri));
 
   const matchedDealer = await resolveDealerBySlug(slug);
 
@@ -105,7 +127,13 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     notFound();
   }
 
-  const { data, error } = await publicSupabase
+  // **I filtri li applica il database, non il browser.** Prima la pagina
+  // caricava tutto e sceglieva nel browser: con 133 auto funzionava, ma il
+  // giorno che questa pagina sara' divisa in pagine da ventiquattro il
+  // browser ne avrebbe in mano ventiquattro e direbbe "12 su 133" avendone
+  // guardate ventiquattro -- lo stesso difetto del prezzo minimo calcolato
+  // sulle prime trecento, su questa stessa pagina.
+  const base = publicSupabase
     .from("vehicles")
     // body_type e vehicle_condition non servono alla scheda: servono alle
     // tendine "Carrozzeria" e "Condizioni" della ricerca qui sotto.
@@ -113,9 +141,19 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     .eq("dealer_id", matchedDealer.id)
     .eq("published", true)
     .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
-    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
-    .order("created_at", { ascending: false })
-    .limit(DEALER_PAGE_VEHICLES_LIMIT);
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
+
+  // I due passaggi di tipo: il costruttore di Supabase ha cinque parametri
+  // generici che cambiano a ogni versione, e agganciarli qui farebbe
+  // esplodere il controllo dei tipi ("type instantiation is excessively
+  // deep"). Le due funzioni dichiarano esattamente i metodi che usano, e
+  // quello che torna e' lo stesso oggetto di prima.
+  const conFiltri = ordinaConcessionaria(
+    applicaFiltriConcessionaria(base as unknown as CostruttoreDiRichiesta, filtri),
+    filtri.sort,
+  ) as unknown as typeof base;
+
+  const { data, error } = await conFiltri.limit(DEALER_PAGE_VEHICLES_LIMIT);
 
   // Un guasto del database non e' una concessionaria che non esiste:
   // dichiararla sparita la farebbe togliere dall'indice per un'interruzione
@@ -127,7 +165,15 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   const dealerVehicles = (data ?? []) as unknown as MarketplaceVehicle[];
 
-  if (dealerVehicles.length === 0) {
+  // **Un filtro che non trova niente non e' una concessionaria che non
+  // esiste.** Prima questa riga diceva "pagina non trovata" ogni volta che
+  // l'elenco tornava vuoto, e finche' l'elenco era tutto lo stock voleva
+  // dire davvero "questa concessionaria non ha auto in vetrina". Adesso che
+  // filtra il database, cercare "Ferrari" su un concessionario che non ne ha
+  // avrebbe restituito un 404 -- e Google avrebbe potuto togliere dall'indice
+  // una pagina viva. Con un filtro attivo la pagina resta, e dice che con
+  // quei filtri non c'e' niente.
+  if (dealerVehicles.length === 0 && filtriAttivi === 0) {
     notFound();
   }
 
@@ -138,7 +184,12 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
     logMarketplaceTruncatedList("dealer-page", dealerVehicles.length);
   }
 
-  const dealer = Array.isArray(dealerVehicles[0].dealers) ? dealerVehicles[0].dealers[0] ?? null : dealerVehicles[0].dealers ?? null;
+  // **Chi e' la concessionaria lo dice `matchedDealer`, non la prima auto
+  // dell'elenco.** Prima si leggeva da `dealerVehicles[0]`, e funzionava solo
+  // perche' l'elenco non era mai vuoto: con i filtri attivi puo' esserlo, e
+  // la pagina sarebbe rimasta senza nome, senza citta' e senza recapiti
+  // proprio mentre spiega che con quei filtri non c'e' niente.
+  const dealer = matchedDealer;
   const dealerLegalName = String(dealer?.legal_name ?? "").trim();
   const dealerFallbackName = String(dealer?.name ?? "").trim();
   const dealerName = dealerLegalName || dealerFallbackName || "Concessionaria";
@@ -169,20 +220,55 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
 
   // Il minimo indispensabile perche' il browser possa filtrare: nessuna foto,
   // nessun testo lungo. Le schede restano disegnate dal server.
-  const searchFacets: DealerVehicleFacets[] = dealerVehicles.map((vehicle) => ({
-    id: vehicle.id,
-    label: resolveVehicleLabel(vehicle),
-    brand: String(vehicle.brand ?? ""),
-    model: String(vehicle.model ?? ""),
-    bodyType: String(vehicle.body_type ?? ""),
-    condition: String(vehicle.vehicle_condition ?? ""),
-    fuel: String(vehicle.fuel ?? ""),
-    transmission: String(vehicle.transmission ?? ""),
-    year: resolveVehicleYear(vehicle),
-    price: toFiniteNumber(vehicle.price),
-    mileage: toFiniteNumber(vehicle.mileage),
-    createdAt: Date.parse(String(vehicle.created_at ?? "")) || 0,
-  }));
+  // **Le voci delle tendine nascono da tutto lo stock, non dall'elenco
+  // filtrato.** Se venissero dalle auto mostrate, dopo aver scelto "Jeep" la
+  // tendina delle marche conterrebbe solo Jeep e non si potrebbe piu'
+  // cambiare idea. E' la stessa trappola del conteggio su un elenco
+  // tagliato, spostata sulle scelte invece che sui numeri: si legge tutto lo
+  // stock con `caricaTutto`, che avvisa quando tocca il tetto.
+  const { righe: righeDelloStock, troncato: stockTroncato } = await caricaTutto<{
+    brand: string | null;
+    model: string | null;
+    body_type: string | null;
+    vehicle_condition: string | null;
+    fuel: string | null;
+    transmission: string | null;
+    registration_date: string | null;
+    registration_month: string | null;
+    year: number | null;
+  }>(
+    (da: number, a: number) =>
+      publicSupabase
+        .from("vehicles")
+        .select("brand, model, body_type, vehicle_condition, fuel, transmission, registration_date, registration_month, year")
+        .eq("dealer_id", matchedDealer.id)
+        .eq("published", true)
+        .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+        .order("id", { ascending: true })
+        .range(da, a),
+  );
+
+  if (stockTroncato) {
+    logMarketplaceTruncatedList("dealer-page-opzioni", righeDelloStock.length);
+  }
+
+  const opzioni = opzioniFiltri(
+    righeDelloStock.map((riga): DealerVehicleFacets => ({
+      id: "",
+      label: "",
+      brand: String(riga.brand ?? ""),
+      model: String(riga.model ?? ""),
+      bodyType: String(riga.body_type ?? ""),
+      condition: String(riga.vehicle_condition ?? ""),
+      fuel: String(riga.fuel ?? ""),
+      transmission: String(riga.transmission ?? ""),
+      year: resolveVehicleYear(riga as never),
+      price: null,
+      mileage: null,
+      createdAt: 0,
+    })),
+    filtri,
+  );
 
   const canonicalUrl = toAbsoluteUrl(`/concessionarie/${slug}`);
   const dealerJsonLd = buildDealerJsonLd({
@@ -241,7 +327,14 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
           </div>
         </section>
 
-        <DealerVehicleSearch vehicles={searchFacets} totaleInVetrina={veicoliInVetrina}>
+        <DealerVehicleSearch
+          filtri={filtri}
+          filtriAttivi={filtriAttivi}
+          opzioni={opzioni}
+          mostrati={dealerVehicles.length}
+          totaleInVetrina={veicoliInVetrina}
+          azione={`/concessionarie/${slug}`}
+        >
           {dealerVehicles.map((vehicle) => (
             <VehicleCard key={vehicle.id} vehicle={vehicle} />
           ))}
@@ -281,10 +374,4 @@ function resolveVehicleYear(vehicle: MarketplaceVehicle) {
   return /^\d{4}$/.test(fromYear) ? Number(fromYear) : null;
 }
 
-function toFiniteNumber(value: string | number | null | undefined) {
-  const normalized = String(value ?? "").trim();
-  if (!normalized) return null;
 
-  const numeric = Number(normalized);
-  return Number.isFinite(numeric) ? numeric : null;
-}
