@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { caricaTutto } from "@/lib/carica-tutto";
 import Link from "next/link";
@@ -69,12 +70,36 @@ const SORT_OPTIONS = [
   { value: "mileage_desc", label: "Km decrescente" },
 ] as const;
 
+/**
+ * Quante auto entrano nella ricerca senza filtri.
+ *
+ * `cache` perche' `generateMetadata` e la pagina girano nella stessa
+ * richiesta: senza, il database la conterebbe due volte per ogni visita.
+ * `head: true` perche' serve solo il numero, non le righe.
+ */
+const contaVeicoliRicercabili = cache(async () => {
+  const { count, error } = await publicSupabase
+    .from("vehicles")
+    .select("id, dealers!inner(status)", { count: "exact", head: true })
+    .eq("published", true)
+    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES);
+
+  if (error) {
+    logMarketplaceQueryError("ricerca:conteggio", error);
+    return null;
+  }
+
+  return count ?? 0;
+});
+
 export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
   const resolved = await searchParams;
   const filters = parseSearchState(resolved);
   const params = buildSearchParams(filters);
   const queryString = params.toString();
   const description = "Ricerca avanzata veicoli: filtra per distanza da una città o CAP, marca, modello, prezzo, alimentazione, cambio e anno.";
+  const title = filters.page > 1 ? `Ricerca Veicoli - Pagina ${filters.page}` : "Ricerca Veicoli";
 
   // Ogni combinazione di filtri era un indirizzo a se', che dichiarava se
   // stesso come versione buona. Con la citta' a testo libero le combinazioni
@@ -85,11 +110,63 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   // La ricerca vuota resta indicizzabile -- e' una pagina vera del sito. Le
   // sue combinazioni no, ma restano da percorrere: "follow" fa sì che Google
   // arrivi comunque agli annunci passando di qui.
-  const isFiltered = queryString.length > 0;
-  const canonical = toAbsoluteUrl("/ricerca");
+  // **Una pagina di una serie non e' un doppione della prima**, e fino al
+  // 20/09/2026 questa pagina diceva a Google tutte e due le cose sbagliate
+  // che la sua documentazione elenca:
+  //
+  // - `?page=2` finiva fra le combinazioni filtrate e usciva **noindex**;
+  // - e dichiarava **canonica la pagina 1**, cioe' "sono un doppione".
+  //
+  // Con 276 auto pubblicate le pagine sono dodici: **252 automobili su 276**
+  // erano raggiungibili da qui solo attraverso pagine che chiedevano a
+  // Google di ignorarle. (Restano visibili da `/auto`, che la convenzione
+  // giusta ce l'ha gia': e' quella che si copia qui.)
+  //
+  // Le due righe della documentazione di Google, verificate il 20/09/2026 e
+  // non ricordate: *"Don't use the first page of a paginated sequence as
+  // the canonical page. Instead, give each page its own canonical URL"* e,
+  // su `rel="next"`/`rel="prev"`, *"Google no longer uses these tags"*.
+  //
+  // Quindi **non si scrivono prev/next**: non servono piu' a Google, e
+  // aggiungerli farebbe credere a chi legge che il problema sia risolto da
+  // li'. Quello che conta e' tre cose: un indirizzo canonico **suo** per
+  // ogni pagina, i collegamenti fra le pagine percorribili (sono `<a href>`
+  // veri, non bottoni), e un titolo diverso -- che c'era gia'.
+  /**
+   * Le pagine oltre la fine, come gia' fa `/auto`.
+   *
+   * Senza, `/ricerca?page=999` risponderebbe 200 con zero risultati **e
+   * dichiarerebbe se stessa come indirizzo ufficiale**: uno spazio infinito
+   * di pagine vuote, tutte con un titolo diverso e nessuna auto dentro. E'
+   * lo stesso difetto misurato sul catalogo il 05/09/2026.
+   *
+   * Il conteggio si chiede solo per la ricerca **senza filtri**, che e'
+   * l'unica indicizzabile: sulle altre non cambierebbe niente e sarebbe una
+   * richiesta in piu' a ogni visita.
+   */
+  const filtriSenzaPagina = new URLSearchParams(queryString);
+  filtriSenzaPagina.delete("page");
+  const isFiltered = filtriSenzaPagina.toString().length > 0;
+
+  // La pagina dichiara se stessa. Solo per le combinazioni filtrate resta
+  // l'indirizzo pulito: quelle sono `noindex` apposta -- con la citta' a
+  // testo libero sono infinite -- e non si vuole che ne esca una versione
+  // ufficiale.
+  if (!isFiltered && filters.page > 1) {
+    const totale = await contaVeicoliRicercabili();
+    // Senza conteggio non si sa dove finisce l'elenco: meglio non
+    // dichiarare fuori posto una pagina che magari esiste.
+    if (totale !== null && filters.page > Math.max(1, Math.ceil(totale / MARKETPLACE_SEARCH_PAGE_SIZE))) {
+      return { title, description, robots: { index: false, follow: true } };
+    }
+  }
+
+  const canonical = toAbsoluteUrl(
+    isFiltered ? "/ricerca" : filters.page > 1 ? `/ricerca?page=${filters.page}` : "/ricerca",
+  );
 
   return {
-    title: filters.page > 1 ? `Ricerca Veicoli - Pagina ${filters.page}` : "Ricerca Veicoli",
+    title,
     description,
     alternates: {
       canonical,
