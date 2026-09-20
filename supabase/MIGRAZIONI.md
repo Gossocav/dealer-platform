@@ -545,6 +545,67 @@ sarebbe diventato rosso. Con quella riga la vista gira con i permessi di chi
 la chiama. Adesso c'e' un test che lo pretende per ogni vista futura
 (`src/lib/viste-con-security-invoker.test.ts`).
 
+## Undici pagine su dodici dicevano a Google di ignorarsi (20/09/2026)
+
+Misurato andando a scrivere la paginazione di `/ricerca` -- **una cosa che
+era gia' fatta**.
+
+| | |
+|---|---|
+| auto pubblicate | **276** |
+| pagine di risultati (24 per pagina) | **12** |
+| auto raggiungibili dalla pagina 1 di `/ricerca` | 24 |
+| auto che stavano **solo** nelle pagine 2-12 | **252, il 91%** |
+
+Quelle undici pagine portavano tutti e due i segnali sbagliati insieme:
+**`noindex`**, perche' `?page=2` finiva fra le combinazioni di filtri, **e**
+`canonical` alla pagina 1, cioe' "sono un doppione di qualcos'altro".
+
+**Quanto grande fosse il danno, detto con precisione.** La prima versione di
+questa nota diceva "il 91% del catalogo era raggiungibile solo da pagine che
+chiedevano a Google di ignorarle, il danno piu' grande che avessimo". Il
+numero e' giusto, la conclusione no, e la differenza si e' vista solo
+misurando i percorsi -- fatto subito dopo, seguendo i collegamenti come
+farebbe Googlebot:
+
+| da dove | schede raggiungibili |
+|---|---|
+| `/auto`, 13 pagine (convenzione **gia' giusta**) | **276** |
+| le 3 pagine delle concessionarie | **276** |
+| `/ricerca`, 12 pagine | **276** |
+| `sitemap.xml` | **276** su 296 voci |
+
+Quindi quelle 252 automobili **non erano invisibili**: erano nella sitemap e
+raggiungibili da altri due percorsi corretti. Il difetto ha rotto **uno dei
+quattro percorsi** -- quello che avrebbe dovuto posizionarsi sulle ricerche
+-- non l'accesso al catalogo. E' un difetto vero e andava chiuso; non era il
+peggiore che avessimo.
+
+**La lezione invece regge intera, ed e' la parte da ricordare: la
+paginazione c'era, e sembrava a posto.** Aveva le pagine, gli indirizzi, i
+bottoni Precedente e Successiva, il conteggio "Pagina 3 di 12". Aperta da
+una persona funzionava perfettamente. Il difetto **non era l'assenza di una
+funzione: era una funzione presente che diceva al mondo di ignorare quello
+che mostrava.**
+
+Una funzione mancante si nota -- qualcuno la chiede. Una funzione che
+funziona e si auto-annulla non la nota nessuno, perche' tutti la guardano
+dal lato da cui funziona. Da cui due abitudini:
+
+1. **prima di costruire una funzione, si guarda se c'e' gia'.** Qui il
+   lavoro chiesto era "fai la paginazione": la paginazione c'era, e il tempo
+   e' andato tutto sul difetto vero. Costruendola da zero senza guardare,
+   oggi ce ne sarebbero **due** e il difetto sarebbe ancora li';
+2. **di una funzione che c'e' si controlla anche cosa dichiara**, non solo
+   cosa fa. Per una pagina pubblica: l'indirizzo canonico, `robots`, e se
+   chi indicizza puo' arrivarci. Sono tre righe di HTML che nessuno guarda
+   mai usando il sito.
+
+E una terza, che viene dalla correzione di questa stessa nota: **"quante
+cose sono rotte" e "quanto costa" sono due domande diverse.** Il 91% era la
+prima. La seconda si risponde solo guardando se esiste un'altra strada -- e
+qui ce n'erano tre.
+
 ## Credenziali
 
 Il controllo ha bisogno di due segreti su GitHub
