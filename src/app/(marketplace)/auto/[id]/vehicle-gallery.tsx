@@ -8,7 +8,42 @@ type VehicleGalleryProps = {
   label: string;
 };
 
-const THUMBNAIL_LIMIT = 8;
+/**
+ * **La striscia le porta tutte, quindi non c'e' piu' niente da limitare.**
+ *
+ * C'erano otto miniature in griglia e le altre dietro un riquadro "+5 foto".
+ * Due cose non andavano. Su un telefono la griglia e' a una colonna: otto
+ * miniature alte 128px con gli spazi facevano **circa 1.120 pixel**, cioe'
+ * i due terzi dei 1.618 che la galleria pesava in tutto. E per vedere la
+ * nona foto serviva un clic, quando le foto sono la cosa che fa vendere.
+ *
+ * Adesso sono tutte in una striscia che scorre di lato: **nessun clic in
+ * piu'**, e il gesto e' quello che chi compra un'auto fa gia' su AutoScout
+ * e su Subito, quindi non deve impararlo.
+ */
+const ALTEZZA_MINIATURA = "h-20";
+
+/**
+ * Quante miniature si scaricano all'apertura, e perche' questo numero.
+ *
+ * **`loading="lazy"` da solo non basta, e la misura lo ha dimostrato.** In
+ * una striscia che scorre di lato il browser considera "in vista" tutto
+ * quello che sta nella fascia verticale dello schermo, anche cio' che e'
+ * oltre il bordo destro: con tredici miniature scaricava tredici immagini.
+ * Misurato il 20/09/2026 sulla stessa scheda: **da 4 immagini e 44 KB si
+ * passava a 14 e 113 KB**. La pagina si accorciava e il telefono
+ * rallentava, che e' uno scambio che non conviene a nessuno.
+ *
+ * Quattro e' quanto ne entra sullo schermo piu' stretto (390px diviso 120px
+ * di miniatura piu' spazio fa tre e un quarto) piu' una di margine. Le
+ * altre arrivano a gruppi mentre il dito scorre, e il posto lo tengono da
+ * subito: la striscia e' lunga uguale, quindi non si muove niente sotto le
+ * dita.
+ */
+const MINIATURE_SUBITO = 4;
+
+/** Quante se ne aggiungono ogni volta che si arriva in fondo a quelle caricate. */
+const MINIATURE_PER_VOLTA = 6;
 
 // Sotto questa distanza il gesto e' un tocco un po' mosso, non uno scorrimento:
 // cambiare foto a ogni micro-movimento del dito renderebbe impossibile
@@ -18,6 +53,9 @@ const SWIPE_MIN_DISTANCE = 48;
 export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
   // null = viewer closed; otherwise the index being shown.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [miniatureCaricate, setMiniatureCaricate] = useState(MINIATURE_SUBITO);
+  const strisciaRef = useRef<HTMLDivElement | null>(null);
+  const sentinellaRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   // Uno scorrimento finisce anche in un clic sullo sfondo, che chiuderebbe la
@@ -93,8 +131,30 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
     };
   }, [isOpen, showNext, showPrevious]);
 
+  /**
+   * Carica il gruppo successivo quando il dito arriva in fondo a quelle
+   * gia' pronte. L'osservatore guarda **dentro la striscia** (`root`), non
+   * la pagina: e' l'unico modo di sapere che una miniatura e' comparsa
+   * scorrendo di lato.
+   */
+  useEffect(() => {
+    const sentinella = sentinellaRef.current;
+    const striscia = strisciaRef.current;
+    if (!sentinella || !striscia || miniatureCaricate >= total) return;
+
+    const osservatore = new IntersectionObserver(
+      (voci) => {
+        if (voci.some((v) => v.isIntersecting)) {
+          setMiniatureCaricate((quante) => Math.min(total, quante + MINIATURE_PER_VOLTA));
+        }
+      },
+      { root: striscia, rootMargin: "0px 200px 0px 0px" },
+    );
+    osservatore.observe(sentinella);
+    return () => osservatore.disconnect();
+  }, [miniatureCaricate, total]);
+
   const coverUrl = images[0] ?? null;
-  const hiddenThumbnailCount = Math.max(0, total - THUMBNAIL_LIMIT);
 
   return (
     <>
@@ -136,34 +196,61 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
         </div>
 
         {total > 1 ? (
-          <div className="grid min-w-0 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-            {images.slice(0, THUMBNAIL_LIMIT).map((image, index) => {
-              const isLastVisible = index === THUMBNAIL_LIMIT - 1 && hiddenThumbnailCount > 0;
+          /*
+            **La striscia scorre, non si apre.** `overflow-x-auto` con le
+            miniature `flex-none`: ci stanno tutte, e chi ne vuole vedere
+            un'altra fa scorrere il dito. `snap-x` le fa fermare allineate,
+            cosi' non resta mai mezza foto tagliata sul bordo.
 
-              return (
-                <button
-                  key={`${image}-${index}`}
-                  type="button"
-                  onClick={() => setOpenIndex(index)}
-                  className="relative max-w-full cursor-zoom-in overflow-hidden rounded-2xl border border-white/10 bg-slate-800 transition hover:border-blue-400/40"
-                  aria-label={`Apri foto ${index + 1} di ${total}`}
-                >
+            `overscroll-x-contain` serve perche' arrivando in fondo alla
+            striscia il gesto non si propaghi alla pagina: senza, chi scorre
+            le foto si ritrova improvvisamente a scorrere l'annuncio.
+          */
+          <div
+            ref={strisciaRef}
+            className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain p-3"
+            role="group"
+            aria-label={`Le ${total} foto di ${label}`}
+          >
+            {images.map((image, index) => (
+              <button
+                key={`${image}-${index}`}
+                type="button"
+                onClick={() => setOpenIndex(index)}
+                className={`relative w-28 flex-none snap-start cursor-zoom-in overflow-hidden rounded-xl border border-white/10 bg-slate-800 transition hover:border-blue-400/40 ${ALTEZZA_MINIATURA}`}
+                aria-label={`Apri foto ${index + 1} di ${total}`}
+              >
+                {/*
+                  **Le miniature fuori schermo non si scaricano.** In una
+                  striscia che scorre di lato il browser considera fuori
+                  vista anche cio' che sta oltre il bordo destro, quindi le
+                  ultime partono solo quando il dito le porta dentro. Senza,
+                  accorciare la pagina avrebbe rallentato il telefono: chi
+                  guarda tre foto ne avrebbe scaricate tredici.
+
+                  `priority` non si mette mai qui: la foto che deve partire
+                  subito e' quella grande, una sola.
+                */}
+                {index < miniatureCaricate ? (
                   <Image
                     src={image}
                     alt={`${label} - foto ${index + 1}`}
-                    width={320}
-                    height={128}
-                    sizes="(max-width: 640px) 50vw, 200px"
-                    className="h-32 w-full max-w-full object-cover"
+                    width={224}
+                    height={160}
+                    loading="lazy"
+                    sizes="112px"
+                    className="h-full w-full object-cover"
                   />
-                  {isLastVisible ? (
-                    <span className="absolute inset-0 flex items-center justify-center bg-slate-950/65 text-sm font-bold text-white">
-                      +{hiddenThumbnailCount} foto
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
+                ) : (
+                  /* Il posto c'e' gia': la striscia e' lunga quanto sara',
+                     quindi caricando le prossime non si sposta niente sotto
+                     il dito. */
+                  <span aria-hidden="true" className="block h-full w-full bg-slate-800" />
+                )}
+              </button>
+            ))}
+            {/* Quando questa entra nella striscia, arriva il gruppo dopo. */}
+            <div ref={sentinellaRef} aria-hidden="true" className="w-px flex-none" />
           </div>
         ) : null}
       </div>

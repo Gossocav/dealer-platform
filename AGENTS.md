@@ -668,6 +668,32 @@ prova su Postgres vero **prima** di consegnarla, sempre -- ricostruendo lo
 schema da zero, non su una tabella finta scritta a mano, perche' meta' di
 queste quattro non sarebbero comparse.
 
+**E vale identico fuori dal database: la misura smentisce la diagnosi, non
+la conferma.** Il 20/09/2026, prima di accorciare la scheda auto sul
+telefono, la causa "ovvia" della pagina troppo lunga sembrava la
+**descrizione**: un testo lungo occupa spazio, e sembra ragionevole. Misurate
+otto schede vere con un browser a 390px, la scheda con la descrizione piu'
+lunga -- 1.473 caratteri -- e' risultata **piu' corta** di quella tipica. A
+pesare erano la galleria (1.618px), la scheda tecnica e il pie' di pagina.
+
+**Senza quella misura si sarebbe lavorato sulla cosa sbagliata**, e con
+successo apparente: accorciare la descrizione avrebbe tolto qualche
+centinaio di pixel a poche schede, il lavoro sarebbe sembrato fatto, e la
+pagina sarebbe rimasta lunga sette schermate.
+
+La regola: **prima di ottimizzare qualcosa si misura dove sta il peso, non
+si deduce da cosa sembra pesante.** Una causa plausibile e' la cosa piu'
+pericolosa che ci sia in una diagnosi, perche' chiude la ricerca. E la
+misura va fatta su **casi veri e diversi fra loro** -- il piu' carico, il
+piu' scarno, la mediana -- non su uno solo: era proprio il confronto fra le
+otto a rendere evidente che il testo non c'entrava.
+
+Come si e' fatta, e si rifa' allo stesso modo: `npx playwright install
+chromium` porta un browser vero in questo ambiente, si compila con le
+variabili di produzione **prima** del build (`set -a; . ./.env.production;
+set +a; npm run build`), si serve in locale e si misura
+`document.documentElement.scrollHeight` alle larghezze che interessano.
+
 **Il ritorno di una migration non si manda mai insieme alla migration.** E'
 l'unica cosa che non deve essere eseguita per sbaglio, e due blocchi di SQL
 uno sotto l'altro in uno stesso messaggio si somigliano abbastanza da
@@ -866,6 +892,40 @@ La prova che serve e' sempre la stessa: **si pianta un caso finto che la
 regex dovrebbe trovare** -- qui un campo nuovo chiamato `euro6_ready` -- e si
 guarda che il test diventi rosso. Se resta verde, non e' il codice a essere
 sano: e' il controllo a non guardare.
+
+**E la stessa famiglia comprende una riga di codice che sembra giusta
+leggendola e non fa niente eseguendola.** Un controllo che non diventa mai
+rosso e una regola che non ha mai effetto si somigliano piu' di quanto
+sembri: in tutti e due i casi c'e' del testo che **descrive** la cosa
+giusta, nessuno lo smentisce, e la cosa giusta non succede.
+
+Il caso, 20/09/2026. Per tenere aperti su schermo largo i riquadri che si
+richiudono sul telefono era stato scritto:
+
+```css
+details.aperto-da-grande > *:not(summary) { display: block !important; }
+```
+
+Si legge benissimo, ha perfino l'`!important` che sembra la cintura di
+sicurezza. **Non funziona.** Un `<details>` chiuso non nasconde i figli con
+`display`: salta il contenuto con `content-visibility` sullo pseudo-elemento
+`::details-content`, e una regola sui figli non lo tocca. Misurato con un
+browser: su desktop scheda tecnica, recapiti e pie' di pagina erano **tutti
+chiusi** -- cioe' esattamente la regressione che quella riga doveva
+impedire.
+
+Due cose da portarsi via:
+
+1. **il CSS e' il posto dove questo capita piu' spesso**, perche' una regola
+   che non si applica non da' nessun errore: non esiste un "avviso di regola
+   ignorata". Vale anche per un `z-index` senza `position`, un `gap` su un
+   contenitore che non e' flex o grid, un `!important` battuto da una regola
+   del browser. In tutti questi casi il file si legge come se funzionasse;
+2. **una riga difensiva si prova nella condizione da cui difende**, non in
+   quella normale. Quella regola serviva a una sola cosa -- che su desktop
+   non si nascondesse niente -- e bastava aprire la pagina larga per
+   vederla fallire. E' lo stesso gesto di "prima di fidarsi del verde si
+   produce il rosso", applicato al disegno invece che a un test.
 
 **E vale anche per il verde di GitHub: un verde si legge sempre insieme al
 commit a cui si riferisce.** Il 18/09/2026, cinque minuti dopo aver scritto la
