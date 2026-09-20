@@ -215,3 +215,56 @@ select:-webkit-autofill {
     print-color-adjust: exact;
   }
 }
+
+/**
+ * Un riquadro che si chiude sul telefono e resta aperto sullo schermo largo.
+ *
+ * **Perche' serve.** Su un telefono la scheda di un'auto era alta 7,4
+ * schermate (misurate il 20/09/2026 a 390px), e il modulo di contatto --
+ * l'unico punto della pagina che produce clienti -- cominciava dopo 3.780
+ * pixel, cioe' quattro schermate e mezzo di scorrimento. Le cose che si
+ * leggono dopo aver deciso (scheda tecnica completa, recapiti della
+ * concessionaria, pie' di pagina) si richiudono per farlo salire. Su uno
+ * schermo largo lo spazio c'e' e non si nasconde niente.
+ *
+ * **Perche' cosi' e non con JavaScript.** `<details>` funziona senza, la
+ * pagina e' in cache come componente del server, e il contenuto resta nel
+ * documento: chi indicizza lo legge comunque. E' la stessa scelta gia' fatta
+ * per la descrizione dell'annuncio.
+ *
+ * **Come si tiene aperto sopra i 1024px.** Un `<details>` chiuso nasconde il
+ * contenuto attraverso il foglio di stile del browser, e una regola scritta
+ * qui lo scavalca. Serve `!important` perche' quella del browser vince sulla
+ * specificita'. Verificato con un browser vero a 390px (chiuso) e a 1280px
+ * (aperto), non dedotto: e' il genere di cosa che si comporta diversamente
+ * da come si legge.
+ */
+@media (min-width: 1024px) {
+  /**
+   * **Il pulsante sparisce solo dove il contenuto compare davvero.** Senza
+   * questo `@supports`, un browser che non conosce `::details-content`
+   * nasconderebbe il pulsante *e* terrebbe chiuso il contenuto: il riquadro
+   * diventerebbe irraggiungibile. Cosi' invece degrada bene -- il pulsante
+   * resta, e si apre con un clic come sul telefono.
+   */
+  @supports selector(::details-content) {
+    details.aperto-da-grande > summary {
+      display: none;
+    }
+  }
+
+  /**
+   * **Il primo tentativo non funzionava, e sembrava di si'.** Era
+   * `display: block !important` sul contenuto: un `<details>` chiuso non
+   * nasconde i figli con `display`, li salta con `content-visibility` sullo
+   * pseudo-elemento `::details-content`, e una regola sui figli non lo
+   * tocca. Misurato con un browser vero: su desktop scheda tecnica,
+   * recapiti e pie' di pagina restavano **chiusi**, cioe' esattamente la
+   * regressione che questa riga doveva impedire. Leggendo il CSS sembrava a
+   * posto.
+   */
+  details.aperto-da-grande::details-content {
+    content-visibility: visible;
+    block-size: auto;
+  }
+}
