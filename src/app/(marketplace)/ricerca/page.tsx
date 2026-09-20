@@ -12,7 +12,7 @@ import {
   resolveComunePoint,
   resolvePlaceQuery,
 } from "@/lib/geo-search";
-import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, logMarketplaceTruncatedList, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, createMarketplaceSlug, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, formatText, logMarketplaceQueryError, logMarketplaceTruncatedList, publicSupabase, toAbsoluteUrl, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
 import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
@@ -39,6 +39,15 @@ type SearchState = {
   maxPrice: string;
   near: string;
   radius: string;
+  /**
+   * L'identificativo della concessionaria, quando si arriva dalla sua
+   * pagina. **Non e' un filtro come gli altri**: non ha una tendina, si
+   * imposta solo arrivando da li', e si toglie con un gesto solo. Vive
+   * insieme agli altri perche' deve **restare** mentre se ne aggiungono --
+   * chi restringe per alimentazione non vuole vedersi allargare il
+   * risultato a tutta Italia.
+   */
+  dealer: string;
   sort: string;
   page: number;
 };
@@ -106,8 +115,13 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
     filters.q, filters.vehicleCategory, filters.vehicleCondition, filters.bodyType,
     filters.brand, filters.model, filters.fuel, filters.transmission,
     filters.yearFrom, filters.yearTo, filters.minPrice, filters.maxPrice,
-    filters.near, filters.radius,
+    filters.near, filters.radius, filters.dealer,
   ]);
+  // Il nome della concessionaria da cui si e' arrivati: serve a dire dove si
+  // e' finiti. Si chiede solo quando c'e' davvero un filtro, per non
+  // aggiungere una richiesta a ogni ricerca.
+  const concessionaria = filters.dealer ? await leggiConcessionaria(filters.dealer) : null;
+
   const from = (filters.page - 1) * MARKETPLACE_SEARCH_PAGE_SIZE;
   const to = from + MARKETPLACE_SEARCH_PAGE_SIZE - 1;
 
@@ -126,6 +140,16 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
       query = query.ilike(COLONNA_RICERCA, modelloIlike(parola));
     }
   }
+
+  // **Arrivando dalla pagina di una concessionaria si resta fra le sue
+  // auto.** E' la ragione per cui questa pagina ha guadagnato un filtro che
+  // non ha una tendina: la pagina della concessionaria non filtra piu' da
+  // se'. Filtrava nel browser, e il giorno che fosse stata divisa in pagine
+  // avrebbe detto "12 su 133" avendone guardate 24; farla filtrare dal
+  // database la costringeva a ricalcolarsi a ogni visita, e quella pagina
+  // deve restare veloce perche' e' quella che Google indicizza. Una ricerca
+  // sola per tutto il sito chiude tutte e due le cose.
+  if (filters.dealer) query = query.eq("dealer_id", filters.dealer);
 
   if (filters.vehicleCategory) query = query.eq("vehicle_category", filters.vehicleCategory);
   if (filters.vehicleCondition) query = query.eq("vehicle_condition", filters.vehicleCondition);
@@ -337,6 +361,9 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
 
         <form className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-4 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8" method="GET" action="/ricerca">
           <input type="hidden" name="page" value="1" />
+          {/* Senza questo, premere "Cerca" perderebbe la concessionaria e
+              allargherebbe la ricerca a tutta Italia senza dirlo. */}
+          {filters.dealer ? <input type="hidden" name="dealer" value={filters.dealer} /> : null}
           {/*
             **Sul telefono i filtri partono chiusi.** Misurato il 20/09/2026
             a 390px: qui erano sedici campi e la prima automobile cominciava
@@ -401,6 +428,39 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
           </div>
           </details>
         </form>
+
+        {/*
+          **Chi arriva da una concessionaria deve capire dov'e' finito.**
+          Il filtro `dealer` non ha una tendina: se non lo si dicesse, uno
+          vedrebbe un elenco piu' corto senza sapere perche', e non avrebbe
+          modo di tornare indietro ne' di allargare la ricerca.
+
+          Le due uscite sono diverse apposta: *torna alla sua pagina* riporta
+          da dove si e' venuti, *cerca in tutto il marketplace* toglie il
+          filtro e **tiene tutti gli altri** -- chi aveva scelto "Diesel"
+          continua a cercare Diesel, su tutta Italia.
+        */}
+        {concessionaria ? (
+          <div className="flex flex-col gap-3 rounded-[28px] border border-cyan-400/25 bg-cyan-400/[0.06] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 break-words text-sm text-slate-200">
+              Stai cercando fra le auto di <strong className="font-bold text-white">{concessionaria.nome}</strong>
+            </p>
+            <div className="flex flex-none flex-wrap gap-2">
+              <Link
+                href={`/concessionarie/${concessionaria.slug}`}
+                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
+              >
+                Torna alla sua pagina
+              </Link>
+              <Link
+                href={`/ricerca?${buildSearchParams({ ...filters, dealer: "", page: 1 }).toString()}`}
+                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-transparent px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                Cerca in tutto il marketplace
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <section className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -565,9 +625,37 @@ function parseSearchState(searchParams: SearchParams): SearchState {
     maxPrice: asValue(searchParams.maxPrice),
     near: asValue(searchParams.near),
     radius: asValue(searchParams.radius),
+    dealer: asValue(searchParams.dealer),
     sort,
     page: parsePage(searchParams.page),
   };
+}
+
+/**
+ * Nome e indirizzo della concessionaria da cui si e' arrivati.
+ *
+ * Lo slug si ricalcola dal nome con la stessa funzione della sua pagina:
+ * non e' una colonna del database -- `dealers.slug` non esiste, verificato
+ * il 20/09/2026 -- e due modi diversi di costruirlo porterebbero a un
+ * collegamento che non apre niente.
+ */
+async function leggiConcessionaria(id: string) {
+  const { data, error } = await publicSupabase
+    .from("dealers")
+    .select("id, name, legal_name")
+    .eq("id", id)
+    .in("status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+    .maybeSingle<{ id: string; name: string | null; legal_name: string | null }>();
+
+  // Se non si riesce a leggerlo non si inventa un nome: l'avviso non
+  // compare, e la ricerca resta comunque ristretta. Meglio un avviso
+  // mancante di un nome sbagliato in cima ai risultati.
+  if (error || !data) return null;
+
+  const nome = String(data.legal_name ?? "").trim() || String(data.name ?? "").trim();
+  if (!nome) return null;
+
+  return { nome, slug: createMarketplaceSlug(nome) };
 }
 
 function buildSearchParams(filters: SearchState) {
@@ -588,6 +676,10 @@ function buildSearchParams(filters: SearchState) {
     ["maxPrice", filters.maxPrice],
     ["near", filters.near],
     ["radius", filters.radius],
+    // Senza questa riga il filtro della concessionaria sparirebbe al primo
+    // cambio di pagina o di ordinamento, e senza dire niente: chi sta
+    // guardando le auto di Autogepy si ritroverebbe tutto il marketplace.
+    ["dealer", filters.dealer],
   ];
 
   for (const [key, value] of entries) {

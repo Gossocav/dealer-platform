@@ -169,37 +169,40 @@ describe("i filtri si combinano", () => {
  * browser: qui il totale vero arriva come parametro, e **non e' facoltativo**.
  */
 describe("fraseConteggioVeicoli", () => {
-  it("senza filtri e con tutto caricato dice solo quanti ne ha", () => {
-    expect(fraseConteggioVeicoli(93, 93, 93)).toBe("93 auto in vetrina");
-    expect(fraseConteggioVeicoli(1, 1, 1)).toBe("1 auto in vetrina");
+  /**
+   * **La firma e' cambiata il 20/09/2026.** Prima prendeva "quanti ne
+   * mostra, quanti ne ha caricati, quanti ce ne sono": aveva senso finche'
+   * la pagina caricava tutto e filtrava nel browser. Adesso su quella
+   * pagina non si filtra piu' -- si va su `/ricerca` ristretta alla
+   * concessionaria -- e cio' che conta e' **se un filtro e' attivo**,
+   * perche' e' quello a decidere se il numero mostrato e' la vetrina o una
+   * parte.
+   */
+  it("senza filtri dice quante auto ha in vetrina", () => {
+    expect(fraseConteggioVeicoli(133, 133, 0)).toBe("133 auto in vetrina");
+    expect(fraseConteggioVeicoli(1, 1, 0)).toBe("1 auto in vetrina");
   });
 
-  it("con i filtri dice quanti se ne vedono su quanti", () => {
-    // **Con un filtro attivo non si scrive "in vetrina"**: le 12 mostrate
-    // sono un sottoinsieme, e dirle "in vetrina" su una concessionaria che
-    // ne ha 93 sarebbe falso. Riscritto il 20/09/2026 con i filtri
-    // richiudibili: la decisione e' cambiata, non e' un aggiustamento.
-    expect(fraseConteggioVeicoli(12, 93, 93)).toBe("12 auto su 93");
+  it("con un filtro attivo non dice piu' 'in vetrina'", () => {
+    expect(fraseConteggioVeicoli(12, 133, 2)).toBe("12 auto su 133");
+    expect(fraseConteggioVeicoli(0, 133, 1)).toBe("0 auto su 133");
   });
 
-  it("quando la pagina ne ha caricati meno del vero lo dice, invece di contare i suoi", () => {
-    // Il caso che rompeva tutto: 420 in vetrina, la pagina ne carica 300.
-    // Prima si leggeva "300 veicoli" -- preciso, credibile, sbagliato di 120.
-    expect(fraseConteggioVeicoli(300, 300, 420)).toBe("Prime 300 auto su 420 in vetrina");
-    expect(fraseConteggioVeicoli(12, 300, 420)).toBe("12 auto sulle prime 300 caricate, di 420 in vetrina");
+  it("se l'elenco e' stato tagliato dal tetto lo dice", () => {
+    // 420 in vetrina, la richiesta ne prende 300: prima si leggeva "300
+    // auto" -- preciso, credibile, sbagliato di 120.
+    expect(fraseConteggioVeicoli(300, 420, 0)).toBe("Prime 300 auto su 420 in vetrina");
   });
 
   it("quando il totale vero non si sa non lo inventa", () => {
-    // La vista non risponde: si dice quello che si sa, senza "su quanti".
-    // Un numero plausibile al posto di "non lo so" e' il difetto piu'
-    // ripetuto di questo progetto.
-    expect(fraseConteggioVeicoli(93, 93, null)).toBe("93 auto in vetrina");
-    expect(fraseConteggioVeicoli(12, 93, null)).toBe("12 auto su 93");
+    expect(fraseConteggioVeicoli(133, null, 0)).toBe("133 auto in vetrina");
+    expect(fraseConteggioVeicoli(12, null, 3)).toBe("12 auto");
   });
 
-  it("un totale piu' piccolo del caricato non genera frasi assurde", () => {
-    // Puo' succedere per un attimo: la vista e l'elenco sono due letture
-    // diverse, e fra l'una e l'altra un'auto puo' essere stata tolta.
-    expect(fraseConteggioVeicoli(93, 93, 90)).toBe("93 auto in vetrina");
+  it("un totale piu' piccolo del mostrato non genera frasi assurde", () => {
+    // La vista e l'elenco sono due letture diverse: fra l'una e l'altra
+    // un'auto puo' essere stata tolta.
+    expect(fraseConteggioVeicoli(133, 130, 0)).toBe("133 auto in vetrina");
   });
 });
+

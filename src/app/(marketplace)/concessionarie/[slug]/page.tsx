@@ -4,8 +4,7 @@ import { notFound } from "next/navigation";
 import { VehicleCard } from "@/components/marketplace/vehicle-card";
 import { SegnalaVisita } from "@/components/marketplace/segnala-visita";
 import { DealerVehicleSearch } from "@/components/marketplace/dealer-vehicle-search";
-import type { DealerVehicleFacets } from "@/lib/dealer-vehicle-filters";
-import { contaVetrinaConcessionaria, MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, resolveVehicleLabel, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
+import { contaVetrinaConcessionaria, MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES, createMarketplaceSlug, logMarketplaceQueryError, logMarketplaceTruncatedList, normalizeVehicleDealerName, publicSupabase, resolveDealerLocality, toAbsoluteUrl, type MarketplaceDealer, type MarketplaceVehicle } from "@/lib/public-marketplace";
 import { JsonLd } from "@/components/marketplace/json-ld";
 import { buildBreadcrumbJsonLd, buildDealerJsonLd } from "@/lib/structured-data";
 
@@ -167,22 +166,6 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
   const veicoliInVetrina = await contaVetrinaConcessionaria(matchedDealer.id);
   const totalVehicles = veicoliInVetrina;
 
-  // Il minimo indispensabile perche' il browser possa filtrare: nessuna foto,
-  // nessun testo lungo. Le schede restano disegnate dal server.
-  const searchFacets: DealerVehicleFacets[] = dealerVehicles.map((vehicle) => ({
-    id: vehicle.id,
-    label: resolveVehicleLabel(vehicle),
-    brand: String(vehicle.brand ?? ""),
-    model: String(vehicle.model ?? ""),
-    bodyType: String(vehicle.body_type ?? ""),
-    condition: String(vehicle.vehicle_condition ?? ""),
-    fuel: String(vehicle.fuel ?? ""),
-    transmission: String(vehicle.transmission ?? ""),
-    year: resolveVehicleYear(vehicle),
-    price: toFiniteNumber(vehicle.price),
-    mileage: toFiniteNumber(vehicle.mileage),
-    createdAt: Date.parse(String(vehicle.created_at ?? "")) || 0,
-  }));
 
   const canonicalUrl = toAbsoluteUrl(`/concessionarie/${slug}`);
   const dealerJsonLd = buildDealerJsonLd({
@@ -241,7 +224,12 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
           </div>
         </section>
 
-        <DealerVehicleSearch vehicles={searchFacets} totaleInVetrina={veicoliInVetrina}>
+        <DealerVehicleSearch
+          nomeConcessionaria={dealerName}
+          idConcessionaria={matchedDealer.id}
+          totaleInVetrina={veicoliInVetrina}
+          mostrati={dealerVehicles.length}
+        >
           {dealerVehicles.map((vehicle) => (
             <VehicleCard key={vehicle.id} vehicle={vehicle} />
           ))}
@@ -271,20 +259,4 @@ export default async function DealerPage({ params }: { params: Promise<{ slug: s
  * solo quella, e senza il ripiego resterebbero fuori da ogni intervallo di
  * anni pur essendo in vetrina.
  */
-function resolveVehicleYear(vehicle: MarketplaceVehicle) {
-  const fromRegistration = String(vehicle.registration_date ?? "").slice(0, 4);
-  if (/^\d{4}$/.test(fromRegistration)) {
-    return Number(fromRegistration);
-  }
 
-  const fromYear = String(vehicle.year ?? "").slice(0, 4);
-  return /^\d{4}$/.test(fromYear) ? Number(fromYear) : null;
-}
-
-function toFiniteNumber(value: string | number | null | undefined) {
-  const normalized = String(value ?? "").trim();
-  if (!normalized) return null;
-
-  const numeric = Number(normalized);
-  return Number.isFinite(numeric) ? numeric : null;
-}

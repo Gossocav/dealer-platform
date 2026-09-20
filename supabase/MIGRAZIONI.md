@@ -65,6 +65,21 @@ questo elenco, non ricostruendolo da un riepilogo.
    WhatsApp in evidenza, piu' un modulo senza veicolo. Da verificare prima di
    costruirlo: un contatto senza `vehicle_id` passa, o il trigger lo rifiuta?
 
+**Un ramo scartato, tenuto apposta.**
+`prova/filtri-al-server-costano-l-indicizzazione` (20/09/2026) porta i
+filtri della pagina di una concessionaria dal browser al database: e'
+completo, ha quattordici test e **funziona**. Non e' stato unito perche'
+leggere l'indirizzo obbliga quella pagina a ricostruirsi a ogni visita --
+misurato 0,3-0,6 secondi contro 0,07, con `Cache-Control: no-store` -- cioe'
+la condizione che il 06/09/2026 aveva lasciato 124 schede in "Rilevata, ma
+attualmente non indicizzata". Il guardiano
+`marketplace-performance.test.ts` e' rimasto **rosso su quel ramo apposta**:
+e' la prova. Al suo posto: la pagina resta statica e "Filtra" porta su
+`/ricerca?dealer=<id>`. Se qualcuno riproporra' i filtri al server su quella
+pagina, quel ramo e' la risposta gia' misurata -- e le sue parti
+(`filtri-concessionaria-db.ts`) serviranno comunque per la paginazione di
+`/ricerca`.
+
 5. **Il resto delle cose interne:**
    - le **dieci colonne `cost_*`** del conto economico, obbligatorie con
      valore predefinito zero: li' "non l'ho registrato" e "non e' costato
