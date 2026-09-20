@@ -392,6 +392,38 @@ export function resolveVehicleLabel(vehicle: Pick<MarketplaceVehicle, "brand" | 
 }
 
 /**
+ * L'etichetta spezzata in due: **marca e modello** da una parte, **versione**
+ * dall'altra.
+ *
+ * Serve al titolo della scheda sul telefono, e passa **dalla stessa
+ * funzione** di `resolveVehicleLabel` -- non da una pulizia scritta a parte,
+ * che sarebbe la seconda e comincerebbe subito a divergere. Le due parti
+ * rimesse insieme con uno spazio danno esattamente `resolveVehicleLabel`, e
+ * un test lo verifica su casi veri.
+ *
+ * **Perche' spezzarla.** Misurato il 20/09/2026 su 276 annunci pubblicati:
+ * l'etichetta intera arriva a **77 caratteri**, e su uno schermo da 390px in
+ * carattere grande sono quattro righe di titolo -- mezza schermata prima
+ * ancora della prima foto. Ma marca e modello da soli non superano mai i
+ * **29** caratteri (mediana 12), e la versione i **63** (mediana 30). Su due
+ * righe di dimensione diversa ci stanno senza tagliare niente, ed e' la
+ * ragione per cui non si usa `line-clamp`: la versione e' proprio il dato
+ * che distingue un allestimento dall'altro, e tagliarla e' il difetto gia'
+ * corretto il 19/09 sulla scheda tecnica.
+ */
+export function marcaModelloEVersione(vehicle: Pick<MarketplaceVehicle, "brand" | "model" | "version">): {
+  marcaModello: string;
+  versione: string;
+} {
+  const intera = resolveVehicleLabel(vehicle);
+  const soloMarcaModello = resolveVehicleLabel({ brand: vehicle.brand, model: vehicle.model, version: null });
+  if (soloMarcaModello === "Veicolo" || !intera.startsWith(soloMarcaModello)) {
+    return { marcaModello: intera, versione: "" };
+  }
+  return { marcaModello: soloMarcaModello, versione: intera.slice(soloMarcaModello.length).trim() };
+}
+
+/**
  * L'immatricolazione come va letta da un italiano: 02/07/2026, non
  * 2026-07-02. La data arriva dal database nel formato ISO, e finiva sulle
  * card e sull'annuncio esattamente cosi' com'era.
