@@ -286,12 +286,29 @@ export default function VehicleGallery({ images, label }: VehicleGalleryProps) {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            {/* Backdrop click closes; the image itself stops the propagation. */}
+            {/*
+              Toccare lo sfondo chiude; la foto ferma il tocco e non chiude.
+
+              **Lo sfondo non ha un nome, ed e' una correzione del
+              20/09/2026.** Si chiamava anche lui "Chiudi le foto", come il
+              bottone in alto: chi usa un lettore di schermo sentiva **due
+              comandi con la stessa identica dicitura**, senza nessun modo di
+              sapere quale facesse cosa -- e uno dei due e' un rettangolo
+              invisibile grande quanto lo schermo.
+
+              Lo sfondo e' una comodita' per chi tocca, non un comando: il
+              comando e' il bottone in alto, e si chiama "Chiudi". Quindi
+              `aria-hidden` (sparisce dalla voce) e `tabIndex={-1}` (non si
+              raggiunge col Tab). Le due cose vanno **insieme**: un elemento
+              nascosto alla voce ma raggiungibile con la tastiera sarebbe
+              peggio di prima, perche' il fuoco finirebbe su qualcosa che il
+              lettore dichiara inesistente.
+            */}
             <button
               type="button"
               onClick={closeUnlessSwiping}
               className="absolute inset-0 cursor-zoom-out"
-              aria-label="Chiudi le foto"
+              aria-hidden="true"
               tabIndex={-1}
             />
 
