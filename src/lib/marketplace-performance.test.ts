@@ -112,8 +112,16 @@ describe("le pagine pubbliche si possono conservare", () => {
   // Googlebot no: con quasi trecento schede e poco traffico, quasi ogni suo
   // passaggio cadeva su una pagina fredda (0,65 s contro 0,07), che e'
   // testualmente la condizione dello stato "Rilevata, ma attualmente non
-  // indicizzata" -- 124 schede il 06/09/2026. Adesso le schede si costruiscono
-  // alla pubblicazione: cambia solo chi paga la prima costruzione.
+  // indicizzata". Adesso le schede si costruiscono alla pubblicazione: cambia
+  // solo chi paga la prima costruzione.
+  //
+  // **Il "124 schede il 06/09/2026" che stava qui non esiste**: era a
+  // memoria, e gli esportati di Search Console del 20/09/2026 non lo
+  // contengono. La regola resta giusta -- una scheda pronta e' meglio di una
+  // fredda, e oggi rispondono in 0,09-0,17 s -- ma **non ha spostato il
+  // numero**: le non indicizzate sono passate da 224 (29/08) a 265 (05/09) e
+  // da allora sono ferme. Chi legge questo commento non deve credere che
+  // questa riga abbia risolto l'indicizzazione: ha risolto la lentezza.
   it("le schede veicolo si costruiscono in anticipo, non alla prima visita di Google", () => {
     const scheda = read("src/app/(marketplace)/auto/[id]/page.tsx");
 

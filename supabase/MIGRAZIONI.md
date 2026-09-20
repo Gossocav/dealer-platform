@@ -23,6 +23,16 @@ Il controllo **legge soltanto**. Non applica niente.
 titolare il 19/09/2026 e scritto qui apposta: la prossima volta si riparte da
 questo elenco, non ricostruendolo da un riepilogo.
 
+> **Sopra tutto l'elenco, dal 20/09/2026: l'indicizzazione.** Deciso dal
+> titolare dopo aver letto gli esportati di Search Console: **57 pagine
+> indicizzate su 322 conosciute**, e **262 "Rilevata, ma attualmente non
+> indicizzata"** -- cioe' mai scaricate. Su un marketplace senza traffico
+> l'indicizzazione e' quasi l'unica strada perche' qualcuno arrivi, quindi
+> viene prima dei numeri falsi a video e di tutto il resto. I fatti, i
+> limiti di quello che sappiamo e cosa e' gia' stato corretto stanno in
+> *"Cosa dice davvero Search Console, e cosa non dice"*, piu' sotto. Le
+> quattro voci qui elencate restano nel loro ordine, sotto questa.
+
 1. **I due numeri falsi ancora a video.** Sono gia' visibili oggi, e sono
    della stessa famiglia chiusa il 19/09 -- un numero plausibile al posto di
    "non lo so":
@@ -71,8 +81,10 @@ filtri della pagina di una concessionaria dal browser al database: e'
 completo, ha quattordici test e **funziona**. Non e' stato unito perche'
 leggere l'indirizzo obbliga quella pagina a ricostruirsi a ogni visita --
 misurato 0,3-0,6 secondi contro 0,07, con `Cache-Control: no-store` -- cioe'
-la condizione che il 06/09/2026 aveva lasciato 124 schede in "Rilevata, ma
-attualmente non indicizzata". Il guardiano
+la condizione descritta da Google per lo stato "Rilevata, ma attualmente non
+indicizzata". (Il numero "124 schede il 06/09" che stava in questa riga era
+riportato a memoria e **non esiste** negli esportati di Search Console:
+corretto il 20/09/2026, il giro completo sta piu' sotto.) Il guardiano
 `marketplace-performance.test.ts` e' rimasto **rosso su quel ramo apposta**:
 e' la prova. Al suo posto: la pagina resta statica e "Filtra" porta su
 `/ricerca?dealer=<id>`. Se qualcuno riproporra' i filtri al server su quella
@@ -656,33 +668,35 @@ E' **la stessa condizione del 06/09/2026** -- pagina fredda contro pagina
 pronta, che e' testualmente lo stato *"Rilevata, ma attualmente non
 indicizzata"* -- spostata dalle destinazioni ai percorsi.
 
-**Perche' non e' stato deciso niente.** L'attenuante e' vera e va tenuta: la
-sitemap porta a tutte e 276 le schede **senza passare di li'**, quindi per
-*trovarle* quelle ventiquattro pagine non servono. Servono per il peso dei
+**Perche' non e' stato deciso niente, e l'attenuante detta per intero.**
+La sitemap porta a tutte e 276 le schede **senza passare di li'**, quindi per
+*trovarle* quelle ventiquattro pagine non servono: servono per il peso dei
 collegamenti interni e per accorgersi degli arrivi nuovi.
 
-**La condizione che decide, scritta prima di guardare il numero** (cosi' non
-la si aggiusta dopo): si apre Search Console, *Indicizzazione → Pagine → Non
-indicizzate*, e si legge **"Rilevata, ma attualmente non indicizzata"**.
+**Ma l'attenuante regge meno di come e' stata raccontata la prima volta, e la
+differenza va scritta qui e non in una nota piu' sotto.** Anche la sitemap e'
+ricalcolata a ogni richiesta -- `x-vercel-cache: MISS` e `age: 0` su ogni
+lettura, 0,46-1,00 s, misurato tre volte -- perche' e' `force-dynamic` per
+scelta, cosi' una scheda nuova compare subito. Quindi la frase giusta non e'
+*"c'e' una strada calda che evita quelle fredde"*: e' **"la strada che le
+evita e' anch'essa fredda, ma e' una sola richiesta invece di
+ventiquattro"**.
 
-- se e' **molto sotto 124** -- il valore del 06/09/2026 -- la correzione di
-  quel giorno ha tenuto, e queste ventiquattro pagine restano una nota;
-- se e' **ancora alto o cresciuto**, sono la **prima cosa da guardare**, e
-  allora vale la pena capire perche' quelle due pagine leggono l'indirizzo a
-  ogni visita e se possono non farlo.
+E' un'attenuante di **quantita'**, non di natura. Chi indicizza paga una
+pagina lenta per sapere di tutte e 276 le schede, invece di ventiquattro per
+la stessa informazione: resta un vantaggio grande, e resta il fatto che
+**nessuna delle due strade e' pronta quando la si chiede**.
 
-Il totale delle **indicizzate** si legge nella stessa schermata: quanto manca
-a 296 dice cos'altro resta fuori.
+**La condizione era stata scritta prima di guardare il numero, apposta. Poi
+il numero e' arrivato, e ha risposto: non sono queste.** I quattro esportati
+di Search Console, al 14/09/2026, stanno nel capitolo qui sotto.
 
 **Tre cose emerse facendo verificare questo quadro da capo**, e la prima
 toglie un po' di forza all'attenuante:
 
-1. **anche la sitemap e' ricalcolata a ogni richiesta.** `x-vercel-cache:
-   MISS` e `age: 0` su ogni lettura, 0,46-1,00 s. Non e' un difetto -- e'
-   `force-dynamic` per scelta, cosi' una scheda nuova compare subito -- ma
-   l'attenuante *"la sitemap porta a tutte le schede senza passare dalle
-   pagine fredde"* poggia su un file che **e' anch'esso freddo**. Vale la
-   pena saperlo prima di appoggiarcisi;
+1. **anche la sitemap e' ricalcolata a ogni richiesta.** La misura e le
+   conseguenze stanno qui sopra, dentro l'attenuante: e' li' che servono, e
+   una nota in fondo l'avrebbe lasciata detta a meta';
 2. **"in cache" non si riconosce dalla parola `HIT`.** Sulla stessa scheda
    compaiono `HIT`, `STALE` e `PRERENDER` a seconda del momento, e vogliono
    dire tutti e tre la stessa cosa che conta: la pagina **non e' stata
@@ -700,6 +714,88 @@ toglie un po' di forza all'attenuante:
    **Trovato il 20/09/2026 e non corretto**, perche' e' fuori dallo scopo
    della modifica che l'ha fatto emergere; si chiude con una riga in
    `src/app/robots.ts` che emette sia `/dashboard` sia `/dashboard/`.
+
+## Cosa dice davvero Search Console, e cosa non dice (14/09/2026)
+
+I quattro esportati, arrivati il 20/09. **Hanno smentito due delle tre cose
+che avevamo concluso guardando il sito**, ed e' il motivo per cui questo
+capitolo esiste: le misure fatte da noi dicevano cose vere sul sito e
+sbagliate su Google.
+
+**Lo stato al 14/09:** 57 pagine indicizzate, 265 no, 322 conosciute. Delle
+265, la ripartizione e' quasi tutta in una riga sola:
+
+| motivo | quante |
+|---|---|
+| **Rilevata, ma attualmente non indicizzata** | **262** |
+| esclusa dal tag `noindex` | 2 |
+| duplicata, Google ha scelto un'altra pagina canonica | 1 |
+| **Pagina scansionata, ma attualmente non indicizzata** | **0** |
+
+**Quello zero e' il dato piu' importante di tutti, e ribalta una diagnosi.**
+"Rilevata" vuol dire che Google conosce l'indirizzo -- dalla sitemap -- e
+**non lo ha mai scaricato**. "Scansionata ma non indicizzata" sarebbe
+"l'ho letto e ho deciso di no". E' a zero. Quindi:
+
+> **Google non ha mai visto il contenuto di quelle 262 pagine.** Non ha visto
+> le 80 schede senza descrizione, non ha visto i 67 nomi ripetuti, non ha
+> potuto bocciarle per come sono fatte. Il contenuto **non e' la causa** dello
+> stato di oggi.
+
+E' una distinzione che nessuna misura fatta sul nostro sito poteva dare: da
+qui si vede cosa serviamo, non cosa Google decide di prendere.
+
+**Non sta peggiorando: e' in stallo.** La serie ha quattro soli gradini, e
+poi si ferma:
+
+| data | non indicizzate | indicizzate | conosciute |
+|---|---|---|---|
+| 05/08 | 18 | 1 | 19 |
+| 22/08 | 128 | 44 | 172 |
+| 29/08 | 224 | 55 | 279 |
+| 05/09 | 265 | 57 | 322 |
+
+**Dal 5 al 14 settembre i numeri sono identici tutti i giorni.**
+
+**E c'e' un numero che nessuno aveva: la quota di pagine nuove che Google si
+prende a ogni gradino.** 43 su 153, poi 11 su 107, poi 2 su 43: **28%, 10%,
+5%**. Il limite della misura va scritto accanto -- le indicizzate in piu'
+potrebbero comprendere pagine vecchie riprese dopo, non solo nuove -- ma la
+caduta va nella stessa direzione in tutti e tre i passaggi, e tre passaggi
+concordi non sono un caso.
+
+**Il contesto, che va detto per non promettere un recupero rapido.** Fino al
+21 agosto 2026 questo sito aveva **una** pagina indicizzata. E' un dominio
+giovane, e "Rilevata ma non indicizzata" su gran parte di un catalogo nuovo
+e' **il comportamento normale** di Google in quella condizione: conosce gli
+indirizzi, non ha ancora ragioni per spenderci tempo. Parte di questi numeri
+non e' un difetto nostro, e' mancanza di storia. Chi legge questo capitolo fra
+sei mesi deve saperlo, perche' e' quello che impedisce di inseguire un
+difetto tecnico dove non c'e'.
+
+**La causa coerente con lo stato misurato, e l'unica corretta il 20/09:** la
+data di ultima modifica che dichiaravamo falsa. Ogni giorno la sitemap diceva
+che **241 schede su 276 (l'87%) erano cambiate nelle ultime 24 ore**, e non
+era cambiata nessuna. E' l'unica ipotesi che regge con "mai scaricate":
+riguarda cosa Google decide di **andare a prendere**, non cosa trova quando
+arriva. La correzione sta in `campiDelRipasso`
+(`src/lib/dealer-site-sync.ts`), il guardiano in
+`src/lib/updated-at-si-muove-solo-se-cambia.test.ts`.
+
+**Come si misura se ha funzionato**, e va fatto dopo che la correzione e' in
+produzione **e** la sincronizzazione ha girato un giro intero (tre ore):
+si contano le schede pubblicate con `updated_at` nelle ultime 24 ore. Erano
+**241 su 276**. Se scendono a una manciata, ha funzionato; se restano tante,
+la scrittura arriva da un'altra porta e va trovata quella.
+
+**Quello che resta un lavoro di prodotto, e non e' una causa.** Le schede
+hanno poco contenuto proprio: 80 su 276 senza descrizione, 53 sotto i 200
+caratteri, 67 auto con lo stesso identico nome di un'altra, e in una pagina
+servita solo il 19-37% delle parole non e' cornice ripetuta su tutte. **Oggi
+non sposterebbe il numero di una pagina**, perche' Google quelle pagine non
+le legge. Vale il giorno in cui comincera' a leggerle, e dipende dai
+concessionari: aiutarli a scrivere le descrizioni, e distinguere le schede
+con i dati che gia' abbiamo.
 
 ## Credenziali
 
