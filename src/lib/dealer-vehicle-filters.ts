@@ -283,15 +283,25 @@ export function opzioniFiltri(veicoli: DealerVehicleFacets[], state: DealerFilte
  * @param totaleInVetrina quanti ne ha davvero in vetrina, o `null` se non si sa
  */
 export function fraseConteggioVeicoli(mostrati: number, caricati: number, totaleInVetrina: number | null): string {
-  const veicoli = (quanti: number) => `${quanti} ${quanti === 1 ? "veicolo" : "veicoli"}`;
+  const auto = (quante: number) => `${quante} ${quante === 1 ? "auto" : "auto"}`;
   const laPaginaNeHaMenoDelVero = totaleInVetrina !== null && totaleInVetrina > caricati;
   const nessunFiltro = mostrati === caricati;
 
+  // **"in vetrina" solo quando il numero e' davvero quello della vetrina.**
+  // Con un filtro attivo le auto mostrate sono un sottoinsieme, e scrivere
+  // "12 auto in vetrina" su una concessionaria che ne ha 135 sarebbe falso
+  // -- lo stesso difetto dei numeri contati su un elenco tagliato, in
+  // un'altra forma. Deciso il 20/09/2026 rendendo i filtri richiudibili:
+  // questa riga resta sempre visibile, anche a filtri chiusi, ed e'
+  // l'informazione per cui uno e' entrato su quella pagina.
   if (nessunFiltro) {
-    return laPaginaNeHaMenoDelVero ? `Primi ${veicoli(caricati)} su ${totaleInVetrina} in vetrina` : veicoli(caricati);
+    return laPaginaNeHaMenoDelVero
+      ? `Prime ${auto(caricati)} su ${totaleInVetrina} in vetrina`
+      : `${auto(caricati)} in vetrina`;
   }
 
   return laPaginaNeHaMenoDelVero
-    ? `${veicoli(mostrati)} sui primi ${caricati} caricati, di ${totaleInVetrina} in vetrina`
-    : `${veicoli(mostrati)} su ${caricati}`;
+    ? `${auto(mostrati)} sulle prime ${caricati} caricate, di ${totaleInVetrina} in vetrina`
+    : `${auto(mostrati)} su ${caricati}`;
 }
+

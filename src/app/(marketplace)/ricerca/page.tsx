@@ -16,6 +16,7 @@ import { MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES, MARKETPLACE_PUBLISHABLE_V
 import { COLONNA_RICERCA, modelloIlike, paroleRicercaVeicolo } from "@/lib/ricerca-veicoli";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
 import { perConfrontoSenzaMaiuscole, valoriDistinti } from "@/lib/valori-distinti";
+import { contaFiltriImpostati, etichettaFiltra, filtriDaMostrareSubito } from "@/lib/filtri-richiudibili";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,15 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 export default async function AdvancedSearchPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const resolvedSearchParams = await searchParams;
   const filters = parseSearchState(resolvedSearchParams);
+  // L'ordinamento e la pagina non sono filtri: il primo ha sempre un valore
+  // e il secondo non restringe niente. Contarli farebbe aprire il riquadro
+  // a chi non ha scelto niente.
+  const filtriAttivi = contaFiltriImpostati([
+    filters.q, filters.vehicleCategory, filters.vehicleCondition, filters.bodyType,
+    filters.brand, filters.model, filters.fuel, filters.transmission,
+    filters.yearFrom, filters.yearTo, filters.minPrice, filters.maxPrice,
+    filters.near, filters.radius,
+  ]);
   const from = (filters.page - 1) * MARKETPLACE_SEARCH_PAGE_SIZE;
   const to = from + MARKETPLACE_SEARCH_PAGE_SIZE - 1;
 
@@ -325,9 +335,31 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
           </p>
         </section>
 
-        <form className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8" method="GET" action="/ricerca">
+        <form className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-4 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8" method="GET" action="/ricerca">
           <input type="hidden" name="page" value="1" />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {/*
+            **Sul telefono i filtri partono chiusi.** Misurato il 20/09/2026
+            a 390px: qui erano sedici campi e la prima automobile cominciava
+            a **2.090 pixel**, due schermate e mezzo di filtri. Anche chi
+            arriva sulla ricerca vuole prima vedere cosa c'e'.
+
+            I campi restano **dentro il modulo** anche da chiusi: `<details>`
+            nasconde con il foglio di stile, non toglie dalla pagina, quindi
+            premendo Cerca si spedisce tutto come prima. E funziona senza
+            JavaScript, che su questa pagina e' la regola: e' un modulo del
+            server, non un componente del browser.
+
+            Sopra i 1024px e' aperto e il pulsante non c'e'.
+          */}
+          <details className="aperto-da-grande group" open={filtriDaMostrareSubito(filtriAttivi)}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08] [&::-webkit-details-marker]:hidden">
+              {etichettaFiltra(filtriAttivi)}
+              <span className="flex-none text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                <span className="group-open:hidden">Apri</span>
+                <span className="hidden group-open:inline">Chiudi</span>
+              </span>
+            </summary>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4 lg:mt-0">
             <SearchField label="Cerca" name="q" defaultValue={filters.q} placeholder="Marca, modello, versione" />
             <SearchSelect label="Tipo veicolo" name="vehicleCategory" defaultValue={filters.vehicleCategory} options={[...VEHICLE_CATEGORY_OPTIONS]} />
             <SearchSelect label="Condizioni" name="vehicleCondition" defaultValue={filters.vehicleCondition} options={[...VEHICLE_CONDITION_OPTIONS]} />
@@ -367,6 +399,7 @@ export default async function AdvancedSearchPage({ searchParams }: { searchParam
               </Link>
             </div>
           </div>
+          </details>
         </form>
 
         <section className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">

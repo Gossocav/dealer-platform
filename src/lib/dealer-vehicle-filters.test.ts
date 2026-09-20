@@ -170,32 +170,36 @@ describe("i filtri si combinano", () => {
  */
 describe("fraseConteggioVeicoli", () => {
   it("senza filtri e con tutto caricato dice solo quanti ne ha", () => {
-    expect(fraseConteggioVeicoli(93, 93, 93)).toBe("93 veicoli");
-    expect(fraseConteggioVeicoli(1, 1, 1)).toBe("1 veicolo");
+    expect(fraseConteggioVeicoli(93, 93, 93)).toBe("93 auto in vetrina");
+    expect(fraseConteggioVeicoli(1, 1, 1)).toBe("1 auto in vetrina");
   });
 
   it("con i filtri dice quanti se ne vedono su quanti", () => {
-    expect(fraseConteggioVeicoli(12, 93, 93)).toBe("12 veicoli su 93");
+    // **Con un filtro attivo non si scrive "in vetrina"**: le 12 mostrate
+    // sono un sottoinsieme, e dirle "in vetrina" su una concessionaria che
+    // ne ha 93 sarebbe falso. Riscritto il 20/09/2026 con i filtri
+    // richiudibili: la decisione e' cambiata, non e' un aggiustamento.
+    expect(fraseConteggioVeicoli(12, 93, 93)).toBe("12 auto su 93");
   });
 
   it("quando la pagina ne ha caricati meno del vero lo dice, invece di contare i suoi", () => {
     // Il caso che rompeva tutto: 420 in vetrina, la pagina ne carica 300.
     // Prima si leggeva "300 veicoli" -- preciso, credibile, sbagliato di 120.
-    expect(fraseConteggioVeicoli(300, 300, 420)).toBe("Primi 300 veicoli su 420 in vetrina");
-    expect(fraseConteggioVeicoli(12, 300, 420)).toBe("12 veicoli sui primi 300 caricati, di 420 in vetrina");
+    expect(fraseConteggioVeicoli(300, 300, 420)).toBe("Prime 300 auto su 420 in vetrina");
+    expect(fraseConteggioVeicoli(12, 300, 420)).toBe("12 auto sulle prime 300 caricate, di 420 in vetrina");
   });
 
   it("quando il totale vero non si sa non lo inventa", () => {
     // La vista non risponde: si dice quello che si sa, senza "su quanti".
     // Un numero plausibile al posto di "non lo so" e' il difetto piu'
     // ripetuto di questo progetto.
-    expect(fraseConteggioVeicoli(93, 93, null)).toBe("93 veicoli");
-    expect(fraseConteggioVeicoli(12, 93, null)).toBe("12 veicoli su 93");
+    expect(fraseConteggioVeicoli(93, 93, null)).toBe("93 auto in vetrina");
+    expect(fraseConteggioVeicoli(12, 93, null)).toBe("12 auto su 93");
   });
 
   it("un totale piu' piccolo del caricato non genera frasi assurde", () => {
     // Puo' succedere per un attimo: la vista e l'elenco sono due letture
     // diverse, e fra l'una e l'altra un'auto puo' essere stata tolta.
-    expect(fraseConteggioVeicoli(93, 93, 90)).toBe("93 veicoli");
+    expect(fraseConteggioVeicoli(93, 93, 90)).toBe("93 auto in vetrina");
   });
 });
