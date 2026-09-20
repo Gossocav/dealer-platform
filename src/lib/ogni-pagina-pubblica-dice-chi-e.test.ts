@@ -38,6 +38,18 @@ import { describe, expect, it } from "vitest";
  *    documentazione di Google e contiene la parola "canonical" in una frase
  *    in inglese. Cercandola senza togliere i commenti, una pagina che ha
  *    buttato via la sua riga passerebbe verde grazie a una citazione.
+ *
+ * **Questo controllo sostituisce `canonical-coverage.test.ts`** (28/08/2026),
+ * che faceva la stessa promessa con un **elenco di diciassette file scritto a
+ * mano**. Non era sbagliato: era fermo. Una pagina pubblica nuova non ci
+ * sarebbe entrata da sola, e nessuno l'avrebbe saputo -- e' la differenza,
+ * gia' scritta in AGENTS.md, fra un guardiano che **elenca i nomi** e uno che
+ * **controlla la regola**. Chiedeva inoltre solo che la parola "canonical"
+ * comparisse nel file, senza togliere i commenti e **senza guardare dove
+ * puntasse**: una pagina che dichiarasse l'indirizzo di un'altra passava
+ * verde, ed e' esattamente il difetto del 20/09/2026. Il suo secondo caso --
+ * la sitemap e la home che scrivono lo stesso indirizzo -- e' conservato qui
+ * sotto.
  */
 
 const RADICE = resolve(process.cwd(), "src/app/(marketplace)");
@@ -136,6 +148,14 @@ describe("ogni pagina pubblica dice chi e'", () => {
     expect(
       seDichiaraSeStessa("alternates: { canonical: toAbsoluteUrl(`/auto/${id}`) }", "/auto/[id]").va,
     ).toBe(true);
+  });
+
+  it("la sitemap dichiara la home come la home si dichiara", () => {
+    // Ereditato da canonical-coverage.test.ts. Lo stesso indirizzo scritto in
+    // due modi -- con e senza barra finale -- e' un'incoerenza che poi si
+    // legge come errore.
+    const sitemap = readFileSync(resolve(process.cwd(), "src/app/sitemap.ts"), "utf8");
+    expect(sitemap).toContain('entry.path === "/" ? baseUrl');
   });
 
   it("un canonico scritto solo dentro un commento non conta", () => {

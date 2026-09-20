@@ -1087,6 +1087,17 @@ Le regole:
    di scriverla, da chiunque arrivi"* vale anche quando la premessa e' un
    numero stampato da uno script proprio dieci minuti prima.
 
+**E nello stesso quadro c'era una seconda trascrizione sbagliata**, trovata
+facendo verificare i numeri da capo: *"`/auto` ha 13 pagine"*. Lo script
+aveva contato bene **tredici indirizzi**, ma le pagine sono **dodici**: la
+prima esiste anche come `?page=1`, collegata dal "precedente" della
+seconda. Undici pagine da 24 piu' una da 12 fanno 276.
+
+Nessuno dei due numeri e' sbagliato: sbagliata e' **la parola**. Contare
+una cosa e chiamarla con il nome di un'altra e' la stessa meta' che si
+rompe -- il riportare -- e si riconosce con la stessa domanda: *quello che
+scrivo e' la cosa che ho contato?* Qui bastava dividere 276 per 24.
+
 **Un guardiano che si accende mentre lavori non e' un ostacolo: e' l'unico
 momento in cui ti dice qualcosa che non sapevi.**
 
