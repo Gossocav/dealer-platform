@@ -980,11 +980,13 @@ La regola in una riga: **se la decisione conta, si misura che sia stata
 presa.** Se non conta abbastanza da misurarla, allora non serviva scrivere
 l'attributo.
 
-**E una misura fatta male mente come una riga che non fa niente.** E' la
-nota che chiude le tre forme, e va tenuta accanto a loro perche' e' **piu'
-insidiosa di tutte e tre**: e' la trappola di chi ha gia' imparato a
-misurare, e **una misura sbagliata ha l'aria di una prova**. Le tre forme
-sopra ingannano perche' nessuno guarda; questa inganna **chi ha guardato**.
+**E la quinta forma, la peggiore di tutte: una prova falsa.** Le prime
+quattro sono cose che **non fanno quello che dichiarano** -- un controllo
+che non si accende, una regola senza effetto, un attributo ignorato, una
+procedura saltata. Questa e' diversa in natura: **una misura sbagliata non
+sembra un difetto, sembra un risultato.** Le altre ingannano perche'
+nessuno guarda; questa inganna **chi ha guardato**, ed e' la trappola di
+chi ha gia' imparato a misurare.
 
 Il caso, 20/09/2026, nello stesso pomeriggio. Dopo aver tolto la dicitura
 doppia dallo sfondo del riquadro a schermo intero, la verifica automatica
@@ -1013,17 +1015,28 @@ quello che si sperava -- ed e' il motivo per cui ogni numero riportato in
 questo progetto viene scritto insieme a **come** e' stato ottenuto, e non
 da solo.
 
-**E la difesa pratica: una misura si ripete prima di riportarla.** Il
-20/09/2026, misurando la pagina di una concessionaria subito dopo aver
-avviato il server, l'altezza risultava 68.513px e la prima auto a 641.
-Ripetuta tre volte di fila: **64.014px e 487**, tre volte identiche. La
-prima lettura aveva preso la pagina con le immagini ancora a meta'
-caricamento, e stava per finire in un resoconto come se fosse un
-peggioramento di 114 pixel causato dalla modifica appena fatta.
+**Da cui la regola, e va applicata al contrario di come verrebbe da
+applicarla: una misura si ripete anche quando torna, non solo quando
+stona.**
 
-Non serve un rituale: **due letture uguali bastano**, e costano secondi. La
-regola vale soprattutto quando il numero **conferma** quello che ci si
-aspettava, perche' li' nessuno lo ricontrolla.
+E' la parte che si dimentica, perche' e' controintuitiva. Un numero che
+stona lo si ricontrolla da soli, per istinto: fa sospettare. Un numero che
+**conferma** quello che ci si aspettava non lo ricontrolla nessuno --
+entra nel resoconto, diventa la prova che il lavoro e' servito, e nessuno
+avra' piu' motivo di tornarci.
+
+Il caso, 20/09/2026. Misurando la pagina di una concessionaria subito dopo
+aver avviato il server: 68.513px e la prima auto a 641. Quel numero
+**stonava** -- sembrava un peggioramento di 114 pixel causato dalla
+modifica appena fatta -- e per questo e' stato ripetuto. Tre letture di
+fila: **64.014px e 487**, identiche. La prima aveva preso la pagina con le
+immagini a meta' caricamento.
+
+**Se la prima lettura avesse detto "migliorato", sarebbe entrata nel
+resoconto senza che nessuno la guardasse.** E' esattamente lo stesso errore
+di misura, con l'unica differenza che nessuno lo avrebbe mai scoperto.
+
+Non serve un rituale: **due letture uguali bastano**, e costano secondi.
 
 **Un guardiano che si accende mentre lavori non e' un ostacolo: e' l'unico
 momento in cui ti dice qualcosa che non sapevi.**
@@ -1538,6 +1551,18 @@ senza `catch`, e numeri contati su un elenco che ha un tetto.
 elenco esplicito dentro il test con il perche'. E' voluto: il debito e' vero e
 noto, e l'elenco **puo' solo accorciarsi**. Un controllo che non nasce perche'
 oggi troverebbe qualcosa e' un controllo che non nascera' mai.
+
+**E il 20/09/2026 uno di quegli elenchi si e' accorciato da solo, per il
+motivo migliore.** `dealer-vehicle-search.tsx` era fra i file con i campi
+dei moduli sotto i sedici pixel. Ne e' uscito senza che nessuno abbia
+alzato un carattere: quella pagina **non ha piu' un modulo**, perche' la
+ricerca e' andata su `/ricerca`. E' stato il guardiano a pretenderlo,
+fallendo finche' il file restava in elenco.
+
+Vale la pena notarlo perche' e' la prima volta che un debito cala **perche'
+e' sparita la causa**, non perche' qualcuno l'abbia sistemato -- ed e' il
+modo in cui un elenco di eccezioni dovrebbe accorciarsi piu' spesso: non
+correggendo il difetto, ma togliendo la cosa che lo produceva.
 
 **Il blocco unico sull'usabilita', e quanto e' grande.** Il resto di quello
 che si vede usando il prodotto non si fa a pezzi: si affronta in una volta
