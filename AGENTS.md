@@ -927,6 +927,42 @@ Due cose da portarsi via:
    vederla fallire. E' lo stesso gesto di "prima di fidarsi del verde si
    produce il rosso", applicato al disegno invece che a un test.
 
+**E c'e' una terza forma, la piu' silenziosa delle tre: qualcosa che fa
+quello che dichiara, ma non nella situazione per cui e' stato messo.** Le
+prime due si scoprono guardando (un controllo verde che doveva accendersi,
+un riquadro chiuso che doveva essere aperto). Questa **non si vede
+affatto**: la pagina e' giusta, il disegno e' giusto, e la cosa che doveva
+risparmiare non risparmia niente.
+
+Il caso, 20/09/2026, sulla striscia delle foto. Le miniature portavano
+`loading="lazy"`, cioe' *"scaricati solo quando servono"*, che e'
+esattamente quello che serviva: tredici miniature in una striscia
+orizzontale, chi ne guarda tre non deve pagarne tredici. La riga e' giusta,
+l'attributo e' quello giusto, e nessuno l'avrebbe messa in dubbio leggendo
+il file.
+
+**In una striscia che scorre di lato non funziona.** Il browser considera
+"in vista" tutto quello che sta nella fascia verticale dello schermo,
+**anche cio' che e' oltre il bordo destro**: le scaricava tutte. Misurato
+sulla stessa scheda, **da 4 immagini e 44 KB si passava a 14 e 113 KB**.
+La pagina si era accorciata del venti per cento e il telefono era
+diventato piu' lento: uno scambio che non conviene a nessuno, e che in una
+prova di caricamento su rete veloce **non si sarebbe notato**.
+
+**La regola pratica, ed e' la cosa da portarsi via: quando una correzione
+tocca le prestazioni, la misura non e' l'altezza, e' quanto si scarica.**
+Pixel e byte sono due grandezze diverse e non si muovono insieme: qui sono
+andate in direzioni opposte. Prima e dopo si contano **le richieste e i
+byte**, non solo cio' che si vede -- in questo progetto, ascoltando le
+risposte del browser (`pagina.on("response", ...)`) e filtrando per
+`resourceType() === "image"`.
+
+E c'e' un corollario che vale in generale: **un attributo che delega al
+browser una decisione non e' una garanzia, e' una richiesta.** `lazy`,
+`preload`, `defer`, `content-visibility`, `will-change`: il browser decide
+con criteri suoi, che cambiano con la versione e con il contesto in cui
+l'elemento si trova. Se la decisione conta, si misura che sia stata presa.
+
 **E vale anche per il verde di GitHub: un verde si legge sempre insieme al
 commit a cui si riferisce.** Il 18/09/2026, cinque minuti dopo aver scritto la
 regola qui sopra, la CI di una PR e' stata letta come "passata" mentre quel

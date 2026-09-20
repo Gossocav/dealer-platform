@@ -92,4 +92,26 @@ describe("toccando la foto grande si ingrandisce e si scorre", () => {
   it("ogni miniatura apre la sua foto, non la prima", () => {
     expect(senzaCommenti).toMatch(/onClick=\{\(\) => setOpenIndex\(index\)\}/);
   });
+
+  it("chi ascolta la pagina sente **un** comando per chiudere, non due", () => {
+    // Il difetto, corretto il 20/09/2026: lo sfondo toccabile si chiamava
+    // "Chiudi le foto" come il bottone in alto. Un lettore di schermo
+    // annunciava due comandi con la stessa identica dicitura, e uno dei due
+    // e' un rettangolo invisibile grande quanto lo schermo: chi ascolta non
+    // ha nessun modo di sapere quale fa cosa.
+    //
+    // Verificato con un browser: prima ne annunciava 2, adesso 1, e lo
+    // sfondo continua a chiudere al tocco.
+    expect((senzaCommenti.match(/aria-label="Chiudi le foto"/g) ?? []).length).toBe(1);
+
+    // Lo sfondo resta toccabile ma sparisce dalla voce. Le due righe vanno
+    // **insieme**: nascosto alla voce ma raggiungibile col Tab sarebbe
+    // peggio di prima, perche' il fuoco finirebbe su qualcosa che il
+    // lettore dichiara inesistente.
+    const sfondo = senzaCommenti.slice(senzaCommenti.indexOf("closeUnlessSwiping}"));
+    const tag = sfondo.slice(0, sfondo.indexOf("/>"));
+    expect(tag).toContain('aria-hidden="true"');
+    expect(tag).toContain("tabIndex={-1}");
+    expect(tag).not.toContain("aria-label");
+  });
 });
