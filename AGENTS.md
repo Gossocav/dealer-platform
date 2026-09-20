@@ -1038,6 +1038,66 @@ di misura, con l'unica differenza che nessuno lo avrebbe mai scoperto.
 
 Non serve un rituale: **due letture uguali bastano**, e costano secondi.
 
+**E c'e' un modo di sbagliare misura che le tre domande qui sopra non
+prendono: il righello legge bene, e a mentire e' la trascrizione.**
+
+Il caso, 20/09/2026, poche ore dopo quello dello sfondo. Facendo il quadro
+di cosa il sito dichiara ai motori di ricerca, uno script leggeva il
+canonico di ogni pagina pubblica e lo stampava **dopo aver tolto
+l'indirizzo del sito**, per tenere stretta la tabella. Per la home il
+canonico *e'* l'indirizzo del sito: togliendolo restava **la stringa
+vuota**. La casella vuota e' stata letta come *"la home non dichiara nessun
+canonico"*, ed e' finita nel resoconto al titolare come piccolo punto
+aperto. Lui ha risposto *"e' una riga, falla nella prima PR utile"*.
+
+Cioe': **un ordine di lavoro su un difetto che non esisteva**, che avrebbe
+aggiunto un secondo canonico a una pagina che ne ha gia' uno giusto.
+
+**Cosa lo rende diverso dalle cinque forme qui sopra: lo strumento non
+aveva sbagliato.** L'espressione regolare ha trovato il tag, il valore
+letto era esatto. A mentire e' stato **il passo dopo la misura**, la
+formattazione. Una misura ha due meta' -- leggere e riportare -- e la
+seconda puo' rompersi da sola. E' quella che non controlla nessuno, perche'
+"e' solo stampa".
+
+**La prova stava nel risultato e non e' stata guardata.** Lo script aveva
+un ripiego che scriveva `— NESSUNO —` quando il tag mancava. Quel testo
+**non e' comparso**: la casella vuota era essa stessa la dimostrazione che
+il tag era stato trovato. Bastava leggere la riga accanto.
+
+**E la parte che vale piu' del caso: e' il difetto di questo progetto,
+dentro lo strumento che lo cerca.** Sottrarre un prefisso da un valore che
+*e'* quel prefisso da' vuoto -- e un vuoto che vuol dire "identico alla
+base" e' stato letto come un vuoto che vuol dire "non c'e'". E' *lo zero e
+il vuoto*, la famiglia inseguita per tutta la settimana nei conti e negli
+elenchi, comparsa nel righello.
+
+Le regole:
+
+1. **una misura stampa il valore grezzo**, o il grezzo accanto al
+   trasformato. L'accorciamento per leggibilita' e' esattamente il punto in
+   cui il dato si perde: la colonna diventa piu' stretta e un fatto
+   sparisce;
+2. **davanti a un "niente" si distingue sempre "lo strumento non ha
+   trovato" da "lo strumento ha trovato e la stampa se l'e' mangiato"**, e
+   il ramo di ripiego che *non* e' scattato risponde alla domanda;
+3. **il costo e' di specie diversa dalle altre.** Una misura sbagliata
+   fa dubitare del proprio lavoro; una **segnalazione** sbagliata fa
+   **decidere qualcun altro**. La regola *"una premessa si verifica prima
+   di scriverla, da chiunque arrivi"* vale anche quando la premessa e' un
+   numero stampato da uno script proprio dieci minuti prima.
+
+**E nello stesso quadro c'era una seconda trascrizione sbagliata**, trovata
+facendo verificare i numeri da capo: *"`/auto` ha 13 pagine"*. Lo script
+aveva contato bene **tredici indirizzi**, ma le pagine sono **dodici**: la
+prima esiste anche come `?page=1`, collegata dal "precedente" della
+seconda. Undici pagine da 24 piu' una da 12 fanno 276.
+
+Nessuno dei due numeri e' sbagliato: sbagliata e' **la parola**. Contare
+una cosa e chiamarla con il nome di un'altra e' la stessa meta' che si
+rompe -- il riportare -- e si riconosce con la stessa domanda: *quello che
+scrivo e' la cosa che ho contato?* Qui bastava dividere 276 per 24.
+
 **Un guardiano che si accende mentre lavori non e' un ostacolo: e' l'unico
 momento in cui ti dice qualcosa che non sapevi.**
 

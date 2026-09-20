@@ -94,6 +94,13 @@ pagina, quel ramo e' la risposta gia' misurata -- e le sue parti
    - `vehicle_category` che dice "dal tuo sito" su un valore che dal sito non
      arriva.
 
+**Fuori dall'ordine perche' aspetta una misura: le due pagine servite
+fredde.** `/auto` e `/ricerca` -- ventiquattro pagine in tutto -- sono le
+uniche pubbliche ricalcolate a ogni richiesta. Non si decide niente finche'
+il titolare non porta il numero di Search Console: la condizione che fa
+scattare il lavoro e' scritta per esteso piu' sotto, in *"Il quadro
+dell'indicizzazione, e le due pagine servite fredde"*.
+
 **Fuori dall'ordine, e apposta: le tre voci del piano multiutente.** Le
 notifiche leggibili fra colleghi, il `cross join` sugli utenti nelle due
 interrogazioni, e la correzione su `dealer_users`. **Sono legate alla loro
@@ -570,7 +577,7 @@ farebbe Googlebot:
 
 | da dove | schede raggiungibili |
 |---|---|
-| `/auto`, 13 pagine (convenzione **gia' giusta**) | **276** |
+| `/auto`, 12 pagine (convenzione **gia' giusta**) | **276** |
 | le 3 pagine delle concessionarie | **276** |
 | `/ricerca`, 12 pagine | **276** |
 | `sitemap.xml` | **276** su 296 voci |
@@ -605,6 +612,94 @@ E una terza, che viene dalla correzione di questa stessa nota: **"quante
 cose sono rotte" e "quanto costa" sono due domande diverse.** Il 91% era la
 prima. La seconda si risponde solo guardando se esiste un'altra strada -- e
 qui ce n'erano tre.
+
+## Il quadro dell'indicizzazione, e le due pagine servite fredde (20/09/2026)
+
+Fatto subito dopo la correzione qui sopra, **senza toccare niente**, per
+sapere da dove si parte prima di guardare Search Console. Misurato sul sito
+vero, `www.keyauto.it`, non in locale.
+
+**Le 276 schede sono raggiungibili da quattro strade**, e nessuna resta
+fuori:
+
+| da dove | schede |
+|---|---|
+| `/auto`, sfogliando le sue 12 pagine | 276 |
+| le 3 pagine delle concessionarie | 276 |
+| `/ricerca`, sfogliando le sue 12 pagine | 276 |
+| `sitemap.xml` (296 voci: 276 schede + 3 concessionarie + 17 pagine fisse) | 276 |
+
+Zero schede nella sitemap che nessun collegamento raggiunge, zero schede
+collegate che la sitemap non elenca.
+
+**Ogni pagina pubblica dichiara un canonico che punta a se stessa**, la home
+compresa. Le uniche che puntano altrove sono le ricerche con i filtri, che
+vanno su `/ricerca` e portano anche `noindex, follow`: e' voluto, perche' la
+citta' e' a testo libero e le combinazioni sono infinite. `robots.txt` blocca
+solo le aree riservate e dichiara la sitemap.
+
+**Il punto aperto: `/auto` e `/ricerca` sono le uniche pagine pubbliche
+ricalcolate a ogni richiesta.** Tutto il resto viaggia con una copia
+conservata; queste due no, e sono **ventiquattro pagine** in tutto -- che
+fanno venticinque indirizzi, perche' la prima pagina di `/auto` esiste anche
+come `?page=1` (collegata dal "precedente" della seconda) e dichiara
+correttamente `/auto` come canonico.
+
+| | come viene servita | tempo (tre letture) |
+|---|---|---|
+| una scheda auto | copia conservata, pagina gia' pronta | 0,09-0,17 s |
+| una pagina di concessionaria | copia conservata, pagina gia' pronta | 0,09-0,17 s |
+| `/auto` e le sue 12 pagine | ricalcolata sempre (`no-store`) | 0,40-0,61 s |
+| `/ricerca` e le sue 12 pagine | ricalcolata sempre (`no-store`) | 0,63-1,08 s |
+
+E' **la stessa condizione del 06/09/2026** -- pagina fredda contro pagina
+pronta, che e' testualmente lo stato *"Rilevata, ma attualmente non
+indicizzata"* -- spostata dalle destinazioni ai percorsi.
+
+**Perche' non e' stato deciso niente.** L'attenuante e' vera e va tenuta: la
+sitemap porta a tutte e 276 le schede **senza passare di li'**, quindi per
+*trovarle* quelle ventiquattro pagine non servono. Servono per il peso dei
+collegamenti interni e per accorgersi degli arrivi nuovi.
+
+**La condizione che decide, scritta prima di guardare il numero** (cosi' non
+la si aggiusta dopo): si apre Search Console, *Indicizzazione → Pagine → Non
+indicizzate*, e si legge **"Rilevata, ma attualmente non indicizzata"**.
+
+- se e' **molto sotto 124** -- il valore del 06/09/2026 -- la correzione di
+  quel giorno ha tenuto, e queste ventiquattro pagine restano una nota;
+- se e' **ancora alto o cresciuto**, sono la **prima cosa da guardare**, e
+  allora vale la pena capire perche' quelle due pagine leggono l'indirizzo a
+  ogni visita e se possono non farlo.
+
+Il totale delle **indicizzate** si legge nella stessa schermata: quanto manca
+a 296 dice cos'altro resta fuori.
+
+**Tre cose emerse facendo verificare questo quadro da capo**, e la prima
+toglie un po' di forza all'attenuante:
+
+1. **anche la sitemap e' ricalcolata a ogni richiesta.** `x-vercel-cache:
+   MISS` e `age: 0` su ogni lettura, 0,46-1,00 s. Non e' un difetto -- e'
+   `force-dynamic` per scelta, cosi' una scheda nuova compare subito -- ma
+   l'attenuante *"la sitemap porta a tutte le schede senza passare dalle
+   pagine fredde"* poggia su un file che **e' anch'esso freddo**. Vale la
+   pena saperlo prima di appoggiarcisi;
+2. **"in cache" non si riconosce dalla parola `HIT`.** Sulla stessa scheda
+   compaiono `HIT`, `STALE` e `PRERENDER` a seconda del momento, e vogliono
+   dire tutti e tre la stessa cosa che conta: la pagina **non e' stata
+   ricalcolata**. L'unico segno stabile e' `x-nextjs-prerender: 1`. Chi
+   scrivera' un controllo su questo non pretenda `HIT`, o lo vedra' diventare
+   rosso su una pagina sana;
+3. **`robots.txt` scrive `Disallow: /dashboard/` con la barra finale, e
+   `/dashboard` senza barra non e' coperto.** Vale per tutte e diciannove le
+   sezioni riservate, cioe' proprio le pagine d'ingresso. **Oggi non e' un
+   buco** perche' regge l'altra serratura, quella che conta di piu': il proxy
+   manda `x-robots-tag: noindex, nofollow` su `/dashboard` e su `/login`, e
+   non lo manda su nessuna pagina pubblica -- verificato su sei pagine
+   pubbliche e due riservate. E' pero' la forma *"una regola applicata a
+   meta'"*: la riga e' scritta e il percorso che vale davvero non lo tocca.
+   **Trovato il 20/09/2026 e non corretto**, perche' e' fuori dallo scopo
+   della modifica che l'ha fatto emergere; si chiude con una riga in
+   `src/app/robots.ts` che emette sia `/dashboard` sia `/dashboard/`.
 
 ## Credenziali
 
