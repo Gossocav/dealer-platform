@@ -957,11 +957,61 @@ byte**, non solo cio' che si vede -- in questo progetto, ascoltando le
 risposte del browser (`pagina.on("response", ...)`) e filtrando per
 `resourceType() === "image"`.
 
-E c'e' un corollario che vale in generale: **un attributo che delega al
-browser una decisione non e' una garanzia, e' una richiesta.** `lazy`,
-`preload`, `defer`, `content-visibility`, `will-change`: il browser decide
-con criteri suoi, che cambiano con la versione e con il contesto in cui
-l'elemento si trova. Se la decisione conta, si misura che sia stata presa.
+**Un attributo che delega al browser una decisione non e' una garanzia, e'
+una richiesta.** Sta per conto suo e non come nota in fondo alla lezione
+precedente, perche' non e' il dettaglio di quel caso: e' **la forma che si
+ripresentera'**, e la prossima volta sara' su un altro attributo.
+
+`loading="lazy"`, `preload`, `defer`, `content-visibility`, `will-change`,
+`fetchpriority`, `decoding="async"`: nessuno di questi **ordina** qualcosa al
+browser. Ognuno gli dice cosa vorremmo, e lui decide con criteri suoi -- che
+cambiano con la versione, con la rete, con la memoria della macchina e con
+il contesto in cui l'elemento si trova. Il nostro `lazy` in una striscia
+orizzontale e' stato letto, capito e **ignorato**, senza un avviso da
+nessuna parte.
+
+Si riconoscono cosi': **sono le righe che promettono un comportamento invece
+di descrivere una cosa.** `class`, `width`, `href` dicono com'e' fatta la
+pagina e il browser li rispetta; `lazy` e `preload` dicono cosa dovrebbe
+succedere e il browser li valuta. Le prime si possono leggere, le seconde si
+devono misurare.
+
+La regola in una riga: **se la decisione conta, si misura che sia stata
+presa.** Se non conta abbastanza da misurarla, allora non serviva scrivere
+l'attributo.
+
+**E una misura fatta male mente come una riga che non fa niente.** E' la
+nota che chiude le tre forme, e va tenuta accanto a loro perche' e' **piu'
+insidiosa di tutte e tre**: e' la trappola di chi ha gia' imparato a
+misurare, e **una misura sbagliata ha l'aria di una prova**. Le tre forme
+sopra ingannano perche' nessuno guarda; questa inganna **chi ha guardato**.
+
+Il caso, 20/09/2026, nello stesso pomeriggio. Dopo aver tolto la dicitura
+doppia dallo sfondo del riquadro a schermo intero, la verifica automatica
+ha risposto *"toccando lo sfondo si chiude: false"*: sembrava una
+regressione appena introdotta, e la reazione naturale era disfare la
+correzione. Non era vero. Lo sfondo va da 76 a 736 pixel e il tocco di
+prova cadeva a 820, cioe' **fuori dall'elemento**. La correzione era giusta
+e il difetto stava nel righello.
+
+Come si riconosce, e sono tre domande in fila:
+
+1. **il risultato e' plausibile?** Un "false" comparso esattamente sulla
+   riga appena toccata merita sospetto, ma anche un "tutto a posto"
+   arrivato troppo facilmente;
+2. **lo strumento stava guardando la cosa giusta?** Qui bastava stampare le
+   coordinate dell'elemento accanto a quelle del tocco. La regola gemella
+   e' gia' scritta piu' sopra per i test: *"quando un controllo legge il
+   codice con un'espressione, l'espressione e' parte del controllo"*;
+3. **la misura sa distinguere il caso buono dal cattivo?** Una verifica che
+   non e' mai stata vista rispondere in tutti e due i modi non ha ancora
+   dimostrato di saper rispondere.
+
+E vale anche al contrario, che e' il caso peggiore: **una misura sbagliata
+che dice di si'.** Quella non produce nessuna indagine, perche' conferma
+quello che si sperava -- ed e' il motivo per cui ogni numero riportato in
+questo progetto viene scritto insieme a **come** e' stato ottenuto, e non
+da solo.
 
 **E vale anche per il verde di GitHub: un verde si legge sempre insieme al
 commit a cui si riferisce.** Il 18/09/2026, cinque minuti dopo aver scritto la
