@@ -61,7 +61,23 @@ describe("i quattro dati che decidono restano fuori da tutto", () => {
 });
 
 describe("l'ordine sul telefono", () => {
-  it("mette foto, titolo e prezzo, i quattro dati e poi il modulo", () => {
+  /**
+   * **Questo caso e' stato riscritto il 20/09/2026, e non e' un
+   * aggiustamento: la decisione e' cambiata.**
+   *
+   * Fissava l'ordine deciso il giorno prima -- foto, titolo, quattro dati,
+   * **modulo** -- costruito ragionando sulla distanza in pixel. Guardando
+   * la pagina si e' visto che il modulo arrivava **prima della
+   * descrizione**: si chiedeva al cliente di scrivere prima di avergli
+   * mostrato cosa compra. L'ordine giusto e' quello in cui uno decide --
+   * guarda, capisce, contatta -- e sta in
+   * `src/lib/ordine-della-scheda-auto.test.ts`, che lo controlla per
+   * intero.
+   *
+   * Qui resta solo cio' che quel file non copre: che le foto vengano prima
+   * dei quattro dati, e che l'ordine valga solo sul telefono.
+   */
+  it("le foto vengono prima dei quattro dati", () => {
     // Le classi `order-*`: il numero e' la posizione sul telefono.
     const posizione = (ancora: string) => {
       const i = schedaSolaCodice.indexOf(ancora);
@@ -69,8 +85,8 @@ describe("l'ordine sul telefono", () => {
       const m = [...schedaSolaCodice.slice(0, i).matchAll(/\border-(\d)\b/g)];
       return m.length ? Number(m[m.length - 1][1]) : null;
     };
-    expect(posizione("<VehicleGallery")).toBe(1);
-    expect(posizione("<RequestInformationForm")).toBe(4);
+    expect(posizione("<VehicleGallery")).toBe(2);
+    expect(posizione("heroSpecs.map")).toBe(3);
   });
 
   it("l'ordine vale solo sul telefono: sopra i 1024px torna la pagina a due colonne", () => {
