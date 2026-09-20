@@ -1552,6 +1552,31 @@ elenco esplicito dentro il test con il perche'. E' voluto: il debito e' vero e
 noto, e l'elenco **puo' solo accorciarsi**. Un controllo che non nasce perche'
 oggi troverebbe qualcosa e' un controllo che non nascera' mai.
 
+**E c'e' una forma nuova di guardiano, che servira' ancora: quello che
+impedisce di fare una cosa inutile, invece di imporne una utile.**
+
+Quasi tutti i controlli di questo progetto dicono *"questa cosa deve
+esserci"*. Il 20/09/2026 ne e' nato uno che dice il contrario: **`rel="next"`
+e `rel="prev"` non si scrivono.** Non perche' facciano danno, ma perche'
+Google non li usa piu' dal 2019 -- *"Google no longer uses these tags"*,
+letto sulla sua documentazione, non ricordato -- e metterli **farebbe
+credere a chi legge il codice che il problema sia risolto da li'**, mentre
+quello che conta e' tutt'altro: un canonico suo per ogni pagina, i
+collegamenti percorribili, un titolo diverso.
+
+E' un controllo che protegge da una cosa peggiore di un difetto: **una
+soluzione plausibile e inefficace**. Chi arrivera' fra sei mesi sapendo che
+"per la paginazione si mettono prev/next" li aggiungera' in buona fede, si
+sentira' a posto, e smettera' di cercare. Il test lo ferma e il commento gli
+dice perche'.
+
+Quando serve una forma cosi': **ogni volta che esiste una risposta famosa e
+sbagliata** a un problema che abbiamo risolto in un altro modo. Il rischio
+non e' che qualcuno rompa qualcosa, e' che qualcuno **dichiari chiuso** un
+problema aperto. Il test va scritto in negativo (`not.toContain`) e il
+commento deve contenere la fonte e la data, perche' la risposta famosa era
+giusta un tempo e chi la propone non e' sprovveduto: e' solo fermo a prima.
+
 **E il 20/09/2026 uno di quegli elenchi si e' accorciato da solo, per il
 motivo migliore.** `dealer-vehicle-search.tsx` era fra i file con i campi
 dei moduli sotto i sedici pixel. Ne e' uscito senza che nessuno abbia
