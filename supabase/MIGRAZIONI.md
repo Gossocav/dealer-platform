@@ -65,10 +65,19 @@ questo elenco, non ricostruendolo da un riepilogo.
    WhatsApp in evidenza, piu' un modulo senza veicolo. Da verificare prima di
    costruirlo: un contatto senza `vehicle_id` passa, o il trigger lo rifiuta?
 
-5. **Il resto delle cose interne**: le due porte ancora scollegate dalla
-   provenienza (importazione da file, foglio di consegna) e
-   `vehicle_category` che dice "dal tuo sito" su un valore che dal sito non
-   arriva.
+5. **Il resto delle cose interne:**
+   - le **dieci colonne `cost_*`** del conto economico, obbligatorie con
+     valore predefinito zero: li' "non l'ho registrato" e "non e' costato
+     niente" **non si distinguono**, e finche' e' cosi' **il margine di
+     un'auto a cui il concessionario non ha ancora messo i costi sembra
+     completo e non lo e'** -- tutte le voci hanno un numero, il conto torna,
+     e il margine e' piu' alto del vero di tutto quello che non e' stato
+     ancora scritto. E' il numero su cui si decide un prezzo. **Serve una
+     migration**, e va mandata al titolare per intero quando ci si arriva;
+   - le due porte ancora scollegate dalla provenienza (importazione da file,
+     foglio di consegna);
+   - `vehicle_category` che dice "dal tuo sito" su un valore che dal sito non
+     arriva.
 
 **Fuori dall'ordine, e apposta: le tre voci del piano multiutente.** Le
 notifiche leggibili fra colleghi, il `cross join` sugli utenti nelle due

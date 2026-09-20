@@ -185,6 +185,24 @@ e l'elenco a video e' una pagina di nove righe gia' filtrata; e un'auto
 portata in vetrina occupa un posto **anche quando e' un aggiornamento** di una
 gia' in archivio, non solo quando e' nuova.
 
+**E una terza, trovata il 19/09/2026: un controllo preventivo che di fronte a
+una richiesta fallita rispondeva "c'e' posto per tutto".** `contaPubblicate`
+finiva con `count ?? 0`. Quel `count` e' nullo in due casi che non si
+somigliano per niente: quando le auto pubblicate sono davvero zero, e quando
+**la richiesta al database non e' riuscita**. Nel secondo caso il controllo
+concludeva "nessuna pubblicata", quindi `postiLiberi` restituiva l'intero
+piano, quindi il clic passava -- per essere respinto a meta' dal trigger, con
+la frase del database e senza dire cosa fare. Cioe' **esattamente lo scenario
+che quel controllo esiste per evitare**, e che sta scritto tre paragrafi piu'
+sopra.
+
+La regola generale, e vale per qualunque controllo preventivo: **un controllo
+che non sa non deve rispondere "si'".** Le tre risposte sono "puoi", "non
+puoi" e "non lo so", e la terza non si appiattisce su nessuna delle altre due
+per comodita'. Oggi i due conteggi rispondono `null`, e chi li chiama lo
+tratta come "tetto non leggibile" -- che e' la risposta prudente gia'
+prevista.
+
 **Un sito che frena perde il turno, non il lavoro.** Quando il sito di una
 concessionaria risponde "troppe richieste" (429), insistere e' esattamente
 quello che ci ha chiesto di non fare: si passa la mano e il tempo va agli
@@ -308,9 +326,21 @@ guardiano. Due cose vanno sapute prima di toccare quella zona.
 **Nessuno dei nove era visibile quel giorno**, ed e' il motivo per cui erano
 li' da mesi: in produzione **372 auto su 372 hanno un prezzo**, e delle dieci
 righe di conto economico **nessuna ha l'acquisto a zero** (nove vuote, una da
-4.000 €). Erano tutti carichi, non incendi. Non e' un argomento per
-rimandarli: un difetto che aspetta il primo cliente con un listino incompleto
-e' peggio di uno che si vede subito, perche' si manifesta il giorno peggiore.
+4.000 €). Erano tutti carichi, non incendi.
+
+**E qui sta la risposta a "ma quanto e' urgente".** Questi difetti **non si
+misurano da quante righe toccano oggi, ma da cosa succede il giorno che una
+riga ci finisce dentro.** "Zero righe coinvolte" non vuol dire "nessun
+danno": vuol dire che nessuno li ha ancora incontrati, e che quando
+qualcuno li incontrera' saremo altrove a fare altro. Il conteggio a zero e'
+la misura dell'esposizione di oggi, non della gravita'.
+
+Vale al contrario di come suona: **zero righe e' anche il momento migliore
+per correggerli.** Non c'e' niente da riparare, nessun dato gia' sbagliato da
+rintracciare, nessuna concessionaria a cui spiegare perche' un numero era
+diverso la settimana scorsa. Il giorno che le righe non sono piu' zero, alla
+correzione si aggiunge la bonifica -- e la bonifica di un dato cancellato,
+come quello del conto economico qui sotto, **non si puo' fare**.
 
 **E due sono rimasti fuori apposta:**
 
@@ -320,16 +350,39 @@ e' peggio di uno che si vede subito, perche' si manifesta il giorno peggiore.
    lo schema che non ha il posto dove scrivere la differenza. Per questo il
    modulo mostra la casella vuota quando una `cost_*` vale zero, mentre
    mostra "0" per `purchase_price` e `sale_price`, che il vuoto lo ammettono.
-   Chi vorra' distinguerle deve passare da una migration, non da una
-   modifica al modulo.
+
+   **Va risolta, e serve una migration**, quindi non adesso: e' in elenco fra
+   le cose interne in [MIGRAZIONI.md](supabase/MIGRAZIONI.md). Il motivo per
+   cui non e' cosmetica: finche' zero e "non registrato" sono
+   indistinguibili, **il margine di un'auto a cui il concessionario non ha
+   ancora messo i costi sembra completo e non lo e'**. Il conto torna, tutte
+   le voci hanno un numero, e il margine e' piu' alto del vero di tutto
+   quello che non e' stato ancora scritto -- ed e' il numero su cui si
+   decide un prezzo.
 2. **La perizia scrive "0 €" su ogni voce non compilata**
-   (`perizia-page.tsx`, la funzione `numero()`). Sembra lo stesso difetto e
-   potrebbe non esserlo: in una perizia una riga lasciata in bianco vuol dire
-   plausibilmente "qui non c'e' da fare niente", cioe' **zero davvero** -- e
-   lo stesso file distingue gia' `null` per il prezzo offerto, segno che chi
-   l'ha scritto ci aveva pensato. Cambiarlo metterebbe trattini dove il
-   perito intendeva zeri. **E' una domanda di prodotto, non di codice**, e
-   va posta prima di toccarla.
+   (`perizia-page.tsx`, la funzione `numero()`), e **non va corretta**.
+   Deciso dal titolare il 20/09/2026, dopo averla guardata.
+
+   Sembra il decimo caso della passata e non lo e', e la differenza vale la
+   pena capirla perche' e' l'unica cosa che impedisce a qualcuno di
+   "correggerla" fra sei mesi. Negli altri nove il vuoto voleva dire **"non
+   lo so"**: un'auto senza prezzo in archivio e' un'auto di cui il prezzo
+   nessuno l'ha scritto. Qui il vuoto vuol dire **"non c'e' niente da
+   fare"**: una perizia si compila con l'auto davanti, voce per voce, e una
+   riga lasciata in bianco e' una riga che il perito **ha guardato** e ha
+   giudicato a posto. Zero e' la risposta giusta, e un trattino direbbe una
+   cosa falsa -- che quella voce non e' stata valutata.
+
+   La prova che non e' una svista sta nello stesso file: `offered_price`
+   distingue gia' `null` e lo mostra come "-". Chi l'ha scritto sapeva fare
+   la differenza, e l'ha fatta dove serviva.
+
+   **La regola che ne esce, ed e' la cosa da portarsi via:** prima di
+   trasformare uno zero in un trattino si guarda **chi riempie quel campo e
+   in che condizioni**. Un campo che si compila una volta sola davanti
+   all'oggetto, con l'obbligo implicito di guardarlo tutto, non ha vuoti che
+   vogliono dire "non lo so": ha vuoti che vogliono dire zero. Un campo che
+   si riempie quando capita, ce l'ha eccome.
 
 **E la terza forma che prende questa famiglia: il ripiego silenzioso.** Le
 prime due si riconoscono perche' il numero e' **inventato** (le due
@@ -1109,6 +1162,39 @@ file si scrive in un **elenco esplicito** dentro il test, con il perche' e la
 regola che quell'elenco puo' solo accorciarsi -- come
 `SENZA_DATA_CONOSCIUTI` per le migration senza data. Un elenco di eccezioni che
 cresce e' il modo in cui un controllo diventa rumore.
+
+**E c'e' una categoria peggiore della sovrascrittura: il difetto che
+cancella.** La regola "un dato del concessionario non si sovrascrive mai"
+nasce da un difetto che **scrive il valore sbagliato**. Esiste un parente
+stretto, e fa piu' danni: quello che **non scrive niente e cancella quello
+che c'era**.
+
+Il caso, 19/09/2026, ed e' il piu' serio dell'intera passata sullo zero e il
+vuoto -- **e non lo stavamo cercando**. Nel conto economico un prezzo
+d'acquisto pari a **zero** tornava dal database come casella vuota
+(`scrivi()` aveva `valore !== 0`). Fin qui e' un messaggio sbagliato a video:
+la scheda diceva "manca il prezzo di acquisto" su un prezzo che c'e'. Ma il
+modulo salva quello che ha nelle caselle, e la casella vuota si rilegge
+`null`: quindi **al primo salvataggio successivo -- di qualunque altro campo
+-- lo zero nel database diventava `null`**. Il concessionario correggeva la
+data di vendita e perdeva il prezzo d'acquisto, senza toccarlo e senza
+saperlo.
+
+Le due cose che rendono questa famiglia diversa da tutte le altre:
+
+- **non lascia traccia.** Un valore sbagliato si puo' notare e correggere;
+  un valore cancellato non si distingue da un valore mai scritto. Dopo il
+  salvataggio nessuna schermata, nessun log e nessun controllo puo' piu'
+  dire che quello zero c'era;
+- **il danno cresce a ogni uso corretto del prodotto.** Non serve sbagliare
+  niente: basta usare il modulo come si deve, e ogni salvataggio distrugge
+  un dato in piu'.
+
+**La domanda da farsi ogni volta che un modulo rilegge e riscrive un
+archivio: cosa succede al dato che il modulo non sa rappresentare?** Se la
+risposta e' "sparisce", non e' un difetto di visualizzazione travestito: e'
+una perdita di dati, e va trattata come tale anche quando a video sembra
+solo una frase sbagliata.
 
 **Un dato che il sito dichiara e noi scartiamo senza lasciare traccia e'
 indistinguibile da un dato che il sito non ha mai detto.** Vale oltre il caso
