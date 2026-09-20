@@ -12,6 +12,7 @@ import {
   type DealerSortValue,
   type DealerVehicleFacets,
 } from "@/lib/dealer-vehicle-filters";
+import { etichettaFiltra, filtriDaMostrareSubito } from "@/lib/filtri-richiudibili";
 
 type DealerVehicleSearchProps = {
   /** Un elemento per veicolo, **nello stesso ordine** di `vehicles`. */
@@ -59,8 +60,31 @@ export function DealerVehicleSearch({ children, vehicles, totaleInVetrina }: Dea
 
   return (
     <section>
-      <div className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-4 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">
+        {/*
+          **Sul telefono i filtri partono chiusi.** Misurato il 20/09/2026 a
+          390px: aperti erano tredici campi, e la prima automobile
+          cominciava a 1.737 pixel -- due schermate di filtri prima di
+          vedere una macchina. Chi apre la pagina di un concessionario
+          vuole vedere le sue auto.
+
+          Sopra i 1024px il riquadro e' aperto come prima e il pulsante non
+          esiste: la regola `aperto-da-grande` sta in `globals.css`.
+
+          `open` quando un filtro e' gia' impostato: chi arriva da un
+          collegamento con dei filtri dentro, o torna indietro nel browser,
+          deve vedere **perche'** sta guardando poche auto.
+        */}
+        <details className="aperto-da-grande group" open={filtriDaMostrareSubito(filtriAttivi)}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08] [&::-webkit-details-marker]:hidden">
+            {etichettaFiltra(filtriAttivi)}
+            <span className="flex-none text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+              <span className="group-open:hidden">Apri</span>
+              <span className="hidden group-open:inline">Chiudi</span>
+            </span>
+          </summary>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 lg:mt-0">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Ricerca avanzata</p>
             <h2 className="mt-2 text-xl font-bold text-white">Filtra i veicoli di questa concessionaria</h2>
@@ -104,6 +128,7 @@ export function DealerVehicleSearch({ children, vehicles, totaleInVetrina }: Dea
             senzaVoceVuota
           />
         </div>
+        </details>
       </div>
 
       <div className="mt-6 flex flex-wrap items-baseline justify-between gap-2">
