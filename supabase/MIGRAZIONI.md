@@ -94,6 +94,13 @@ pagina, quel ramo e' la risposta gia' misurata -- e le sue parti
    - `vehicle_category` che dice "dal tuo sito" su un valore che dal sito non
      arriva.
 
+**Fuori dall'ordine perche' aspetta una misura: le due pagine servite
+fredde.** `/auto` e `/ricerca` -- venticinque pagine in tutto -- sono le
+uniche pubbliche ricalcolate a ogni richiesta. Non si decide niente finche'
+il titolare non porta il numero di Search Console: la condizione che fa
+scattare il lavoro e' scritta per esteso piu' sotto, in *"Il quadro
+dell'indicizzazione, e le due pagine servite fredde"*.
+
 **Fuori dall'ordine, e apposta: le tre voci del piano multiutente.** Le
 notifiche leggibili fra colleghi, il `cross join` sugli utenti nelle due
 interrogazioni, e la correzione su `dealer_users`. **Sono legate alla loro
@@ -605,6 +612,64 @@ E una terza, che viene dalla correzione di questa stessa nota: **"quante
 cose sono rotte" e "quanto costa" sono due domande diverse.** Il 91% era la
 prima. La seconda si risponde solo guardando se esiste un'altra strada -- e
 qui ce n'erano tre.
+
+## Il quadro dell'indicizzazione, e le due pagine servite fredde (20/09/2026)
+
+Fatto subito dopo la correzione qui sopra, **senza toccare niente**, per
+sapere da dove si parte prima di guardare Search Console. Misurato sul sito
+vero, `www.keyauto.it`, non in locale.
+
+**Le 276 schede sono raggiungibili da quattro strade**, e nessuna resta
+fuori:
+
+| da dove | schede |
+|---|---|
+| `/auto`, sfogliando le sue 13 pagine | 276 |
+| le 3 pagine delle concessionarie | 276 |
+| `/ricerca`, sfogliando le sue 12 pagine | 276 |
+| `sitemap.xml` (296 voci: 276 schede + 3 concessionarie + 17 pagine fisse) | 276 |
+
+Zero schede nella sitemap che nessun collegamento raggiunge, zero schede
+collegate che la sitemap non elenca.
+
+**Ogni pagina pubblica dichiara un canonico che punta a se stessa**, la home
+compresa. Le uniche che puntano altrove sono le ricerche con i filtri, che
+vanno su `/ricerca` e portano anche `noindex, follow`: e' voluto, perche' la
+citta' e' a testo libero e le combinazioni sono infinite. `robots.txt` blocca
+solo le aree riservate e dichiara la sitemap.
+
+**Il punto aperto: `/auto` e `/ricerca` sono le uniche pagine pubbliche
+ricalcolate a ogni richiesta.** Tutto il resto viaggia con una copia
+conservata; queste due no, e sono venticinque pagine in tutto.
+
+| | come viene servita | tempo (tre letture) |
+|---|---|---|
+| una scheda auto | copia conservata, pagina gia' pronta | 0,09-0,17 s |
+| una pagina di concessionaria | copia conservata, pagina gia' pronta | 0,09-0,17 s |
+| `/auto` e le sue 13 pagine | ricalcolata sempre (`no-store`) | 0,40-0,61 s |
+| `/ricerca` e le sue 12 pagine | ricalcolata sempre (`no-store`) | 0,63-1,08 s |
+
+E' **la stessa condizione del 06/09/2026** -- pagina fredda contro pagina
+pronta, che e' testualmente lo stato *"Rilevata, ma attualmente non
+indicizzata"* -- spostata dalle destinazioni ai percorsi.
+
+**Perche' non e' stato deciso niente.** L'attenuante e' vera e va tenuta: la
+sitemap porta a tutte e 276 le schede **senza passare di li'**, quindi per
+*trovarle* quelle venticinque pagine non servono. Servono per il peso dei
+collegamenti interni e per accorgersi degli arrivi nuovi.
+
+**La condizione che decide, scritta prima di guardare il numero** (cosi' non
+la si aggiusta dopo): si apre Search Console, *Indicizzazione → Pagine → Non
+indicizzate*, e si legge **"Rilevata, ma attualmente non indicizzata"**.
+
+- se e' **molto sotto 124** -- il valore del 06/09/2026 -- la correzione di
+  quel giorno ha tenuto, e queste venticinque pagine restano una nota;
+- se e' **ancora alto o cresciuto**, sono la **prima cosa da guardare**, e
+  allora vale la pena capire perche' quelle due pagine leggono l'indirizzo a
+  ogni visita e se possono non farlo.
+
+Il totale delle **indicizzate** si legge nella stessa schermata: quanto manca
+a 296 dice cos'altro resta fuori.
 
 ## Credenziali
 
