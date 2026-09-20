@@ -18,7 +18,6 @@ import { contaFiltriImpostati, etichettaFiltra, filtriDaMostrareSubito } from "@
  * Chi apre la pagina di un concessionario vuole **vedere** le sue auto.
  * Filtrare viene dopo, e solo per alcuni.
  */
-const concessionaria = readFileSync("src/components/marketplace/dealer-vehicle-search.tsx", "utf8");
 const ricerca = readFileSync("src/app/(marketplace)/ricerca/page.tsx", "utf8");
 const stili = readFileSync("src/app/globals.css", "utf8");
 
@@ -59,42 +58,51 @@ describe("chi arriva con dei filtri gia' messi li vede", () => {
   });
 });
 
-describe("le due pagine si richiudono allo stesso modo", () => {
-  it("tutte e due usano il <details> che si apre da solo su schermo largo", () => {
-    // Sono costruite in modi diversi -- /ricerca e' un modulo del server,
-    // la pagina della concessionaria un componente del browser -- quindi
-    // non possono condividere il componente. Condividono la regola.
-    for (const [nome, sorgente] of [["la concessionaria", concessionaria], ["/ricerca", ricerca]] as const) {
-      expect(sorgente, `${nome} deve usare aperto-da-grande`).toContain('className="aperto-da-grande group"');
-      expect(sorgente, `${nome} deve usare la stessa dicitura`).toContain("etichettaFiltra(");
-      expect(sorgente, `${nome} deve aprirsi con i filtri attivi`).toContain("filtriDaMostrareSubito(");
-    }
+describe("il riquadro dei filtri si richiude sul telefono", () => {
+  /**
+   * **Erano due pagine, il 20/09/2026 e' rimasta una.**
+   *
+   * La pagina di una concessionaria aveva il suo riquadro di filtri, uguale
+   * a questo. Non ce l'ha piu': quei filtri giravano nel browser, e farli
+   * girare nel database obbligava la pagina a ricostruirsi a ogni visita
+   * (0,3-0,6 secondi contro 0,07, con `no-store`) -- la condizione che il
+   * 06/09 aveva lasciato 124 schede fuori dall'indice. Adesso quella pagina
+   * mostra le auto e manda qui per filtrarle, con `?dealer=<id>`.
+   *
+   * Quindi **una ricerca sola per tutto il sito**, ed e' la stessa ragione
+   * per cui le pagine dei risultati sono numerate: due convenzioni sullo
+   * stesso archivio sono peggio di una convenzione imperfetta.
+   */
+  it("il <details> si apre da solo su schermo largo", () => {
+    expect(ricerca).toContain('className="aperto-da-grande group"');
+    expect(ricerca).toContain("etichettaFiltra(");
+    expect(ricerca).toContain("filtriDaMostrareSubito(");
     expect(stili).toContain("details.aperto-da-grande::details-content");
   });
 
-  it("su /ricerca i campi restano dentro il modulo anche da chiusi", () => {
+  it("i campi restano dentro il modulo anche da chiusi", () => {
     // `<details>` nasconde con il foglio di stile, non toglie dalla pagina:
-    // premendo Cerca si spedisce tutto come prima, e funziona senza
-    // JavaScript -- che su quella pagina e' la regola.
+    // premendo Cerca si spedisce tutto, e funziona senza JavaScript.
     const modulo = ricerca.slice(ricerca.indexOf('<form className='), ricerca.indexOf("</form>"));
-    expect(modulo).toContain("<details");
-    expect(modulo).toContain("</details>");
-    // I campi stanno dentro il <details>, non fuori: se ne restasse uno
-    // fuori si vedrebbe da solo sul telefono, ed e' proprio cio' che si
-    // sta togliendo di mezzo.
     const dentro = modulo.slice(modulo.indexOf("<details"), modulo.indexOf("</details>"));
     for (const campo of ["<SearchField", "<SearchSelect", "<TendineMarcaModello", 'type="submit"']) {
       expect(dentro, `${campo} deve stare dentro il riquadro richiudibile`).toContain(campo);
     }
   });
-});
 
-describe("il conteggio vero resta sempre visibile", () => {
-  it("sta fuori dal riquadro che si richiude", () => {
-    // E' l'informazione per cui uno e' entrato su quella pagina: se si
-    // chiudesse insieme ai filtri, chiudere il riquadro nasconderebbe la
-    // risposta.
-    const dopoIlDetails = concessionaria.slice(concessionaria.indexOf("</details>"));
-    expect(dopoIlDetails).toContain("fraseConteggioVeicoli(");
+  it("la concessionaria da cui si arriva sopravvive a ogni altro filtro", () => {
+    // Senza, premere Cerca o cambiare pagina allargherebbe la ricerca a
+    // tutta Italia **senza dirlo**: chi stava guardando le auto di Autogepy
+    // si ritroverebbe il marketplace intero e non capirebbe perche'.
+    expect(ricerca).toContain('["dealer", filters.dealer]');
+    expect(ricerca).toContain('<input type="hidden" name="dealer"');
+  });
+
+  it("e si toglie con un gesto solo, tenendo gli altri filtri", () => {
+    // "Cerca in tutto il marketplace" azzera solo la concessionaria: chi
+    // aveva scelto Diesel continua a cercare Diesel.
+    expect(ricerca).toContain('buildSearchParams({ ...filters, dealer: "", page: 1 })');
   });
 });
+
+

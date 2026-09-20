@@ -191,9 +191,11 @@ const CAMPI_PICCOLI_CONOSCIUTI = new Set([
   "src/app/(marketplace)/auto/page.tsx",
   "src/app/(marketplace)/ricerca/page.tsx",
   "src/app/(marketplace)/page.tsx",
-  // Trovato solo dopo aver riparato l'estrattore: il vecchio si fermava sulla
-  // freccia di `onChange` e dichiarava sani i campi di questo file.
-  "src/components/marketplace/dealer-vehicle-search.tsx",
+  // **Tolto il 20/09/2026, e l'elenco si e' accorciato per davvero.** Quel
+  // file aveva tredici campi di filtro; adesso non ne ha nessuno, perche'
+  // la pagina della concessionaria non filtra piu' -- si va su `/ricerca`
+  // ristretta a lei. Il debito non e' stato spostato: e' sparito insieme al
+  // modulo.
 ]);
 
 describe("nessun modulo nuovo fa ingrandire la pagina su iPhone", () => {
@@ -379,7 +381,16 @@ function numeriContatiSuUnElenco(sorgente: string): string[] {
  * il numero esce con un "+" accanto. E' l'esempio di come si fa, non di cosa
  * si tollera.
  */
-const CONTEGGI_LEGITTIMI = new Set(["src/app/(marketplace)/page.tsx · numero passato per nome: value: brands.length"]);
+const CONTEGGI_LEGITTIMI = new Set([
+  "src/app/(marketplace)/page.tsx · numero passato per nome: value: brands.length",
+  // **Questo numero non e' mostrato da solo.** `mostrati` entra in
+  // `fraseConteggioVeicoli` insieme al totale vero letto dalla vista, ed e'
+  // quella funzione a decidere cosa scrivere: se ne mostra meno del totale
+  // dice "Prime 300 auto su 420 in vetrina", non "300". Il conteggio su un
+  // elenco tagliato qui e' **dichiarato**, che e' l'unico modo in cui puo'
+  // stare in una pagina.
+  "src/app/(marketplace)/concessionarie/[slug]/page.tsx · interpolazione nuda: {dealerVehicles.length}",
+]);
 
 describe("nessun numero mostrato si conta su un elenco con un tetto", () => {
   it("le pagine pubbliche non mostrano conteggi presi dalle righe caricate", () => {

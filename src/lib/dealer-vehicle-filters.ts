@@ -282,26 +282,24 @@ export function opzioniFiltri(veicoli: DealerVehicleFacets[], state: DealerFilte
  * @param caricati quanti ne ha caricati la pagina
  * @param totaleInVetrina quanti ne ha davvero in vetrina, o `null` se non si sa
  */
-export function fraseConteggioVeicoli(mostrati: number, caricati: number, totaleInVetrina: number | null): string {
-  const auto = (quante: number) => `${quante} ${quante === 1 ? "auto" : "auto"}`;
-  const laPaginaNeHaMenoDelVero = totaleInVetrina !== null && totaleInVetrina > caricati;
-  const nessunFiltro = mostrati === caricati;
+export function fraseConteggioVeicoli(mostrati: number, totaleInVetrina: number | null, filtriAttivi: number): string {
+  const auto = (quante: number) => `${quante} auto`;
 
   // **"in vetrina" solo quando il numero e' davvero quello della vetrina.**
-  // Con un filtro attivo le auto mostrate sono un sottoinsieme, e scrivere
-  // "12 auto in vetrina" su una concessionaria che ne ha 135 sarebbe falso
-  // -- lo stesso difetto dei numeri contati su un elenco tagliato, in
-  // un'altra forma. Deciso il 20/09/2026 rendendo i filtri richiudibili:
-  // questa riga resta sempre visibile, anche a filtri chiusi, ed e'
-  // l'informazione per cui uno e' entrato su quella pagina.
-  if (nessunFiltro) {
-    return laPaginaNeHaMenoDelVero
-      ? `Prime ${auto(caricati)} su ${totaleInVetrina} in vetrina`
-      : `${auto(caricati)} in vetrina`;
+  // Con un filtro attivo le auto mostrate sono un sottoinsieme: scrivere
+  // "12 auto in vetrina" su una concessionaria che ne ha 133 sarebbe falso.
+  if (filtriAttivi > 0) {
+    return totaleInVetrina === null ? auto(mostrati) : `${auto(mostrati)} su ${totaleInVetrina}`;
   }
 
-  return laPaginaNeHaMenoDelVero
-    ? `${auto(mostrati)} sulle prime ${caricati} caricate, di ${totaleInVetrina} in vetrina`
-    : `${auto(mostrati)} su ${caricati}`;
+  // Senza filtri, se se ne mostrano meno del totale vuol dire che l'elenco
+  // e' stato tagliato dal tetto della richiesta: si dice, invece di far
+  // credere che la concessionaria ne abbia meno.
+  if (totaleInVetrina !== null && totaleInVetrina > mostrati) {
+    return `Prime ${auto(mostrati)} su ${totaleInVetrina} in vetrina`;
+  }
+
+  return `${auto(mostrati)} in vetrina`;
 }
+
 

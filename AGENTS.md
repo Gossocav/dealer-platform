@@ -1013,6 +1013,60 @@ quello che si sperava -- ed e' il motivo per cui ogni numero riportato in
 questo progetto viene scritto insieme a **come** e' stato ottenuto, e non
 da solo.
 
+**E la difesa pratica: una misura si ripete prima di riportarla.** Il
+20/09/2026, misurando la pagina di una concessionaria subito dopo aver
+avviato il server, l'altezza risultava 68.513px e la prima auto a 641.
+Ripetuta tre volte di fila: **64.014px e 487**, tre volte identiche. La
+prima lettura aveva preso la pagina con le immagini ancora a meta'
+caricamento, e stava per finire in un resoconto come se fosse un
+peggioramento di 114 pixel causato dalla modifica appena fatta.
+
+Non serve un rituale: **due letture uguali bastano**, e costano secondi. La
+regola vale soprattutto quando il numero **conferma** quello che ci si
+aspettava, perche' li' nessuno lo ricontrolla.
+
+**Un guardiano che si accende mentre lavori non e' un ostacolo: e' l'unico
+momento in cui ti dice qualcosa che non sapevi.**
+
+Il caso, 20/09/2026, ed e' il piu' istruttivo della settimana. Portando i
+filtri della pagina di una concessionaria dal browser al database -- una
+modifica giusta, chiesta, completa e con quattordici test verdi -- si e'
+acceso `marketplace-performance.test.ts`, che vieta `force-dynamic` su
+quella pagina. La reazione naturale davanti a un test che si oppone a un
+lavoro finito e' spegnerlo: "e' un dettaglio di cache, il lavoro e' altro".
+
+Non era un dettaglio. Quel guardiano custodiva una correzione del
+06/09/2026: con poco traffico e quasi trecento schede, Googlebot cadeva
+quasi sempre su pagine fredde (0,65 s contro 0,07), che e' **testualmente**
+la condizione dello stato "Rilevata, ma attualmente non indicizzata" -- 124
+schede quel giorno. Misurato allora sul ramo: la pagina rispondeva in
+0,3-0,6 secondi con `Cache-Control: no-store`.
+
+Cioe' il lavoro, fatto bene, avrebbe pagato con l'indicizzazione -- che su
+un marketplace senza traffico e' quasi l'unica strada perche' qualcuno
+arrivi. **Il costo della scoperta e' stato un ramo buttato. Il costo di
+aver spento il guardiano sarebbe stato scoprirlo fra tre mesi da Search
+Console**, senza piu' nessuno che colleghi le due cose.
+
+Le tre regole che ne escono:
+
+1. **un guardiano che si accende su un lavoro finito va letto, non
+   spento.** Il commento dice quale difetto impedisce: se parla di una cosa
+   che non sapevi, il lavoro ha un costo che non avevi contato;
+2. **si lascia rosso mentre si indaga.** Spegnerlo "per intanto" fa perdere
+   la sola prova che il costo esiste -- e in un ramo abbandonato quel rosso
+   e' la documentazione;
+3. **un ramo scartato si tiene, con scritto dove sta e perche'.** Il
+   prossimo che riproporra' la stessa cosa merita una risposta gia'
+   misurata, non un secondo giro di scoperte. Qui e'
+   `prova/filtri-al-server-costano-l-indicizzazione`.
+
+E la conseguenza di prodotto, perche' e' la parte che si porta avanti: **la
+pagina di una concessionaria resta statica e mostra le auto; chi vuole
+filtrarle va su `/ricerca` ristretta a quella concessionaria**
+(`?dealer=<id>`). Una ricerca sola per tutto il sito -- la stessa ragione
+per cui i risultati si sfogliano a pagine numerate.
+
 **E vale anche per il verde di GitHub: un verde si legge sempre insieme al
 commit a cui si riferisce.** Il 18/09/2026, cinque minuti dopo aver scritto la
 regola qui sopra, la CI di una PR e' stata letta come "passata" mentre quel
