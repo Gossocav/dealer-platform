@@ -133,12 +133,30 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
   );
 }
 
+/**
+ * Una colonna del pie' di pagina: **raggruppata sul telefono, aperta sullo
+ * schermo largo.**
+ *
+ * Le tre colonne sono diciassette collegamenti, e su un telefono diventavano
+ * 834px -- una schermata intera -- elencati uno sotto l'altro in fondo a ogni
+ * pagina pubblica. Nessuno li scorre, e chi cerca "Termini e condizioni" li
+ * cerca apposta: un titolo da toccare lo porta li' piu' in fretta di venti
+ * righe da saltare.
+ *
+ * Sopra i 1024px lo spazio c'e', il titolo torna un titolo e i collegamenti
+ * sono tutti in vista: la regola sta in `globals.css`, verificata con un
+ * browser vero alle due larghezze.
+ */
 function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</p>
+    <details className="aperto-da-grande group">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-white/10 pb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 transition hover:text-slate-300 [&::-webkit-details-marker]:hidden">
+        {title}
+        <span aria-hidden="true" className="flex-none text-base leading-none text-slate-600 transition group-open:rotate-45">+</span>
+      </summary>
+      <p className="hidden text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 lg:block">{title}</p>
       <div className="mt-4 flex flex-col gap-3">{children}</div>
-    </div>
+    </details>
   );
 }
 

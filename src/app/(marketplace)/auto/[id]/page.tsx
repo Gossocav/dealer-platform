@@ -326,12 +326,23 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
   // The 5 specs a buyer scans first — shown as icon chips right under the
   // gallery. Everything else (still all present, nothing dropped) moves to
   // the quieter technical spec list further down.
+  /**
+   * **I quattro dati che decidono un acquisto**, e non uno di piu'.
+   *
+   * Erano cinque: c'era anche la potenza. Su un telefono le caselle stanno
+   * due per riga, quindi cinque voci sono tre righe e la quinta resta sola
+   * in fondo -- e la potenza non e' fra le cose che fanno decidere: si
+   * guarda dopo, quando l'auto e' gia' piaciuta. E' scesa nella scheda
+   * tecnica completa, dove non si perde.
+   *
+   * Questi quattro restano **sempre visibili**: sono l'unica parte della
+   * scheda tecnica che non si richiude.
+   */
   const heroSpecs: Array<{ key: string; label: string; value: string; icon: SpecIconName }> = [
     { key: "registration_date", label: "Immatricolazione", value: resolveVehicleRegistrationDate(vehicle), icon: "calendar" },
     { key: "mileage", label: "Percorrenza", value: formatMileage(vehicle.mileage), icon: "gauge" },
     { key: "fuel", label: "Alimentazione", value: formatText(vehicle.fuel), icon: "fuel" },
     { key: "transmission", label: "Cambio", value: formatText(vehicle.transmission), icon: "gearbox" },
-    { key: "power_cv", label: "Potenza", value: vehicle.power_cv ? `${formatText(vehicle.power_cv)} CV` : "-", icon: "bolt" },
   ];
 
   const descrizione = String(vehicle.description ?? "").trim();
@@ -366,9 +377,25 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
       {/* Conta la visita dal browser: questa pagina e' in cache, quindi un
           contatore lato server conterebbe i ricalcoli e non le persone. */}
       <SegnalaVisita tipo="annuncio" id={vehicle.id} />
-      <div className="mx-auto w-full max-w-7xl space-y-6">
+      {/*
+        **L'ordine della pagina lo decide il telefono.**
+
+        Misurato il 20/09/2026 a 390px su schede vere: la pagina era alta
+        **7,4 schermate** (6.205px la tipica, 6.300px la piu' lunga) e il
+        modulo "Richiedi informazioni" -- l'unico punto della pagina che
+        produce clienti -- cominciava a **3.780px**, cioe' dopo quattro
+        schermate e mezzo di scorrimento. Chi arriva da un annuncio guarda le
+        foto, e se non trova subito il modo di scrivere se ne va.
+
+        Adesso l'ordine sul telefono e': foto, titolo e prezzo, i quattro
+        dati che decidono, **il modulo**, e sotto tutto il resto richiuso.
+        Su schermo largo la pagina resta quella di prima, a due colonne: le
+        classi `order-*` valgono solo finche' i due contenitori sono
+        `contents`, e sopra i 1024px tornano `block`.
+      */}
+      <div className="mx-auto grid w-full min-w-0 max-w-7xl gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start">
         {/* ============ HERO ============ */}
-        <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-6 py-8 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)] sm:px-10 sm:py-10">
+        <section className="relative order-2 overflow-hidden lg:order-none lg:col-span-2 rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 px-6 py-8 text-white shadow-[0_40px_120px_-40px_rgba(0,0,0,0.7)] sm:px-10 sm:py-10">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-40 blur-3xl"
@@ -391,9 +418,14 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
           </div>
         </section>
 
-        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start">
-          <section className="order-1 min-w-0 space-y-6">
-            {/* ============ GALLERY ============ */}
+        {/* `contents` scioglie questo contenitore nella griglia di sopra, cosi'
+            i suoi pezzi si possono ordinare uno per uno sul telefono. Sopra i
+            1024px torna una colonna vera. */}
+        <section className="contents min-w-0 lg:order-none lg:block lg:space-y-6">
+          {/* ============ GALLERY ============ */}
+          {/* Le foto per prime: sono la cosa che fa vendere, e su un telefono
+              sono anche la prima cosa che si guarda. */}
+          <div className="order-1 min-w-0 space-y-6 lg:order-none">
             <VehicleGallery images={resolvedImages} label={resolveVehicleLabel(vehicle)} />
 
             {/* Attaccato alle foto, non in fondo alla pagina: chi guarda le
@@ -401,9 +433,10 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 (sezione 4), ma li' non ci arriva nessuno mentre sceglie
                 un'automobile. */}
             <p className="px-1 text-xs leading-6 text-slate-500">{AVVISO_FOTOGRAFIE}</p>
+          </div>
 
-            {/* ============ HERO SPEC STRIP ============ */}
-            <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {/* ============ I QUATTRO DATI CHE DECIDONO ============ */}
+          <div className="order-3 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 lg:order-none">
               {heroSpecs.map((spec) => (
                 <div
                   key={spec.key}
@@ -427,8 +460,8 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               ))}
             </div>
 
-            {/* ============ DESCRIPTION + TECHNICAL SPECS ============ */}
-            <div className="min-w-0 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8">
+          {/* ============ DESCRIPTION + TECHNICAL SPECS ============ */}
+          <div className="order-5 min-w-0 rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] sm:p-8 lg:order-none">
               {/* Senza descrizione il riquadro non si disegna. Prima si
                   leggeva "Descrizione -": un trattino sotto un'intestazione,
                   su 85 delle 235 automobili pubblicate. Una sezione che non
@@ -488,7 +521,26 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 </div>
               ) : null}
 
-              <h2 className="mt-7 text-lg font-bold tracking-tight text-white">Scheda tecnica</h2>
+              {/* **La scheda tecnica completa si richiude sul telefono.**
+                  I quattro dati che decidono -- immatricolazione, chilometri,
+                  alimentazione, cambio -- stanno in cima alla pagina e non si
+                  chiudono mai. Qui c'e' tutto il resto: quindici righe che si
+                  leggono **dopo** aver deciso che l'auto interessa, e che sul
+                  telefono valevano da sole fino a 739px misurati.
+
+                  Il contenuto resta nel documento -- `<details>` nasconde con
+                  il foglio di stile, non toglie dalla pagina -- quindi chi
+                  indicizza lo legge comunque, e gli stessi dati stanno anche
+                  nei dati strutturati piu' sopra. Sopra i 1024px il riquadro
+                  e' aperto e non c'e' niente da cliccare. */}
+              <details className="aperto-da-grande mt-7 group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:bg-white/[0.06] [&::-webkit-details-marker]:hidden">
+                  <h2 className="text-lg font-bold tracking-tight text-white">Scheda tecnica</h2>
+                  <span className="flex-none text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                    <span className="group-open:hidden">Apri</span>
+                    <span className="hidden group-open:inline">Chiudi</span>
+                  </span>
+                </summary>
               <div className="mt-4 grid gap-x-8 sm:grid-cols-2">
                 <dl className="divide-y divide-white/5">
                   {technicalSpecsVisibili.filter((_, i) => i % 2 === 0).map((spec) => (
@@ -534,12 +586,18 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                   </div>
                 </div>
               ) : null}
+              </details>
             </div>
-          </section>
+        </section>
 
           {/* ============ SIDEBAR ============ */}
-          <aside className="order-2 min-w-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
-            <div className="space-y-3">
+        <aside className="contents min-w-0 lg:order-none lg:block lg:space-y-6 lg:sticky lg:top-6 lg:self-start">
+          {/* **Il modulo sale al quarto posto, e non si tocca.** Resta aperto,
+              intero, con i campi come sono: e' il punto in cui il sito
+              guadagna, ed e' stato sistemato il 19/09. Portarlo su e'
+              meta' di questo lavoro; nasconderlo dietro un clic o
+              stringerlo per far spazio disferebbe l'altra meta'. */}
+          <div className="order-4 space-y-3 lg:order-none">
               <div className="flex flex-wrap items-center gap-3">
                 <a
                   href="#contatta-venditore"
@@ -573,7 +631,7 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               </div>
             </div>
 
-            <div className="min-w-0 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)]">
+          <div className="order-6 min-w-0 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-slate-800/60 to-slate-900 p-6 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] lg:order-none">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">Concessionaria</p>
               <div className="mt-3 flex min-w-0 items-center gap-3">
                 <div className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-gradient-to-br from-white via-blue-100 to-blue-300 text-lg font-extrabold text-slate-950">
@@ -582,12 +640,35 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
                 <h2 className="min-w-0 max-w-full break-words text-xl font-bold text-white [overflow-wrap:anywhere]">{dealerDisplayName}</h2>
               </div>
               <p className="mt-3 min-w-0 max-w-full break-words text-sm leading-7 text-slate-400 [overflow-wrap:anywhere]">{dealershipLocality || "-"}</p>
-              <div className="mt-4 space-y-2.5">
-                <InfoRow label="Città" value={formatText(dealerCity)} />
-                <InfoRow label="Telefono" value={formatText(dealerPhone)} />
-                <InfoRow label="WhatsApp" value={formatText(dealerWhatsAppPhone)} />
-                <InfoRow label="Email" value={formatText(dealerEmail)} />
-              </div>
+
+              {/* **Del venditore, sul telefono, restano visibili il nome e il
+                  modo di contattarlo.** I quattro recapiti scritti per esteso
+                  -- citta', telefono, WhatsApp, email -- sono 490px di pagina
+                  che quasi nessuno legge: chi vuole scrivere usa il modulo
+                  qui sopra, chi vuole chiamare usa il bottone. Restano per
+                  chi li cerca, a un tocco. */}
+              <a
+                href="#contatta-venditore"
+                className="mt-4 flex items-center justify-center rounded-2xl bg-gradient-to-br from-white via-blue-100 to-blue-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:brightness-105 lg:hidden"
+              >
+                Contatta {dealerDisplayName}
+              </a>
+
+              <details className="aperto-da-grande group mt-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-left text-sm font-semibold text-slate-200 transition hover:bg-white/[0.06] [&::-webkit-details-marker]:hidden">
+                  Recapiti
+                  <span className="flex-none text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                    <span className="group-open:hidden">Apri</span>
+                    <span className="hidden group-open:inline">Chiudi</span>
+                  </span>
+                </summary>
+                <div className="mt-4 space-y-2.5">
+                  <InfoRow label="Città" value={formatText(dealerCity)} />
+                  <InfoRow label="Telefono" value={formatText(dealerPhone)} />
+                  <InfoRow label="WhatsApp" value={formatText(dealerWhatsAppPhone)} />
+                  <InfoRow label="Email" value={formatText(dealerEmail)} />
+                </div>
+              </details>
 
               {/* Il nome di chi vende l'auto era testo morto: si leggeva e non
                   portava da nessuna parte, cosi' per vedere cos'altro ha in
@@ -608,14 +689,13 @@ export default async function MarketplaceVehicleDetailPage({ params }: { params:
               </Link>
             </div>
 
-            <Link
-              href="/auto"
-              className="flex items-center justify-center rounded-[32px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
-            >
-              Torna al catalogo
-            </Link>
-          </aside>
-        </div>
+          <Link
+            href="/auto"
+            className="order-7 flex items-center justify-center rounded-[32px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white lg:order-none"
+          >
+            Torna al catalogo
+          </Link>
+        </aside>
       </div>
     </main>
   );

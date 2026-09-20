@@ -47,6 +47,7 @@ type VeicoloScheda = {
   emission_class?: string | null;
   color?: string | null;
   interior_type?: string | null;
+  power_cv?: string | number | null;
   warranty?: string | null;
 };
 
@@ -67,6 +68,12 @@ export function righeSchedaTecnica(veicolo: VeicoloScheda): RigaSchedaTecnica[] 
     { label: "Versione", value: formatText(etichettaCampo(ripulisciTitoloVeicolo(veicolo.version))) },
     { label: "Trazione", value: formatText(veicolo.traction) },
     { label: "Cilindrata", value: formatText(veicolo.engine_size) },
+    // **La potenza in CV e' arrivata qui il 20/09/2026, e non e' un'aggiunta:
+    // e' un trasloco.** Stava fra i quattro dati in cima alla scheda, che
+    // erano cinque. Toglierla da li' senza rimetterla qui l'avrebbe fatta
+    // sparire dalla pagina -- e in Italia la potenza si legge in cavalli,
+    // non in kilowatt: era l'unica delle due che il compratore capisce.
+    { label: "Potenza CV", value: formatText(veicolo.power_cv) },
     { label: "Potenza kW", value: formatText(veicolo.power_kw) },
     { label: "Carrozzeria", value: formatText(etichettaCampo(veicolo.body_type)) },
     { label: "Porte", value: formatText(veicolo.doors) },
