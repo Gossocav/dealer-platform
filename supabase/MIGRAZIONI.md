@@ -93,6 +93,19 @@ pagina, quel ramo e' la risposta gia' misurata -- e le sue parti
 `/ricerca`.
 
 5. **Il resto delle cose interne:**
+   - **una data di prima pubblicazione che nessuna reimportazione tocca.**
+     Oggi non esiste: `created_at` e' l'unica cosa che dice quando una
+     scheda e' nata, e una reimportazione che riscrive la riga la sposta
+     senza che l'indirizzo sia nuovo. **Il caso che l'ha resa necessaria**:
+     il 21/09/2026 si voleva sapere quante delle non indicizzate esistevano
+     gia' durante la finestra di scansione di fine agosto, e la risposta
+     poggiava tutta su quella colonna, senza una seconda fonte --
+     `audit_logs` non ha eventi di nascita per nessuna delle 43 schede
+     indicizzate. Si e' potuto escludere lo spostamento grosso, non quello
+     dentro la finestra, e **il numero e' rimasto non scrivibile**. Fra tre
+     settimane ci faremo la domanda gemella -- *quante delle auto
+     pubblicate prima di oggi sono state indicizzate dopo* -- e senza quella
+     data non si potra' rispondere nemmeno allora;
    - **i 486 KB di HTML della pagina di una concessionaria** (Ponginibbi,
      misurati il 21/09/2026 con un browser vero: 50 immagini, 134
      collegamenti). E' peso su ogni visita, non indicizzazione. **Annotato,
@@ -810,6 +823,27 @@ settimana sono:
 | finalita' **Rilevamento** | **3%** | salire |
 
 Sono i due numeri che dicono se il tempo di Google e' tornato sulle pagine.
+
+**LE DUE DATE DI VERIFICA, e prima di quelle un numero fermo non vuol dire
+niente.**
+
+| quando | cosa si guarda | cosa deve fare |
+|---|---|---|
+| **24-25 settembre 2026** | *Impostazioni → Statistiche di scansione*: tipo di file **HTML**, e finalita' **Rilevamento** | HTML ben sopra il **6%**, Rilevamento sopra il **3%** |
+| **verso il 10 ottobre 2026** | *Pagine*: il numero delle **indicizzate** | salire dalle 57 di oggi |
+
+**Perche' due date e non una.** Le due cose si muovono con tempi diversi:
+la ripartizione delle scansioni cambia appena Google rilegge robots.txt,
+l'indicizzazione arriva dopo che le pagine sono state scaricate e valutate.
+Guardare le indicizzate il 25 settembre darebbe "fermo" e sarebbe una
+risposta senza senso, non una brutta notizia.
+
+**E il 21 settembre sono state fatte tre correzioni in un giorno** -- la
+data di modifica che non si muove piu' a vuoto, i pacchetti del router
+fuori dalle scansioni, la home che non serve piu' una pagina vuota. Sono
+gia' al limite di quello che si riesce a distinguere: una quarta renderebbe
+illeggibile il risultato. **Da qui al 24 settembre non si tocca altro su
+questo fronte.**
 Vanno letti li' e non si possono misurare da qui: il controllo quotidiano
 verifica che la riga di robots.txt **ci sia ancora**, non come Google spende
 il suo tempo.
@@ -823,11 +857,57 @@ arriva. La correzione sta in `campiDelRipasso`
 (`src/lib/dealer-site-sync.ts`), il guardiano in
 `src/lib/updated-at-si-muove-solo-se-cambia.test.ts`.
 
-**Come si misura se ha funzionato**, e va fatto dopo che la correzione e' in
-produzione **e** la sincronizzazione ha girato un giro intero (tre ore):
-si contano le schede pubblicate con `updated_at` nelle ultime 24 ore. Erano
-**241 su 276**. Se scendono a una manciata, ha funzionato; se restano tante,
-la scrittura arriva da un'altra porta e va trovata quella.
+**Una nota di metodo sull'ora della pubblicazione, perche' e' lo stesso
+righello su cui si e' gia' sbagliato.** L'ora del **record** della
+pubblicazione e l'ora in cui la rete comincia a servire la copia nuova
+**non coincidono**. Misurato il 21/09/2026 sul deploy delle 09:53:34:
+
+| lettura | eta' della copia | quando e' nata | cosa serviva |
+|---|---|---|---|
+| 09:53:37 (tre secondi dopo il record) | 63 s | **09:52:34**, un minuto *prima* del record | la pagina **vecchia** |
+| 09:55:12 | 95 s | 09:53:37, tre secondi *dopo* il record | la pagina nuova |
+
+Cioe': leggendo tre secondi dopo il record si misura ancora la versione
+precedente, e la si scambia per la prova della correzione. E' successo, ed
+e' stato preso solo perche' l'eta' non tornava.
+
+**La regola: una misura ancorata "alla pubblicazione" si ancora all'eta'
+della copia, non all'orologio del record.** Il marcatore affidabile e'
+`age`, che dice quando quel file e' nato; il record dice quando GitHub ha
+scritto una riga.
+
+**Misurato il 21/09/2026: ha funzionato.** E il modo in cui e' stato
+misurato conta quanto il risultato, perche' la prima versione della misura
+era sbagliata.
+
+**Si confronta un giro con un giro, non tre ore con tre ore.** Una finestra
+di tre ore presa alle 09:15 comincia alle 06:15 e contiene la coda del giro
+delle 06:00, che girava **senza** la correzione: due numeri presi con
+righelli diversi. I ripassi si raggruppano da soli -- fra un giro e l'altro
+passano ore -- e per ciascuno si contano le schede **rilette** in quella
+finestra e quante di quelle hanno una data di modifica **dentro la stessa
+finestra**:
+
+| giro | rilette | riscritte | quota |
+|---|---|---|---|
+| 20/09 21:05-21:16 | 20 | 15 | 75% |
+| 21/09 00:17-00:24 | 20 | 16 | 80% |
+| 21/09 03:07-03:18 | 73 | 70 | 96% |
+| 21/09 06:13-06:22 | 73 | 64 | **88%** |
+| **21/09 09:08-09:16** (con la correzione) | **71** | **0** | **0%** |
+
+**Il denominatore non e' crollato**, ed e' la cosa da guardare per prima: 71
+schede rilette contro 73. La sincronizzazione ha girato normalmente e ha
+semplicemente smesso di riscrivere. Se fossero crollati tutti e due, non
+avremmo misurato la correzione: avremmo misurato un giro che non c'e' stato.
+
+**Perche' zero e non "una manciata".** Zero e' la risposta giusta se in quel
+giro nessun campo e' cambiato davvero, che su tre siti di concessionaria e'
+normale in un intervallo di tre ore. Il guardiano comportamentale prova che
+un prezzo diverso **fa** ancora muovere la data. Se restasse zero per giorni
+mentre sui siti i prezzi cambiano a vista, quello sarebbe il segnale che il
+confronto e' troppo largo -- ed e' la prossima cosa da guardare, non una
+conclusione di oggi.
 
 **Quanto del 262 e' "rifiuto" e quanto e' "catalogo cresciuto dopo".**
 Domanda giusta, e la risposta e' parziale -- misurata il 21/09/2026 sulle
@@ -841,28 +921,43 @@ Domanda giusta, e la risposta e' parziale -- misurata il 21/09/2026 sulle
 **Quindi no, in generale non regge**: tre quarti del catalogo c'era gia' e
 non e' stato preso.
 
-**Il conto fino in fondo, e corregge anche la prima stima.** Sembrerebbe
-209 meno le 43 indicizzate, cioe' 166 -- ma quel sottrarre assume che tutte
-e 43 stiano dentro le 209, e non e' vero. Le 43 si dividono cosi':
+**Il conto esatto delle non indicizzate e' IN VERIFICA, e finche' non lo e'
+piu' qui non si scrive nessun numero.** Per un motivo che vale la pena
+lasciare scritto: e' l'unico pezzo di tutta questa analisi che poggia su una
+**sola fonte non verificabile**.
 
-| dove stanno le 43 indicizzate | quante |
+**Cosa e' stabilito**, misurato il 21/09/2026 incrociando i 43
+identificativi indicizzati con lo stato di oggi:
+
+| dove stanno le 43 | quante |
 |---|---|
-| pubblicate oggi e gia' esistenti al 30/08 | **28** |
-| pubblicate oggi ma nate dopo il 30/08 | 3 |
-| non piu' pubblicate (vendute o tolte dal sito) | 12 |
+| pubblicate oggi e create prima del 31/08 | **28** |
+| pubblicate oggi e create dopo | 3 |
+| **non piu' pubblicate** (vendute o tolte dal sito) | **12** |
 
-Quindi, sulle 274 pubblicate di oggi:
+Le quindici che non stanno fra le 28 **non sono quindici auto nate dopo**:
+sono 3 nate dopo e **12 che oggi non sono piu' in catalogo**. E torna con
+l'export: delle 43, quelle lette da Google a settembre sono **quattro**, e
+tutte e quattro risultano **create a inizio settembre** (02/09, 02/09,
+04/09, 04/09), cioe' prima di essere lette. Nessuna incongruenza.
 
-| | quante |
-|---|---|
-| esistevano durante la finestra di scansione | 209 |
-| di queste, lette e indicizzate | **28** |
-| **potevano essere lette e non lo sono state** | **181** |
-| non hanno mai avuto occasione (nate dopo) | 62 |
+**Cosa NON e' stabilito, ed e' il motivo per cui il numero non si scrive.**
+La divisione fra "esisteva durante la finestra" e "nata dopo" poggia tutta
+su `created_at`, e **non esiste una seconda fonte**: `audit_logs` non ha
+nessun evento di nascita per nessuna delle 43 (cercato: zero su 43). Una
+reimportazione che riscrivesse la riga sposterebbe quella data senza che
+l'indirizzo sia nuovo, e il conto si sposterebbe con lei.
 
-**181, non 166.** L'attenuante del "catalogo cresciuto dopo" copre **un
-quarto** del problema, non il problema: tre auto su quattro fra quelle non
-indicizzate erano li', pubblicate e leggibili, mentre Google passava.
+Quello che si e' potuto escludere: **nessuna delle 43 ha una data di
+creazione posteriore alla scansione di Google** (zero su 43). Se le
+reimportazioni avessero spostato le date in avanti, qualcuna delle schede
+lette il 23-24 agosto risulterebbe creata a settembre. Nessuna lo e'.
+**Esclude lo spostamento grosso, non quello dentro la finestra.**
+
+**Cosa lo chiuderebbe**: una data di prima pubblicazione che nessuna
+reimportazione tocca. Oggi non c'e'. Finche' non c'e', l'ordine di grandezza
+si puo' dire -- **la grande maggioranza delle non indicizzate esisteva gia'
+durante la finestra di scansione** -- ma il numero preciso no.
 
 **Ma per concessionaria cambia tutto**, ed e' qui che la domanda paga:
 

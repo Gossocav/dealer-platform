@@ -8,6 +8,7 @@ import {
   COLONNE_DA_RILEGGERE,
   campiDalBloccoRicco,
   campiDelRipasso,
+  campiDiversiAllaGrezza,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
@@ -112,6 +113,26 @@ type EsitoSorgente = {
   ripristinate: number;
   importate: number;
   rilette: number;
+  /**
+   * Quante delle rilette avevano **almeno un campo diverso**, cioe' quante
+   * hanno davvero mosso la data di modifica.
+   *
+   * **Perche' si conta, e perche' accanto a `rilette`.** Dal 21/09/2026 la
+   * data di modifica si muove solo quando qualcosa cambia davvero, e il
+   * primo giro con quella correzione ha riscritto **0 schede su 71 rilette**.
+   * Zero e' la risposta giusta se in quel giro nessun campo era cambiato --
+   * su tre siti in tre ore e' normale -- ma da solo **non distingue** "non
+   * e' cambiato niente" da "il confronto non funziona piu'". Sono due cose
+   * opposte e producono lo stesso numero.
+   *
+   * Con questo contatore accanto la distinzione e' immediata: se le diverse
+   * sono zero, "niente e' cambiato" e' **verificato**; se fossero maggiori
+   * di zero mentre le riscritte restano zero, il confronto e' rotto e si
+   * vede subito invece che fra una settimana.
+   */
+  diverse: number;
+  /** Quante hanno davvero mosso la data di modifica. */
+  riscritte: number;
   /** Quando una scheda di questo sito e' stata riletta l'ultima volta. */
   ultimaSincronizzazione: string | null;
   /** Quante schede il sito dichiara ancora, e quante rilette nelle ultime 24 ore. */
@@ -387,7 +408,7 @@ async function rileggi(
   saltate: readonly string[],
   scaduto: () => boolean,
   pausaMs: number,
-): Promise<{ fila: EsitoFila; errori: string[]; codaPiena: boolean }> {
+): Promise<{ fila: EsitoFila; errori: string[]; diverse: number; riscritte: number; codaPiena: boolean }> {
   const soglia = new Date(Date.now() - ORE_PRIMA_DI_RILEGGERE * 3600 * 1000).toISOString();
 
   // Si leggono anche i valori attuali e la provenienza: senza, non si puo'
@@ -419,6 +440,9 @@ async function rileggi(
     .map((riga) => ({ riga, voce: vociPerSourceId.get(String(riga.import_source_id ?? "")) }))
     .filter((coppia): coppia is { riga: RigaDaRileggere; voce: DealerSiteEntry } => Boolean(coppia.voce))
     .map(({ riga, voce }) => ({ ...voce, rigaId: riga.id, riga }));
+
+  let diverseInQuestoGiro = 0;
+  let riscritteInQuestoGiro = 0;
 
   const fila = await percorriFila({
     voci,
@@ -467,6 +491,13 @@ async function rileggi(
         origineDati: scrittura?.origineDati,
       });
 
+      // Si conta quante schede avevano davvero qualcosa di diverso: e' il
+      // numero che, accanto alle riscritte, distingue "non e' cambiato
+      // niente" da "il confronto non funziona piu'". Vedi il commento su
+      // `diverse` in EsitoSorgente.
+      if ("updated_at" in campi) riscritteInQuestoGiro += 1;
+      diverseInQuestoGiro += campiDiversiAllaGrezza(archivio, scrittura ? suiVeicoli : null);
+
       // L'esito si guarda, e si guarda anche **quante righe** ha toccato: una
       // scrittura rifiutata -- o che non trova la riga -- somiglia in tutto a
       // una sincronizzazione riuscita, ed e' il modo peggiore di accorgersene.
@@ -509,7 +540,7 @@ async function rileggi(
   });
 
   // Se il lotto era pieno ce ne sono altre in coda, oltre a quelle rimaste qui.
-  return { fila, errori, codaPiena: daRileggere.length === MAX_SCHEDE_PER_GIRO };
+  return { fila, errori, diverse: diverseInQuestoGiro, riscritte: riscritteInQuestoGiro, codaPiena: daRileggere.length === MAX_SCHEDE_PER_GIRO };
 }
 
 function notaPerFermata(fermataPer: EsitoFila["fermataPer"], cosa: "importazione" | "rilettura"): string | null {
@@ -558,6 +589,8 @@ async function handle(request: Request) {
       ripristinate: 0,
       importate: 0,
       rilette: 0,
+      diverse: 0,
+      riscritte: 0,
       ultimaSincronizzazione: null,
       schede: 0,
       schedeFresche: 0,
@@ -674,8 +707,10 @@ async function handle(request: Request) {
 
     if (!scadutaPorzione()) {
       const vociPerSourceId = new Map(voci.map((voce) => [String(voce.sourceId), voce]));
-      const { fila, errori, codaPiena } = await rileggi(supabase, sorgente, vociPerSourceId, saltate, scadutaPorzione, pausaMs);
+      const { fila, errori, diverse, riscritte, codaPiena } = await rileggi(supabase, sorgente, vociPerSourceId, saltate, scadutaPorzione, pausaMs);
       esito.rilette = fila.fatte;
+      esito.diverse = diverse;
+      esito.riscritte = riscritte;
       if (errori.length > 0) esito.errori = [...(esito.errori ?? []), ...errori];
       cursore = aggiungiSaltate(cursore, chiave, fila.fallite);
 

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { campiDelRipasso } from "@/lib/dealer-site-sync";
+import { campiDelRipasso, campiDiversiAllaGrezza } from "@/lib/dealer-site-sync";
 
 /**
  * **Una scrittura inutile non e' mai gratis: costa da qualche altra parte.**
@@ -113,6 +113,69 @@ describe("updated_at si muove solo se e' cambiato qualcosa", () => {
 
     expect(campi.origine_dati).toBeDefined();
     expect(campi).not.toHaveProperty("updated_at");
+  });
+});
+
+describe("lo zero si sa leggere: due conti per due strade", () => {
+  const adesso = "2026-09-21T12:00:00.000Z";
+
+  /**
+   * **Perche' serve un secondo numero.** Il primo giro con la correzione ha
+   * riscritto **0 schede su 71 rilette**. Zero e' la risposta giusta se in
+   * quel giro nessun campo era cambiato, ma da solo **non distingue** "non
+   * e' cambiato niente" da "il confronto non funziona piu'".
+   *
+   * E non basta ricontare la stessa cosa: contare quante volte si scrive la
+   * data da' un numero uguale per costruzione, quindi se il confronto si
+   * rompesse sarebbero zero tutti e due. **Una misura che non puo'
+   * contraddire cio' che controlla non e' una misura.** Il secondo conto
+   * arriva da un'altra strada: testo contro testo, senza sapere che
+   * `"9500.00"` e `9500` sono la stessa cifra.
+   */
+  it("niente di diverso: tutti e due i conti a zero, e lo zero e' verificato", () => {
+    const archivio = { price: "9500.00", color: "Grigio" };
+    const dalSito = { price: "9500.00", color: "Grigio" };
+
+    expect(campiDiversiAllaGrezza(archivio, dalSito)).toBe(0);
+    expect(campiDelRipasso({ adesso, archivio, suiVeicoli: dalSito, origineDati: {} })).not.toHaveProperty("updated_at");
+  });
+
+  it("differenza di sola forma: il conto grezzo la vede, la data non si muove", () => {
+    // E' il caso che rende i due numeri diversi, ed e' quello che dice se il
+    // confronto giusto sta lavorando o sta solo dormendo.
+    const archivio = { price: "9500.00" };
+    const dalSito = { price: 9500 };
+
+    expect(campiDiversiAllaGrezza(archivio, dalSito)).toBe(1);
+    expect(campiDelRipasso({ adesso, archivio, suiVeicoli: dalSito, origineDati: {} })).not.toHaveProperty("updated_at");
+  });
+
+  it("differenza vera: la vedono tutti e due", () => {
+    const archivio = { price: "9500.00" };
+    const dalSito = { price: 8900 };
+
+    expect(campiDiversiAllaGrezza(archivio, dalSito)).toBe(1);
+    expect(campiDelRipasso({ adesso, archivio, suiVeicoli: dalSito, origineDati: {} })).toHaveProperty("updated_at");
+  });
+
+  it("il conto grezzo non puo' mai essere piu' basso: e' la condizione permanente", () => {
+    // Il confronto che sa leggere i numeri puo' solo essere **piu'
+    // indulgente** di quello che guarda il testo. Se un giorno una scheda
+    // muovesse la data senza risultare diversa nemmeno alla grezza, il
+    // confronto starebbe inventando differenze.
+    const casi: Array<[Record<string, unknown>, Record<string, string | number>]> = [
+      [{ price: "9500.00" }, { price: 9500 }],
+      [{ price: "9500.00" }, { price: 8900 }],
+      [{ plate: "GA123BC" }, { plate: "GA123BD" }],
+      [{ color: "Grigio" }, { color: "Grigio" }],
+      [{ mileage: 42000 }, { mileage: 42000 }],
+    ];
+
+    for (const [archivio, dalSito] of casi) {
+      const grezze = campiDiversiAllaGrezza(archivio, dalSito);
+      const riscritta = "updated_at" in campiDelRipasso({ adesso, archivio, suiVeicoli: dalSito, origineDati: {} }) ? 1 : 0;
+      expect(grezze).toBeGreaterThanOrEqual(riscritta);
+    }
   });
 });
 
