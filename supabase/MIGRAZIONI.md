@@ -907,73 +907,62 @@ le legge. Vale il giorno in cui comincera' a leggerle, e dipende dai
 concessionari: aiutarli a scrivere le descrizioni, e distinguere le schede
 con i dati che gia' abbiamo.
 
-## La sonda sulla home, e come si toglie (21/09/2026)
+## La home era vuota per chi indicizza, e il motivo si chiama `/index` (21/09/2026)
 
-**Temporanea.** Sta in `src/components/auth-shell.tsx` ed e' un attributo
-sul segnaposto dell'attesa: `data-percorso-grezzo`, che riporta il valore
-che `usePathname()` restituisce **prima** del ripiego su `"/"`.
+**Chiuso.** La sonda ha risposto lo stesso giorno in cui e' stata messa, ed
+e' gia' stata tolta.
 
-**Perche' esiste.** La home serve 63 caratteri -- il segnaposto -- a chi non
-esegue JavaScript, ma **solo nelle copie ricostruite a runtime**: quella
-costruita alla pubblicazione e' giusta e dura cinque minuti. Una scheda
-auto, stesso meccanismo, si ricostruisce benissimo (misurato: piena
-attraverso piu' ricostruzioni). L'unica cosa che distingue la home e' che il
-suo percorso e' **la radice** -- cioe' esattamente cio' su cui girava il
-difetto originale, `""` che non e' `"/"`. Il ripiego copre il vuoto; se alla
-ricostruzione arriva un **terzo valore**, non lo copre, e non sappiamo quale
-sia.
+**Il difetto.** La home serviva **63 caratteri** -- il guscio di attesa
+dell'autenticazione, *"Verifica autenticazione..."* -- a chiunque non
+eseguisse JavaScript, quindi anche alla prima passata di chi indicizza. Non
+sempre: **solo nelle copie ricostruite**, che su quella pagina sono tutte
+tranne la prima dopo ogni pubblicazione. Misurato al secondo seguendo una
+pubblicazione dal suo atterraggio:
 
-**Perche' nell'HTML e non in un'intestazione.** Una pagina statica non puo'
-scrivere intestazioni al momento della ricostruzione, e i log di quella
-ricostruzione potrebbero non arrivare mai. L'HTML invece **e' l'oggetto che
-finisce in cache**: il valore resta scritto dentro la copia sbagliata, che
-e' proprio quella che si va a leggere.
+| ora | stato | caratteri | eta' | cache |
+|---|---|---|---|---|
+| 06:56:46 | piena | 6.118 | 0 | **PRERENDER** |
+| 07:01:49 | piena | 6.118 | 302 | STALE |
+| **07:02:15** | **vuota** | **65** | 22 | HIT |
 
-**COME SI LEGGE**, dopo la pubblicazione e **su una copia ricostruita** --
-non su quella della pubblicazione, che e' giusta e non contiene il
-segnaposto. Si aspetta che `age` superi 300:
+Cinque minuti e mezzo di pagina giusta dopo ogni pubblicazione, vuota per
+tutto il resto del tempo.
 
-```bash
-curl -s -D- https://www.keyauto.it/ -o /tmp/h.html | grep -i '^age:'
-grep -o 'data-percorso-grezzo="[^"]*"' /tmp/h.html
-```
+**La causa: `usePathname()` restituisce `/index`.** Durante la ricostruzione
+a runtime su Vercel il percorso della radice non e' `"/"` e non e' vuoto: e'
+**`/index`**, il nome del file prerenderizzato. Il guscio confronta il
+percorso con l'elenco delle pagine pubbliche, `/index` non c'e', la home
+finisce fra le protette e mostra il guscio di attesa. Il ripiego scritto nel
+2026 copriva solo il percorso **vuoto**, che e' un'altra delle tre forme.
 
-- un **terzo valore** (per esempio `/index`): abbiamo il nome del difetto, e
-  la cura e' una riga;
-- `(stringa vuota)` o `/`: **l'ipotesi della radice cade**, e il difetto e'
-  altrove -- va bene saperlo, costa cinque minuti invece di mezza giornata
-  di lettura.
+**Perche' solo la home.** Una scheda auto, ricostruita con lo stesso
+meccanismo, vede `/auto/<identificativo>`, che comincia con `/auto/` -- una
+voce dell'elenco -- quindi resta pubblica. Solo la radice non ha un prefisso
+che la salvi. Misurato: una scheda attraverso piu' ricostruzioni resta
+sempre piena, e non mostra mai il guscio.
 
-**COSA DICE, E COSA NON DICE.** Verificato prima di metterla, perche' sta
-su una pagina pubblica: `usePathname()` restituisce **solo il percorso** --
-niente parametri, niente frammento -- lo dicono la documentazione di Next
-(`use-pathname.md`) e il codice (legge da `PathnameContext`). Sulla copia
-conservata della home il valore e' quello che la ricostruzione ha visto,
-non il percorso di qualcuno; su una pagina riservata sarebbe il percorso
-che **chi guarda ha appena chiesto**, dentro la **sua** risposta, e quelle
-pagine non vengono conservate in cache.
+**Come si e' trovato, e vale piu' del difetto.** L'ipotesi -- che
+riguardasse la radice -- era plausibile e non bastava. Invece di dedurre il
+valore leggendo il codice di Next, si e' messa una **sonda temporanea** che
+scriveva il percorso grezzo dentro il guscio: quell'attributo finisce nella
+copia sbagliata, che e' proprio l'oggetto che si va a leggere. Risposta in
+cinque minuti, letta due volte a venti secondi di distanza:
+`data-percorso-grezzo="/index"`.
 
-**QUANDO SI TOGLIE: oggi, 21/09/2026.** Non "appena avra' risposto" --
-un'intenzione non e' una data, e una sonda senza scadenza resta.
+Non un'intestazione, perche' una pagina statica non puo' scriverne una al
+momento della ricostruzione, e i log di quella ricostruzione potrebbero non
+arrivare mai.
 
-- **appena la lettura arriva**, si toglie nello stesso giro di lavoro;
-- **se entro le 20:00 UTC di oggi non e' arrivata, si toglie lo stesso** e
-  si riprova domani con una sonda diversa. Una diagnostica che non ha
-  risposto in una giornata non risponde restando li': vuol dire che e'
-  fatta male, e la si rifa'.
+**La cura** sta in `src/lib/percorso-della-home.ts`, con le tre forme e il
+perche'. E' in un file suo e non dentro il guscio per una ragione precisa:
+il guscio e' un componente client e non si puo' montare nei test di questo
+progetto, quindi i suoi guardiani **ricopiavano** la regola -- e un test che
+confronta con una propria trascrizione prova la trascrizione. Adesso la
+chiamano.
 
-**COME SI TOGLIE:**
-
-1. si scrive qui il valore trovato, con la data;
-2. in `src/components/auth-shell.tsx` si toglie `percorsoGrezzo`, si rimette
-   `const pathname = usePathname() || "/";` su una riga sola, e si toglie
-   l'attributo `data-percorso-grezzo` dal segnaposto;
-3. i due guardiani che sorvegliano quel ripiego
-   (`auth-shell-public-routes.test.ts`, `home-in-cache.test.ts`) tornano
-   verdi da soli: dal 21/09/2026 guardano **la proprieta'** e non la forma
-   della riga -- ed e' stato necessario riscriverli proprio perche' uno dei
-   due, cercando il testo senza togliere i commenti, passava grazie **al
-   commento che spiega questa rimozione**.
+**Provata rossa** togliendo il riconoscimento di `/index`: cade il caso che
+lo nomina. E la porta non si e' allargata -- `/indexof` e `/index/qualcosa`
+restano fuori.
 
 ## Credenziali
 

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { normalizzaPercorso } from "@/lib/percorso-della-home";
 
 function read(path: string) {
   return readFileSync(resolve(process.cwd(), path), "utf8");
@@ -37,7 +38,13 @@ const PUBLIC_OR_STATUS_ROUTES = [
 ];
 
 function isPublic(rawPathname: string | null) {
-  const pathname = rawPathname || "/";
+  // **La normalizzazione e' quella VERA, non una copia.** Il resto di questa
+  // funzione ricostruisce la classificazione del guscio perche' e' un
+  // componente client e non si puo' montare qui; ma la parte che il
+  // 21/09/2026 ha tenuto la home vuota -- come si riconosce la radice -- si
+  // chiama, non si riscrive. Un test che confronta con una propria
+  // trascrizione prova la trascrizione.
+  const pathname = normalizzaPercorso(rawPathname);
   return PUBLIC_OR_STATUS_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
@@ -50,6 +57,27 @@ describe("un percorso assente non trasforma la home in pagina protetta", () => {
     // voce dell'elenco corrisponde e la radice finisce fra le protette.
     expect(isPublic("")).toBe(true);
     expect(isPublic(null)).toBe(true);
+  });
+
+  it("la radice si riconosce in tutte e tre le forme che assume davvero", () => {
+    // **`/index` e' il valore vero, non un'ipotesi.** Il 21/09/2026 una sonda
+    // temporanea nel guscio ha scritto nell'HTML il percorso grezzo, e la
+    // copia ricostruita in produzione ha risposto `/index` -- letto due volte
+    // a venti secondi di distanza. E' il nome del file prerenderizzato che
+    // Vercel usa quando ricostruisce la radice, e non e' ne' vuoto ne' "/":
+    // il ripiego di prima copriva solo il primo caso, e la home serviva
+    // "Verifica autenticazione..." a chi non esegue JavaScript per tutto il
+    // tempo fra una pubblicazione e l'altra.
+    expect(isPublic("/index")).toBe(true);
+    expect(isPublic("")).toBe(true);
+    expect(isPublic(null)).toBe(true);
+    expect(isPublic("/")).toBe(true);
+
+    // E non si e' allargata la porta: `/index` diventa la radice, non un
+    // lasciapassare per tutto cio' che le somiglia.
+    expect(isPublic("/indexof")).toBe(false);
+    expect(isPublic("/index/qualcosa")).toBe(false);
+    expect(isPublic("/dashboard")).toBe(false);
   });
 
   it("il componente applica il ripiego", () => {
@@ -70,10 +98,11 @@ describe("un percorso assente non trasforma la home in pagina protetta", () => {
      */
     const codice = shell.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
-    // La proprieta': quello che arriva da usePathname passa per un ripiego
-    // su "/" prima di essere confrontato con l'elenco.
-    expect(codice).toMatch(/usePathname\(\)/);
-    expect(codice).toMatch(/\|\|\s*"\/"/);
+    // La proprieta': quello che arriva da usePathname passa per la
+    // normalizzazione prima di essere confrontato con l'elenco. Dal
+    // 21/09/2026 quel ripiego non e' piu' un `|| "/"` scritto a mano ma una
+    // funzione con dentro le tre forme, provata qui sopra per davvero.
+    expect(codice).toMatch(/normalizzaPercorso\(\s*usePathname\(\)\s*\)/);
   });
 
   it("la radice resta pubblica anche quando il percorso arriva normale", () => {

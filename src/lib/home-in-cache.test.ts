@@ -45,8 +45,10 @@ describe("la home puo' restare in cache", () => {
      */
     const codice = authShell.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 
-    expect(codice).toMatch(/usePathname\(\)/);
-    expect(codice).toMatch(/\|\|\s*"\/"/);
+    // Dal 21/09/2026 il ripiego e' una funzione, non un `|| "/"`: conosce
+    // tutte e tre le forme che la radice assume, compresa `/index`, che e'
+    // quella con cui Vercel chiama la home mentre ne ricostruisce la copia.
+    expect(codice).toMatch(/normalizzaPercorso\(\s*usePathname\(\)\s*\)/);
   });
 
   it('la radice e\' fra le pagine pubbliche riconosciute', () => {
