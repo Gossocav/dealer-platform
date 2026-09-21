@@ -35,6 +35,40 @@ const CONCORRENZA = 8;
 const TIMEOUT_MS = 30_000;
 const FOTO_DA_PROVARE = 5;
 
+/**
+ * **Quando rileggere le pagine, in minuti dall'avvio.**
+ *
+ * Una lettura sola non prende un difetto che va e viene, a nessuna ora.
+ * Il 21/09/2026 la home era **piena per 5 minuti e 29 secondi** dopo la
+ * pubblicazione -- la copia costruita in fase di compilazione -- e **vuota
+ * da li' in poi**, a ogni ricostruzione. Questo lavoro, avviato
+ * dall'atterraggio della pubblicazione e con una attesa fissa di 60
+ * secondi, guardava **dentro la finestra buona** e si dichiarava riuscito:
+ * cieco per costruzione, e verde.
+ *
+ * Spostare l'attesa "oltre i cinque minuti" cambierebbe il numero e
+ * lascerebbe il difetto: sarebbe sempre **una lettura sola a un orario
+ * scelto**, tarato su un valore che oggi leggiamo nell'intestazione
+ * (`x-nextjs-stale-time: 300`) ma che domani puo' cambiare, e che su
+ * un'altra pagina e' gia' diverso. Si legge piu' volte, e basta che **una**
+ * lettura trovi la pagina vuota.
+ *
+ * `RILETTURE=1,6,12` -- minuti, anche con la virgola decimale per le prove.
+ * Vuoto: una lettura sola, subito.
+ */
+const RILETTURE = (process.env.RILETTURE || "0")
+  .split(",")
+  .map((x) => Number(String(x).trim()))
+  .filter((n) => Number.isFinite(n) && n >= 0)
+  .sort((a, b) => a - b);
+
+const AVVIO = Date.now();
+const attendiFinoAlMinuto = async (minuto) => {
+  const quando = AVVIO + minuto * 60_000;
+  const mancano = quando - Date.now();
+  if (mancano > 0) await new Promise((r) => setTimeout(r, mancano));
+};
+
 // ---------------------------------------------------------------- funzioni pure
 
 /** Cosa dichiara robots.txt sulle due cose che contano. */
@@ -44,6 +78,19 @@ export function analizzaRobots(testo) {
     permetteLeFoto: righe.includes("Allow: /api/image-proxy"),
     vietaIlGestionale: righe.includes("Disallow: /dashboard/"),
     dichiaraLaSitemap: righe.some((r) => r.startsWith("Sitemap: ")),
+    // **La riga che vale il 76% delle scansioni.** Il 21/09/2026 Googlebot
+    // spendeva circa 2.780 richieste su 3.650 in 45 giorni sui pacchetti
+    // `?_rsc=` del router, e le schede auto erano 15 su 999 indirizzi di
+    // esempio. Se un giorno questa riga sparisse -- una modifica a
+    // `src/app/robots.ts`, una distrazione -- il tempo tornerebbe a
+    // bruciarsi li', e ce ne accorgeremmo mesi dopo guardando Search
+    // Console. Si guarda **il file servito**, non il sorgente: e' la sola
+    // versione che Google legge.
+    //
+    // La forma conta: `Disallow: /*_rsc=` non prenderebbe il parametro nudo
+    // che Next emette quando l'impronta e' vuota, quindi qui si pretende
+    // esattamente quella senza uguale.
+    vietaIPacchettiDelRouter: righe.includes("Disallow: /*_rsc"),
   };
 }
 
@@ -188,6 +235,57 @@ export function servaUnContenuto(html, minimoCaratteri = 500) {
   };
 }
 
+/**
+ * **Un indirizzo e' permesso da questo robots.txt?**
+ *
+ * Applica la regola di Google: fra una `Allow` e una `Disallow` che
+ * combaciano vince **la piu' lunga**, e a pari lunghezza vince il permesso.
+ * I caratteri jolly sono `*` (qualunque sequenza) e `$` (fine indirizzo).
+ *
+ * **Perche' sta qui e non in un commento.** Il 21/09/2026 la regola
+ * `Disallow: /*_rsc` e' stata scritta dopo aver passato i 294 indirizzi
+ * della sitemap in un motore robots vero: **bloccati 0**. Quel numero, messo
+ * in un commento, fra sei mesi rassicurerebbe su un catalogo che non esiste
+ * piu': un indirizzo nuovo che contenesse quelle quattro lettere sparirebbe
+ * **in silenzio**. Un numero in un commento e' una data; un numero dentro un
+ * controllo e' una condizione, e questa gira ogni notte sugli indirizzi di
+ * quella notte.
+ */
+export function permessoDaRobots(testoRobots, indirizzo) {
+  const percorso = indirizzo.replace(/^https?:\/\/[^/]+/, "") || "/";
+  const righe = String(testoRobots ?? "").split("\n").map((r) => r.trim());
+
+  // Si guarda solo il gruppo che vale per tutti: e' l'unico che questo sito
+  // scrive, e un gruppo specifico per un motore va letto con altre regole.
+  let dentroIlGruppo = false;
+  const regole = [];
+  for (const riga of righe) {
+    const [chiave, ...resto] = riga.split(":");
+    const valore = resto.join(":").trim();
+    const nome = chiave.trim().toLowerCase();
+    if (nome === "user-agent") dentroIlGruppo = valore === "*";
+    else if (dentroIlGruppo && (nome === "allow" || nome === "disallow") && valore) {
+      regole.push({ permette: nome === "allow", schema: valore });
+    }
+  }
+
+  const combacia = (schema) => {
+    const finale = schema.endsWith("$");
+    const corpo = finale ? schema.slice(0, -1) : schema;
+    const pezzi = corpo.split("*").map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return new RegExp(`^${pezzi.join(".*")}${finale ? "$" : ""}`).test(percorso);
+  };
+
+  let permesso = -1;
+  let vietato = -1;
+  for (const r of regole) {
+    if (!combacia(r.schema)) continue;
+    if (r.permette) permesso = Math.max(permesso, r.schema.length);
+    else vietato = Math.max(vietato, r.schema.length);
+  }
+  return permesso >= vietato;
+}
+
 /** Gli identificativi delle auto linkate in una pagina di catalogo. */
 export function idDelleSchede(html) {
   const trovati = String(html ?? "").match(/href="\/auto\/([a-f0-9-]{36})"/g) ?? [];
@@ -279,16 +377,36 @@ async function main() {
     console.error(`Il sito non risponde: /robots.txt da' ${robotsRisposta.status}.`);
     process.exit(2);
   }
-  const robots = analizzaRobots(await robotsRisposta.text());
+  const testoRobots = await robotsRisposta.text();
+  const robots = analizzaRobots(testoRobots);
   deveReggere(robots.permetteLeFoto, "robots.txt lascia passare le fotografie");
   deveReggere(robots.vietaIlGestionale, "robots.txt tiene fuori il gestionale");
   deveReggere(robots.dichiaraLaSitemap, "robots.txt indica la sitemap");
+  deveReggere(
+    robots.vietaIPacchettiDelRouter,
+    "robots.txt tiene fuori i pacchetti del router",
+    "manca la riga \"Disallow: /*_rsc\": le scansioni tornano a bruciarsi sui pacchetti tecnici"
+  );
 
   // --- sitemap
   const sitemapRisposta = await leggi("/sitemap.xml");
   deveReggere(sitemapRisposta.ok, "la sitemap risponde", `stato ${sitemapRisposta.status}`);
   const sitemap = analizzaSitemap(await sitemapRisposta.text());
   deveReggere(sitemap.veicoli.length > 0, "la sitemap elenca delle auto");
+  // **Nessun indirizzo della sitemap deve risultare vietato dal nostro
+  // stesso robots.txt.** Sembra impossibile e non lo e': `Disallow: /*_rsc`
+  // cerca quattro lettere in qualunque posizione dell'indirizzo, e una
+  // pagina futura che le contenesse sparirebbe senza un errore. Questo
+  // controllo rifa' ogni notte, sugli indirizzi di quella notte, il conto
+  // fatto a mano il giorno in cui la regola e' stata scritta.
+  const tuttiGliIndirizzi = [...sitemap.veicoli, ...sitemap.concessionarie, ...sitemap.fisse];
+  const vietatiDaNoi = tuttiGliIndirizzi.filter((v) => !permessoDaRobots(testoRobots, v.url));
+  deveReggere(
+    vietatiDaNoi.length === 0,
+    `il nostro robots.txt non vieta nessuna pagina della sitemap (${tuttiGliIndirizzi.length} indirizzi)`,
+    `${vietatiDaNoi.length} vietati, per esempio ${vietatiDaNoi[0]?.url}`
+  );
+
   deveReggere(
     sitemap.fisse.every((v) => !v.data),
     "le pagine fisse non dichiarano una data inventata",
@@ -307,17 +425,23 @@ async function main() {
   const schedaDiProva = (sitemap.veicoli[0]?.url ?? "").replace(SITO, "");
   const daGuardare = ["/", "/auto", "/ricerca", "/concessionarie", dealerDiProva, schedaDiProva].filter(Boolean);
 
-  for (const percorso of daGuardare) {
-    const risposta = await leggi(percorso);
-    const esito = servaUnContenuto(await risposta.text());
-    deveReggere(
-      esito.va,
-      `${percorso === "/" ? "la home" : percorso} serve un contenuto`,
-      esito.segnaposto
-        ? `mostra il segnaposto dell'attesa al posto della pagina (${esito.testo} caratteri, ${esito.titoli} titoli)`
-        : `${esito.testo} caratteri di testo e ${esito.titoli} titoli, senza eseguire niente`
-    );
-  }
+  const guardaIlContenuto = async (minuto) => {
+    const quando = RILETTURE.length > 1 ? ` (al minuto ${minuto})` : "";
+    for (const percorso of daGuardare) {
+      const risposta = await leggi(percorso);
+      const esito = servaUnContenuto(await risposta.text());
+      deveReggere(
+        esito.va,
+        `${percorso === "/" ? "la home" : percorso} serve un contenuto${quando}`,
+        esito.segnaposto
+          ? `mostra il segnaposto dell'attesa al posto della pagina (${esito.testo} caratteri, ${esito.titoli} titoli)`
+          : `${esito.testo} caratteri di testo e ${esito.titoli} titoli, senza eseguire niente`
+      );
+    }
+  };
+
+  await attendiFinoAlMinuto(RILETTURE[0]);
+  await guardaIlContenuto(RILETTURE[0]);
 
   // --- il catalogo, pagina per pagina
   const idCatalogo = new Set();
@@ -461,6 +585,16 @@ async function main() {
     );
   }
 
+  // --- le riletture successive della stessa domanda
+  //
+  // Stanno qui e non subito dopo la prima perche' il resto dei controlli
+  // riempie l'attesa invece di sprecarla: quando arrivano, sono gia' passati
+  // alcuni minuti dall'avvio.
+  for (const minuto of RILETTURE.slice(1)) {
+    await attendiFinoAlMinuto(minuto);
+    await guardaIlContenuto(minuto);
+  }
+
   // --- difetti gia' noti, riportati ma non fatali
   const doppioni = gruppiDiTitoliUguali(schede.map((s) => s.titolo));
   const schedeConDoppione = doppioni.reduce((somma, [, n]) => somma + n, 0);
@@ -501,7 +635,14 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Esito: tutto regge. ${plurale(noti.length, "difetto noto ancora aperto", "difetti noti ancora aperti")}.\n`);
+  // "Tutto regge" con un difetto aperto accanto e' un riepilogo che dice il
+  // falso: il lavoro non fallisce -- e' voluto, un guardiano rosso dal primo
+  // giorno lo si impara a ignorare -- ma non si dichiara neanche a posto.
+  console.log(
+    noti.length === 0
+      ? "Esito: tutto regge.\n"
+      : `Esito: nessuna regressione, ma ${plurale(noti.length, "difetto noto e' ancora aperto", "difetti noti sono ancora aperti")}.\n`
+  );
 }
 
 // Solo quando lo si esegue, non quando i test lo importano per le funzioni.

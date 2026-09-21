@@ -30,7 +30,23 @@ const home = leggi("src/app/(marketplace)/page.tsx");
 
 describe("la home puo' restare in cache", () => {
   it("auth-shell ripiega su / quando il percorso arriva vuoto", () => {
-    expect(authShell).toContain('usePathname() || "/"');
+    /**
+     * **Riscritto il 21/09/2026, e il motivo vale piu' della riscrittura.**
+     *
+     * Cercava `usePathname() || "/"` nel file **commenti compresi**. Quel
+     * giorno la riga e' diventata due, e questo controllo ha continuato a
+     * passare -- non perche' il ripiego ci fosse, ma perche' il commento che
+     * spiegava come togliere una sonda diagnostica conteneva la riga
+     * vecchia alla lettera.
+     *
+     * Un guardiano che passa grazie a una spiegazione e' peggio di uno che
+     * non esiste: dice di si' proprio mentre la cosa che sorveglia se n'e'
+     * andata.
+     */
+    const codice = authShell.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+
+    expect(codice).toMatch(/usePathname\(\)/);
+    expect(codice).toMatch(/\|\|\s*"\/"/);
   });
 
   it('la radice e\' fra le pagine pubbliche riconosciute', () => {

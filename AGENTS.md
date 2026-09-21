@@ -1098,6 +1098,54 @@ una cosa e chiamarla con il nome di un'altra e' la stessa meta' che si
 rompe -- il riportare -- e si riconosce con la stessa domanda: *quello che
 scrivo e' la cosa che ho contato?* Qui bastava dividere 276 per 24.
 
+**E la regola che sta sopra tutte le forme qui sopra, perche' le spiega
+tutte: prima di credere a una verifica, ci si chiede se si sta guardando
+la cosa che andra' in produzione, nel momento in cui il difetto si
+manifesta.**
+
+E' la differenza fra **"la regola e' scritta"** e **"la regola c'e'"**, e in
+una sola mattina -- il 21/09/2026 -- e' costata tre volte di fila, sempre
+nello stesso modo: **verificando un oggetto adiacente a quello che conta.**
+
+| cosa e' stato verificato | cosa contava | com'e' andata |
+|---|---|---|
+| la pagina **un minuto dopo la pubblicazione** | la pagina **dopo la scadenza della copia** | verde su una home che tre minuti dopo era vuota |
+| il filtro del test cercava `_rsc=` **con l'uguale** | la forma che Next emette **anche senza** | il test provava il blocco di meta' del problema |
+| il `robots.txt` di una compilazione **precedente** | il file prodotto **da questa** | la riga non c'era, e sembrava esserci |
+
+I tre oggetti adiacenti hanno tre nomi diversi e un solo difetto:
+
+1. **il momento comodo invece di quello critico.** L'attesa di 60 secondi
+   era stata messa con una motivazione ragionevole -- *"la rete puo' avere
+   ancora la copia di prima"* -- che cade esattamente nella finestra in cui
+   la pagina e' giusta. Una verifica si colloca **dove il difetto vive**,
+   non dove e' comodo guardare;
+2. **la condizione comoda invece di quella critica.** Il filtro con
+   l'uguale e' la stessa svista della regola che stavo per scrivere: lo
+   strumento ripeteva l'errore che doveva smascherare. Quando lo strumento
+   e' fatto con la stessa idea della cosa che prova, non la prova: la
+   conferma;
+3. **il sorgente invece del prodotto**, e la sua variante piu' insidiosa,
+   **la copia vecchia invece della nuova**. `src/app/robots.ts` conteneva
+   la riga; `robots.txt` no, perche' era di prima. Fra i due, l'unico che
+   Google legge e' il secondo.
+
+**La domanda, in una riga, da farsi ogni volta prima di dire "verificato":**
+
+> *Sto guardando la cosa che andra' in produzione, nel momento in cui il
+> difetto si manifesta?*
+
+Se la risposta e' "sto guardando il sorgente", "sto guardando prima", "sto
+guardando una copia", allora quello che si e' verificato e' **un oggetto
+adiacente**, e vale zero -- non poco: **zero**, perche' produce la stessa
+frase di una verifica vera.
+
+**La nota che rende questa regola diversa dalle altre di questo file:** le
+tre sviste le ho prese io, non me le ha segnalate nessuno, e le ho prese
+**guardando una seconda volta** -- il `robots.txt` l'ho riaperto per
+abitudine, non per sospetto. Non serve diffidare di tutto: serve che la
+seconda occhiata cada sull'oggetto vero.
+
 **Un guardiano che si accende mentre lavori non e' un ostacolo: e' l'unico
 momento in cui ti dice qualcosa che non sapevi.**
 
@@ -1535,6 +1583,58 @@ Se il valore in archivio non c'e', il confronto e' contro il vuoto ed esce
 confronto in piu'. Qui regge perche' ogni campo che si scrive e' anche nella
 lista di quelli riletti (`CAMPI_DAL_SITO`), e c'e' un guardiano che lo
 pretende.
+
+**Un indirizzo generato dal framework e' comunque un indirizzo, e chi lo
+scarica spende il tempo di chi dovrebbe leggere il catalogo.**
+
+Il caso, misurato il 21/09/2026 negli esportati di Search Console. Su 999
+indirizzi di esempio che Google ci ha mostrato, **999 avevano la forma
+`?_rsc=<token>`**: proiettato sulle 3.650 richieste di 45 giorni, **circa
+2.780 -- il 76% -- spese su pacchetti tecnici**. Le schede auto erano **15 su
+999**. Nello stesso periodo 262 pagine risultavano *"Rilevata, ma attualmente
+non indicizzata"* e **zero** *"scansionata ma non indicizzata"*: Google le
+conosceva tutte e non ne ha mai scaricata nessuna, perche' il tempo lo stava
+spendendo altrove.
+
+**Nessuno di quegli indirizzi l'abbiamo scritti noi.** Li attacca il router
+di Next quando prepara la navigazione successiva, e la classifica dice da
+dove: /privacy, /come-funziona, /login, /termini -- cioe' **i collegamenti
+del pie' di pagina**, che stanno su ogni schermata. Misurato con un browser
+vero: **una sola resa di pagina ne genera 31-39**.
+
+Le tre cose da portarsi via:
+
+1. **il budget di scansione e' una quantita' fissa e la si spende una volta
+   sola.** Ogni richiesta su un indirizzo che non e' una pagina e' una
+   richiesta che non va su una pagina. Non e' un danno teorico: qui ha
+   tenuto fuori dall'indice 262 schede su un sito che senza indicizzazione
+   non ha nessun'altra strada per farsi trovare;
+2. **cio' che il framework genera va contato come traffico nostro.** La
+   domanda da farsi davanti a qualunque cosa il framework aggiunga --
+   parametri, prefetch, sonde, segnalazioni -- e' *"chi lo scarica, quante
+   volte, e con quale budget?"*. Le righe che generano indirizzi non si
+   vedono nel diff: non c'e' nessun `fetch` scritto da noi;
+3. **la cura si verifica prima di applicarla, con un browser.** Bloccare quei
+   pacchetti su un sito che ha 57 pagine indicizzate su 322 sarebbe stato
+   molto peggio del problema, se fossero serviti a rendere le pagine. Si
+   rende la pagina con quelle richieste **abortite** e si guarda che il
+   contenuto esca intero -- qui: 15 e 21 tentate, altrettante abortite,
+   **zero passate**, contenuto identico byte per byte. La lettura della
+   documentazione dice **perche'**, ma e' la resa a dire **se**.
+
+**E la forma esatta della regola si legge nel sorgente, non a memoria.** Next
+emette `_rsc` in **due** forme, nello stesso file e a due righe di distanza:
+`_rsc=<impronta>` quando l'impronta c'e', e **`_rsc` nudo** quando e' vuota
+(`set-cache-busting-search-param.js`, righe 62 e 64). La regola "ovvia"
+`Disallow: /*_rsc=` avrebbe lasciato passare la seconda, e nessuno se ne
+sarebbe accorto: il conteggio delle scansioni sarebbe sceso e sarebbe
+sembrato risolto.
+
+**La contropartita, scritta perche' non venga dimenticata:** robots.txt
+toglie quelle richieste a chi indicizza, **non ai visitatori veri**. Le 31-39
+richieste per pagina restano, e sono peso su ogni visita. E' una cosa
+diversa -- prestazioni, non indicizzazione -- ed e' in elenco fra le cose da
+guardare.
 
 **La domanda da farsi ogni volta che un modulo rilegge e riscrive un
 archivio: cosa succede al dato che il modulo non sa rappresentare?** Se la

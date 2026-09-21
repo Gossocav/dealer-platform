@@ -7,6 +7,7 @@ import {
   estraiTitolo,
   gruppiDiTitoliUguali,
   idDelleSchede,
+  permessoDaRobots,
   primaFoto,
   problemiDellIndirizzoFoto,
   problemiDellaScheda,
@@ -30,14 +31,90 @@ import {
  */
 
 describe("robots.txt", () => {
+  /**
+   * **Riscritto il 21/09/2026, e la decisione non e' cambiata: e' cambiata
+   * l'asserzione, che guardava un'altra cosa.**
+   *
+   * Fissava l'oggetto **intero** con `toEqual`. Il titolo dice "riconosce il
+   * permesso sulle fotografie e il divieto sul gestionale", ma cosi' scritto
+   * il controllo diceva "la risposta ha esattamente queste tre chiavi e
+   * nessun'altra" -- e infatti e' caduto aggiungendo una quarta sonda che con
+   * le fotografie non c'entra niente.
+   *
+   * E' il caso gia' descritto in AGENTS.md: un'asserzione che copia una cosa
+   * per intero fissa anche quello che a chi l'ha scritta non interessava. Si
+   * fissano **le proprieta'**, cosi' la prossima sonda non fa cadere questa.
+   */
   it("riconosce il permesso sulle fotografie e il divieto sul gestionale", () => {
     const testo = ["User-Agent: *", "Allow: /", "Allow: /api/image-proxy", "Disallow: /dashboard/", "", "Sitemap: https://esempio/sitemap.xml"].join("\n");
+    const letto = analizzaRobots(testo);
 
-    expect(analizzaRobots(testo)).toEqual({
-      permetteLeFoto: true,
-      vietaIlGestionale: true,
-      dichiaraLaSitemap: true,
-    });
+    expect(letto.permetteLeFoto).toBe(true);
+    expect(letto.vietaIlGestionale).toBe(true);
+    expect(letto.dichiaraLaSitemap).toBe(true);
+  });
+
+  /**
+   * **La riga che vale il 76% delle scansioni.** Il 21/09/2026 Googlebot
+   * spendeva circa 2.780 richieste su 3.650 in 45 giorni sui pacchetti
+   * `?_rsc=` del router. Se quella riga sparisse da `src/app/robots.ts` --
+   * una modifica, una distrazione -- il tempo tornerebbe a bruciarsi li', e
+   * ce ne accorgeremmo mesi dopo guardando Search Console.
+   *
+   * La forma conta, ed e' il motivo per cui questo caso esiste: Next emette
+   * `_rsc` **anche senza l'uguale** (`set-cache-busting-search-param.js`,
+   * righe 62 e 64), quindi `Disallow: /*_rsc=` lascerebbe passare meta' del
+   * problema sembrando una correzione.
+   */
+  it("si accorge se il divieto sui pacchetti del router sparisce o cambia forma", () => {
+    const con = ["User-Agent: *", "Disallow: /*_rsc", "", "Sitemap: https://esempio/sitemap.xml"].join("\n");
+    const senza = ["User-Agent: *", "Disallow: /dashboard/", "", "Sitemap: https://esempio/sitemap.xml"].join("\n");
+    const conLUguale = ["User-Agent: *", "Disallow: /*_rsc=", "", "Sitemap: https://esempio/sitemap.xml"].join("\n");
+
+    expect(analizzaRobots(con).vietaIPacchettiDelRouter).toBe(true);
+    expect(analizzaRobots(senza).vietaIPacchettiDelRouter).toBe(false);
+    expect(analizzaRobots(conLUguale).vietaIPacchettiDelRouter).toBe(false);
+  });
+
+  /**
+   * **Il giudice che decide se una pagina della sitemap e' vietata da noi.**
+   *
+   * Sbagliarlo sarebbe peggio di non averlo: direbbe "nessuna pagina
+   * vietata" su un sito che ne vieta una. Qui si prova nei due versi, e
+   * l'ultimo caso e' il difetto vero che questa famiglia deve impedire.
+   */
+  it("applica la regola della corrispondenza piu' lunga", () => {
+    const regole = [
+      "User-Agent: *",
+      "Allow: /",
+      "Allow: /_next/",
+      "Allow: /api/image-proxy",
+      "Disallow: /api/",
+      "Disallow: /dashboard/",
+      "Disallow: /*_rsc",
+    ].join("\n");
+
+    // le pagine vere passano
+    expect(permessoDaRobots(regole, "https://k.it/privacy")).toBe(true);
+    expect(permessoDaRobots(regole, "https://k.it/auto/aaa")).toBe(true);
+    // i pacchetti tecnici no, in tutte e due le forme
+    expect(permessoDaRobots(regole, "https://k.it/privacy?_rsc=abc")).toBe(false);
+    expect(permessoDaRobots(regole, "https://k.it/privacy?_rsc")).toBe(false);
+    // il permesso piu' lungo vince sul divieto piu' corto
+    expect(permessoDaRobots(regole, "https://k.it/api/image-proxy?url=x")).toBe(true);
+    expect(permessoDaRobots(regole, "https://k.it/api/marketplace/lead")).toBe(false);
+    // e il caso che ha fatto aggiungere "Allow: /_next/": un file del
+    // programma con quelle quattro lettere nel nome, per sfortuna.
+    expect(permessoDaRobots(regole, "https://k.it/_next/static/chunks/ab_rsc7k2x9.js")).toBe(true);
+  });
+
+  it("senza il permesso sui file del programma, quello sfortunato risulterebbe vietato", () => {
+    // La prova che il giudice sa anche dire di no: e' lo stesso elenco senza
+    // una riga, e la risposta cambia.
+    const senzaNext = ["User-Agent: *", "Allow: /", "Disallow: /*_rsc"].join("\n");
+
+    expect(permessoDaRobots(senzaNext, "https://k.it/_next/static/chunks/ab_rsc7k2x9.js")).toBe(false);
+    expect(permessoDaRobots(senzaNext, "https://k.it/_next/static/chunks/2k_8snrpv8b1c.js")).toBe(true);
   });
 
   it("si accorge se il permesso sulle fotografie sparisce", () => {

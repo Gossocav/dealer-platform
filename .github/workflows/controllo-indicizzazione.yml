@@ -28,20 +28,32 @@ name: Controllo dell'indicizzazione
 # perche' una chiave e' scaduta.
 
 on:
-  # **Anche a ogni pubblicazione, e non solo di notte.**
+  # **Anche a ogni pubblicazione, e non solo di notte -- e leggendo piu'
+  # volte, non una.**
   #
-  # Il 20/09/2026 la home ha servito **63 caratteri** -- il segnaposto
-  # dell'attesa al posto della pagina -- a chiunque non esegua JavaScript,
-  # cioe' anche alla prima passata di chi indicizza. E va e viene: rotta
-  # dalle 16:20 alle 16:42, buona alle 16:43, rotta di nuovo alle 17:07,
-  # **senza nessuna pubblicazione in mezzo**. Si ripresenta quando la copia
-  # conservata della pagina viene rifatta, che succede ogni cinque minuti.
+  # La home serve **63 caratteri** -- il segnaposto dell'attesa al posto
+  # della pagina -- a chiunque non esegua JavaScript, cioe' anche alla prima
+  # passata di chi indicizza. Misurato al secondo il 21/09/2026, seguendo
+  # una pubblicazione dal suo atterraggio:
   #
-  # Un difetto cosi' passa **intero** fra due esecuzioni notturne. Guardare
-  # dopo ogni pubblicazione non lo prende sempre -- niente lo prenderebbe
-  # sempre, se non guardare di continuo -- ma moltiplica le occasioni, e la
-  # pubblicazione e' comunque il momento in cui e' piu' probabile che
-  # qualcosa sia cambiato.
+  #     06:56:46  piena  6118 caratteri  age=0    PRERENDER
+  #     07:01:49  piena  6118 caratteri  age=302  STALE
+  #     07:02:15  VUOTA    65 caratteri  age=22   HIT
+  #
+  # Cioe': la copia **costruita in fase di compilazione** e' giusta e dura
+  # quanto dice `x-nextjs-stale-time: 300`; **ogni ricostruzione** nasce
+  # vuota. Non e' un difetto della compilazione -- la stessa pubblicazione
+  # produce l'una e le altre -- ed e' la ricostruzione a runtime a non avere
+  # qualcosa che la compilazione aveva.
+  #
+  # **Perche' le letture sono tre e non una.** La prima versione di questo
+  # lavoro aspettava 60 secondi e guardava una volta: cadeva **dentro la
+  # finestra buona** e si dichiarava riuscita. Verde su una pagina che tre
+  # minuti dopo era vuota. Spostare l'attesa "oltre i cinque minuti"
+  # cambierebbe il numero e lascerebbe il difetto: resterebbe una lettura
+  # sola a un orario tarato su un valore che oggi si legge ma domani puo'
+  # cambiare. Con `RILETTURE=1,6,12` basta che **una** delle tre trovi la
+  # pagina vuota.
   deployment_status:
 
   schedule:
@@ -68,7 +80,7 @@ jobs:
   controlla:
     name: controlla
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     # Una pubblicazione passa per piu' stati (in corso, riuscita, fallita) e
     # ne esistono anche di anteprima: si guarda solo la produzione riuscita,
     # altrimenti il lavoro parte tre volte e due sono inutili.
@@ -88,17 +100,15 @@ jobs:
           # timeout: niente dipendenze da installare, lo script e' Node puro.
           node-version: 22.x
 
-      # Subito dopo una pubblicazione la rete di distribuzione puo' avere
-      # ancora la copia di prima: si aspetta che passi, altrimenti si
-      # misurerebbe la versione vecchia e il controllo direbbe una cosa vera
-      # sulla pagina sbagliata.
-      - name: Lascia assestare la pubblicazione
-        if: github.event_name == 'deployment_status'
-        run: sleep 60
-
+      # Dopo una pubblicazione si guarda **tre volte**: al minuto 1 -- quando
+      # la rete ha sicuramente la copia nuova -- poi a 6 e a 12, cioe' oltre
+      # la scadenza della prima copia e oltre quella della seconda. Negli
+      # altri casi (il cron della notte, l'avvio a mano) una lettura basta:
+      # li' la pagina e' gia' da un pezzo nel suo stato di regime.
       - name: Guarda il sito
         env:
           SITO: ${{ github.event.inputs.sito }}
+          RILETTURE: ${{ github.event_name == 'deployment_status' && '1,6,12' || '0' }}
         run: node scripts/controllo-indicizzazione.mjs
 
       # Se il passo sopra fallisce, il riepilogo lo ha gia' scritto lo script:
