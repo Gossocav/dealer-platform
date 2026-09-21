@@ -35,6 +35,40 @@ const CONCORRENZA = 8;
 const TIMEOUT_MS = 30_000;
 const FOTO_DA_PROVARE = 5;
 
+/**
+ * **Quando rileggere le pagine, in minuti dall'avvio.**
+ *
+ * Una lettura sola non prende un difetto che va e viene, a nessuna ora.
+ * Il 21/09/2026 la home era **piena per 5 minuti e 29 secondi** dopo la
+ * pubblicazione -- la copia costruita in fase di compilazione -- e **vuota
+ * da li' in poi**, a ogni ricostruzione. Questo lavoro, avviato
+ * dall'atterraggio della pubblicazione e con una attesa fissa di 60
+ * secondi, guardava **dentro la finestra buona** e si dichiarava riuscito:
+ * cieco per costruzione, e verde.
+ *
+ * Spostare l'attesa "oltre i cinque minuti" cambierebbe il numero e
+ * lascerebbe il difetto: sarebbe sempre **una lettura sola a un orario
+ * scelto**, tarato su un valore che oggi leggiamo nell'intestazione
+ * (`x-nextjs-stale-time: 300`) ma che domani puo' cambiare, e che su
+ * un'altra pagina e' gia' diverso. Si legge piu' volte, e basta che **una**
+ * lettura trovi la pagina vuota.
+ *
+ * `RILETTURE=1,6,12` -- minuti, anche con la virgola decimale per le prove.
+ * Vuoto: una lettura sola, subito.
+ */
+const RILETTURE = (process.env.RILETTURE || "0")
+  .split(",")
+  .map((x) => Number(String(x).trim()))
+  .filter((n) => Number.isFinite(n) && n >= 0)
+  .sort((a, b) => a - b);
+
+const AVVIO = Date.now();
+const attendiFinoAlMinuto = async (minuto) => {
+  const quando = AVVIO + minuto * 60_000;
+  const mancano = quando - Date.now();
+  if (mancano > 0) await new Promise((r) => setTimeout(r, mancano));
+};
+
 // ---------------------------------------------------------------- funzioni pure
 
 /** Cosa dichiara robots.txt sulle due cose che contano. */
@@ -307,17 +341,23 @@ async function main() {
   const schedaDiProva = (sitemap.veicoli[0]?.url ?? "").replace(SITO, "");
   const daGuardare = ["/", "/auto", "/ricerca", "/concessionarie", dealerDiProva, schedaDiProva].filter(Boolean);
 
-  for (const percorso of daGuardare) {
-    const risposta = await leggi(percorso);
-    const esito = servaUnContenuto(await risposta.text());
-    deveReggere(
-      esito.va,
-      `${percorso === "/" ? "la home" : percorso} serve un contenuto`,
-      esito.segnaposto
-        ? `mostra il segnaposto dell'attesa al posto della pagina (${esito.testo} caratteri, ${esito.titoli} titoli)`
-        : `${esito.testo} caratteri di testo e ${esito.titoli} titoli, senza eseguire niente`
-    );
-  }
+  const guardaIlContenuto = async (minuto) => {
+    const quando = RILETTURE.length > 1 ? ` (al minuto ${minuto})` : "";
+    for (const percorso of daGuardare) {
+      const risposta = await leggi(percorso);
+      const esito = servaUnContenuto(await risposta.text());
+      deveReggere(
+        esito.va,
+        `${percorso === "/" ? "la home" : percorso} serve un contenuto${quando}`,
+        esito.segnaposto
+          ? `mostra il segnaposto dell'attesa al posto della pagina (${esito.testo} caratteri, ${esito.titoli} titoli)`
+          : `${esito.testo} caratteri di testo e ${esito.titoli} titoli, senza eseguire niente`
+      );
+    }
+  };
+
+  await attendiFinoAlMinuto(RILETTURE[0]);
+  await guardaIlContenuto(RILETTURE[0]);
 
   // --- il catalogo, pagina per pagina
   const idCatalogo = new Set();
@@ -461,6 +501,16 @@ async function main() {
     );
   }
 
+  // --- le riletture successive della stessa domanda
+  //
+  // Stanno qui e non subito dopo la prima perche' il resto dei controlli
+  // riempie l'attesa invece di sprecarla: quando arrivano, sono gia' passati
+  // alcuni minuti dall'avvio.
+  for (const minuto of RILETTURE.slice(1)) {
+    await attendiFinoAlMinuto(minuto);
+    await guardaIlContenuto(minuto);
+  }
+
   // --- difetti gia' noti, riportati ma non fatali
   const doppioni = gruppiDiTitoliUguali(schede.map((s) => s.titolo));
   const schedeConDoppione = doppioni.reduce((somma, [, n]) => somma + n, 0);
@@ -501,7 +551,14 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Esito: tutto regge. ${plurale(noti.length, "difetto noto ancora aperto", "difetti noti ancora aperti")}.\n`);
+  // "Tutto regge" con un difetto aperto accanto e' un riepilogo che dice il
+  // falso: il lavoro non fallisce -- e' voluto, un guardiano rosso dal primo
+  // giorno lo si impara a ignorare -- ma non si dichiara neanche a posto.
+  console.log(
+    noti.length === 0
+      ? "Esito: tutto regge.\n"
+      : `Esito: nessuna regressione, ma ${plurale(noti.length, "difetto noto e' ancora aperto", "difetti noti sono ancora aperti")}.\n`
+  );
 }
 
 // Solo quando lo si esegue, non quando i test lo importano per le funzioni.
