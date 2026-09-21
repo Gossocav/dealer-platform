@@ -93,6 +93,16 @@ pagina, quel ramo e' la risposta gia' misurata -- e le sue parti
 `/ricerca`.
 
 5. **Il resto delle cose interne:**
+   - **i 486 KB di HTML della pagina di una concessionaria** (Ponginibbi,
+     misurati il 21/09/2026 con un browser vero: 50 immagini, 134
+     collegamenti). E' peso su ogni visita, non indicizzazione. **Annotato,
+     non fatto**;
+   - **le 31-39 richieste `?_rsc=` per ogni pagina aperta.** `robots.txt` le
+     toglie a chi indicizza, **non ai visitatori**: restano su ogni visita, e
+     sono i collegamenti del pie' di pagina che il router prepara. Non e'
+     indicizzazione, e' peso -- va misurato in byte e richieste prima di
+     decidere se e come toglierlo (per esempio con `prefetch={false}` sui
+     collegamenti del pie' di pagina). **Annotato il 21/09/2026, non fatto**;
    - le **dieci colonne `cost_*`** del conto economico, obbligatorie con
      valore predefinito zero: li' "non l'ho registrato" e "non e' costato
      niente" **non si distinguono**, e finche' e' cosi' **il margine di
@@ -773,6 +783,37 @@ non e' un difetto nostro, e' mancanza di storia. Chi legge questo capitolo fra
 sei mesi deve saperlo, perche' e' quello che impedisce di inseguire un
 difetto tecnico dove non c'e'.
 
+**E il 21/09/2026 e' arrivata la causa vera, dagli esportati: il 76% delle
+scansioni finiva sui pacchetti tecnici del router.** Su 999 indirizzi di
+esempio forniti da Google, **999 avevano la forma `?_rsc=<token>`**:
+proiettato sulle 3.650 richieste di 45 giorni, **circa 2.780**. La
+classifica -- /privacy 108, /come-funziona 84, /login 80, /termini 77 --
+sono i collegamenti del **pie' di pagina**, presenti su ogni schermata; le
+schede auto erano **15 su 999**. Una sola resa di pagina ne genera 31-39,
+misurato con un browser.
+
+Combacia esattamente con lo zero di "scansionata ma non indicizzata": Google
+le conosceva tutte e non ne scaricava nessuna, perche' il tempo lo spendeva
+sui pacchetti. Chiuso con una riga in `robots.txt` (`Disallow: /*_rsc`),
+verificata prima con un browser vero -- pagine rese con quelle richieste
+abortite, contenuto identico byte per byte -- e con tre motori robots
+indipendenti. Il giro completo sta in `src/app/robots.ts` e il guardiano in
+`src/lib/pacchetti-del-router-fuori.test.ts`.
+
+**La misura del dopo sta nelle Statistiche di scansione** (*Impostazioni →
+Statistiche di scansione*), e i due numeri da rileggere fra qualche
+settimana sono:
+
+| riga | oggi (21/09/2026) | cosa deve fare |
+|---|---|---|
+| tipo di file **HTML** | **6%** | salire molto |
+| finalita' **Rilevamento** | **3%** | salire |
+
+Sono i due numeri che dicono se il tempo di Google e' tornato sulle pagine.
+Vanno letti li' e non si possono misurare da qui: il controllo quotidiano
+verifica che la riga di robots.txt **ci sia ancora**, non come Google spende
+il suo tempo.
+
 **La causa coerente con lo stato misurato, e l'unica corretta il 20/09:** la
 data di ultima modifica che dichiaravamo falsa. Ogni giorno la sitemap diceva
 che **241 schede su 276 (l'87%) erano cambiate nelle ultime 24 ore**, e non
@@ -788,6 +829,47 @@ si contano le schede pubblicate con `updated_at` nelle ultime 24 ore. Erano
 **241 su 276**. Se scendono a una manciata, ha funzionato; se restano tante,
 la scrittura arriva da un'altra porta e va trovata quella.
 
+**Quanto del 262 e' "rifiuto" e quanto e' "catalogo cresciuto dopo".**
+Domanda giusta, e la risposta e' parziale -- misurata il 21/09/2026 sulle
+274 auto pubblicate:
+
+| | quante | quota |
+|---|---|---|
+| gia' esistenti durante la finestra di scansione (fino al 30/08) | **209** | 76% |
+| nate **dopo** che Google aveva smesso di passare | 65 | 24% |
+
+**Quindi no, in generale non regge**: tre quarti del catalogo c'era gia' e
+non e' stato preso. Il 262 misura davvero qualcosa che Google **poteva**
+leggere e non ha letto, non solo un catalogo cresciuto alle sue spalle.
+
+**Ma per concessionaria cambia tutto**, ed e' qui che la domanda paga:
+
+| concessionaria | auto | nate dopo il 30/08 |
+|---|---|---|
+| De Lorenzi Srl | 93 | 1 (1%) |
+| AUTOGEPY SPA | 131 | 14 (11%) |
+| **Ponginibbi Spa** | **50** | **50 (100%)** |
+
+**Tutto il catalogo di Ponginibbi e' arrivato dopo.** Il suo zero indicizzato
+non e' un rifiuto e non e' un difetto: e' un'assenza di occasioni. Va tenuto
+presente quando si misurera' l'effetto della correzione, perche' le tre
+concessionarie partono da condizioni diverse e una media le confonderebbe.
+
+**Ponginibbi non e' rotta, e il dubbio e' smentito con una misura.** Era
+l'unica delle tre concessionarie non indicizzata, e compariva negli
+esportati **solo** nella forma `?_rsc=`, mai come pagina: sembrava un
+difetto della pagina. Non lo e'. Resa con un browser vero il 21/09/2026:
+**7.224 caratteri di testo, un titolo, 134 collegamenti, 50 immagini**,
+canonico suo, nessun `noindex`, in sitemap e collegata da
+`/concessionarie`. Identica per struttura alle due indicizzate. **Non e'
+mai stata indicizzata perche' Google non ci e' mai arrivato**: l'account e'
+del 02/09 e la prima auto del 04/09, cioe' dopo la finestra in cui Google
+ha scansionato (23-30 agosto), e da allora il suo tempo se lo mangiavano i
+pacchetti del router.
+
+*(A margine, e va in elenco: quella pagina serve **486 KB di HTML**. Non e'
+indicizzazione, e' peso. Da guardare, non adesso.)*
+
 **Quello che resta un lavoro di prodotto, e non e' una causa.** Le schede
 hanno poco contenuto proprio: 80 su 276 senza descrizione, 53 sotto i 200
 caratteri, 67 auto con lo stesso identico nome di un'altra, e in una pagina
@@ -796,6 +878,56 @@ non sposterebbe il numero di una pagina**, perche' Google quelle pagine non
 le legge. Vale il giorno in cui comincera' a leggerle, e dipende dai
 concessionari: aiutarli a scrivere le descrizioni, e distinguere le schede
 con i dati che gia' abbiamo.
+
+## La sonda sulla home, e come si toglie (21/09/2026)
+
+**Temporanea.** Sta in `src/components/auth-shell.tsx` ed e' un attributo
+sul segnaposto dell'attesa: `data-percorso-grezzo`, che riporta il valore
+che `usePathname()` restituisce **prima** del ripiego su `"/"`.
+
+**Perche' esiste.** La home serve 63 caratteri -- il segnaposto -- a chi non
+esegue JavaScript, ma **solo nelle copie ricostruite a runtime**: quella
+costruita alla pubblicazione e' giusta e dura cinque minuti. Una scheda
+auto, stesso meccanismo, si ricostruisce benissimo (misurato: piena
+attraverso piu' ricostruzioni). L'unica cosa che distingue la home e' che il
+suo percorso e' **la radice** -- cioe' esattamente cio' su cui girava il
+difetto originale, `""` che non e' `"/"`. Il ripiego copre il vuoto; se alla
+ricostruzione arriva un **terzo valore**, non lo copre, e non sappiamo quale
+sia.
+
+**Perche' nell'HTML e non in un'intestazione.** Una pagina statica non puo'
+scrivere intestazioni al momento della ricostruzione, e i log di quella
+ricostruzione potrebbero non arrivare mai. L'HTML invece **e' l'oggetto che
+finisce in cache**: il valore resta scritto dentro la copia sbagliata, che
+e' proprio quella che si va a leggere.
+
+**COME SI LEGGE**, dopo la pubblicazione e **su una copia ricostruita** --
+non su quella della pubblicazione, che e' giusta e non contiene il
+segnaposto. Si aspetta che `age` superi 300:
+
+```bash
+curl -s -D- https://www.keyauto.it/ -o /tmp/h.html | grep -i '^age:'
+grep -o 'data-percorso-grezzo="[^"]*"' /tmp/h.html
+```
+
+- un **terzo valore** (per esempio `/index`): abbiamo il nome del difetto, e
+  la cura e' una riga;
+- `(stringa vuota)` o `/`: **l'ipotesi della radice cade**, e il difetto e'
+  altrove -- va bene saperlo, costa cinque minuti invece di mezza giornata
+  di lettura.
+
+**COME SI TOGLIE**, e va tolta appena ha risposto:
+
+1. si scrive qui il valore trovato, con la data;
+2. in `src/components/auth-shell.tsx` si toglie `percorsoGrezzo`, si rimette
+   `const pathname = usePathname() || "/";` su una riga sola, e si toglie
+   l'attributo `data-percorso-grezzo` dal segnaposto;
+3. i due guardiani che sorvegliano quel ripiego
+   (`auth-shell-public-routes.test.ts`, `home-in-cache.test.ts`) tornano
+   verdi da soli: dal 21/09/2026 guardano **la proprieta'** e non la forma
+   della riga -- ed e' stato necessario riscriverli proprio perche' uno dei
+   due, cercando il testo senza togliere i commenti, passava grazie **al
+   commento che spiega questa rimozione**.
 
 ## Credenziali
 

@@ -44,7 +44,39 @@ export function AuthShell({ children }: AuthShellProps) {
   // pagina protetta. Le altre route non se ne accorgono, perche' il loro
   // percorso coincide con la propria voce: e' per questo che falliva solo la
   // home.
-  const pathname = usePathname() || "/";
+  // **Sonda temporanea, 21/09/2026 -- e il giro per toglierla e' scritto
+  // prima di metterla, non dopo.**
+  //
+  // La home serve 63 caratteri -- questo segnaposto -- a chi non esegue
+  // JavaScript, ma **solo nelle copie ricostruite a runtime**: quella
+  // costruita alla pubblicazione e' giusta e dura cinque minuti. Una scheda
+  // auto, con lo stesso meccanismo, si ricostruisce benissimo: l'unica cosa
+  // che distingue la home e' che il suo percorso e' la radice, cioe'
+  // esattamente cio' su cui girava il difetto del 2026 (`""` che non e'
+  // `"/"`). Il ripiego qui sotto copre il vuoto; se alla ricostruzione
+  // arriva un **terzo valore**, non lo copre -- e non si sa quale sia.
+  //
+  // Invece di dedurlo, lo si fa dire alla pagina: il valore grezzo finisce
+  // nel segnaposto come attributo, quindi resta scritto **dentro la copia
+  // sbagliata**, che e' l'oggetto che poi si legge. Non serve un'intestazione
+  // e non servono i log: una pagina statica non puo' scrivere intestazioni al
+  // momento della ricostruzione, e i log di quella ricostruzione potrebbero
+  // non arrivare mai.
+  //
+  // **COME SI TOGLIE, quando avra' risposto:**
+  // 1. si legge il valore: `curl -s https://www.keyauto.it/ | grep -o
+  //    'data-percorso-grezzo="[^"]*"'` su una copia con `age` maggiore di
+  //    300 (cioe' ricostruita, non quella della pubblicazione);
+  // 2. si scrive il valore trovato in `supabase/MIGRAZIONI.md`, accanto alla
+  //    diagnosi della home;
+  // 3. si toglie `percorsoGrezzo`, si rimette `const pathname =
+  //    usePathname() || "/";` su una riga sola, e si toglie l'attributo dal
+  //    segnaposto piu' sotto;
+  // 4. i due guardiani che pretendono quella riga
+  //    (`auth-shell-public-routes.test.ts`, `home-in-cache.test.ts`) tornano
+  //    verdi da soli: guardano la proprieta', non la forma.
+  const percorsoGrezzo = usePathname();
+  const pathname = percorsoGrezzo || "/";
   const router = useRouter();
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
@@ -159,7 +191,10 @@ export function AuthShell({ children }: AuthShellProps) {
 
   if (!checked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
+      <div
+        className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500"
+        data-percorso-grezzo={percorsoGrezzo === "" ? "(stringa vuota)" : String(percorsoGrezzo)}
+      >
         Verifica autenticazione...
       </div>
     );

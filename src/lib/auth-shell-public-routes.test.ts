@@ -53,7 +53,27 @@ describe("un percorso assente non trasforma la home in pagina protetta", () => {
   });
 
   it("il componente applica il ripiego", () => {
-    expect(shell).toContain('const pathname = usePathname() || "/"');
+    /**
+     * **Riscritto il 21/09/2026: fissava il testo, non la proprieta'.**
+     *
+     * L'asserzione copiava la riga parola per parola, quindi e' caduta il
+     * giorno in cui quella riga e' diventata due -- una sonda diagnostica
+     * che legge il valore grezzo prima del ripiego. Il codice faceva
+     * esattamente la stessa cosa. E' il caso gia' scritto in AGENTS.md: si
+     * fissa la proprieta', non la forma.
+     *
+     * **E c'e' una seconda trappola, presa in diretta quello stesso
+     * giorno**: il commento che spiega come togliere la sonda contiene la
+     * riga vecchia, alla lettera. Un guardiano che cerca quel testo senza
+     * togliere i commenti passa **grazie alla spiegazione**, non grazie al
+     * codice.
+     */
+    const codice = shell.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+
+    // La proprieta': quello che arriva da usePathname passa per un ripiego
+    // su "/" prima di essere confrontato con l'elenco.
+    expect(codice).toMatch(/usePathname\(\)/);
+    expect(codice).toMatch(/\|\|\s*"\/"/);
   });
 
   it("la radice resta pubblica anche quando il percorso arriva normale", () => {
