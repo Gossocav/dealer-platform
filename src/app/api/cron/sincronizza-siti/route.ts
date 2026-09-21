@@ -7,6 +7,7 @@ import { sostituisciFoto } from "@/lib/dealer-site-photos";
 import {
   COLONNE_DA_RILEGGERE,
   campiDalBloccoRicco,
+  campiDelRipasso,
   campiSparitaFuoriVetrina,
   campiVeicoloRitrovato,
   campiVeicoloSparito,
@@ -440,10 +441,12 @@ async function rileggi(
       // **solo** i campi che si possono scrivere, e quelli del concessionario
       // non ci sono. Il disaccordo, quando c'e', resta scritto in
       // `origine_dati` sotto `il_sito_dice`.
+      const archivio = valoriInArchivio(voce.riga);
+
       const scrittura = letto.ok
         ? scriviDalSito(
             voce.riga.origine_dati,
-            valoriInArchivio(voce.riga),
+            archivio,
             { ...dalSito(payloadDatiVeicolo(letto.vehicle)), ...campiDalBloccoRicco(leggiBloccoMotork(html, voce.sourceId)) },
             adesso.slice(0, 10),
           )
@@ -453,9 +456,16 @@ async function rileggi(
       // sulla tabella dell'acquisizione.
       const { entered_on: ingresso, ...suiVeicoli } = scrittura?.daScrivere ?? {};
 
-      const campi = scrittura
-        ? { ...suiVeicoli, origine_dati: scrittura.origineDati, import_synced_at: adesso, updated_at: adesso }
-        : { import_synced_at: adesso };
+      // La regola su cosa si scrive -- e su quando `updated_at` si muove --
+      // sta in un posto solo, accanto alle altre `campi*`, con il motivo
+      // scritto li'. Qui non si ripete: una regola scritta due volte e' una
+      // regola che un giorno dira' due cose diverse.
+      const campi = campiDelRipasso({
+        adesso,
+        archivio,
+        suiVeicoli: scrittura ? suiVeicoli : null,
+        origineDati: scrittura?.origineDati,
+      });
 
       // L'esito si guarda, e si guarda anche **quante righe** ha toccato: una
       // scrittura rifiutata -- o che non trova la riga -- somiglia in tutto a

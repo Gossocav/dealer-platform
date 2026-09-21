@@ -141,6 +141,53 @@ export function chiedeDiNonEssereIndicizzata(html) {
   return dichiarazioni.some((riga) => /noindex/i.test(riga));
 }
 
+/**
+ * Il testo che la pagina serve **senza eseguire niente**: e' quello che vede
+ * chi indicizza alla prima passata, e chi non esegue JavaScript.
+ *
+ * Si tolgono gli script perche' il pacchetto che Next incolla nella pagina
+ * contiene tutto il contenuto vero: contandolo, una pagina vuota sembrerebbe
+ * piena. E' esattamente l'inganno in cui si cadrebbe misurando la home, che
+ * pesa 93.000 byte e ne mostra 63.
+ */
+export function testoServito(html) {
+  const senzaScript = String(html ?? "")
+    .replace(/<script[\s\S]*?<\/script>/g, " ")
+    .replace(/<style[\s\S]*?<\/style>/g, " ");
+  return senzaScript.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Una pagina pubblica ha un contenuto: un titolo di primo livello e del testo
+ * vero, senza bisogno di eseguire niente.
+ *
+ * **Il difetto che questa domanda avrebbe visto, e nessuna delle altre.** Il
+ * 20/09/2026 la home serviva **63 caratteri** -- "Verifica autenticazione..."
+ * e nient'altro -- a chiunque non eseguisse JavaScript, cioe' anche alla
+ * prima passata di chi indicizza. Tutto il resto del sito stava bene. Tre
+ * controlli sorvegliavano proprio quel difetto e sono rimasti verdi: due
+ * leggono il sorgente (e il sorgente era giusto: la stessa compilazione fatta
+ * altrove produceva la pagina intera), e questo -- l'unico che guarda il sito
+ * vero -- chiedeva soltanto cose che la pagina *dichiara*: robots, canonico,
+ * sitemap, fotografie. Non chiedeva mai se la pagina **avesse qualcosa
+ * dentro**.
+ *
+ * La soglia e' bassa apposta: la pagina piu' scarna del sito
+ * (`/concessionarie`) ne serve 1.216, e la home rotta ne serviva 63. Fra i
+ * due numeri ci sta comodo un confine che non suona mai a vuoto.
+ */
+export function servaUnContenuto(html, minimoCaratteri = 500) {
+  const testo = testoServito(html);
+  const titoli = (String(html ?? "").match(/<h1[\s>]/g) ?? []).length;
+  const segnaposto = /Verifica autenticazione|Reindirizzamento\.\.\./.test(testo);
+  return {
+    testo: testo.length,
+    titoli,
+    segnaposto,
+    va: testo.length >= minimoCaratteri && titoli >= 1 && !segnaposto,
+  };
+}
+
 /** Gli identificativi delle auto linkate in una pagina di catalogo. */
 export function idDelleSchede(html) {
   const trovati = String(html ?? "").match(/href="\/auto\/([a-f0-9-]{36})"/g) ?? [];
@@ -247,6 +294,30 @@ async function main() {
     "le pagine fisse non dichiarano una data inventata",
     `${sitemap.fisse.filter((v) => v.data).length} su ${sitemap.fisse.length} ne dichiarano una`
   );
+
+  // --- ogni pagina pubblica serve davvero qualcosa
+  //
+  // La domanda piu' semplice di tutte, e l'unica che mancava: **la pagina ha
+  // qualcosa dentro?** Il 20/09/2026 la home ne serviva 63 caratteri con
+  // tutto il resto del sito sano, e nessuno dei controlli esistenti poteva
+  // vederlo. Il motivo per cui va qui e non in un controllo nuovo: la
+  // famiglia che questo lavoro sorveglia e' "cosa vede chi indicizza", e
+  // "niente" e' la risposta peggiore possibile.
+  const dealerDiProva = (sitemap.concessionarie[0]?.url ?? "").replace(SITO, "");
+  const schedaDiProva = (sitemap.veicoli[0]?.url ?? "").replace(SITO, "");
+  const daGuardare = ["/", "/auto", "/ricerca", "/concessionarie", dealerDiProva, schedaDiProva].filter(Boolean);
+
+  for (const percorso of daGuardare) {
+    const risposta = await leggi(percorso);
+    const esito = servaUnContenuto(await risposta.text());
+    deveReggere(
+      esito.va,
+      `${percorso === "/" ? "la home" : percorso} serve un contenuto`,
+      esito.segnaposto
+        ? `mostra il segnaposto dell'attesa al posto della pagina (${esito.testo} caratteri, ${esito.titoli} titoli)`
+        : `${esito.testo} caratteri di testo e ${esito.titoli} titoli, senza eseguire niente`
+    );
+  }
 
   // --- il catalogo, pagina per pagina
   const idCatalogo = new Set();

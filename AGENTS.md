@@ -1111,9 +1111,28 @@ lavoro finito e' spegnerlo: "e' un dettaglio di cache, il lavoro e' altro".
 Non era un dettaglio. Quel guardiano custodiva una correzione del
 06/09/2026: con poco traffico e quasi trecento schede, Googlebot cadeva
 quasi sempre su pagine fredde (0,65 s contro 0,07), che e' **testualmente**
-la condizione dello stato "Rilevata, ma attualmente non indicizzata" -- 124
-schede quel giorno. Misurato allora sul ramo: la pagina rispondeva in
-0,3-0,6 secondi con `Cache-Control: no-store`.
+la condizione dello stato "Rilevata, ma attualmente non indicizzata".
+Misurato allora sul ramo: la pagina rispondeva in 0,3-0,6 secondi con
+`Cache-Control: no-store`.
+
+> **Due correzioni a questo paragrafo, dai dati veri di Search Console
+> (20/09/2026).**
+>
+> **Il numero "124 schede quel giorno" non esiste.** Era stato riportato a
+> memoria, e i quattro esportati non lo contengono: la serie ha quattro soli
+> gradini -- 05/08: 18 non indicizzate su 19 conosciute; 22/08: 128 su 172;
+> 29/08: 224 su 279; 05/09: 265 su 322 -- e **dal 5 al 14 settembre i numeri
+> sono identici tutti i giorni**. Non c'e' nessun 124, e non c'e' nessun
+> peggioramento: c'e' uno **stallo**. Un numero riportato a memoria in questo
+> file viene riletto come misurato, ed e' il motivo per cui questa nota resta
+> qui invece di sostituire la riga in silenzio.
+>
+> **E la correzione ha funzionato su cio' che mirava, senza spostare il
+> numero.** Oggi le schede sono preparate in anticipo e rispondono in
+> 0,09-0,17 s, misurato; le non indicizzate sono passate da 224 a 265. Quindi
+> **le pagine fredde non erano la causa**, o non erano l'unica. La causa
+> coerente con lo stato misurato e' un'altra, ed e' descritta sotto "una
+> scrittura inutile non e' mai gratis".
 
 Cioe' il lavoro, fatto bene, avrebbe pagato con l'indicizzazione -- che su
 un marketplace senza traffico e' quasi l'unica strada perche' qualcuno
@@ -1462,6 +1481,60 @@ Le due cose che rendono questa famiglia diversa da tutte le altre:
 - **il danno cresce a ogni uso corretto del prodotto.** Non serve sbagliare
   niente: basta usare il modulo come si deve, e ogni salvataggio distrugge
   un dato in piu'.
+
+**E la famiglia che le tiene insieme tutte: una scrittura inutile non e'
+mai gratis, costa da qualche altra parte.**
+
+Scrivere un valore uguale a quello che c'era gia' sembra l'operazione piu'
+innocua del mondo: il dato non cambia, nessuno se ne accorge, e il codice
+che lo fa e' piu' semplice di quello che prima confronta. **Il costo non e'
+dove si scrive: e' in chi legge la traccia che quella scrittura lascia.** E
+siccome le due cose stanno in file diversi, nel diff non si vede niente.
+
+In questo progetto e' costata due volte, in due modi che sembrano non
+avere niente in comune:
+
+1. **18/09/2026 -- cancellava il lavoro di chi usa il prodotto.** Il ripasso
+   dei siti rimetteva l'intero contenuto del sito ogni tre ore: chi
+   correggeva il prezzo di un'auto importata se lo vedeva tornare come
+   prima, in silenzio, e credeva di aver sbagliato lui;
+2. **20/09/2026 -- bruciava il tempo di chi ci indicizza.** Lo stesso
+   ripasso scriveva `updated_at` a ogni giro anche quando rileggeva valori
+   identici. Quella colonna esce dal sito: la sitemap la pubblica come data
+   di ultima modifica. Misurato: **241 schede su 276, l'87%, dichiaravano di
+   essere cambiate nelle ultime 24 ore, e nessuna auto era stata creata.**
+   Ogni giorno dicevamo a Google che era cambiato quasi tutto il catalogo, e
+   lui spendeva il poco tempo che ci dedica a ricontrollare pagine uguali a
+   ieri invece di leggere quelle mai lette -- 262 al 14/09/2026, e **zero**
+   mai scaricate e bocciate.
+
+   E la stessa scrittura mentiva anche al concessionario: la cronologia del
+   veicolo (`src/lib/vehicle-timeline.ts`) fabbrica da quella data un evento
+   *"Veicolo aggiornato"* quando non ne trova uno vero, quindi una scheda che
+   nessuno aveva toccato risultava aggiornata poche ore prima.
+
+**Come si riconosce prima di pagarla.** La domanda non e' *"questa scrittura
+fa danno?"* -- non ne fa, li' dove sta. E' **"chi legge questo campo, e cosa
+conclude dal fatto che si e' mosso?"**. Un campo che non esce mai dalla
+riga puo' anche muoversi a vuoto; un campo che qualcuno interpreta -- una
+data di modifica, un contatore, uno stato, un "visto il" -- e' una
+**affermazione**, e riscriverlo senza motivo e' dire una cosa falsa a
+qualcuno che non e' nella stanza.
+
+**Il rimedio e' sempre lo stesso: confrontare prima di scrivere**, con lo
+stesso confronto che si usa altrove e non con uno nuovo. Qui era gia'
+pronto: `campiDavveroCambiati`, che usa lo stesso `uguali` del disaccordo
+con il sito, quindi `"9500.00"` e `9500` sono la stessa cifra e non fanno
+scattare niente. Scriverne un secondo avrebbe portato il difetto gemello --
+due confronti che un giorno dicono cose diverse.
+
+**E una trappola dentro il rimedio**, gia' pagata il 18/09 in un'altra
+forma: **non si puo' dire "e' cambiato" di un campo che non si e' riletto.**
+Se il valore in archivio non c'e', il confronto e' contro il vuoto ed esce
+"diverso" sempre -- cioe' il difetto di prima con un altro nome e un
+confronto in piu'. Qui regge perche' ogni campo che si scrive e' anche nella
+lista di quelli riletti (`CAMPI_DAL_SITO`), e c'e' un guardiano che lo
+pretende.
 
 **La domanda da farsi ogni volta che un modulo rilegge e riscrive un
 archivio: cosa succede al dato che il modulo non sa rappresentare?** Se la

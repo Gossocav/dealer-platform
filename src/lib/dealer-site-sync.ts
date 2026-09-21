@@ -19,7 +19,7 @@
 
 import type { BloccoMotork } from "@/lib/blocco-motork";
 import type { DealerSiteVehicle } from "@/lib/dealer-site-import";
-import { dalSito } from "@/lib/provenienza-dati";
+import { campiDavveroCambiati, dalSito, type Valore } from "@/lib/provenienza-dati";
 import { canonicalizeVehicleColorLabel } from "@/lib/vehicle-colors";
 import { canonicalizeVehicleBodyType } from "@/lib/vehicle-import";
 import { derivaVersioneDalTitolo, normalizzaModello } from "@/lib/vehicle-label";
@@ -146,6 +146,71 @@ export function campiVeicoloRitrovato(adesso: Date) {
 /** Come si segna un'auto fuori vetrina che non e' piu' sul sito: solo la data. */
 export function campiSparitaFuoriVetrina(adesso: Date) {
   return { import_missing_since: adesso.toISOString(), updated_at: adesso.toISOString() };
+}
+
+/**
+ * Cosa si scrive sulla scheda dopo averla riletta dal sito -- **e la regola
+ * che decide se `updated_at` si muove.**
+ *
+ * **Il difetto che chiude, misurato in produzione il 20/09/2026.** Il ripasso
+ * passa ogni tre ore e scriveva `updated_at` a ogni giro, anche quando
+ * rileggeva valori identici. Risultato: **241 schede su 276 -- l'87% --
+ * risultavano modificate nelle ultime 24 ore, e nessuna auto era stata
+ * creata.**
+ *
+ * Non era un dettaglio interno, perche' quella data esce da due porte:
+ *
+ * 1. **la sitemap** la pubblica come data di ultima modifica di ogni scheda
+ *    (`src/app/sitemap.ts`, `dataDellaRiga`). Ogni giorno dichiaravamo a chi
+ *    indicizza che era cambiato quasi tutto il catalogo. Un segnale che si
+ *    rivela sempre falso smette di valere, e intanto il poco tempo che quel
+ *    visitatore ci dedica se ne va a ricontrollare pagine uguali a ieri
+ *    invece di leggere quelle che non ha mai letto. Al 14/09/2026 Search
+ *    Console contava **262 pagine "Rilevata, ma attualmente non
+ *    indicizzata"**, in salita;
+ * 2. **la cronologia del veicolo** (`src/lib/vehicle-timeline.ts`) fabbrica
+ *    da quella data un evento *"Veicolo aggiornato"* quando non ne trova uno
+ *    vero. Il concessionario apriva un'auto che nessuno aveva toccato e
+ *    leggeva che era stata aggiornata poche ore prima.
+ *
+ * **Perche' il confronto e' esatto e non approssima.**
+ * `campiDavveroCambiati` usa lo stesso `uguali` del disaccordo, quindi
+ * `"9500.00"` e `9500` sono la stessa cifra e non fanno scattare niente. E
+ * ogni campo che si scrive e' anche riletto dall'archivio (`CAMPI_DAL_SITO`,
+ * con il suo guardiano), quindi non si confronta mai un valore con il vuoto
+ * -- che darebbe "diverso" sempre, cioe' il difetto di prima con un altro
+ * nome.
+ *
+ * **Perche' `origine_dati` resta fuori dal conto.** Cambia anche quando si
+ * aggiorna soltanto la data in cui il sito e' stato visto, e quella non
+ * cambia niente di cio' che si legge sulla pagina. Si scrive comunque: e'
+ * solo che non fa data.
+ *
+ * **Cosa la farebbe cambiare:** se un giorno `updated_at` servisse a dire
+ * "l'ultima volta che abbiamo guardato" invece di "l'ultima volta che e'
+ * cambiata", la risposta giusta non e' rimetterlo a ogni giro -- quel
+ * significato ce l'ha gia' `import_synced_at`, che infatti si scrive sempre.
+ */
+export function campiDelRipasso(params: {
+  adesso: string;
+  archivio: Record<string, unknown>;
+  suiVeicoli: Record<string, Valore> | null;
+  origineDati: unknown;
+}): Record<string, unknown> {
+  const { adesso, archivio, suiVeicoli, origineDati } = params;
+
+  // Non si e' riusciti a leggere la scheda: si segna soltanto che ci abbiamo
+  // provato, altrimenti resterebbe in testa alla fila per sempre.
+  if (!suiVeicoli) return { import_synced_at: adesso };
+
+  const cambiati = campiDavveroCambiati(archivio, suiVeicoli);
+
+  return {
+    ...suiVeicoli,
+    origine_dati: origineDati,
+    import_synced_at: adesso,
+    ...(cambiati.length > 0 ? { updated_at: adesso } : {}),
+  };
 }
 
 /**
