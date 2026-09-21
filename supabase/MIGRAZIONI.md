@@ -839,8 +839,30 @@ Domanda giusta, e la risposta e' parziale -- misurata il 21/09/2026 sulle
 | nate **dopo** che Google aveva smesso di passare | 65 | 24% |
 
 **Quindi no, in generale non regge**: tre quarti del catalogo c'era gia' e
-non e' stato preso. Il 262 misura davvero qualcosa che Google **poteva**
-leggere e non ha letto, non solo un catalogo cresciuto alle sue spalle.
+non e' stato preso.
+
+**Il conto fino in fondo, e corregge anche la prima stima.** Sembrerebbe
+209 meno le 43 indicizzate, cioe' 166 -- ma quel sottrarre assume che tutte
+e 43 stiano dentro le 209, e non e' vero. Le 43 si dividono cosi':
+
+| dove stanno le 43 indicizzate | quante |
+|---|---|
+| pubblicate oggi e gia' esistenti al 30/08 | **28** |
+| pubblicate oggi ma nate dopo il 30/08 | 3 |
+| non piu' pubblicate (vendute o tolte dal sito) | 12 |
+
+Quindi, sulle 274 pubblicate di oggi:
+
+| | quante |
+|---|---|
+| esistevano durante la finestra di scansione | 209 |
+| di queste, lette e indicizzate | **28** |
+| **potevano essere lette e non lo sono state** | **181** |
+| non hanno mai avuto occasione (nate dopo) | 62 |
+
+**181, non 166.** L'attenuante del "catalogo cresciuto dopo" copre **un
+quarto** del problema, non il problema: tre auto su quattro fra quelle non
+indicizzate erano li', pubblicate e leggibili, mentre Google passava.
 
 **Ma per concessionaria cambia tutto**, ed e' qui che la domanda paga:
 
@@ -851,9 +873,15 @@ leggere e non ha letto, non solo un catalogo cresciuto alle sue spalle.
 | **Ponginibbi Spa** | **50** | **50 (100%)** |
 
 **Tutto il catalogo di Ponginibbi e' arrivato dopo.** Il suo zero indicizzato
-non e' un rifiuto e non e' un difetto: e' un'assenza di occasioni. Va tenuto
-presente quando si misurera' l'effetto della correzione, perche' le tre
-concessionarie partono da condizioni diverse e una media le confonderebbe.
+non e' un rifiuto e non e' un difetto: e' un'assenza di occasioni.
+
+> **Da tenere in evidenza per fra tre settimane, quando si misurera'
+> l'effetto della correzione: le tre concessionarie partono da condizioni
+> diverse, e una media le confonderebbe.** De Lorenzi aveva quasi tutto il
+> catalogo gia' pubblicato durante la finestra di scansione, Ponginibbi
+> nessuna auto. Un miglioramento medio del catalogo non direbbe se la cura
+> ha funzionato: **si guarda concessionaria per concessionaria**, e su
+> Ponginibbi si guarda se Google **comincia** a passare, non se recupera.
 
 **Ponginibbi non e' rotta, e il dubbio e' smentito con una misura.** Era
 l'unica delle tre concessionarie non indicizzata, e compariva negli
@@ -916,7 +944,25 @@ grep -o 'data-percorso-grezzo="[^"]*"' /tmp/h.html
   altrove -- va bene saperlo, costa cinque minuti invece di mezza giornata
   di lettura.
 
-**COME SI TOGLIE**, e va tolta appena ha risposto:
+**COSA DICE, E COSA NON DICE.** Verificato prima di metterla, perche' sta
+su una pagina pubblica: `usePathname()` restituisce **solo il percorso** --
+niente parametri, niente frammento -- lo dicono la documentazione di Next
+(`use-pathname.md`) e il codice (legge da `PathnameContext`). Sulla copia
+conservata della home il valore e' quello che la ricostruzione ha visto,
+non il percorso di qualcuno; su una pagina riservata sarebbe il percorso
+che **chi guarda ha appena chiesto**, dentro la **sua** risposta, e quelle
+pagine non vengono conservate in cache.
+
+**QUANDO SI TOGLIE: oggi, 21/09/2026.** Non "appena avra' risposto" --
+un'intenzione non e' una data, e una sonda senza scadenza resta.
+
+- **appena la lettura arriva**, si toglie nello stesso giro di lavoro;
+- **se entro le 20:00 UTC di oggi non e' arrivata, si toglie lo stesso** e
+  si riprova domani con una sonda diversa. Una diagnostica che non ha
+  risposto in una giornata non risponde restando li': vuol dire che e'
+  fatta male, e la si rifa'.
+
+**COME SI TOGLIE:**
 
 1. si scrive qui il valore trovato, con la data;
 2. in `src/components/auth-shell.tsx` si toglie `percorsoGrezzo`, si rimette

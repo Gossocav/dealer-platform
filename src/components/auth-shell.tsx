@@ -63,7 +63,13 @@ export function AuthShell({ children }: AuthShellProps) {
   // momento della ricostruzione, e i log di quella ricostruzione potrebbero
   // non arrivare mai.
   //
-  // **COME SI TOGLIE, quando avra' risposto:**
+  // **QUANDO SI TOGLIE: oggi, 21/09/2026.** Appena la lettura arriva, o
+  // comunque **entro le 20:00 UTC di oggi** anche se non e' arrivata: una
+  // diagnostica che non ha risposto in una giornata non risponde restando
+  // li'. Il giro completo, con cosa scrivere dove, sta in
+  // `supabase/MIGRAZIONI.md`, sotto "La sonda sulla home".
+  //
+  // **COME SI TOGLIE:**
   // 1. si legge il valore: `curl -s https://www.keyauto.it/ | grep -o
   //    'data-percorso-grezzo="[^"]*"'` su una copia con `age` maggiore di
   //    300 (cioe' ricostruita, non quella della pubblicazione);
