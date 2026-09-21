@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEMO_LIMITS } from "@/lib/demo-access";
-import { GIORNI_DI_PROVA } from "@/components/marketplace/invito-alla-prova";
 
 function leggi(percorso: string) {
   return readFileSync(resolve(process.cwd(), percorso), "utf8");
@@ -44,10 +43,23 @@ describe("l'invito parla al concessionario, non di noi", () => {
  * questa e' una promessa che il cliente verifica il primo giorno.
  */
 describe("la durata e i limiti dichiarati sono quelli veri", () => {
-  it("sette giorni e' quello che concede il database", () => {
-    const rpc = leggi("supabase/migrations/20260717000005_demo_rpc_core.sql");
-    expect(GIORNI_DI_PROVA).toBe(7);
-    expect(rpc, "il database non concede piu' 7 giorni").toContain("interval '7 days'");
+  // **Questo caso diceva "sette giorni", e fissava il numero due volte.**
+  // Pretendeva `GIORNI_DI_PROVA === 7` **e** che la migration di luglio
+  // contenesse `interval '7 days'`: due affermazioni sullo stesso numero, mai
+  // messe a confronto fra loro. Il 21/09/2026, portando la prova a trenta
+  // giorni, e' caduto -- ed era giusto che cadesse, perche' il numero era
+  // cambiato. Ma la sua ragione, scritta qui sopra, non parlava del numero:
+  // parlava del fatto che **la pagina di vendita non deve dichiarare una
+  // durata diversa da quella che la piattaforma concede**. Quella ragione
+  // regge ancora, e adesso il caso guarda lei.
+  //
+  // Il confronto vero fra il numero del sito e quello del database sta in
+  // `src/lib/durata-della-prova.test.ts`: qui basta che l'invito non
+  // conosca nessun numero per conto suo.
+  it("l'invito non sa quanto dura la prova: lo chiede", () => {
+    expect(invito).toContain('from "@/lib/durata-della-prova"');
+    expect(invito).toContain("{GIORNI_DI_PROVA} giorni");
+    expect(invito).not.toMatch(/\b\d+ giorni\b/);
   });
 
   it("il numero dei veicoli non e' scritto a mano ma preso dai limiti veri", () => {
@@ -55,9 +67,13 @@ describe("la durata e i limiti dichiarati sono quelli veri", () => {
     expect(DEMO_LIMITS.vehicles).toBe(10);
   });
 
-  it("la durata compare nel testo, e viene dalla costante", () => {
-    expect(invito).toContain("{GIORNI_DI_PROVA} giorni");
-    expect(invito).not.toMatch(/\b7 giorni\b/);
+  it("la costante non vive piu' dentro il componente", () => {
+    // Era esportata da qui, ed era gia' "un posto solo" -- ma in un
+    // componente della pagina dei piani, dove nessun altro sarebbe andato a
+    // prenderla. Infatti nessuno c'e' andato: il numero e' ricomparso a mano
+    // in sessanta punti. Un posto solo in un posto che nessuno raggiunge non
+    // e' un posto solo.
+    expect(invito).not.toMatch(/export const GIORNI_DI_PROVA/);
   });
 
   // "Gratuita" e' la parola che fa decidere, ed e' anche la piu' costosa da

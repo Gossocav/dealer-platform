@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
 
 export default function AccountDemoScadutaPage() {
   return (
@@ -7,7 +8,7 @@ export default function AccountDemoScadutaPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-600">Stato account</p>
         <h1 className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">La tua Demo e scaduta</h1>
         <p className="mt-4 text-base leading-7 text-slate-700">
-          Il periodo di prova di 7 giorni e terminato.
+          Il periodo di prova di {GIORNI_DI_PROVA} giorni e terminato.
           <br />
           I tuoi dati sono stati conservati.
           <br />

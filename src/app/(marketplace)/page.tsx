@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
+import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
 import { valoriDistinti } from "@/lib/valori-distinti";
 import { MarqueeDealers, type MarqueeDealer } from "@/components/marketplace/marquee-dealers";
 import { JsonLd } from "@/components/marketplace/json-ld";
@@ -561,7 +562,7 @@ export default async function MarketplaceHomePage() {
               <PortaCard
                 occhiello="Ho una concessionaria"
                 titolo="Cosa offre KeyAuto a chi vende"
-                testo="Una vetrina davanti a chi cerca un'automobile, e dietro un gestionale vero: stock, richieste, clienti e agenda. Dal piano Pro sai anche quanto ti e' costata ogni vettura e quanto ci hai guadagnato davvero. Sette giorni di prova gratuita."
+                testo={`Una vetrina davanti a chi cerca un'automobile, e dietro un gestionale vero: stock, richieste, clienti e agenda. Dal piano Pro sai anche quanto ti e' costata ogni vettura e quanto ci hai guadagnato davvero. ${GIORNI_DI_PROVA} giorni di prova gratuita.`}
                 punti={[
                   "Vetrina nel marketplace e pagina dedicata",
                   "Dal Pro: conto economico, giorni di giacenza e vendite mese per mese",

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DEMO_LIMITS } from "@/lib/demo-access";
+import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
 
 /**
  * L'invito a provare, in fondo alla pagina di ogni piano.
@@ -16,15 +17,21 @@ import { DEMO_LIMITS } from "@/lib/demo-access";
  * concessionario ha di farsi vivo: la prova per chi e' pronto, le informazioni
  * per chi vuole solo una risposta.
  *
- * **La durata e i limiti non si scrivono a mano.** Sette giorni e' quello che
- * concede il database (`interval '7 days'` in `demo_rpc_core`), e i dieci
- * veicoli vengono da `DEMO_LIMITS`: un numero copiato qui invecchierebbe da
- * solo il giorno che quei valori cambiano, ed e' esattamente il difetto che
- * ha appena prodotto quattro funzioni promesse e mai esistite.
+ * **La durata e i limiti non si scrivono a mano.** I giorni vengono da
+ * `GIORNI_DI_PROVA` e i dieci veicoli da `DEMO_LIMITS`: un numero copiato qui
+ * invecchierebbe da solo il giorno che quei valori cambiano, ed e'
+ * esattamente il difetto che ha prodotto quattro funzioni promesse e mai
+ * esistite.
+ *
+ * **La costante stava qui dentro, e non bastava.** Era gia' scritta una volta
+ * sola, ma in un componente: chi aveva bisogno del numero altrove -- la rotta
+ * di attivazione, l'email, la pagina della prova scaduta -- non sarebbe mai
+ * andato a importarlo da un riquadro della pagina dei piani, e infatti non ci
+ * e' andato nessuno. Il 21/09/2026, portando la prova a trenta giorni, il
+ * numero e' saltato fuori in **sessanta punti di ventidue file**. Adesso la
+ * costante vive in `src/lib/durata-della-prova.ts`, che e' un posto dove
+ * chiunque puo' andare a prenderla.
  */
-
-/** I giorni che il database concede a una demo appena attivata. */
-export const GIORNI_DI_PROVA = 7;
 
 type Props = {
   /** Serve solo a far arrivare la richiesta gia' con il piano scelto. */

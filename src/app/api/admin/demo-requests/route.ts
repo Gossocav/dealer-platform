@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { GIORNI_DI_PROVA, scadenzaPerUnaPersona } from "@/lib/durata-della-prova";
 import { consumaFreno } from "@/lib/api-rate-limit";
 import { sendDemoLifecycleEmail, sendPlatformEmail } from "@/lib/admin-notification-email";
 import { eAttivazioneDiretta } from "@/lib/attivazione-diretta";
@@ -563,7 +564,6 @@ export async function POST(request: Request) {
   if (action === "activate_demo") {
     const now = new Date();
     const startedAt = now.toISOString();
-    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const existingDealer = await context.supabaseAdmin
       .from("dealers")
@@ -610,7 +610,21 @@ export async function POST(request: Request) {
         account_type: "demo",
         demo_status: "provisioning",
         demo_started_at: startedAt,
-        demo_expires_at: expiresAt,
+        // **La scadenza non si scrive qui.** La calcola il database quando
+        // crea l'abbonamento, poche righe piu' sotto, e da li' viene riletta
+        // e scritta su questa stessa colonna. Prima c'era un secondo calcolo
+        // in JavaScript -- `now + 7 * 24 * 60 * 60 * 1000` -- che riempiva
+        // questa casella con un valore suo, e l'email di attivazione mandava
+        // **quello** al concessionario mentre l'account viveva sull'altro.
+        // Finche' erano sette e sette non si vedeva; il 21/09/2026, portando
+        // la prova a trenta giorni, sarebbero diventati ventitre giorni di
+        // scarto fra quello che il concessionario legge e quando gli si
+        // chiude l'accesso.
+        //
+        // Per la manciata di secondi fra qui e la scrittura vera la colonna
+        // resta com'era -- vuota su una concessionaria nuova. E' la risposta
+        // giusta: la scadenza in quel momento non esiste ancora, e un
+        // account in `provisioning` non puo' scrivere comunque.
         demo_request_id: requestId,
         demo_approved_by: context.userId,
         demo_approved_at: startedAt,
@@ -898,7 +912,22 @@ export async function POST(request: Request) {
     }
 
     const demoStatus = normalizeText(finalizedSubscription?.demo_status) ?? "active";
-    const demoExpiresAt = normalizeText(finalizedSubscription?.expires_at) ?? expiresAt;
+
+    // **Se la scadenza non c'e', si dice, non si inventa.** Qui c'era
+    // `?? expiresAt`, cioe' il ripiego sul calcolo fatto in JavaScript
+    // all'inizio della rotta: un `??` in cui il valore a destra rispondeva a
+    // una domanda diversa da quello a sinistra -- "quanto durerebbe una
+    // prova" invece di "quanto dura questa". Una scadenza che il database non
+    // ha restituito e' un guasto a monte, e il concessionario deve saperlo
+    // adesso, non scoprirlo il giorno in cui l'accesso si chiude prima del
+    // previsto.
+    const demoExpiresAt = normalizeText(finalizedSubscription?.expires_at);
+    if (!demoExpiresAt) {
+      return NextResponse.json(
+        { error: "La demo risulta attivata ma senza data di scadenza. Non e' stata inviata nessuna email: controlla la richiesta prima di riprovare." },
+        { status: 500 }
+      );
+    }
 
     const dealerStateUpdate = await context.supabaseAdmin
       .from("dealers")
@@ -973,9 +1002,9 @@ export async function POST(request: Request) {
         : `
         <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
           <h2 style="margin:0 0 12px;">Demo attivata</h2>
-          <p style="margin:0 0 12px;">La tua demo KeyAuto e stata attivata per 7 giorni.</p>
+          <p style="margin:0 0 12px;">La tua demo KeyAuto e stata attivata per ${GIORNI_DI_PROVA} giorni.</p>
           <p style="margin:0 0 12px;">Concessionaria: <strong>${escapeHtml(targetRequest.dealership_name)}</strong></p>
-          <p style="margin:0 0 12px;">Scadenza: <strong>${escapeHtml(expiresAt)}</strong></p>
+          <p style="margin:0 0 12px;">Scadenza: <strong>${escapeHtml(scadenzaPerUnaPersona(demoExpiresAt))}</strong></p>
           <p style="margin:0 0 12px;">Limiti: max 10 veicoli, 20 lead, nessuna esportazione/importazione di massa.</p>
           ${passwordSetupLink
             ? `<p style="margin:0 0 12px;"><a href="${passwordSetupLink}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Imposta la password e accedi</a></p>`

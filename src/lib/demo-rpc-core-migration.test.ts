@@ -7,6 +7,24 @@ function readMigration(relativePath: string) {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
 
+/**
+ * **Attenzione a cosa dice questo file: legge il testo delle migration di
+ * luglio, non lo stato del database di oggi.**
+ *
+ * Quelle migration hanno creato la macchina della demo e non si toccano piu'.
+ * Fissarne il testo e' utile -- dice che nessuno le ha modificate a posteriori
+ * -- ma **non dice niente su come si comporta la produzione adesso**, perche'
+ * una migration successiva puo' aver cambiato tutto.
+ *
+ * **Ed e' successo il 21/09/2026**: la prova gratuita e' passata da sette
+ * giorni a trenta. Le righe qui sotto che nominano `interval '7 days'`
+ * continuano a passare, ed e' corretto -- quel testo nel file di luglio c'e'
+ * ancora -- ma **il contratto dei sette giorni non e' piu' in vigore**:
+ * `20260921120000_la_prova_dura_trenta_giorni.sql` lo ha sostituito.
+ *
+ * Il controllo su quanto dura davvero una prova sta in
+ * `src/lib/durata-della-prova.test.ts`, e legge la migration che comanda.
+ */
 describe("demo rpc core migration", () => {
   it("declares helpers and all required rpc functions", () => {
     const migration = readMigration("supabase/migrations/20260717000005_demo_rpc_core.sql");

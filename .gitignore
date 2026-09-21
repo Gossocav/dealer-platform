@@ -47,3 +47,4 @@ next-env.d.ts
 # di sviluppo. Finora erano escluse solo dalla configurazione di questa
 # macchina -- che un Codespace ricreato non ha piu.
 .claude/settings.local.json
+.esiti-dei-test.json
