@@ -191,6 +191,45 @@ export function campiSparitaFuoriVetrina(adesso: Date) {
  * cambiata", la risposta giusta non e' rimetterlo a ogni giro -- quel
  * significato ce l'ha gia' `import_synced_at`, che infatti si scrive sempre.
  */
+/**
+ * **Quante schede sono arrivate diverse, contate con il confronto piu'
+ * grezzo che ci sia: testo contro testo.**
+ *
+ * Serve a dare un senso allo zero. Dal 21/09/2026 la data di modifica si
+ * muove solo quando qualcosa cambia davvero, e il primo giro con quella
+ * correzione ha riscritto **0 schede su 71 rilette**. Zero e' la risposta
+ * giusta se in quel giro nessun campo era cambiato, ma da solo **non
+ * distingue** "non e' cambiato niente" da "il confronto non funziona
+ * piu'": sono due cose opposte e danno lo stesso numero.
+ *
+ * **E non basta ricontare la stessa cosa.** Il primo tentativo contava
+ * quante volte veniva scritta la data: quel numero e' uguale a
+ * `campiDavveroCambiati` per costruzione, quindi se il confronto si
+ * rompesse sarebbero zero tutti e due. Una misura che non puo' contraddire
+ * cio' che controlla non e' una misura.
+ *
+ * Questo conta per un'altra strada, apposta **troppo sensibile**: confronta
+ * i testi senza sapere che `"9500.00"` e `9500` sono la stessa cifra.
+ * Quindi:
+ *
+ * - **grezze = 0** -> dal sito non e' arrivato niente di diverso, nemmeno
+ *   nella forma: "non e' cambiato niente" e' **verificato**, non plausibile;
+ * - **grezze > 0 e riscritte = 0** -> le differenze erano solo di forma.
+ *   Normale ogni tanto; se diventasse la regola, il confronto giusto sta
+ *   ingoiando cambiamenti veri e va guardato;
+ * - **grezze < riscritte** -> impossibile, e un test lo fissa: il confronto
+ *   che sa leggere i numeri puo' solo essere **piu' indulgente** di quello
+ *   che guarda il testo.
+ */
+export function campiDiversiAllaGrezza(
+  archivio: Record<string, unknown>,
+  suiVeicoli: Record<string, Valore> | null,
+): number {
+  if (!suiVeicoli) return 0;
+  const testo = (v: unknown) => String(v ?? "").trim();
+  return Object.keys(suiVeicoli).some((campo) => testo(archivio[campo]) !== testo(suiVeicoli[campo])) ? 1 : 0;
+}
+
 export function campiDelRipasso(params: {
   adesso: string;
   archivio: Record<string, unknown>;

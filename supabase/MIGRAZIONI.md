@@ -93,6 +93,19 @@ pagina, quel ramo e' la risposta gia' misurata -- e le sue parti
 `/ricerca`.
 
 5. **Il resto delle cose interne:**
+   - **una data di prima pubblicazione che nessuna reimportazione tocca.**
+     Oggi non esiste: `created_at` e' l'unica cosa che dice quando una
+     scheda e' nata, e una reimportazione che riscrive la riga la sposta
+     senza che l'indirizzo sia nuovo. **Il caso che l'ha resa necessaria**:
+     il 21/09/2026 si voleva sapere quante delle non indicizzate esistevano
+     gia' durante la finestra di scansione di fine agosto, e la risposta
+     poggiava tutta su quella colonna, senza una seconda fonte --
+     `audit_logs` non ha eventi di nascita per nessuna delle 43 schede
+     indicizzate. Si e' potuto escludere lo spostamento grosso, non quello
+     dentro la finestra, e **il numero e' rimasto non scrivibile**. Fra tre
+     settimane ci faremo la domanda gemella -- *quante delle auto
+     pubblicate prima di oggi sono state indicizzate dopo* -- e senza quella
+     data non si potra' rispondere nemmeno allora;
    - **i 486 KB di HTML della pagina di una concessionaria** (Ponginibbi,
      misurati il 21/09/2026 con un browser vero: 50 immagini, 134
      collegamenti). E' peso su ogni visita, non indicizzazione. **Annotato,
@@ -810,6 +823,27 @@ settimana sono:
 | finalita' **Rilevamento** | **3%** | salire |
 
 Sono i due numeri che dicono se il tempo di Google e' tornato sulle pagine.
+
+**LE DUE DATE DI VERIFICA, e prima di quelle un numero fermo non vuol dire
+niente.**
+
+| quando | cosa si guarda | cosa deve fare |
+|---|---|---|
+| **24-25 settembre 2026** | *Impostazioni → Statistiche di scansione*: tipo di file **HTML**, e finalita' **Rilevamento** | HTML ben sopra il **6%**, Rilevamento sopra il **3%** |
+| **verso il 10 ottobre 2026** | *Pagine*: il numero delle **indicizzate** | salire dalle 57 di oggi |
+
+**Perche' due date e non una.** Le due cose si muovono con tempi diversi:
+la ripartizione delle scansioni cambia appena Google rilegge robots.txt,
+l'indicizzazione arriva dopo che le pagine sono state scaricate e valutate.
+Guardare le indicizzate il 25 settembre darebbe "fermo" e sarebbe una
+risposta senza senso, non una brutta notizia.
+
+**E il 21 settembre sono state fatte tre correzioni in un giorno** -- la
+data di modifica che non si muove piu' a vuoto, i pacchetti del router
+fuori dalle scansioni, la home che non serve piu' una pagina vuota. Sono
+gia' al limite di quello che si riesce a distinguere: una quarta renderebbe
+illeggibile il risultato. **Da qui al 24 settembre non si tocca altro su
+questo fronte.**
 Vanno letti li' e non si possono misurare da qui: il controllo quotidiano
 verifica che la riga di robots.txt **ci sia ancora**, non come Google spende
 il suo tempo.
@@ -822,6 +856,25 @@ riguarda cosa Google decide di **andare a prendere**, non cosa trova quando
 arriva. La correzione sta in `campiDelRipasso`
 (`src/lib/dealer-site-sync.ts`), il guardiano in
 `src/lib/updated-at-si-muove-solo-se-cambia.test.ts`.
+
+**Una nota di metodo sull'ora della pubblicazione, perche' e' lo stesso
+righello su cui si e' gia' sbagliato.** L'ora del **record** della
+pubblicazione e l'ora in cui la rete comincia a servire la copia nuova
+**non coincidono**. Misurato il 21/09/2026 sul deploy delle 09:53:34:
+
+| lettura | eta' della copia | quando e' nata | cosa serviva |
+|---|---|---|---|
+| 09:53:37 (tre secondi dopo il record) | 63 s | **09:52:34**, un minuto *prima* del record | la pagina **vecchia** |
+| 09:55:12 | 95 s | 09:53:37, tre secondi *dopo* il record | la pagina nuova |
+
+Cioe': leggendo tre secondi dopo il record si misura ancora la versione
+precedente, e la si scambia per la prova della correzione. E' successo, ed
+e' stato preso solo perche' l'eta' non tornava.
+
+**La regola: una misura ancorata "alla pubblicazione" si ancora all'eta'
+della copia, non all'orologio del record.** Il marcatore affidabile e'
+`age`, che dice quando quel file e' nato; il record dice quando GitHub ha
+scritto una riga.
 
 **Misurato il 21/09/2026: ha funzionato.** E il modo in cui e' stato
 misurato conta quanto il risultato, perche' la prima versione della misura
