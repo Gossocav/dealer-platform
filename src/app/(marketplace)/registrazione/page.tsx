@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import DealerInfoRequestForm from "./dealer-info-request-form";
 
@@ -32,7 +33,7 @@ export default function RegistrazionePage() {
             Scegli il percorso piu adatto alla tua concessionaria
           </h1>
           <p className="relative mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-            Seleziona Piano Base, Piano Pro, Piano Elite oppure richiedi la Demo gratuita di 7 giorni.
+            Seleziona Piano Base, Piano Pro, Piano Elite oppure richiedi la Demo gratuita di {GIORNI_DI_PROVA} giorni.
           </p>
         </section>
 
@@ -60,7 +61,7 @@ export default function RegistrazionePage() {
               che la pagina vuole far scegliere. */}
           <article className="flex flex-col rounded-[26px] border border-cyan-300/30 bg-cyan-400/[0.07] p-6">
             <h2 className="text-2xl font-semibold text-white">Demo gratuita</h2>
-            <p className="mt-2 text-sm font-medium text-cyan-200">Prova KeyAuto per 7 giorni</p>
+            <p className="mt-2 text-sm font-medium text-cyan-200">Prova KeyAuto per {GIORNI_DI_PROVA} giorni</p>
             <p className="mt-3 flex-1 text-sm leading-6 text-slate-400">
               Accesso dimostrativo riservato ai professionisti automotive, con alcune funzionalita limitate.
             </p>

@@ -128,6 +128,7 @@ solo sul server: mai in un componente del browser.
 | `src/lib/vehicle-body-types.ts` | l'unico elenco delle carrozzerie: i valori sono anche quelli scritti nel database |
 | `src/lib/tetto-del-piano.ts` | la regola del tetto del piano: quali auto stanno in vetrina quando sono piu' del consentito. **Una funzione sola** per sincronizzazione, importazione e pubblicazione a mano |
 | `src/lib/dealer-site-import.ts` | legge lo stock dal sito della concessionaria; non parla col database, quindi si puo' provare su dati veri senza rischi |
+| `src/lib/durata-della-prova.ts` | quanto dura la prova gratuita, per il sito. Il database ha la sua copia in `public.durata_della_prova()`, e un guardiano fallisce se le due dicono numeri diversi |
 
 Gli endpoint stanno in `src/app/api/**/route.ts` e seguono sempre lo stesso
 ordine: normalizza, valida (400), variabili d'ambiente (500), scrittura
@@ -565,6 +566,134 @@ di toccarla:
 - **un campo vuoto non e' un errore.** Una vettura importata dal sito non ha
   quasi mai la targa, e nessuno deve inventarsene una per salvare la scheda.
   Quello che non si fa e' salvare come targa qualcosa che targa non e'.
+
+**Un posto solo in un posto che nessuno raggiunge non e' un posto solo.** E'
+la variante della regola qui sotto che si riconosce peggio, perche' il codice
+*sembra* gia' a posto: la costante c'e', e' esportata, e' usata. Manca solo
+che qualcuno, da un altro file, pensi di venirla a prendere li'.
+
+Il caso, 21/09/2026. Il titolare ha portato la prova gratuita da sette giorni
+a trenta -- un cambio di prodotto, non un difetto. La durata era gia' una
+costante, `GIORNI_DI_PROVA`, scritta **una volta sola**... dentro
+`invito-alla-prova.tsx`, cioe' un riquadro in fondo alla pagina dei piani. Chi
+scriveva la pagina della demo, l'email di attivazione o la pagina "prova
+scaduta" non e' mai andato a importare un numero da li', e nessuno gliel'ha
+mai chiesto. Risultato, contato con sette ricerche indipendenti e verificato
+riga per riga: **sessanta punti in ventidue file**.
+
+**La copia peggiore non era scritta, era calcolata.** La rotta di attivazione
+faceva `now + 7 * 24 * 60 * 60 * 1000` in JavaScript mentre il database
+faceva il suo conto, e l'email mandava al concessionario **il primo** mentre
+l'account viveva sul secondo. Finche' erano tutti e due sette non si vedeva:
+a trenta sarebbero stati **ventitre giorni** fra la data che uno legge e il
+giorno in cui l'accesso si chiude. E' la stessa famiglia dei due confronti
+che un giorno dicono cose diverse -- ma qui i due conti non si confrontavano
+mai, quindi non c'era nessun giorno in cui accorgersene.
+
+Le tre cose da portarsi via:
+
+1. **una costante sta nel posto piu' generale che la usa, non nel primo che
+   l'ha voluta.** La differenza fra `src/lib/` e un componente non e' di
+   ordine: e' che al primo ci si arriva cercando, al secondo no. La domanda
+   e' *"chi altro potrebbe averne bisogno un giorno, e passerebbe di qui a
+   cercarla?"*;
+2. **quando il valore serve a due esecutori diversi le case sono due, e va
+   detto.** Il sito e il database non possono leggere lo stesso file: una
+   pagina statica non interroga il database per sapere come si chiama se
+   stessa. Allora le case sono `src/lib/durata-della-prova.ts` e
+   `public.durata_della_prova()`, **e la terza cosa e' un controllo che
+   fallisce se le due dicono numeri diversi**. Due case dichiarate con un
+   guardiano fra loro sono onestita'; due case senza guardiano sono il
+   difetto con un altro nome;
+3. **un vincolo del database che ripete un valore di prodotto e' una copia
+   come le altre, e la piu' cattiva**, perche' quando quel valore cambia non
+   da' un numero sbagliato: **rifiuta la scrittura a meta' della
+   transazione**. Il vincolo della demo pretendeva `expires_at = starts_at +
+   interval '7 days'` esatti: una demo di trenta giorni veniva respinta dal
+   database. Al suo posto un controllo di **buonsenso** -- fra uno e novanta
+   giorni -- che prende gli errori grossi e non va aggiornato quando la
+   durata cambia. E attenzione all'ordine delle cose: un vincolo nuovo viene
+   verificato su **tutte le righe gia' presenti**, quindi uno che pretendesse
+   la durata di oggi fallirebbe sul dato storico. Provato: con le quattro
+   righe da sette giorni in tabella, *"vincolo che pretende 30 giorni ->
+   ERRORE: is violated by some row"*.
+
+Il guardiano e' `src/lib/durata-della-prova.test.ts`, provato rosso tre volte
+prima di fidarsi del verde: con le due case che dichiarano numeri diversi, con
+una durata riscritta a mano in una pagina, e con un `interval` rimesso dentro
+una funzione della demo.
+
+**E una quarta cosa, che non riguarda la durata: provare con poteri che in
+produzione non ci saranno non prova niente, e da' sempre verde.**
+
+E' la variante dell'**oggetto adiacente** che riguarda **chi** esegue invece
+di **cosa** si guarda, e merita un nome suo perche' si ripresentera' su
+superfici che con i permessi del database non c'entrano niente.
+
+Il caso che l'ha prodotta, 21/09/2026: la prima verifica del flusso di
+attivazione di una demo girava come `postgres`, che possiede tutto. Avrebbe
+dato lo stesso risultato con o senza i `grant`, quindi non diceva niente su
+cio' che serviva sapere -- se il `revoke` sulla funzione nuova avrebbe fermato
+l'attivazione alla prima demo vera. Rifatta con `set role service_role`, cioe'
+il ruolo che PostgREST assume davvero, e con le controprove che il permesso sa
+anche dire di no.
+
+**Le altre forme sono gia' prevedibili, e sono tutte in questo progetto:**
+
+| come si prova | perche' il verde non vale niente |
+|---|---|
+| una **pagina pubblica** aperta mentre si e' collegati al gestionale | la sessione apre porte che un visitatore non ha; la pagina puo' essere rotta per tutti gli altri |
+| un'**API** interrogata con la chiave di servizio invece di quella del sito | la chiave di servizio scavalca la protezione per riga: si sta provando il codice, non la serratura |
+| l'**isolamento fra concessionarie** verificato da un conto amministratore | l'amministratore vede tutto per disegno; il verde dice solo che lui vede, non che gli altri non vedono |
+| una **migration** provata da superutente | i `grant` e i `revoke` non hanno nessun effetto su chi possiede tutto |
+| una **pagina protetta** provata senza svuotare i cookie | si sta guardando la propria sessione, non la porta |
+
+La forma comune, e la domanda da farsi prima di scrivere "verificato":
+
+> *Sto eseguendo con gli stessi poteri che avra' chi incontrera' il difetto?*
+
+Se la risposta e' "ne ho di piu'", il verde e' una proprieta' dei propri
+poteri, non del codice. E vale il rovescio: **un permesso che non si e' mai
+visto rifiutare non ha ancora dimostrato di esistere.** Accanto a ogni prova
+che passa ci va quella che deve fallire -- qui: `authenticated` che chiama la
+funzione e si prende `permission denied (42501)`, e una funzione gemella
+`security invoker` che viene fermata mentre la stessa resa `definer` passa.
+
+**E un rosso che non dice di che tipo e' costringe a interpretarlo.** Stesso
+giorno, e nasce da un rosso che non sono riuscito a riprodurre: un guardiano
+e' caduto una volta sola, il comando finiva in `| tail -12`, e la coda ha
+tenuto il diff e buttato via l'asserzione. Quindici esecuzioni dopo, tutte
+verdi, di quel rosso non restava **niente da leggere**.
+
+I difetti erano due, e sono diversi:
+
+1. **l'esito viveva solo sullo schermo.** Un'esecuzione lascia adesso un file
+   sempre, verde o rossa (`.esiti-dei-test.json`, configurato in
+   `vitest.config.ts` e non versionato): chi la osserva puo' filtrare quanto
+   vuole senza perdere niente. Vale oltre i test -- **qualunque misura che
+   verra' citata piu' tardi si scrive su disco mentre si fa**, non si legge e
+   basta;
+2. **i due rossi si somigliavano.** Un controllo che legge qualcosa fuori da
+   se' -- un file, un database, una rete -- fallisce allo stesso modo quando
+   *non ha potuto guardare* e quando *ha guardato e la regola non regge*. Le
+   due cose portano ad azioni opposte: rieseguire, oppure correggere. Adesso
+   il messaggio lo dice: `NON LEGGIBILE:` contro `PROPRIETA' VIOLATA:`, e la
+   distinzione **e' provata** producendo tutti e due i rossi in un caso di
+   prova, perche' altrimenti sarebbe una promessa nel commento.
+
+E' la stessa famiglia dei tre esiti del controllo sullo schema di produzione
+(*"mancano i segreti"*, *"non sono riuscito a leggere"*, *"non dicono la
+stessa cosa"*): li' la distinzione c'era gia' e andava letta, qui non c'era e
+si e' dovuta costruire.
+
+**E una migration si esegue due volte prima di consegnarla.** Non perche' si
+debba rieseguire, ma perche' prima o poi capita: una connessione che cade a
+meta', un dubbio su cosa sia passato, un secondo incollaggio nell'editor
+SQL. Il 21/09/2026 il terzo vincolo di questa migration non aveva il
+`drop constraint if exists` che avevano gli altri due, e alla seconda
+esecuzione si sarebbe fermato con *"already exists"* -- a transazione
+iniziata, quindi con tutto il resto annullato e nessuna indicazione su cosa
+fare. L'ha visto il titolare leggendo il blocco, non un controllo.
 
 **Una regola messa in un posto solo non chiude le porte che non la
 chiamano.** "Un posto solo" e' dove la regola **vive**, non quante porte la
@@ -1379,8 +1508,11 @@ archivio documenti -- sono quelle da provare **prima** che le provi lui, e
 per ognuna la prova migliore e' un test comportamentale che le chiami davvero.
 
 **"Vuoto" non e' una prova: il criterio per cancellare e' che nessuna riga di
-codice la usi.** I tre account in produzione sono **di prova**, creati dal
-titolare, e non esiste ancora nessun cliente pagante. Quindi *"oggi non lo usa
+codice la usi.** Al 21/09/2026 in produzione ci sono **quattro** conti di
+concessionaria -- **Autogepy, De Lorenzi, Ponginibbi e Ferrari Automobili** --
+e sono tutti **di prova, creati dal titolare**, che lo ha confermato per
+iscritto: non esiste ancora nessun cliente pagante, e la vendita degli
+abbonamenti non e' cominciata. Quindi *"oggi non lo usa
 nessuno"* non e' mai un argomento: **non c'e' nessuno che possa usarlo**. Una
 tabella vuota oggi puo' essere un guscio mai costruito, oppure una cosa che
 aspetta il primo cliente vero -- e le due si assomigliano moltissimo.

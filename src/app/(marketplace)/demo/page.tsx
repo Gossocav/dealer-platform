@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
 import { ITALIAN_CITIES_BY_PROVINCE, ITALIAN_PROVINCES, type ItalianProvinceCode } from "@/lib/italian-locations";
 import { trackLead } from "@/lib/measurement-events";
 
@@ -552,7 +553,7 @@ function DemoRequestPage() {
             style={{ background: "radial-gradient(circle, rgba(76,130,247,0.5), transparent 70%)" }}
           />
           <p className="relative text-xs font-semibold uppercase tracking-[0.32em] text-cyan-300">KeyAuto</p>
-          <h1 className="relative mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Richiedi la tua Demo gratuita di 7 giorni</h1>
+          <h1 className="relative mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Richiedi la tua Demo gratuita di {GIORNI_DI_PROVA} giorni</h1>
           <p className="relative mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             Compila il modulo in meno di un minuto. Il nostro team verifichera la richiesta e ti contattera per attivare l&apos;accesso Demo.
           </p>

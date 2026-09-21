@@ -298,11 +298,21 @@ describe("chi e' attivato direttamente riceve una sola email", () => {
   it("l'email dell'accesso non gli racconta una prova che non ha chiesto", () => {
     expect(attivazione).toContain('attivazioneDiretta ? "Il tuo account KeyAuto e attivo" : "Demo KeyAuto attivata"');
 
-    // Il testo della demo -- sette giorni, dieci veicoli -- resta solo nel
+    // Il testo della demo -- la durata, i dieci veicoli -- resta solo nel
     // ramo di chi la prova l'ha chiesta davvero.
+    //
+    // **Questa riga diceva `not.toContain("7 giorni")` ed e' diventata cieca
+    // il 21/09/2026**, quando la prova e' passata a trenta giorni: continuava
+    // a passare, ma se qualcuno avesse rimesso il testo della demo in questo
+    // ramo adesso ci sarebbe scritto "30 giorni" e il controllo non avrebbe
+    // detto niente. Un guardiano che nomina il valore invece della cosa
+    // smette di guardare il giorno che il valore cambia, **e non lo dice**:
+    // resta verde. Adesso pretende che il ramo non parli di durata, con
+    // qualunque numero, e che non nomini la costante.
     const suo = attivazione.slice(attivazione.indexOf("html: attivazioneDiretta"), attivazione.indexOf('<h2 style="margin:0 0 12px;">Demo attivata</h2>'));
     expect(suo).toContain("Imposta la password e accedi");
-    expect(suo).not.toContain("7 giorni");
+    expect(suo).not.toMatch(/\d+ giorni/);
+    expect(suo).not.toContain("GIORNI_DI_PROVA");
     expect(suo).not.toContain("max 10 veicoli");
   });
 

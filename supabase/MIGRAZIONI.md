@@ -307,6 +307,103 @@ where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
 Il risultato **non si committa**: contiene la mappa completa delle serrature.
 Si legge, si usa, si cancella.
 
+## La prova gratuita passa a trenta giorni (21/09/2026)
+
+**È un cambio di prodotto deciso dal titolare, non la correzione di un
+difetto.** Serve una migration perché **il database di oggi rifiuta una demo
+di trenta giorni**: non con un valore predefinito che si possa scavalcare, ma
+con un vincolo, `dealer_demo_subscriptions_extension_guard_check`, che
+pretende una scadenza esattamente sette giorni dopo l'inizio.
+
+**Da applicare:** `20260921120000_la_prova_dura_trenta_giorni.sql`.
+
+### Cosa è stato verificato prima di consegnarla
+
+Su un Postgres 17 in Docker, con lo schema ricostruito da zero da tutti i
+file:
+
+| cosa | risultato |
+|---|---|
+| la ricostruzione con la migration dentro | tutte le migration applicate |
+| `configure_demo_profile` chiamata davvero | crea una demo di **30,000 giorni** |
+| il percorso completo fino a `finalize_demo_activation` | **30,000 giorni**, stato `active` |
+| chiamare `configure_demo_profile` due volte | `DEMO_CONFIG_NOOP`, come prima |
+| una riga storica da 7 giorni | continua a entrare |
+| una demo di 91 giorni | rifiutata dal controllo di buonsenso |
+| **la migration eseguita tre volte di fila** | **riuscita tutte e tre** |
+| il flusso completo girando come `service_role`, non da superutente | `DEMO_ACTIVATED`, 30,000 giorni |
+| `authenticated` che prova a chiamare le funzioni della demo | `permission denied (42501)` |
+
+E sulla produzione, in sola lettura: le **quindici** funzioni della demo e il
+vincolo combaciano bit per bit con i file, quindi la migration parte da dove
+crede di partire.
+
+### Le righe già in archivio: niente da migrare
+
+Quattro righe, tutte di **7,000 giorni esatti** e tutte già **convertite** in
+un piano a pagamento: nessuna demo è in corso, quindi non c'è nessuna scadenza
+da allungare. Sono i conti di prova del titolare — Autogepy, De Lorenzi,
+Ponginibbi, Ferrari Automobili — che lo ha confermato per iscritto il
+21/09/2026: **non esiste ancora nessun cliente pagante e la vendita degli
+abbonamenti non è cominciata.**
+
+### Tre cose verificate perche' il titolare le ha chieste (21/09/2026)
+
+**La migration si puo' rieseguire.** Il terzo vincolo non aveva il
+`drop constraint if exists` che hanno gli altri due: eseguita due volte si
+sarebbe fermata con *"already exists"*. Corretto e provato eseguendola tre
+volte di fila, non ragionandoci: riuscita tutte e tre. La versione senza il
+`drop`, provata apposta, fallisce con quel messaggio esatto.
+
+**Le colonne del vincolo non ammettono il vuoto**, verificato **in
+produzione** e non solo nei file: `extension_used` e' `not null` con
+predefinito `false`, `starts_at` e `expires_at` sono `not null`. Senza quella
+garanzia il vincolo di coerenza rifiuterebbe le righe con `extension_used`
+vuoto, e quello di durata **passerebbe in silenzio** su una data vuota,
+perche' un CHECK che vale NULL e' soddisfatto. L'`is not null` esplicito e'
+stato aggiunto **solo al secondo**: si mette la cintura dove il guasto e'
+muto, non dove grida.
+
+**Il `revoke` sulla funzione nuova non puo' rompere l'attivazione.** Le due
+funzioni che la chiamano sono `security definer` (letto da `prosecdef`,
+non dai file), quindi girano con i permessi del proprietario. Provato
+girando come `service_role` -- il ruolo che usa davvero il server, **non da
+superutente**, che avrebbe nascosto qualunque permesso mancante. E provato
+anche al contrario: una funzione gemella `security invoker` chiamata da
+`authenticated` viene **fermata** dal `revoke`, mentre la stessa resa
+`definer` passa. Il permesso ha i denti, e le funzioni vere reggono per
+costruzione.
+
+### Il difetto che la migration incontra, e che va saputo
+
+`extend_demo` dichiara di accettare una proroga da 1 a 7 giorni; il vincolo di
+oggi ne accetta da 7 a 14. L'intersezione è **il solo 7**. Provato chiamando
+la funzione vera dal ruolo `service_role`:
+
+```
+proroga di 3 giorni -> ECCEZIONE DEL DATABASE (violates check constraint)
+proroga di 7 giorni -> risposta pulita: DEMO_EXTENDED
+proroga di 8 giorni -> risposta pulita: DEMO_INVALID_DURATION
+```
+
+Non fa danni oggi: **nessuna riga di codice chiama `extend_demo`**, il
+pulsante non esiste. La migration non tocca quella funzione, ma togliendo la
+durata dal vincolo le sei durate che si schiantavano cominciano a funzionare.
+È una conseguenza, non una correzione nascosta, ed è scritta anche nel
+commento della migration. Se per una prova di trenta giorni la finestra di
+proroga 1..7 non è più quella giusta, è una riga in `extend_demo` e una
+decisione del titolare.
+
+### Il giorno che la durata cambierà di nuovo
+
+Due righe, e un controllo che se ne accorge se se ne dimentica una:
+
+1. `GIORNI_DI_PROVA` in `src/lib/durata-della-prova.ts`;
+2. l'`interval` dentro `public.durata_della_prova()`, in una migration nuova.
+
+`src/lib/durata-della-prova.test.ts` fallisce se le due dicono numeri diversi,
+e fallisce anche se qualcuno scrive la durata a mano da qualche altra parte.
+
 ## Applicarne una
 
 1. Apri **supabase.com** e il progetto di KeyAuto.

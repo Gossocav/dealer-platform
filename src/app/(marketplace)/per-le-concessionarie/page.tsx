@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
 import { toAbsoluteUrl } from "@/lib/public-marketplace";
 import { RevealOnScroll } from "@/components/marketplace/reveal-on-scroll";
 import Link from "next/link";
@@ -24,7 +25,7 @@ import { formattaPrezzoPiano, getDemoPlan } from "@/lib/demo-plan-catalog";
  */
 
 const descrizione =
-  "KeyAuto dà alla tua concessionaria una vetrina sul marketplace e il gestionale che ci sta dietro: annunci, richieste dei clienti, agenda e statistiche in un pannello unico. Sette giorni di prova gratuita.";
+  `KeyAuto dà alla tua concessionaria una vetrina sul marketplace e il gestionale che ci sta dietro: annunci, richieste dei clienti, agenda e statistiche in un pannello unico. ${GIORNI_DI_PROVA} giorni di prova gratuita.`;
 
 export const metadata: Metadata = {
   title: "KeyAuto per la tua concessionaria",
@@ -137,7 +138,7 @@ export default function PerLeConcessionariePage() {
       <PresentazioneHero
         occhiello="Per le concessionarie"
         titolo="La tua vetrina online, e il gestionale che ci sta dietro"
-        sottotitolo="Con KeyAuto il parco auto si pubblica una volta e vive in due posti: davanti ai clienti che cercano, e dentro un pannello dove tu lo gestisci. Sette giorni di prova gratuita, senza carta di credito."
+        sottotitolo={`Con KeyAuto il parco auto si pubblica una volta e vive in due posti: davanti ai clienti che cercano, e dentro un pannello dove tu lo gestisci. ${GIORNI_DI_PROVA} giorni di prova gratuita, senza carta di credito.`}
       >
         <div className="mt-9 flex flex-wrap gap-3">
           <BottonePrimario href="/demo">Richiedi la Demo gratuita</BottonePrimario>
@@ -230,7 +231,7 @@ export default function PerLeConcessionariePage() {
         <RevealOnScroll delayMs={120} className="mt-6 rounded-3xl border border-cyan-300/30 bg-cyan-400/[0.07] p-6 sm:p-8">
           <h3 className="text-lg font-semibold text-white">Prima di decidere, provala</h3>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-            La Demo dura sette giorni ed è gratuita: pubblichi fino a 10 veicoli, ricevi fino a 20 richieste e usi il
+            La Demo dura {GIORNI_DI_PROVA} giorni ed è gratuita: pubblichi fino a 10 veicoli, ricevi fino a 20 richieste e usi il
             pannello con i tuoi dati veri, non con un esempio. È riservata ai professionisti del settore: al momento della
             richiesta si allega la visura camerale, e la verifica richiede uno o due giorni lavorativi.
           </p>

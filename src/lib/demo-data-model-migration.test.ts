@@ -15,6 +15,24 @@ function readMigration(relativePath: string) {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
 
+/**
+ * **Attenzione a cosa dice questo file: legge il testo delle migration di
+ * luglio, non lo stato del database di oggi.**
+ *
+ * Quelle migration hanno creato la macchina della demo e non si toccano piu'.
+ * Fissarne il testo e' utile -- dice che nessuno le ha modificate a posteriori
+ * -- ma **non dice niente su come si comporta la produzione adesso**, perche'
+ * una migration successiva puo' aver cambiato tutto.
+ *
+ * **Ed e' successo il 21/09/2026**: la prova gratuita e' passata da sette
+ * giorni a trenta. Le righe qui sotto che nominano `interval '7 days'`
+ * continuano a passare, ed e' corretto -- quel testo nel file di luglio c'e'
+ * ancora -- ma **il contratto dei sette giorni non e' piu' in vigore**:
+ * `20260921120000_la_prova_dura_trenta_giorni.sql` lo ha sostituito.
+ *
+ * Il controllo su quanto dura davvero una prova sta in
+ * `src/lib/durata-della-prova.test.ts`, e legge la migration che comanda.
+ */
 describe("dealer demo data model migration", () => {
   it("defines the dealer_demo_subscriptions table and immutability rules", () => {
     const migration = readMigration("supabase/migrations/20260717000004_dealer_demo_subscriptions.sql");
@@ -51,7 +69,12 @@ describe("dealer demo data model migration", () => {
     expect(migration).toContain("Dealer demo subscription snapshot is immutable after configuration.");
   });
 
-  it("keeps the three demo profiles and the fixed seven day duration contract", () => {
+  // Il nome diceva "the fixed seven day duration contract" e il caso non
+  // guardava nessuna durata: elenca i codici e gli stati. Il 21/09/2026 la
+  // durata e' cambiata e questo caso **non e' caduto** -- giustamente, non
+  // era affar suo -- ma il suo nome avrebbe fatto credere il contrario a chi
+  // lo legge. Si fissa la proprieta' che guarda davvero.
+  it("keeps the three demo profiles and the lifecycle vocabulary", () => {
     expect(DEMO_PROFILE_CODES).toEqual(["base", "pro", "elite"]);
     expect(DEMO_REQUEST_STATUSES).toEqual(["pending", "contacted", "qualified", "approved_for_activation", "rejected"]);
     expect(DEMO_ACTIVATION_STATES).toEqual(["idle", "reserved", "auth_ready", "dealer_ready", "profile_ready", "membership_ready", "completed", "failed"]);
