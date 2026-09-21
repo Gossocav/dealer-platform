@@ -839,8 +839,30 @@ Domanda giusta, e la risposta e' parziale -- misurata il 21/09/2026 sulle
 | nate **dopo** che Google aveva smesso di passare | 65 | 24% |
 
 **Quindi no, in generale non regge**: tre quarti del catalogo c'era gia' e
-non e' stato preso. Il 262 misura davvero qualcosa che Google **poteva**
-leggere e non ha letto, non solo un catalogo cresciuto alle sue spalle.
+non e' stato preso.
+
+**Il conto fino in fondo, e corregge anche la prima stima.** Sembrerebbe
+209 meno le 43 indicizzate, cioe' 166 -- ma quel sottrarre assume che tutte
+e 43 stiano dentro le 209, e non e' vero. Le 43 si dividono cosi':
+
+| dove stanno le 43 indicizzate | quante |
+|---|---|
+| pubblicate oggi e gia' esistenti al 30/08 | **28** |
+| pubblicate oggi ma nate dopo il 30/08 | 3 |
+| non piu' pubblicate (vendute o tolte dal sito) | 12 |
+
+Quindi, sulle 274 pubblicate di oggi:
+
+| | quante |
+|---|---|
+| esistevano durante la finestra di scansione | 209 |
+| di queste, lette e indicizzate | **28** |
+| **potevano essere lette e non lo sono state** | **181** |
+| non hanno mai avuto occasione (nate dopo) | 62 |
+
+**181, non 166.** L'attenuante del "catalogo cresciuto dopo" copre **un
+quarto** del problema, non il problema: tre auto su quattro fra quelle non
+indicizzate erano li', pubblicate e leggibili, mentre Google passava.
 
 **Ma per concessionaria cambia tutto**, ed e' qui che la domanda paga:
 
@@ -851,9 +873,15 @@ leggere e non ha letto, non solo un catalogo cresciuto alle sue spalle.
 | **Ponginibbi Spa** | **50** | **50 (100%)** |
 
 **Tutto il catalogo di Ponginibbi e' arrivato dopo.** Il suo zero indicizzato
-non e' un rifiuto e non e' un difetto: e' un'assenza di occasioni. Va tenuto
-presente quando si misurera' l'effetto della correzione, perche' le tre
-concessionarie partono da condizioni diverse e una media le confonderebbe.
+non e' un rifiuto e non e' un difetto: e' un'assenza di occasioni.
+
+> **Da tenere in evidenza per fra tre settimane, quando si misurera'
+> l'effetto della correzione: le tre concessionarie partono da condizioni
+> diverse, e una media le confonderebbe.** De Lorenzi aveva quasi tutto il
+> catalogo gia' pubblicato durante la finestra di scansione, Ponginibbi
+> nessuna auto. Un miglioramento medio del catalogo non direbbe se la cura
+> ha funzionato: **si guarda concessionaria per concessionaria**, e su
+> Ponginibbi si guarda se Google **comincia** a passare, non se recupera.
 
 **Ponginibbi non e' rotta, e il dubbio e' smentito con una misura.** Era
 l'unica delle tre concessionarie non indicizzata, e compariva negli
@@ -879,55 +907,62 @@ le legge. Vale il giorno in cui comincera' a leggerle, e dipende dai
 concessionari: aiutarli a scrivere le descrizioni, e distinguere le schede
 con i dati che gia' abbiamo.
 
-## La sonda sulla home, e come si toglie (21/09/2026)
+## La home era vuota per chi indicizza, e il motivo si chiama `/index` (21/09/2026)
 
-**Temporanea.** Sta in `src/components/auth-shell.tsx` ed e' un attributo
-sul segnaposto dell'attesa: `data-percorso-grezzo`, che riporta il valore
-che `usePathname()` restituisce **prima** del ripiego su `"/"`.
+**Chiuso.** La sonda ha risposto lo stesso giorno in cui e' stata messa, ed
+e' gia' stata tolta.
 
-**Perche' esiste.** La home serve 63 caratteri -- il segnaposto -- a chi non
-esegue JavaScript, ma **solo nelle copie ricostruite a runtime**: quella
-costruita alla pubblicazione e' giusta e dura cinque minuti. Una scheda
-auto, stesso meccanismo, si ricostruisce benissimo (misurato: piena
-attraverso piu' ricostruzioni). L'unica cosa che distingue la home e' che il
-suo percorso e' **la radice** -- cioe' esattamente cio' su cui girava il
-difetto originale, `""` che non e' `"/"`. Il ripiego copre il vuoto; se alla
-ricostruzione arriva un **terzo valore**, non lo copre, e non sappiamo quale
-sia.
+**Il difetto.** La home serviva **63 caratteri** -- il guscio di attesa
+dell'autenticazione, *"Verifica autenticazione..."* -- a chiunque non
+eseguisse JavaScript, quindi anche alla prima passata di chi indicizza. Non
+sempre: **solo nelle copie ricostruite**, che su quella pagina sono tutte
+tranne la prima dopo ogni pubblicazione. Misurato al secondo seguendo una
+pubblicazione dal suo atterraggio:
 
-**Perche' nell'HTML e non in un'intestazione.** Una pagina statica non puo'
-scrivere intestazioni al momento della ricostruzione, e i log di quella
-ricostruzione potrebbero non arrivare mai. L'HTML invece **e' l'oggetto che
-finisce in cache**: il valore resta scritto dentro la copia sbagliata, che
-e' proprio quella che si va a leggere.
+| ora | stato | caratteri | eta' | cache |
+|---|---|---|---|---|
+| 06:56:46 | piena | 6.118 | 0 | **PRERENDER** |
+| 07:01:49 | piena | 6.118 | 302 | STALE |
+| **07:02:15** | **vuota** | **65** | 22 | HIT |
 
-**COME SI LEGGE**, dopo la pubblicazione e **su una copia ricostruita** --
-non su quella della pubblicazione, che e' giusta e non contiene il
-segnaposto. Si aspetta che `age` superi 300:
+Cinque minuti e mezzo di pagina giusta dopo ogni pubblicazione, vuota per
+tutto il resto del tempo.
 
-```bash
-curl -s -D- https://www.keyauto.it/ -o /tmp/h.html | grep -i '^age:'
-grep -o 'data-percorso-grezzo="[^"]*"' /tmp/h.html
-```
+**La causa: `usePathname()` restituisce `/index`.** Durante la ricostruzione
+a runtime su Vercel il percorso della radice non e' `"/"` e non e' vuoto: e'
+**`/index`**, il nome del file prerenderizzato. Il guscio confronta il
+percorso con l'elenco delle pagine pubbliche, `/index` non c'e', la home
+finisce fra le protette e mostra il guscio di attesa. Il ripiego scritto nel
+2026 copriva solo il percorso **vuoto**, che e' un'altra delle tre forme.
 
-- un **terzo valore** (per esempio `/index`): abbiamo il nome del difetto, e
-  la cura e' una riga;
-- `(stringa vuota)` o `/`: **l'ipotesi della radice cade**, e il difetto e'
-  altrove -- va bene saperlo, costa cinque minuti invece di mezza giornata
-  di lettura.
+**Perche' solo la home.** Una scheda auto, ricostruita con lo stesso
+meccanismo, vede `/auto/<identificativo>`, che comincia con `/auto/` -- una
+voce dell'elenco -- quindi resta pubblica. Solo la radice non ha un prefisso
+che la salvi. Misurato: una scheda attraverso piu' ricostruzioni resta
+sempre piena, e non mostra mai il guscio.
 
-**COME SI TOGLIE**, e va tolta appena ha risposto:
+**Come si e' trovato, e vale piu' del difetto.** L'ipotesi -- che
+riguardasse la radice -- era plausibile e non bastava. Invece di dedurre il
+valore leggendo il codice di Next, si e' messa una **sonda temporanea** che
+scriveva il percorso grezzo dentro il guscio: quell'attributo finisce nella
+copia sbagliata, che e' proprio l'oggetto che si va a leggere. Risposta in
+cinque minuti, letta due volte a venti secondi di distanza:
+`data-percorso-grezzo="/index"`.
 
-1. si scrive qui il valore trovato, con la data;
-2. in `src/components/auth-shell.tsx` si toglie `percorsoGrezzo`, si rimette
-   `const pathname = usePathname() || "/";` su una riga sola, e si toglie
-   l'attributo `data-percorso-grezzo` dal segnaposto;
-3. i due guardiani che sorvegliano quel ripiego
-   (`auth-shell-public-routes.test.ts`, `home-in-cache.test.ts`) tornano
-   verdi da soli: dal 21/09/2026 guardano **la proprieta'** e non la forma
-   della riga -- ed e' stato necessario riscriverli proprio perche' uno dei
-   due, cercando il testo senza togliere i commenti, passava grazie **al
-   commento che spiega questa rimozione**.
+Non un'intestazione, perche' una pagina statica non puo' scriverne una al
+momento della ricostruzione, e i log di quella ricostruzione potrebbero non
+arrivare mai.
+
+**La cura** sta in `src/lib/percorso-della-home.ts`, con le tre forme e il
+perche'. E' in un file suo e non dentro il guscio per una ragione precisa:
+il guscio e' un componente client e non si puo' montare nei test di questo
+progetto, quindi i suoi guardiani **ricopiavano** la regola -- e un test che
+confronta con una propria trascrizione prova la trascrizione. Adesso la
+chiamano.
+
+**Provata rossa** togliendo il riconoscimento di `/index`: cade il caso che
+lo nomina. E la porta non si e' allargata -- `/indexof` e `/index/qualcosa`
+restano fuori.
 
 ## Credenziali
 

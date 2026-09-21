@@ -1146,6 +1146,44 @@ tre sviste le ho prese io, non me le ha segnalate nessuno, e le ho prese
 abitudine, non per sospetto. Non serve diffidare di tutto: serve che la
 seconda occhiata cada sull'oggetto vero.
 
+**E c'e' una quarta variante, che le tre qui sopra non coprono: un
+controllo che cerca una stringa nel sorgente non distingue il codice dal
+discorso sul codice.**
+
+Le prime tre sbagliano **oggetto** -- il sorgente invece del prodotto, il
+momento comodo invece di quello critico, la copia vecchia invece della
+nuova. Questa sbaglia **dentro l'oggetto giusto**: il file e' quello, la
+riga cercata c'e' davvero, ma sta in un commento.
+
+Il caso, 21/09/2026, ed e' quasi comico. Una sonda diagnostica ha spezzato
+in due la riga `const pathname = usePathname() || "/";`, e accanto ci e'
+stato messo un commento che spiega **come rimetterla com'era** -- quindi
+con dentro la riga vecchia, alla lettera. Il guardiano che pretendeva
+quella riga ha continuato a passare: **non perche' il ripiego ci fosse, ma
+perche' c'era la spiegazione di come ripristinarlo.**
+
+E' una trappola che si costruisce da sola, perche' nasce da una buona
+abitudine: **il commento che spiega come togliere una cosa contiene quella
+cosa**, e cosi' fanno i commenti che spiegano cosa non scrivere, quelli che
+citano il difetto da evitare, quelli che riportano la riga sbagliata di
+ieri. Piu' il commento e' utile, piu' e' probabile che contenga
+esattamente il testo che il controllo cerca.
+
+**La domanda da aggiungere alla precedente, ed e' diversa:** non *"sto
+guardando il prodotto o il sorgente?"*, ma:
+
+> *Il mio controllo sa distinguere cio' che fa da cio' che ne parla?*
+
+**La risposta strutturale e' sempre la stessa, e in questo file ricorre
+ovunque: si guarda la proprieta', non il testo.** Togliere i commenti prima
+di cercare e' il minimo e va fatto sempre; ma un controllo che chiede *"da
+qualche parte in questo file compare questa frase"* e' fragile anche senza
+commenti -- basta che la riga cambi forma senza cambiare effetto. I due
+guardiani di quel giorno sono stati riscritti per pretendere che il codice
+chiami `usePathname()` **e** applichi un ripiego su `"/"`, e provati rossi
+togliendo il ripiego vero: adesso cadono per il difetto, non per la
+formattazione.
+
 **Un guardiano che si accende mentre lavori non e' un ostacolo: e' l'unico
 momento in cui ti dice qualcosa che non sapevi.**
 
