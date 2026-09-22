@@ -152,6 +152,46 @@ export function normalizeVehicleDealerName(dealer: MarketplaceDealer | Marketpla
   return firstDealer?.legal_name?.trim() || firstDealer?.name?.trim() || "Concessionaria";
 }
 
+/**
+ * La forma di un identificativo di veicolo, che e' un UUID e nient'altro.
+ *
+ * **Il difetto che questa funzione impedisce, misurato in produzione il
+ * 22/09/2026.** La scheda veicolo interrogava il database con qualunque cosa
+ * arrivasse nell'indirizzo. Postgres rifiuta una stringa che non e' un UUID
+ * (`invalid input syntax for type uuid`), e quel rifiuto tornava come errore
+ * del database -- che la pagina, giustamente, non confonde con "l'auto non
+ * c'e'": un guasto momentaneo non deve far togliere dall'indice un'auto vera.
+ * Cosi' pero' rispondeva **500**, e continuera' a rispondere 500 per sempre,
+ * perche' quell'indirizzo non sara' mai un'auto.
+ *
+ * Non serviva scrivere niente di storto per arrivarci. Misurato:
+ *
+ *     /auto/<id vero>      -> 200
+ *     /auto/<id vero>.     -> 500   (il link incollato a fine frase)
+ *     /auto/<id troncato>  -> 500   (il link spezzato da un'email)
+ *     /auto/<id vero>%20   -> 500
+ *
+ * **Perche' un 500 costa piu' di una pagina mancante**, e sta scritto nella
+ * documentazione di Google: *"se il sito risponde con errori del server (5xx)
+ * il limite scende e Google scansiona meno"*. Un 404 invece e' *"un segnale
+ * forte a non riprovare quell'indirizzo"*. Quindi un indirizzo sbagliato non
+ * si limitava a non funzionare: **toglieva scansioni alle 262 schede che
+ * aspettano di essere lette**.
+ *
+ * La distinzione che questa funzione permette e' fra "un identificativo che
+ * non e' un identificativo" -- che si sa prima di chiedere niente a nessuno --
+ * e "il database non ha risposto", che resta un guasto e resta un 500.
+ */
+export function eUnIdentificativoDiVeicolo(valore: string | null | undefined) {
+  // **Nessun `trim()`, ed e' una scelta.** Ripulire qui accetterebbe
+  // `<id> ` -- cioe' `/auto/<id>%20`, una delle forme misurate -- e poi
+  // l'interrogazione userebbe comunque l'indirizzo com'e' arrivato, con lo
+  // spazio dentro: il database lo rifiuterebbe lo stesso e il 500 tornerebbe,
+  // con in piu' un controllo che dichiara di averlo evitato. Un identificativo
+  // e' il segmento dell'indirizzo, esattamente com'e'.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(valore ?? ""));
+}
+
 export function createMarketplaceSlug(value: string | null | undefined) {
   const normalized = String(value ?? "")
     .normalize("NFD")
