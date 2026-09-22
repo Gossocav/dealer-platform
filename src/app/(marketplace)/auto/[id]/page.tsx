@@ -13,6 +13,7 @@ import {
   logMarketplaceTruncatedList,
   resolveDealerSlug,
   MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES,
+  eUnIdentificativoDiVeicolo,
   MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES,
   publicSupabase,
   resolveDealerDisplayName,
@@ -150,18 +151,32 @@ function normalizeEquipment(value: unknown): string[] {
 }
 
 async function fetchMarketplaceVehicleDetail(id: string) {
-  return publicSupabase
-    .from("vehicles")
-    .select(
-      // vehicle_condition serve ai dati strutturati: e' la differenza fra
-      // dichiarare a Google un'auto nuova e una usata.
-      "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, video_url, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone), vehicle_images(image_url, position, is_cover)"
-    )
-    .eq("id", id)
-    .eq("published", true)
-    .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
-    .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
-    .maybeSingle();
+  const interrogaIlCatalogo = () =>
+    publicSupabase
+      .from("vehicles")
+      .select(
+        // vehicle_condition serve ai dati strutturati: e' la differenza fra
+        // dichiarare a Google un'auto nuova e una usata.
+        "id, brand, model, version, year, mileage, price, fuel, transmission, traction, description, video_url, body_type, vehicle_condition, engine_size, interior_type, power_kw, power_cv, doors, seats, warranty, availability, emission_class, registration_date, registration_month, color, equipment, province, city, status, created_at, dealer_id, dealers!inner(id, name, company_name:legal_name, legal_name, city, province, email, phone, whatsapp_phone), vehicle_images(image_url, position, is_cover)"
+      )
+      .eq("id", id)
+      .eq("published", true)
+      .in("status", MARKETPLACE_PUBLISHABLE_VEHICLE_STATUS_VALUES)
+      .in("dealers.status", MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES)
+      .maybeSingle();
+
+  // Un identificativo che non e' un identificativo non si chiede al database:
+  // Postgres lo rifiuta come errore, e un errore qui vuol dire "guasto", non
+  // "auto inesistente" -- la pagina rispondeva 500, per sempre, su indirizzi
+  // che non saranno mai un'auto. Si risponde come per un'auto che non c'e':
+  // `data` vuoto e nessun errore, cioe' la strada che porta a notFound().
+  // Il perche' un 500 costi piu' di una pagina mancante sta scritto in
+  // `eUnIdentificativoDiVeicolo`.
+  if (!eUnIdentificativoDiVeicolo(id)) {
+    return { data: null, error: null } as Awaited<ReturnType<typeof interrogaIlCatalogo>>;
+  }
+
+  return interrogaIlCatalogo();
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {

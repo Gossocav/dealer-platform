@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { isMarketplaceVehiclePublishable, resolveVehicleLabel } from "./public-marketplace";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { eUnIdentificativoDiVeicolo, isMarketplaceVehiclePublishable, resolveVehicleLabel } from "./public-marketplace";
 
 describe("isMarketplaceVehiclePublishable", () => {
   it("allows published vehicles from approved or active dealers", () => {
@@ -88,5 +90,82 @@ describe("resolveVehicleLabel", () => {
     expect(resolveVehicleLabel({ brand: "Hyundai", model: "Tucson", version: "1.6 CRDi Tucson Edition" })).toBe(
       "Hyundai Tucson 1.6 CRDi Tucson Edition"
     );
+  });
+});
+
+/**
+ * Il difetto che questo blocco impedisce, misurato in produzione il
+ * 22/09/2026.
+ *
+ * La scheda veicolo chiedeva al database qualunque cosa arrivasse
+ * nell'indirizzo. Postgres rifiuta una stringa che non e' un UUID, e quel
+ * rifiuto tornava come **errore del database** -- che la pagina, per una
+ * scelta giusta, non confonde con "l'auto non c'e'": un guasto momentaneo non
+ * deve far togliere dall'indice un'auto vera. Il risultato era pero' un
+ * **500**, e per sempre, perche' quell'indirizzo non sara' mai un'auto.
+ *
+ * Non serviva scrivere niente di storto per arrivarci. Misurato sul sito vero:
+ * `/auto/<id>` rispondeva 200, `/auto/<id>.` -- il link incollato a fine frase
+ * -- rispondeva 500, e cosi' un id troncato da un'email o seguito da uno
+ * spazio.
+ *
+ * **Perche' conta piu' di quanto sembri.** La documentazione di Google dice
+ * che con errori 5xx "il limite scende e Google scansiona meno", mentre un 404
+ * e' "un segnale forte a non riprovare quell'indirizzo". Quindi ogni indirizzo
+ * sbagliato toglieva scansioni alle 262 schede che aspettano di essere lette.
+ */
+describe("un identificativo di veicolo che non e' un identificativo", () => {
+  it("riconosce un identificativo vero", () => {
+    expect(eUnIdentificativoDiVeicolo("000e6e4e-7cdc-403d-bffa-1337dd94bf2a")).toBe(true);
+    // Le maiuscole sono la stessa cosa: un indirizzo copiato puo' averle.
+    expect(eUnIdentificativoDiVeicolo("000E6E4E-7CDC-403D-BFFA-1337DD94BF2A")).toBe(true);
+  });
+
+  // Sono le quattro forme misurate sul sito vero, non casi inventati.
+  it("scarta le forme che in produzione rispondevano 500", () => {
+    const vero = "000e6e4e-7cdc-403d-bffa-1337dd94bf2a";
+
+    expect(eUnIdentificativoDiVeicolo(`${vero}.`), "il link a fine frase").toBe(false);
+    expect(eUnIdentificativoDiVeicolo(vero.slice(0, 30)), "il link troncato").toBe(false);
+    // Misurato come 500: `/auto/<id>%20`. Ripulire lo spazio qui sarebbe la
+    // trappola peggiore -- il controllo direbbe "va bene" e l'interrogazione
+    // userebbe comunque l'indirizzo con lo spazio dentro.
+    expect(eUnIdentificativoDiVeicolo(`${vero} `), "lo spazio in coda").toBe(false);
+    expect(eUnIdentificativoDiVeicolo("spazzatura"), "una parola qualsiasi").toBe(false);
+    expect(eUnIdentificativoDiVeicolo("123"), "un numero").toBe(false);
+    expect(eUnIdentificativoDiVeicolo("undefined"), "il classico undefined").toBe(false);
+  });
+
+  it("scarta il vuoto e cio' che non c'e'", () => {
+    expect(eUnIdentificativoDiVeicolo("")).toBe(false);
+    expect(eUnIdentificativoDiVeicolo("   ")).toBe(false);
+    expect(eUnIdentificativoDiVeicolo(null)).toBe(false);
+    expect(eUnIdentificativoDiVeicolo(undefined)).toBe(false);
+  });
+
+  /**
+   * Le prove qui sopra dicono che la funzione sa distinguere. Non dicono che
+   * la scheda veicolo la chiami: senza questa, tornare a interrogare il
+   * database con l'indirizzo grezzo non farebbe fallire niente.
+   */
+  it("la scheda veicolo la usa prima di interrogare il database", () => {
+    const scheda = readFileSync(resolve(process.cwd(), "src/app/(marketplace)/auto/[id]/page.tsx"), "utf8");
+
+    expect(scheda).toContain("eUnIdentificativoDiVeicolo");
+    expect(scheda).toContain("if (!eUnIdentificativoDiVeicolo(id)) {");
+    // Il controllo deve stare **prima** dell'interrogazione, non dopo: dopo
+    // sarebbe gia' arrivato l'errore del database.
+    expect(scheda.indexOf("if (!eUnIdentificativoDiVeicolo(id)) {")).toBeLessThan(scheda.indexOf("return interrogaIlCatalogo();"));
+  });
+
+  /**
+   * E un guasto vero resta un guasto: la pagina deve continuare a rilanciare
+   * l'errore del database invece di dichiarare sparita un'auto che esiste.
+   * E' la distinzione che il 500 su un indirizzo storto aveva confuso.
+   */
+  it("un errore del database resta un errore, non diventa 'auto inesistente'", () => {
+    const scheda = readFileSync(resolve(process.cwd(), "src/app/(marketplace)/auto/[id]/page.tsx"), "utf8");
+
+    expect(scheda).toContain("throw new Error(`Impossibile caricare la scheda veicolo:");
   });
 });
