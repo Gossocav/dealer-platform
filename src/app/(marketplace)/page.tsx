@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AnimatedCounter } from "@/components/marketplace/animated-counter";
 import { CategoryRail, type MarketplaceCategory } from "@/components/marketplace/category-rail";
 import { TendineMarcaModello } from "@/components/marketplace/tendine-marca-modello";
 import { GIORNI_DI_PROVA } from "@/lib/durata-della-prova";
@@ -720,14 +719,39 @@ async function buildShowcaseVehicle(
    Presentational pieces
    ============================================================ */
 
+/**
+ * I quattro numeri in cima alla home: **scritti nell'HTML dal server**.
+ *
+ * Fino al 22/09/2026 li disegnava un contatore animato che partiva da zero e
+ * saliva nel browser. Il server calcolava i numeri veri -- quel codice c'era
+ * ed era giusto -- ma la pagina servita conteneva `0`, e il numero vero non
+ * compariva **da nessuna parte** nei 166 KB di HTML, nemmeno fra i dati di
+ * idratazione. Misurato chiedendo la home come Googlebot:
+ *
+ *     0 | Veicoli pubblicati        0 | Concessionarie partner
+ *     0 | Citta' coperte            0 | Marche disponibili
+ *
+ * Perche' il numero vero comparisse servivano tre cose insieme: il
+ * JavaScript caricato, l'elemento visibile almeno a meta' (`threshold: 0.5`)
+ * e un'animazione di 1,4 secondi. Per chi non esegue JavaScript non ne
+ * succedeva nessuna: **la home dichiarava zero veicoli**. E' la stessa
+ * famiglia della home vuota corretta il 21/09, peggiorata dal fatto che li'
+ * il contenuto mancava per una copia scaduta, qui mancava **per
+ * costruzione, a ogni richiesta**.
+ *
+ * Su un sito la cui unica strada per farsi trovare e' l'indicizzazione, un
+ * ornamento che costa il contenuto non vale il suo prezzo. Il componente
+ * `AnimatedCounter` e' stato **tolto**, non corretto: aveva un utilizzatore
+ * solo, ed e' un'occasione di sbagliare in meno invece di una nota da
+ * ricordare.
+ */
 function Stat({ value, label, suffix }: { value: number; label: string; suffix?: string }) {
   return (
     <div>
-      <AnimatedCounter
-        value={value}
-        suffix={suffix}
-        className="bg-gradient-to-b from-white to-blue-200 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl"
-      />
+      <span className="bg-gradient-to-b from-white to-blue-200 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl">
+        {value.toLocaleString("it-IT")}
+        {suffix}
+      </span>
       <p className="mt-2 text-sm text-slate-400">{label}</p>
     </div>
   );
