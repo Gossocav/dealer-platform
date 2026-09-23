@@ -48,3 +48,7 @@ next-env.d.ts
 # macchina -- che un Codespace ricreato non ha piu.
 .claude/settings.local.json
 .esiti-dei-test.json
+
+# Il banco della sincronizzazione esegue un finto endpoint in Python:
+# la cache dei bytecode non e" codice del progetto.
+__pycache__/

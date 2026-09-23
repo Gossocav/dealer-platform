@@ -33,6 +33,79 @@ questo elenco, non ricostruendolo da un riepilogo.
 > *"Cosa dice davvero Search Console, e cosa non dice"*, piu' sotto. Le
 > quattro voci qui elencate restano nel loro ordine, sotto questa.
 
+> **Il piu' probabile dei difetti aperti, scritto qui il 22/09/2026.** Non e'
+> il piu' grave in assoluto: e' quello che il **primo cliente vero puo'
+> incontrare il primo giorno**, e che nessuno vedrebbe succedere.
+>
+> Una concessionaria chiusa lascia la sua riga in `dealers` con l'email
+> dentro. Da li' in avanti quell'indirizzo si comporta in due modi opposti a
+> seconda della porta: l'**attivazione diretta** dal pannello lo rifiuta (il
+> controllo cerca l'email fra le concessionarie **senza filtrare lo stato**),
+> ma la **richiesta demo dal sito** lo accetta -- il suo unico controllo e'
+> "non due richieste in 24 ore", e la tabella delle concessionarie non la
+> guarda nessuno.
+>
+> Il danno arriva dopo. Premendo "Attiva demo" su quella richiesta, la
+> procedura **ritrova la riga chiusa per email** e ci scrive sopra
+> ricopiandone lo stato
+> (`status: existingDealer.data?.status ?? "approved"`, in
+> `src/app/api/admin/demo-requests/route.ts`). La concessionaria rinasce
+> **chiusa**: nessun errore a schermo, il pannello dice che e' andata bene, e
+> il cliente non entra mai -- viene mandato alla pagina "account sospeso".
+> Chi guarda l'elenco vede una riga che sembra a posto.
+>
+> Il precedente non e' teorico: la stessa riga chiusa ha gia' portato **due
+> volte in un'ora** nello stesso vicolo cieco il 22/09/2026, perche' per una
+> concessionaria in stato `cancelled` l'elenco delle azioni del pannello e'
+> vuoto (`cancelled: []` in `src/app/api/admin/dealers/route.ts`): non si
+> riapre e non si cancella.
+>
+> **E non esiste un "cancella" reversibile.** Fotografate le chiavi esterne
+> in produzione il 22/09/2026: delle **22 relazioni** che puntano a `dealers`,
+> **19 sono CASCADE** -- `customers`, `leads`, `lead_activities`,
+> `appointments`, `vehicles`, `vehicle_images`, `vehicle_documents`,
+> `vehicle_economics`, `vehicle_sales`, `vehicle_acquisitions`,
+> `vehicle_appraisals`, `email_threads`, `email_messages`,
+> `email_delivery_events`, `notifications`, `promemoria`,
+> `marketplace_views`, `dealer_users`, `dealer_demo_subscriptions`.
+>
+> **La stessa istruzione che pulisce un doppione vuoto distrugge un cliente
+> pieno.** Su una riga senza niente collegato -- il caso Ferrari del
+> 22/09/2026, contato tabella per tabella prima di procedere: zero ovunque --
+> e' innocua. Su una concessionaria viva porta via in un colpo tutta la
+> storia commerciale, **senza conferma e senza ritorno**.
+>
+> **E' la ragione per cui "elimina" non puo' essere un pulsante nudo.** Quando
+> si separera' *blocca* da *elimina*: o l'eliminazione **rifiuta di procedere
+> quando esiste anche una sola riga collegata** -- contandole tutte e 22, non
+> le tre che vengono in mente -- **oppure non esiste** e resta un'operazione
+> da editor SQL, fatta a mano dal titolare con le condizioni e il `returning`.
+> Un pulsante che cancella diciannove tabelle a cascata non si mette in un
+> pannello.
+>
+> **Le altre tre relazioni sono SET NULL, e lasciano residui.**
+> `demo_requests.linked_dealer_id`, `audit_logs` e `profiles.dealer_id`.
+> Cancellando una concessionaria, la richiesta demo che l'ha generata resta
+> **orfana**: oggi non fa danno, ma e' il residuo che fra sei mesi nessuno sa
+> piu' leggere. Ce n'e' gia' una, verificata il 22/09/2026 --
+> `907e1f01-7073-4d27-ace9-fe6889d77ff3`, "Ferrari Automobili Srl",
+> `info@keyplanrental.it`, ancora in stato `pending` con
+> `linked_dealer_id` vuoto.
+>
+> **E quella riga adesso e' una trappola attiva, non solo un residuo.** Resta
+> nell'elenco *Richieste demo* del pannello con il pulsante "Attiva demo"
+> disponibile, e siccome la concessionaria non c'e' piu' non c'e' nemmeno lo
+> stato chiuso da ereditare: premendolo **l'attivazione riuscirebbe** e
+> nascerebbe una **quinta** concessionaria con quell'indirizzo. Va chiusa o
+> cancellata a mano. (`profiles.dealer_id` a null e' invece il difetto gia'
+> noto dei profili orfani.)
+>
+> Le due cose si correggono insieme, perche' sono la stessa: l'attivazione
+> non deve **mai** ereditare uno stato di chiusura da una riga che sta
+> riusando, e il pannello deve distinguere *"blocca questo account"* da
+> *"elimina questo doppione"*, dando a una riga chiusa almeno una via
+> d'uscita. Il caso Ferrari e' l'esempio da citare nel commento del test.
+
 1. **I due numeri falsi ancora a video.** Sono gia' visibili oggi, e sono
    della stessa famiglia chiusa il 19/09 -- un numero plausibile al posto di
    "non lo so":
@@ -74,6 +147,354 @@ questo elenco, non ricostruendolo da un riepilogo.
    la pagina di una concessionaria non ha modo di contattarla. Telefono e
    WhatsApp in evidenza, piu' un modulo senza veicolo. Da verificare prima di
    costruirlo: un contatto senza `vehicle_id` passa, o il trigger lo rifiuta?
+
+### La fotografia delle Statistiche di scansione al 20/09/2026
+
+**Perche' sta qui e non in un riepilogo.** E' la misura del *prima*, e le
+Statistiche di scansione sono una finestra che scorre: il 24 questi numeri
+saranno altri e **non si potranno piu' rileggere**. E' la regola del righello
+che si consuma, applicata al posto giusto -- una misura che verra' citata la
+settimana prossima si scrive dove vive il progetto, non dove vive la sessione.
+
+Proprieta' **www.keyauto.it**, ultimo aggiornamento **20/09/2026**, cioe'
+**prima** delle correzioni del 21 (i pacchetti `?_rsc=` fuori dalla scansione)
+e prima della PR #365.
+
+| | |
+|---|---|
+| **Richieste totali** | 3,67 K · 53,9 MB · tempo medio di risposta **261 ms** · stato host **verde** |
+| **Per risposta** | OK (200) **100%** · Non trovata (404) <1% · Spostato (301) <1% · Altro errore client (4XX) <1% · **nessuna riga 5xx** |
+| **Per tipo di file** | Altro tipo di file **76%** · JavaScript 9% · Immagine 8% · HTML **6%** · CSS 2% |
+| **Per finalita'** | Aggiornamento **97%** · Rilevamento **3%** |
+| **Per tipo di Googlebot** | Computer **80%** · Carico risorse 7% · Immagine 7% · Altro agente 3% · **Smartphone 3%** |
+
+L'altra proprieta', `keyauto.it` senza `www`, ha 25 richieste e 0 byte: e'
+soltanto il rimbalzo verso il `www` e non va guardata.
+
+**Cosa dice questa fotografia, e cosa no.**
+
+1. **I 5xx non esistono, e una preoccupazione va ritirata.** Si era
+   ipotizzato che i 500 sugli identificativi malformati stessero consumando
+   budget di scansione. **Non e' cosi': Googlebot non ci arriva.** Le due
+   misure convergono da lati indipendenti -- il riquadro "Per risposta" non ha
+   nessuna riga 5xx, e dal nostro lato il sito non produce nessun collegamento
+   malformato (26 collegamenti a schede controllati) e la mappa nemmeno (290
+   indirizzi). La PR #365 resta giusta, ma **cambia natura**: non e' un lavoro
+   di indicizzazione, e' una cortesia verso le persone vere che aprono un link
+   condiviso male. Nessuna urgenza, e **nessun effetto sulla misura del 24**.
+2. **"Aggiornamento 97%, Rilevamento 3%"** e' il fianco su cui gia' si stava
+   lavorando, visto da un'altra angolazione: quasi tutto il tempo va a
+   ripassare cose gia' note, quasi niente a scoprirne di nuove. E' coerente
+   con le 262 "Rilevata, ma attualmente non indicizzata".
+3. **"Altro tipo di file 76%" contro "HTML 6%"** e' la stessa cosa contata per
+   file invece che per scopo, e da' la misura di quanto poco di quel traffico
+   fosse pagine.
+
+**Da guardare dopo il 24/09, non prima:** **Googlebot Smartphone al 3%**
+contro l'**80%** da computer. Google indicizza *mobile-first*, quindi quella
+proporzione e' anomala e potrebbe spiegare piu' di quanto sembri. **Non si
+apre adesso**, perche' toccherebbe il fronte che resta fermo fino alla
+lettura del 24: annotata qui con la sua misura accanto, che e' la sola cosa
+che serve per riprenderla.
+
+**Quale rotta pubblica cade sulla spazzatura, misurato il 22/09/2026.** Serve
+a chi aggiungera' la prossima: la prova da fare e' questa, e la risposta
+attesa e' 200.
+
+| rotta | con un identificativo storto |
+|---|---|
+| `/auto/[id]` | **500** -- l'unica che cadeva (corretta, PR #365) |
+| `/concessionarie/[slug]` | 200 |
+| `/perizie/[id]` | 200 |
+| `/og/veicolo/[id]` | 200 |
+| `/og/concessionaria/[slug]` | 200 |
+
+La differenza non e' la cura di chi le ha scritte: e' il **tipo della
+colonna**. Uno slug si confronta con del testo e un testo qualsiasi non fa
+male a nessuno; un identificativo si confronta con un `uuid`, e Postgres
+rifiuta cio' che non lo e' con un **errore**, non con "nessuna riga". Ogni
+rotta pubblica nuova che cerchi per `uuid` -- o per un altro tipo stretto:
+`date`, `numeric`, un enumerato -- nasce con lo stesso difetto se non
+controlla la forma **prima** di interrogare.
+
+E le quattro forme che ci arrivano non sono spazzatura scritta apposta:
+`/auto/<id>.` (il link incollato a fine frase), `<id>` troncato da un'email,
+`<id>%20`. Il sito non ne produce nessuna -- controllati i 26 collegamenti a
+schede e i 290 indirizzi della mappa -- quindi **arrivano tutte da fuori**, e
+nessuna quantita' di ordine interno le fa sparire.
+
+### Il banco: otto rilievi aperti, e cinque chiusi da soli (23/09/2026)
+
+Stessa rilettura ostile, stesso metodo: giudicati contro il codice di oggi.
+Venticinque rilievi, ma i difetti distinti sono tredici -- le lenti diverse
+segnalavano spesso la stessa cosa.
+
+**Cinque si sono chiusi lavorando**, e vale la pena sapere quali perche' erano
+i piu' gravi: il banco eseguiva `bash` invece di `bash -e` (tre revisori su
+venticinque, l'unico "blocca l'unione" vero); non confrontava **mai** il
+codice di uscita con un atteso (altri tre); un rifiuto inatteso ora dice
+perche'; e il finto endpoint sa finalmente dire *"ho finito"* -- ma **per
+caso**, attraverso un modo aggiunto per un'altra ragione, non per disegno.
+
+Gli otto aperti:
+
+1. **`SOLO` con un refuso non esegue niente e il banco esce verde** dicendo
+   "FINITE TUTTE. Prove non valide: 0". **E' peggiorato oggi per mano mia**:
+   avendo esteso `SOLO` a un elenco separato da virgole, un nome sbagliato in
+   mezzo a cinque fa saltare quel caso **mentre gli altri girano**, quindi il
+   risultato sembra a posto. La cura e' della famiglia gia' nota: un `SOLO`
+   che non trova nessun caso deve dirlo e uscire rosso.
+2. **L'impronta non copre il file da cui il banco estrae lo script.** Copre i
+   tre file del banco, non `.github/workflows/sincronizza-siti.yml`: una
+   modifica al workflow **durante** una corsa non sposta l'impronta, perche'
+   l'estrazione avviene una volta sola all'inizio.
+3. **Il comando documentato per fermare il banco punta a `/tmp` fisso**, il
+   codice scrive il PID in `${TMPDIR:-/tmp}`. Oggi funziona perche' `TMPDIR`
+   non e' impostata: e' la via d'uscita che punta al posto sbagliato, e
+   funziona per caso.
+4. **`tetto-di-tempo` fissa una frase che dipende dall'orologio** (tre
+   chiamate riuscite con un tetto di due secondi). Ha sempre passato, ma su
+   una macchina carica direbbe un altro numero.
+5. **`saluto-21-09` porta il nome dell'incidente e non inchioda
+   `ATTESA_CONNESSIONE`**: togliendo `--connect-timeout` il caso resterebbe
+   verde, cioe' il nome promette una protezione che il caso non verifica.
+6. **Il confronto d'identita' della sonda ha due condizioni in OR** -- PID
+   diverso, modo diverso -- e un caso solo, che ne esercita una. E' la stessa
+   regola dei due meccanismi che decidono lo stesso esito.
+7. **Il commento sulla serie dichiara piu' di quello che la tabella
+   consegna**: dice che i casi variano lungo una dimensione sola, e non e'
+   vero per tutti.
+8. **La pulizia cancella la cartella di lavoro anche dopo una corsa rossa**,
+   quindi i log per caso spariscono proprio quando servirebbero. E' il gradino
+   sbagliato, gia' scritto in AGENTS.md: un esito che verra' riletto non vive
+   dove si cancella.
+
+### I documenti: diciassette rilievi, tutti chiusi (23/09/2026)
+
+Cinque erano lo stesso: il paragrafo *"un numero dentro una serie si controlla
+da se'"* descriveva un banco che non esisteva, con numeri invecchiati in due
+ore. **Chiuso togliendo le cifre**, con scritto perche': le regole stanno in
+AGENTS.md, le misure con la data stanno qui.
+
+Gli altri, corretti oggi perche' stavano nei testi che si stanno spedendo --
+un rimando rotto o un numero sbagliato non si consegnano sapendolo:
+
+- **la sonda consigliata al posto del `sleep 1` faceva una POST vera**, cioe'
+  una sincronizzazione, per sapere se il server era in ascolto. Il banco usa
+  la forma senza verbo; adesso anche il documento;
+- **la durata del banco era dichiarata con tre numeri diversi** -- "mezz'ora",
+  "trenta minuti", "venticinque minuti" -- e **nessuno era quello vero**.
+  Misurata sui cinque lotti del 23/09/2026: **trentasei minuti** per ventuno
+  casi. Ora e' quello, in tutti e sette i posti;
+- **il banco si attribuiva un difetto che non ha trovato** (la fermata per
+  rete): l'aveva trovato una rilettura ostile, dopo le prove verdi;
+- **una riga di esempio citata a occhio** metteva il grassetto dove il codice
+  non lo mette;
+- **un rimando incrociato non si trovava**, perche' citava un titolo a
+  memoria;
+- **mancava una riga vuota** prima di un titolo, e il titolo non si vedeva.
+
+Due note d'igiene si sono chiuse da sole: i sei file di scarto lasciati in
+radice da una sessione precedente non ci sono piu', e la cartella del banco
+smette di essere non tracciata con questa unione.
+
+### Il riepilogo della sincronizzazione: undici rilievi aperti (23/09/2026)
+
+Da una rilettura ostile a piu' revisori, giudicati uno per uno **contro il
+codice di oggi** e non contro quello di quando furono scritti. **Non corretti
+di proposito**: sono tutti sulla prosa che una persona legge, non sul
+comportamento -- l'unica eccezione e' il primo -- e ogni ritocco al riepilogo
+obbliga a rifare il giro del banco, che sono trentasei minuti. Si chiudono
+insieme, quando si tocchera' quel passo per un altro motivo.
+
+Due dei quattordici si sono chiusi da soli, e vale la pena sapere perche':
+*"zero schede con il verde a tutti i siti irraggiungibili"* non e' piu' vero
+(ora con zero giri riusciti la riga dice *"Nessun giro e' riuscito"*, e tre
+cadute di fila colorano di rosso), e *"verde con zero chiamate"* e' chiuso
+dall'invariante gemello.
+
+**1. La pausa sparisce nel terzo stato, ed e' l'unico che tocca il
+comportamento.** `[ "$ancora" = "si" ] && sleep 5`: nello stato `non_so` il
+ciclo continua ma la pausa fra una chiamata e l'altra **non c'e'**, e il passo
+spara le venti chiamate di seguito. E' il terzo stato appiattito sul "no",
+dentro la riga che il terzo stato lo aveva appena introdotto.
+
+> **Un sospetto da guardare per primo, e non una causa dimostrata.** Le cadute
+> di rete del 21/09/2026 e di lunedi' non hanno mai avuto una spiegazione
+> chiusa. Venti chiamate senza pausa verso la stessa piattaforma sono
+> esattamente la forma che produce un freno o una connessione rifiutata, e
+> `non_so` e' lo stato in cui si finisce **proprio quando una chiamata e'
+> andata male** -- cioe' la condizione si autoalimenta. **Non e' provato**:
+> e' la prima pista da seguire quando si riaprira' quel fronte, non una
+> conclusione.
+
+**2. `SECONDI_DI_TETTO` non e' validata.** Con zero o con un valore che non e'
+un numero, `SCADENZA` cade nel passato e il ciclo non parte. **La famiglia e'
+chiusa** dall'invariante gemello nella trappola (un verde con zero chiamate
+riuscite adesso esce rosso, con caso e controprova nel banco), ma la
+validazione della variabile resta da fare: chiudere la famiglia non rende
+inutile chiudere il caso.
+
+**3. *"e lo stesso in altri N giri"* afferma un colpevole non verificato.** Il
+codice registra il **primo** colpevole e conta gli altri; la frase dichiara
+che negli altri giri fosse lo stesso. Se al giro 1 non dichiara `autogepy` e
+al giro 7 non dichiara `delorenzi`, la riga dice una cosa falsa.
+
+**4. Due frasi che si contraddicono a due righe di distanza.** Sulla terza
+caduta di fila il riepilogo dice *"Il giro **prosegue** con la chiamata
+successiva... non si perde niente"* e subito sotto *"**3 giri persi di fila:
+il giro si ferma qui.**"*. La prima e' falsa nel momento esatto in cui viene
+stampata, e chi legge le trova insieme.
+
+**5. *"di cui 1 cambiate davvero"*.** Il singolare e' curato per le chiamate
+riuscite e per le schede ripassate, non per le riscritte. E' lo stesso difetto
+segnalato da **tre** revisori diversi: un difetto scritto tre volte, non tre
+difetti.
+
+**6. *"1 chiamate"* e *"1 giri"* nelle frasi di chiusura.** Righe che dicono
+com'e' finito il giro: `$giro chiamate`, `$giro giri`, senza ramo singolare.
+Morde solo al primo giro, ed e' la sciatteria che un commento venti righe piu'
+sotto dichiara di voler evitare.
+
+**7. *"Il resto del giro e' stato fatto"* anche quando non e' stato fatto.**
+Si stampa ogni volta che c'e' almeno una chiamata persa, **qualunque sia il
+motivo della fine**: se l'orologio ha troncato il giro, il resto non e' stato
+fatto affatto.
+
+**8. Due numeri alla stessa domanda, con due ambiti e senza dirlo.** La colonna
+"Rilette" della tabella "Stato dei siti" e' il conto dell'**ultima chiamata**
+(la tabella legge `ultima_buona`, riscritto a ogni giro riuscito); la riga del
+totale e' il conto di **tutto il giro**. Chi somma la colonna non ritrova il
+totale, e niente sulla pagina lo spiega. La tabella e' preesistente: e' la riga
+nuova a renderla leggibile accanto a un numero venti volte piu' grande.
+
+**9. Zero contro "non e' leggibile", nella stessa pagina.** Per un sito che non
+dichiara `rilette`, la tabella scrive **0** (`e.get('rilette', 0)`) e la riga
+del totale scrive *"non e' leggibile"* nominando il colpevole. Due risposte
+opposte allo stesso vuoto, a poche righe di distanza. E' *lo zero e il vuoto*
+dentro il riepilogo che lo racconta.
+
+**10. La ragione per cui il ciclo e' finito e' decisa in due posti.**
+`si_continua` la registra in `motivo_fine` in tre rami, ma il codice la
+consulta solo per "tempo" e rideduce gli altri due da `$ancora`; e il `case`
+non ha ramo di riserva. **Oggi non fa danno** -- `si_continua` controlla
+`ancora != no` per primo, quindi le combinazioni incoerenti non si formano --
+ma una quarta condizione aggiunta domani annuncerebbe "Fermata al tetto di 20
+chiamate" oppure non stamperebbe niente. E' *"una decisione presa in quattro
+posti ne dimentica il quinto"*, in attesa del quinto.
+
+**11. Tre rami della frase sui conteggi illeggibili, un caso solo.** "un giro
+solo", "due giri", "piu' di due": il banco produce venti giri illeggibili e
+verifica alla lettera il terzo. Gli altri due non li ha mai eseguiti nessuno.
+Era una nota; da quando esiste la regola che **la copertura si conta in
+meccanismi** ha un nome, ed e' il piu' facile da chiudere di tutti.
+
+**Dieci auto pubblicate non compaiono in nessuna categoria, e il dato c'e'.**
+Misurato il 23/09/2026, ed e' un difetto, non una nota.
+
+La barra "Esplora per categoria" della home scorre le nove carrozzerie ammesse
+e conta chi ne ha una; chi ha il campo vuoto **non finisce da nessuna parte**
+(`src/app/(marketplace)/page.tsx`, `if (bodyType)`). In produzione sono
+**dieci su 269 pubblicate, il 3,7%**: raggiungibili dalla ricerca o da Google,
+**non navigando per categoria** -- che e' il modo in cui la gente cerca
+un'auto. Fra tutte le 373 righe, non solo le pubblicate, sono **diciotto**.
+
+Chi sono, e vengono tutte dal sito -- **nessuna inserita a mano**:
+
+| concessionaria | auto |
+|---|---|
+| De Lorenzi Srl | Citroën C3 (×3), Peugeot 308, Mazda 2, Honda Prelude |
+| AUTOGEPY SPA | Hyundai Tucson (×2), Jaguar F-Type |
+| Ponginibbi Spa | Citroën Ami |
+
+**La domanda che contava -- il dato non e' mai arrivato, o si perde per
+strada? -- ha una risposta misurata: si perde per strada.** Preso il caso piu'
+sfacciato, la Hyundai Tucson (`autogepy.it`, id sorgente `9719376`, un SUV per
+chiunque), e seguito il dato dall'origine:
+
+1. **la pagina del sito lo dichiara**: scaricata il 23/09/2026, contiene
+   `"body_style":"SUV"` e `"bodyType":"SUV"`;
+2. **il nostro lettore lo riconoscerebbe**: `leggiCarrozzeria` legge proprio
+   `body_style`, e `"SUV"` e' il primo valore dell'elenco ammesso in
+   `src/lib/vehicle-body-types.ts` -- non serve nemmeno un sinonimo;
+3. **`body_type` e' fra i campi che il sito puo' scrivere** (`CAMPI_DAL_SITO`
+   in `src/lib/dealer-site-sync.ts`), e quella scheda **non ha nessun segno di
+   provenienza** (`origine_dati` vuoto), quindi non e' protetta dal
+   concessionario;
+4. **la scheda viene ripassata di continuo**: ultimo ripasso alle **15:08 del
+   23/09/2026**, meno di un'ora prima della misura;
+5. e nel database `body_type` e' **NULL**. Nello stesso giro, altre schede
+   dello stesso sito -- Alfa Romeo Tonale, Hyundai Santa Fe, Jeep Avenger,
+   ripassate fra le 15:06 e le 15:11 -- hanno `body_type = "SUV"`.
+
+**Il meccanismo esatto non e' ancora trovato, e va scritto cosi' invece di
+indovinarlo.** Le due ipotesi comode sono gia' escluse: non e' la condizione
+del veicolo (le dieci sono 8 usate e 2 km0, e fra quelle con carrozzeria ci
+sono usate, km0 e nuove) e non e' la categoria (tutte "Auto"). Il passo
+successivo e' eseguire l'importatore del progetto contro quell'indirizzo e
+guardare cosa legge: `src/lib/dealer-site-import.ts` **non parla col
+database**, quindi si puo' provare su dati veri senza rischi.
+
+**E' la stessa famiglia della provincia che sparisce** -- il codice che scarta
+in silenzio quello che non riconosce -- ma non e' la stessa strada: li' la
+colonna non esisteva in produzione e l'inserimento la buttava via, qui la
+colonna c'e', il valore e' leggibile, il campo e' scrivibile, e resta vuoto lo
+stesso. Il tratto comune e' l'unico che conta: **nessuno dei due casi produce
+un errore**, e senza andarli a contare non se ne accorge nessuno.
+
+**E tocca l'indicizzazione**, quindi va guardato insieme al fronte di domani:
+se le pagine di categoria sono fra quelle che Google ha indicizzato, quelle
+dieci auto perdono una via d'accesso anche per lui -- non solo per chi naviga.
+Da verificare quando si leggeranno le statistiche di scansione.
+
+**I quattro numeri della home ora stanno nell'HTML, e hanno fino a cinque
+minuti.** La pagina ha `revalidate = 300`: il numero servito puo' essere
+vecchio di cinque minuti. Su un catalogo che si muove ogni tre ore e'
+irrilevante, ma va saputo adesso che quel numero **lo legge anche Google** --
+prima era un `0` disegnato dal browser e non lo leggeva nessuno.
+
+**E i tre numeri che sembravano contraddirsi non si contraddicevano.**
+Misurati il 23/09/2026 con la chiave pubblica, la stessa con cui la home
+legge: il contatore dice **269**, la somma per concessionaria dice **269**
+(126 + 93 + 50), la somma delle categorie dice **259**. Il primo e il secondo
+sono lo stesso insieme -- letture fatte in momenti diversi danno 270 invece di
+269 perche' il catalogo si muove. Il terzo e' lo stesso insieme **meno le
+dieci senza carrozzeria**. Nessuno dei tre e' sbagliato: contano tre cose
+diverse, e solo il primo dichiara di essere un totale.
+
+**Il disco del Codespace si riempie da solo, e pulirlo non basta.**
+Misurato il 23/09/2026 al 90% (3,1G liberi su 32). La pulizia ne ha liberati
+**1,6G** e ha riportato l'uso all'85%, ma la domanda utile non era "cosa
+cancello": era **"e' accumulo o e' crescita?"**. E' crescita, e le fonti sono
+tre, nessuna con un tetto:
+
+| cosa | misura del 23/09/2026 | ritmo |
+|---|---|---|
+| **versioni di Claude Code** in `~/.local/share/claude/versions/` | 4 versioni, ~215M l'una, **una sola in uso** | 4 in 13 giorni (10, 11, 17, 23 settembre): **~500M al mese** |
+| trascritti di sessione in `~/.claude/projects/` | 305M, 17 file, il piu' vecchio del 27 agosto | nessuna rotazione |
+| cache `npx` in `~/.npm/_npx` | 543M in 9 pacchetti | mai ripulita |
+
+**La prima da sola spiega quasi tutto**, ed e' la piu' facile da chiudere:
+tenere l'ultima versione e togliere le altre e' un comando, e va fatto quando
+il disco scende -- non c'e' nessun automatismo che lo faccia.
+
+**Due cose che NON sono la causa, e vale la pena saperlo** perche' sono i
+sospetti naturali:
+
+- **il banco di prova.** Pulisce la propria cartella in uscita
+  (`rm -rf "$LAVORO"`), e comunque scrive in `/tmp`;
+- **`/tmp`.** Sta su un **filesystem separato** (44G, al 12%): svuotarlo non
+  libera un byte su `/`. Chi cerca spazio guardando `du /tmp` lavora un'ora
+  per niente.
+
+**Cosa costerebbe un tetto.** Poco, ma non zero, e la forma giusta e' quella
+gia' usata altrove in questo progetto -- non "ricordarsi di pulire", che e' la
+confessione che il vincolo non esiste, ma un comando solo che si lancia quando
+serve: uno script `scripts/libera-il-disco.sh` che tiene l'ultima versione di
+Claude Code, i trascritti degli ultimi trenta giorni e niente cache, e che
+**stampa cosa sta per togliere prima di toglierlo**. Mezz'ora, e toglie
+l'occasione invece di ricordarla. **Non fatto**: annotato qui il 23/09/2026
+perche' sia una decisione e non una dimenticanza.
 
 **Un ramo scartato, tenuto apposta.**
 `prova/filtri-al-server-costano-l-indicizzazione` (20/09/2026) porta i
@@ -403,6 +824,131 @@ Due righe, e un controllo che se ne accorge se se ne dimentica una:
 
 `src/lib/durata-della-prova.test.ts` fallisce se le due dicono numeri diversi,
 e fallisce anche se qualcuno scrive la durata a mano da qualche altra parte.
+
+## La sincronizzazione caduta del 21/09/2026, e i log che solo il titolare ha
+
+**Il fatto.** Il giro delle 12:00 UTC (run #172) è caduto con un `exit code 28`
+e **nessun altro messaggio**: cinque minuti di silenzio nel log, sei chiamate
+su venti fatte, le altre quattordici mai partite.
+
+**La causa, chiusa dai log di Vercel.** Le sei chiamate risultano tutte con
+esito **200**: ogni cosa che il nostro codice ha eseguito è andata a buon
+fine. Della settima **non c'è traccia**, quindi non è mai arrivata alla
+funzione. Era un pacchetto perso su internet: la connessione non si è mai
+stabilita, e il sistema operativo ha ritentato il saluto per circa due minuti
+prima di arrendersi — `curl` lo riporta come 28, lo stesso codice del tempo
+scaduto, il che rende i due guasti indistinguibili da fuori.
+
+**E qui sta il precedente, che vale più dell'episodio: ci sono domande che
+senza il titolare non si possono chiudere.** Leggendo il codice erano uscite
+quattro ipotesi di colpa nostra, tutte plausibili e tutte sbagliate. Le mie
+tre fonti — il log di GitHub, il database di produzione, il codice — **non
+potevano dire se la settima chiamata fosse arrivata**. La quarta fonte, i log
+di Vercel, la vede solo il titolare.
+
+La regola operativa: **davanti a un guasto di rete, prima di dedurre dal
+codice si chiede se la traccia esiste da un'altra parte.** Costa un messaggio
+e chiude in un minuto una domanda su cui si può ragionare per ore arrivando
+alla risposta sbagliata.
+
+**Cosa è stato corretto.** Non la causa, che non è correggibile: la
+conseguenza. Una chiamata caduta non ferma più il giro, dice **perché** è
+caduta in italiano, e un `--connect-timeout 20` riduce da 133 a 20 secondi il
+costo di un saluto senza risposta. Le prove stanno nella PR.
+
+### Il banco di prova della sincronizzazione, e perche' e' entrato nel progetto
+
+`scripts/prova-sincronizzazione/` -- e la decisione di tenerlo va scritta,
+perche' **un banco che nessuno usa e' codice morto da mantenere**, ed e' un
+costo vero.
+
+**Perche' entra, e questo e' l'argomento che regge fra sei mesi quando
+qualcuno vorra' togliere una cartella che "non serve": il banco non e'
+impalcatura, e' l'unico test che quel pezzo abbia mai avuto.**
+
+Il passo "Riallinea lo stock" e' uno script bash dentro un YAML, e **nessun
+test di questo progetto puo' toccarlo**: Vitest legge TypeScript. Quello e'
+l'unico pezzo di codice che decide se lo stock dei concessionari resta
+allineato -- e che, cadendo, puo' lasciarlo fermo per ore senza dirlo. E'
+l'unica superficie del progetto senza nessuna rete.
+
+**Cosa ha preso, il giorno in cui e' nato.** Quattro miei errori in una
+giornata, tre dei quali non li avrei visti:
+
+| l'errore | come sarebbe finita |
+|---|---|
+| le prove giravano sulla **versione precedente** dello script | avrei consegnato una correzione dichiarandola provata, e non c'era |
+| il finto endpoint moriva dopo la prima chiusura forzata | avrei attribuito al workflow difetti che erano suoi |
+| riscrivevo lo script mentre bash lo leggeva | *"errore di sintassi nel workflow"* — su un file sintatticamente valido |
+| il caso sano perdeva il primo giro | il finto endpoint non era ancora in ascolto: `sleep 1` invece di aspettare la condizione |
+
+E ne ha trovati **tre nel codice vero**, tutti dopo che le prime dieci prove
+erano gia' verdi: il giro che avrebbe sfondato i trentasei minuti, la risposta
+illeggibile che non alimentava i conti, e il file di risposta che avvelenava
+il riepilogo.
+
+**Il quarto non l'ha trovato il banco, e attribuirglielo lo faceva sembrare
+migliore di quello che e'.** La fermata per rete che lasciava il lavoro verde
+da sei giri in poi l'ha trovata una **rilettura ostile, dopo** che le prove
+erano gia' passate -- il commento nel workflow lo dice con precisione, e
+questa riga diceva il contrario. Corretto il 23/09/2026, ed e' esattamente la
+ragione per cui i due modi di cercare difetti servono tutti e due: il banco
+prende cio' che si puo' eseguire, la rilettura prende cio' che si puo' solo
+leggere.
+
+**Quanto costa.** Trentasei minuti a esecuzione, **a mano**, e solo quando
+si tocca quel workflow. Non gira nella CI, e la ragione e' misurata: i casi
+veri hanno dentro i tetti di tempo veri (180 secondi per una risposta che non
+arriva, 15 di pausa dopo ogni caduta). Accorciarli per farlo stare in CI
+vorrebbe dire provare uno script diverso da quello che gira in produzione --
+l'**oggetto adiacente**, che in questo progetto ha gia' fatto danni.
+
+**Quanto e' costato ricostruirlo:** una buona parte del 21/09/2026, e gli
+stessi quattro inciampi uno dopo l'altro. Sono facili, e chi riaprira' quel
+workflow li rifarebbe.
+
+**Se un giorno lo si toglie**, la cosa da non perdere sono i suoi **tre
+controlli** -- *sto provando la cosa giusta?*, *e' cambiato mentre girava?*,
+*ha prodotto il caso che volevo?* -- e la riga che dichiara **cosa non
+coprono** (nessuno verifica che l'esito sia letto bene). Senza quelli un
+banco non vale niente: e' un altro modo di darsi ragione da soli.
+
+## Le chiamate al database non hanno nessun tetto di tempo (21/09/2026)
+
+**È il primo della lista, e la ragione per cui sta in cima è questa: oggi non
+ha fatto danni perché il pezzo appeso era un altro — è stata la fortuna, non
+il disegno, e la forma è identica a quella del guasto di oggi: qualcosa che
+aspetta senza limite.**
+
+Il 21/09/2026 la sincronizzazione delle 12:00 UTC è caduta con un `exit 28`
+muto. Cercandone la causa sono uscite quattro ipotesi di colpa nostra, e i
+log di Vercel le hanno eliminate tutte — la settima chiamata non è mai
+arrivata alla funzione, quindi nessun nostro codice si è bloccato. Ma una di
+quelle quattro non era un'ipotesi: era una lettura del codice.
+
+**Ogni chiamata al database, lungo tutto il percorso della sincronizzazione,
+può aspettare per sempre.** La lettura delle pagine dei siti un tetto ce l'ha
+— 15 secondi per due tentativi, in `dealer-site-fetch.ts` — e l'endpoint si dà
+un budget di 45 secondi. Ma quel budget lo si guarda **fra una scheda e
+l'altra**: se è una richiesta a Supabase a non tornare, nessuno lo legge più,
+e la funzione resta appesa finché non la uccide la piattaforma.
+
+E `maxDuration = 60` non è la rete di sicurezza che sembra: è una richiesta a
+Vercel, non una serratura nostra. La regola sta in
+[AGENTS.md](../AGENTS.md), sotto *"Un attributo che delega al browser una
+decisione non e' una garanzia, e' una richiesta"* -- il titolo vero, che
+citato a memoria non si trovava.
+
+**Cosa fare, quando ci si arriva:** un tetto di tempo esplicito sulle chiamate
+al database, dello stesso ordine di quello sulle pagine dei siti, e la
+distinzione fra "il database non ha risposto" e "il sito non ha risposto" nel
+messaggio di errore — che oggi sono indistinguibili.
+
+Le altre tre emerse quella mattina sono minori e stanno qui per completezza:
+il client Supabase ritenta da solo in silenzio e rispetta un `Retry-After`
+senza alcun tetto; la risoluzione dei nomi non ha un limite proprio; e il
+primo passo della sincronizzazione — quello delle sparizioni — non guarda mai
+l'orologio, quindi da solo può consumare l'intero budget.
 
 ## Applicarne una
 
@@ -929,6 +1475,13 @@ niente.**
 | **24-25 settembre 2026** | *Impostazioni → Statistiche di scansione*: tipo di file **HTML**, e finalita' **Rilevamento** | HTML ben sopra il **6%**, Rilevamento sopra il **3%** |
 | **verso il 10 ottobre 2026** | *Pagine*: il numero delle **indicizzate** | salire dalle 57 di oggi |
 
+**E quel giorno, oltre a leggere Search Console, si copiano qui a mano le
+due cifre del giro di sincronizzazione** -- schede ripassate e schede
+cambiate davvero, dal riepilogo del lavoro su GitHub. Il riepilogo dura
+novanta giorni, questo file no: un confronto a sei mesi ricadrebbe nel buco
+del righello che si consuma, chiuso il 21/09 e descritto sotto *"Come si
+rifa' questa misura"*.
+
 **Perche' due date e non una.** Le due cose si muovono con tempi diversi:
 la ripartizione delle scansioni cambia appena Google rilegge robots.txt,
 l'indicizzazione arriva dopo che le pagine sono state scaricate e valutate.
@@ -992,6 +1545,7 @@ finestra**:
 | 21/09 03:07-03:18 | 73 | 70 | 96% |
 | 21/09 06:13-06:22 | 73 | 64 | **88%** |
 | **21/09 09:08-09:16** (con la correzione) | **71** | **0** | **0%** |
+| **21/09 15:05-15:16** (con la correzione) | **110** | **0** | **0%** |
 
 **Il denominatore non e' crollato**, ed e' la cosa da guardare per prima: 71
 schede rilette contro 73. La sincronizzazione ha girato normalmente e ha
@@ -1005,6 +1559,186 @@ un prezzo diverso **fa** ancora muovere la data. Se restasse zero per giorni
 mentre sui siti i prezzi cambiano a vista, quello sarebbe il segnale che il
 confronto e' troppo largo -- ed e' la prossima cosa da guardare, non una
 conclusione di oggi.
+
+### Come si rifa' questa misura, ed e' l'unico modo che la rende ripetibile
+
+**Il numero da confrontare e' 71, 110 -- non 362.** Il 21/09/2026, riportando
+il giro delle 15:00, e' stato scritto *"tutte e tre le concessionarie
+riallineate, 111 + 83 + 168 = 362 schede"*. Quel 362 e' il **catalogo intero**
+-- ogni vettura che i tre siti abbiano mai dichiarato -- e le tre cifre sono
+le sue fette per concessionaria. Non e' il lavoro di quel giro: e' una
+costante che si muove solo quando nasce o muore un'auto. Il lavoro di quel
+giro e' **110**.
+
+E' la famiglia gia' descritta in [AGENTS.md](../AGENTS.md) sotto *"contare una
+cosa e chiamarla con il nome di un'altra"*: il conteggio era esatto, sbagliata
+era la parola. Con "riallineate" accanto a un numero cinque volte piu' grande
+di "rilette", il confronto con la riga sopra diventa impossibile -- e chi lo
+rifara' fra due settimane non sapra' se la correzione ha smesso di funzionare
+o se ha in mano un righello diverso.
+
+**Le due definizioni, e sono due insiemi annidati.**
+
+| parola | cosa conta | colonna |
+|---|---|---|
+| **riletta** | la sincronizzazione ha **rivisto** quella scheda sul sito durante il giro | `import_synced_at` dentro la finestra |
+| **riscritta** | ...e **ha anche cambiato** qualcosa nella riga | `import_synced_at` **e** `updated_at`, tutti e due dentro la finestra |
+
+Le riscritte sono un **sottoinsieme** delle rilette, mai un insieme a parte.
+Contare le sole `updated_at` nella finestra da' un numero piu' grande e di
+un'altra cosa: comprende le schede che una persona ha modificato dal
+gestionale, che con la sincronizzazione non c'entrano. Provato il 21/09/2026
+sulla finestra delle 03:07 -- **120** contando la sola `updated_at`, **32**
+contando l'intersezione.
+
+**La finestra e' il giro, dal suo inizio alla sua fine**, letti da GitHub:
+
+```bash
+gh run list --workflow=sincronizza-siti.yml --limit 3 \
+  --json databaseId,createdAt,updatedAt,conclusion
+```
+
+**Le due interrogazioni, per intero.** Si leggono con la chiave di servizio e
+non scrivono niente. Il conteggio arriva nell'intestazione `content-range`,
+perche' le funzioni di aggregazione su questo progetto sono spente
+(`PGRST123`): `Prefer: count=exact` e' un'altra strada e funziona.
+
+```bash
+set -a; . ./.env.production; set +a
+DA=2026-09-21T15:05:39Z; A=2026-09-21T15:16:45Z    # inizio e fine del giro
+
+conta() {
+  curl -s -I -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+       -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+       -H "Prefer: count=exact" -H "Range: 0-0" \
+       "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/vehicles?select=id&$1" \
+    | grep -i '^content-range' | tr -d '\r' | sed 's#.*/##'
+}
+
+# RILETTE
+conta "import_synced_at=gte.$DA&import_synced_at=lte.$A"
+# RISCRITTE (l'intersezione, non la sola updated_at)
+conta "import_synced_at=gte.$DA&import_synced_at=lte.$A&updated_at=gte.$DA&updated_at=lte.$A"
+```
+
+**E la cosa che rende questa misura diversa da tutte le altre: il righello si
+consuma.** `import_synced_at` non e' un registro di eventi, e' un *"l'ultima
+volta che l'ho vista"*: il giro successivo la sovrascrive, e la scheda **esce
+dalla finestra vecchia**. Rileggere oggi la finestra di stamattina non da' il
+numero di stamattina, e non perche' qualcuno abbia sbagliato: da' *"quante
+schede hanno ancora come ultimo avvistamento quel giro"*, che e' un'altra
+domanda.
+
+Misurato il 21/09/2026 alle 15:40, contro i numeri presi subito dopo ciascun
+giro:
+
+| finestra | rilette allora | rilette alle 15:40 | riscritte allora | riscritte alle 15:40 | quota allora | quota alle 15:40 |
+|---|---|---|---|---|---|---|
+| 20/09 21:05-21:16 | 20 | 8 | 15 | -- | 75% | -- |
+| 21/09 00:17-00:24 | 20 | 13 | 16 | -- | 80% | -- |
+| 21/09 03:07-03:18 | 73 | 34 | 70 | 32 | 96% | 94% |
+| 21/09 06:13-06:22 | 73 | 63 | 64 | 54 | 88% | 86% |
+| 21/09 09:08-09:16 | 71 | 48 | 0 | 0 | 0% | 0% |
+
+**Le tre regole che ne escono, in ordine di importanza:**
+
+1. **il numero assoluto si legge subito dopo il giro**, prima che il
+   successivo lo mangi. Fra un giro e l'altro passano tre ore: e' tutto il
+   tempo che c'e', e va usato;
+2. **la quota sopravvive, il numero assoluto no.** 96% e' diventato 94%, 88%
+   e' diventato 86%: le due colonne si consumano insieme e il rapporto tiene.
+   E' **la quota** il numero da confrontare fra due date lontane, e il numero
+   assoluto serve solo a dire che il giro e' avvenuto davvero -- un
+   denominatore crollato vuol dire che non si sta misurando la correzione, si
+   sta misurando un giro che non c'e' stato;
+3. **nel database non esiste un registro che non si consuma.** Verificato
+   il 21/09/2026: `audit_logs` ha 135 righe, l'ultima del 19/09, e
+   **nessuna** scritta dalla sincronizzazione. Nessuna tabella dice, di un
+   giro passato, quante schede ha visto e quante ne ha cambiate.
+
+**E c'e' una quarta via, che dal 21/09/2026 rende le tre regole qui sopra
+quasi inutili -- e le tiene scritte lo stesso, perche' valgono per i giri
+precedenti a quella data e per qualunque altra colonna "ultima volta che".**
+
+Invece di leggere il numero dopo, **lo dichiara il giro mentre lo produce**.
+Non e' costato quasi niente: l'endpoint restituiva gia' `rilette` e
+`riscritte` per ogni sito a ogni chiamata, e il riepilogo archiviava gia' la
+risposta per intero -- ma sparsa su venti blocchi JSON da sommare a mano,
+cioe' archiviata e non leggibile. Adesso il passo li somma e scrive una riga
+di questa forma:
+
+> In N chiamate riuscite: **X schede ripassate**, di cui **Y** cambiate
+> davvero.
+
+(la forma e' quella che il codice stampa davvero: il primo numero non e' in
+grassetto, il secondo lo e' insieme alla parola. Copiata a occhio, la citazione
+diceva un'altra cosa -- ed e' la meta' della misura che si rompe da sola, il
+riportare.)
+
+**I tre numeri stanno insieme apposta.** Se la fermata dicesse il numero di
+chiamate in una frase e il totale in un'altra, i due potrebbero divergere
+senza che nessuno se ne accorga -- ed e' successo mentre si scriveva questa
+riga: *"fermato al 3-esimo tentativo"* accanto a *"30 schede"*, due numeri
+veri e letti da due posti, che insieme non tornavano (tre chiamate riuscite
+fanno trenta; "al terzo tentativo" si legge come "durante la terza", cioe'
+due finite). Nella stessa riga, dallo stesso contatore, non possono piu'
+raccontare cose diverse, e chi legge il riepilogo puo' fare la divisione da
+se'.
+
+**Per il giro delle 15:00 del 21/09 -- che girava ancora senza questa riga --
+X e Y valevano 110 e 0**, misurati a mano quel pomeriggio con le due
+interrogazioni qui sopra. **N non lo sappiamo**, e non si scrive: quel giro
+non lo ha dichiarato, e inventarlo per completare la frase sarebbe
+esattamente il difetto che questa riga esiste per chiudere. La prima riga
+completa comparira' nel primo giro programmato dopo l'unione, e da li' si
+confronta.
+
+(Una prima stesura di questo paragrafo mostrava *"200 schede, di cui 60"*:
+era l'aritmetica del finto endpoint del banco -- venti giri per dieci e per
+tre -- cioe' un numero inventato messo accanto a numeri veri, e il titolare
+l'ha preso per un giro reale al 30%. Tolto il 21/09/2026.)
+
+Il riepilogo di GitHub resta **novanta giorni** e nessuno lo sovrascrive:
+`import_synced_at` puo' cambiare quanto vuole, quella riga no. Da li' in
+avanti *"com'era il 21 settembre?"* ha una risposta, invece di *"era 71, ma
+la stessa interrogazione oggi dice 48 e nessuno dei due e' sbagliato"*.
+
+Due cose da sapere prima di fidarsene:
+
+- **novanta giorni non sono per sempre.** Oltre quel termine GitHub butta via
+  il riepilogo, e si torna alle tre regole. Un numero che deve durare piu' a
+  lungo va copiato **qui**, in questo file, mentre lo si legge;
+- **il totale non ha un valore predefinito, e lo dice -- con il nome di chi
+  non ha dichiarato.** Se una sola voce della risposta non dichiara il suo
+  conteggio, il riepilogo scrive *"non e' leggibile: al giro 3 autogepy.it
+  non dichiara riscritte"* invece di una somma. Una somma a cui manca una
+  voce non e' un totale parziale: qui sarebbe un numero **piu' basso del
+  vero**, cioe' la correzione di `updated_at` che sembra funzionare meglio
+  di quanto funziona. E senza il colpevole, fra due settimane nessuno
+  saprebbe dove guardare;
+- **uno zero dichiarato e' un numero, e si somma.** Un sito senza novita'
+  risponde `rilette: 0`, ed e' un dato; trattarlo come "non dichiarato"
+  marchierebbe illeggibile un giro sano. E' lo stesso confine di `null` e
+  `0` nel conto economico, e le due direzioni si distinguono a valle **solo
+  se il lettore le distingue**. Per questo il banco ha due casi gemelli, con
+  il segno girato: `conteggi-non-leggibili` (un conteggio manca -> "non e'
+  leggibile") e `un-sito-a-zero` (tutti dichiarano, uno a zero -> il
+  totale). Con un ripiego a zero il primo passerebbe per la ragione
+  sbagliata; con lo zero letto come assente cadrebbe il secondo. E si
+  accetta **solo un intero vero, non negativo** -- un corridoio, non una
+  porta: il primo intruso trovato era un `true` (per Python un intero, che
+  sommato vale uno), ma una stringa `"5"`, un decimale, un `null` o un `-1`
+  arrivano dalla stessa strada, e il `-1` abbasserebbe il totale. Provato su
+  dieci risposte costruite, e il caso `conteggi-non-leggibili` del banco ne
+  manda quattro in un giro solo, verificando alla lettera che ognuno sia
+  nominato.
+
+**Perche' il giro delle 15:00 ne ha rilette 110 contro le 71 delle 09:00.**
+Non e' una variazione da spiegare col caso: in mezzo c'e' il giro delle 12:00
+che e' caduto, quindi quello delle 15:00 aveva **sei ore** di arretrato invece
+di tre. Il numero piu' grande e' coerente con quello che era successo, e le
+riscritte restano **zero** su un campione piu' grande: la correzione regge
+meglio di prima, non peggio.
 
 **Quanto del 262 e' "rifiuto" e quanto e' "catalogo cresciuto dopo".**
 Domanda giusta, e la risposta e' parziale -- misurata il 21/09/2026 sulle

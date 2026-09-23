@@ -54,7 +54,7 @@ jobs:
               echo ""
               echo "Si aggiunge in **Settings -> Secrets and variables -> Actions -> New repository secret**,"
               echo "e deve valere **esattamente come quello omonimo su Vercel**."
-            } >> "$GITHUB_STEP_SUMMARY"
+            } >> "$GITHUB_STEP_SUMMARY" || true
             exit 1
           fi
 
@@ -65,6 +65,249 @@ jobs:
           # segreto perche' non e' riservato: e' il sito.
           BASE_URL: https://www.keyauto.it
         run: |
+          # **La dichiarazione esce da una trappola, ed e' la prima riga del passo.**
+          # Prima stava in mezzo al riepilogo finale, e da li' la vedevano solo
+          # quattro delle sei vie d'uscita: un 403 e una risposta non-200 escono
+          # molto piu' su. Una trappola in uscita le copre tutte -- e anche quelle
+          # che nessuno ha dichiarato.
+          #
+          # **Sta in cima, prima di qualunque assegnazione, e la posizione e' la
+          # protezione.** Con `bash -e` -- che e' come GitHub esegue un `run:` --
+          # qualunque comando non protetto termina lo script **senza passare da
+          # nessun `exit`**: tutto cio' che gira prima della trappola muore senza
+          # lasciare una riga. Spostarla in cima chiude quella finestra invece di
+          # spiegarla; l'unico comando che ci stava dentro era il `date` di
+          # `SCADENZA`, che nessuno avrebbe mai visto fallire.
+          
+          # `set -E` non cambia quando lo script muore: fa solo ereditare la
+          # trappola ERR dentro le funzioni. Senza, una morte dentro `giro_perso`
+          # non direbbe quale comando e' stato.
+          set -E
+          
+          # **`pipefail`, ed e' il buco esattamente sotto la rete appena tesa.**
+          # GitHub esegue un `run:` senza `shell:` come `bash -e {0}`, cioe' **senza
+          # pipefail**: in `a | b` conta solo il codice di `b`. Se `a` muore e `b`
+          # legge il vuoto e finisce bene, la pipeline vale zero -- quindi `-e` non
+          # uccide, la trappola ERR non scatta, e la guardia qui sotto non vede
+          # niente. La rete c'e' e il pesce passa sotto.
+          #
+          # Misurato il 22/09/2026, ed e' la forma che fa piu' danno perche' non
+          # somiglia a un guasto:
+          #
+          #     v=$(/usr/bin/false | sed -n 1p)   ->  uscita 0, e v vale ""
+          #
+          # Nessun errore, nessuna morte: un **valore vuoto** consegnato come dato.
+          # E' lo zero e il vuoto -- il difetto piu' ripetuto di questo progetto --
+          # dentro una pipeline. Oggi le cinque pipeline del passo sono tutte
+          # `printf | sed`, e `printf` non fallisce: il buco e' strutturale, non
+          # ancora costato. La sesta che qualcuno scrivera' avra' a sinistra un
+          # `curl`, un `jq` o un `python3`.
+          #
+          # Nota per chi leggera' un errore: con `pipefail` la trappola ERR riporta
+          # l'**ultimo** comando della pipeline, non quello che e' morto davvero --
+          # misurato: con `false | cat` dice `cat`. Meglio un nome vicino che
+          # nessun nome.
+          set -o pipefail
+          
+          ho_detto_perche=false
+          comando_caduto=""
+          riga_caduta=""
+          
+          # **Ogni `::error::` passa di qui, e non e' pignoleria.** La guardia qui
+          # sotto deve sapere se il giro ha gia' detto perche' sta morendo, e
+          # l'unico modo perche' non se lo dimentichi nessuno e' che dirlo e
+          # segnarlo siano **la stessa azione**. Un `::error::` scritto a
+          # mano domani non alzerebbe la bandierina: il guardiano del banco
+          # pretende che non ne esistano.
+          errore() {
+            ho_detto_perche=true
+            echo "::error::$*"
+          }
+          
+          # **La guardia: un giro rosso che non ha detto perche' e' un'uscita che
+          # nessuno ha dichiarato.** E' una proprieta', non un elenco: prende i
+          # cinque `exit 1` di oggi, il comando non protetto che qualcuno
+          # aggiungera' fra sei mesi, e il giro di produzione che nessun caso di
+          # prova aveva previsto. Enumerare i comandi che possono cadere sarebbe
+          # un elenco, e un elenco invecchia alla riga successiva.
+          #
+          # Misurato il 22/09/2026 iniettando un comando qualsiasi che fallisce a
+          # meta' giro: uscita 1, **zero** `::error::`, nessuna riga di chiusura,
+          # e un riepilogo che diceva "In 2 chiamate riuscite: 10 schede
+          # ripassate" -- cioe' la faccia di una sincronizzazione parziale
+          # riuscita. Non mancava l'informazione: ce n'era una che somigliava a
+          # quella buona.
+          quanto_ha_fatto() {
+            local uscita=$?
+
+            # **Chi guarda il guardiano.** Questa trappola e' l'ultima rete: se un
+            # comando qui dentro fallisce, con `-e` la shell esce **a meta' del
+            # trap** e nessun altro lo raccoglie -- si perdono l'avviso in cima e la
+            # riga di chiusura, e si torna esattamente alla morte muta che questa
+            # trappola esiste per impedire. Misurato: senza questa riga, la riga
+            # finale del trap non viene stampata e non c'e' nessun messaggio.
+            #
+            # Un guardiano che puo' morire in silenzio e' il caso peggiore di tutti,
+            # perche' nessuno si aspetta di doverlo controllare. Da qui in giu' si
+            # va avanti comunque: il codice di uscita del lavoro e' gia' in
+            # `$uscita` e non lo cambia niente di quello che succede qui.
+            set +e
+
+            # **E un rapporto a cui manca un pezzo lo dichiara.** `set +e` fa
+            # arrivare la trappola in fondo, ma non fa comparire cio' che il comando
+            # caduto doveva scrivere: chi legge troverebbe un rapporto **che sembra
+            # completo**. E' la stessa famiglia di tutto il resto -- non manca
+            # l'informazione, ce n'e' una che somiglia a quella buona -- stavolta
+            # dentro il guardiano.
+            #
+            # Si conta invece di elencare: la trappola ERR scatta **anche con
+            # `set +e`** (verificato), quindi non c'e' nessun `|| true` da ricordare
+            # e prende anche il comando che qualcuno aggiungera' qui dentro domani.
+            # Quella interna sostituisce la trappola ERR globale, e va bene: il nome
+            # del comando che ha ucciso il giro era gia' stato catturato prima di
+            # arrivare qui.
+            local guasti_nel_rapporto=0
+            trap 'guasti_nel_rapporto=$((guasti_nel_rapporto+1))' ERR
+
+            local altri quante che_cosa
+            local non_dichiarata=""
+          
+            # Valori di ripiego: la trappola puo' scattare prima che i contatori
+            # siano stati assegnati, ed e' proprio il caso che sta in cima serve a
+            # coprire. Un conteggio vuoto non deve diventare un messaggio storto.
+            local n_riuscite="${riuscite:-0}"
+            local n_rilette="${rilette_tot:-0}"
+            local n_riscritte="${riscritte_tot:-0}"
+          
+            # **Il gemello della guardia qui sotto, e copre la direzione opposta.**
+            # Quella dice: *un giro rosso che non ha detto perche' e' un'uscita non
+            # dichiarata*. Questa dice: **un giro verde con zero chiamate riuscite e'
+            # un successo non guadagnato**. Sono la stessa idea sui due lati, e averne
+            # scritta una sola ha lasciato scoperta l'altra -- verificato il
+            # 23/09/2026 su un rilievo che l'invariante nuovo di zecca non prendeva.
+            #
+            # Il caso che l'ha prodotta: `SECONDI_DI_TETTO` non e' validata, e con zero
+            # o con qualcosa che non e' un numero `SCADENZA` cade nel passato,
+            # `si_continua` fallisce alla prima prova e il passo esce **verde avendo
+            # fatto niente**. Validare quella variabile chiude quel caso; questa riga
+            # chiude **la famiglia** -- qualunque ragione futura per cui il ciclo non
+            # parte, comprese quelle che nessuno ha ancora immaginato.
+            #
+            # E colora, non si limita a dirlo: un `::error::` non colora niente, il
+            # colore lo fa il codice di uscita. E' la lezione gia' pagata il
+            # 21/09/2026 con la fermata per rete che lasciava il lavoro verde.
+            if [ "$uscita" = "0" ] && [ "$n_riuscite" = "0" ]; then
+              errore "Il giro e' finito senza che nessuna chiamata riuscisse, e senza dichiarare nessun motivo: non c'e' niente da considerare fatto. Un verde con zero chiamate riuscite e' un successo non guadagnato."
+              uscita=1
+              coloralo_di_rosso="si"
+            fi
+
+            if [ "$uscita" != "0" ] && [ "${ho_detto_perche:-false}" != "true" ]; then
+              errore "Il giro e' morto senza dichiarare niente: comando \`${comando_caduto:-sconosciuto}\`, riga ${riga_caduta:-sconosciuta} dello script, uscita $uscita. Non e' una delle vie d'uscita previste: e' un comando non protetto sotto \`bash -e\`."
+              non_dichiarata="si"
+            fi
+          
+            # **Prima si dice cosa ha fatto, poi se e' arrivato in fondo.** Tenerli
+            # separati non e' estetica: la prima stesura faceva decidere alla
+            # riga rossa, e con zero giri riusciti spariva "nessun giro e'
+            # riuscito" -- cioe' tornava "0 schede, di cui 0 cambiate", la forma
+            # del successo che quella frase esiste per evitare. L'ha presa un caso
+            # del banco, che quella frase la pretende alla lettera.
+            local frase
+            {
+              echo ""
+              if [ "$n_riuscite" = "0" ]; then
+                # **"0 schede ripassate, di cui 0 cambiate" ha la forma del
+                # successo.** Quando nessun giro e' riuscito non c'e' un totale da
+                # dare: c'e' l'assenza di un totale, ed e' un'altra cosa.
+                frase="_Nessun giro e' riuscito: non c'e' niente da contare._"
+              elif [ "${conteggi_leggibili:-true}" != "true" ]; then
+                if [ "${conteggi_giri_illeggibili:-0}" = "1" ]; then
+                  altri=""
+                elif [ "${conteggi_giri_illeggibili:-0}" = "2" ]; then
+                  altri=", e lo stesso in un altro giro"
+                else
+                  altri=", e lo stesso in altri $((${conteggi_giri_illeggibili:-0} - 1)) giri"
+                fi
+                frase="_Quante schede il giro abbia ripassato non e' leggibile: al giro ${conteggi_primo_giro:-?} ${conteggi_primo_colpevole:-}$altri._"
+              else
+                # Il totale e il numero di chiamate che lo hanno prodotto stanno
+                # nella stessa riga e vengono dallo stesso contatore: messi insieme
+                # non possono divergere, e chi legge puo' fare la divisione da se'.
+                if [ "$n_riuscite" = "1" ]; then
+                  quante="una chiamata riuscita"
+                else
+                  quante="$n_riuscite chiamate riuscite"
+                fi
+                if [ "$n_rilette" = "1" ]; then
+                  che_cosa="**una scheda ripassata**"
+                else
+                  che_cosa="**$n_rilette schede ripassate**"
+                fi
+                frase="In $quante: $che_cosa, di cui **$n_riscritte** cambiate davvero."
+              fi
+          
+              # **Una riga di chiusura non marcata si legge come un successo**, e non
+              # basta che l'errore stia nei log: chi apre il lavoro guarda il
+              # riquadro, non sempre i log.
+              #
+              # "Si e' chiuso in rosso" e non "non e' arrivato in fondo": la prima
+              # stesura diceva la seconda ed era **falsa proprio sul caso nuovo** --
+              # un sito fermo da piu' di 24 ore colora il lavoro *dopo* che
+              # l'allineamento e' finito, e il riepilogo si ritrovava "Allineamento
+              # completo in 1 giri" e "non e' arrivato in fondo" nella stessa
+              # schermata. L'ha presa il caso `sito-fermo-24h` alla sua primissima
+              # esecuzione: una via d'uscita mai provata trova anche i difetti di
+              # chi la sta provando.
+              if [ "$uscita" != "0" ]; then
+                echo "**Questo giro si e' chiuso in rosso.** $frase"
+              else
+                echo "$frase"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          
+            # L'avviso va **in cima**, perche' un riepilogo lungo si legge dall'alto
+            # e la riga di chiusura sta in fondo. Se riscrivere il file non
+            # riuscisse, l'avviso in fondo c'e' comunque: non si perde niente.
+            if [ -n "$non_dichiarata" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$GITHUB_STEP_SUMMARY" ]; then
+              {
+                echo "> [!WARNING]"
+                echo "> **Questo riepilogo e' parziale.** Il giro si e' fermato su un guasto che non era previsto,"
+                echo "> quindi tutto quello che segue racconta solo la parte che aveva gia' fatto. Il comando che"
+                echo "> l'ha fermato sta nell'errore in cima al lavoro."
+                echo ""
+                cat "$GITHUB_STEP_SUMMARY"
+              } > "$GITHUB_STEP_SUMMARY.parziale" 2>/dev/null && mv "$GITHUB_STEP_SUMMARY.parziale" "$GITHUB_STEP_SUMMARY" || true
+            fi
+
+            # **Per ultima, quando tutto il lavoro rischioso e' passato.** Se qualcosa
+            # qui dentro e' caduto, il rapporto sopra ha un buco e chi legge deve
+            # saperlo: un rapporto incompleto che non lo dichiara e' peggio di un
+            # rapporto mancante.
+            #
+            # **Il regresso si ferma qui, ed e' una scelta.** Un guasto in
+            # quest'ultima riga -- un solo `echo`, il comando meno probabile della
+            # funzione -- non verrebbe dichiarato da nessuno. Aggiungere un quarto
+            # livello costerebbe piu' di quanto vale: meglio un limite scritto
+            # accanto alla cosa che un livello in piu' e un buco piu' in la'.
+            if [ "$guasti_nel_rapporto" -gt 0 ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY" || true
+              echo "> [!WARNING]" >> "$GITHUB_STEP_SUMMARY" || true
+              echo "> **Parte di questo rapporto non e' stata scritta**: $guasti_nel_rapporto comandi del riepilogo non sono riusciti. Quello che si legge qui sopra e' incompleto, e cio' che manca non lascia un vuoto visibile." >> "$GITHUB_STEP_SUMMARY" || true
+            fi
+
+            # **Il verdetto si cambia per ultimo**, quando il riepilogo e' gia'
+            # scritto: `exit` dentro una trappola in uscita sostituisce il codice del
+            # passo -- verificato nei due versi -- e farlo prima salterebbe tutto il
+            # resto del rapporto.
+            if [ "${coloralo_di_rosso:-}" = "si" ]; then
+              exit 1
+            fi
+          }
+          
+          trap 'comando_caduto=$BASH_COMMAND; riga_caduta=$LINENO' ERR
+          trap quanto_ha_fatto EXIT
+          
           # Una chiamata sola ha meno di un minuto, e centocinquanta schede da
           # leggere non ci stanno: si richiama finche' l'endpoint dice che ne
           # restano, con un tetto perche' un giro non duri all'infinito.
@@ -76,6 +319,97 @@ jobs:
           # giorni, dal 07/09/2026, con questo lavoro verde.
           MAX_CHIAMATE=20
 
+          # **I due guasti di rete sono due, e hanno due tetti diversi.**
+          # Si somigliano da fuori -- curl esce 28 in tutti e due i casi -- e
+          # confonderli fa provare la cosa sbagliata:
+          #
+          #   1. **nessuno risponde al saluto**: la connessione non si
+          #      stabilisce mai. La governa `--connect-timeout`. E' quello
+          #      del **21/09/2026**: Vercel non ha nessuna traccia della
+          #      settima chiamata, perche' non e' mai arrivata;
+          #   2. **accetta e non risponde**: la connessione c'e', la risposta
+          #      no. La governa `--max-time 180`, e Vercel una traccia ce
+          #      l'avrebbe.
+          #
+          # **Venti secondi per stabilire la connessione, e poi si passa
+          # oltre.** Senza questa riga curl non mette nessun tetto sulla fase
+          # di connessione e lascia decidere al sistema operativo, che ritenta
+          # il saluto a 1, 2, 4, 8, 16, 32 e 64 secondi prima di arrendersi.
+          # Misurato: **curl esce dopo 133 secondi** verso un indirizzo che non
+          # risponde, con `--max-time 180` che non scatta mai -- perche' il
+          # guasto e' nella connessione, non nella risposta. Due minuti
+          # buttati per un pacchetto perso, ed e' quello che e' costato il
+          # 21/09/2026.
+          ATTESA_CONNESSIONE=20
+
+          # **Un tetto di tempo sull'intero ciclo, e non solo sulle cadute di
+          # fila.** Fermarsi dopo tre cadute consecutive limita il caso in cui
+          # la piattaforma e' spenta, ma non quello in cui **si alterna**: una
+          # riuscita ogni due cadute non fa mai tre di fila, e con cadute da
+          # 180 secondi il giro sfonderebbe il `timeout-minutes: 30` -- cioe'
+          # verrebbe ucciso da GitHub **senza scrivere il riepilogo**, che e'
+          # il muto da cui si parte.
+          #
+          # Ragionare pattern per pattern e' il modo per dimenticarne uno: un
+          # orologio li copre tutti. Venti minuti lasciano dieci minuti di
+          # margine sul tetto del lavoro.
+          #
+          # **Il numero si legge da una variabile, e non e' una comodita': e'
+          # cio' che rende l'orologio provabile.** Un tetto inchiodato nel
+          # codice si puo' rileggere ma non si puo' vedere scattare, e un ramo
+          # mai visto rispondere non ha ancora dimostrato di saper rispondere.
+          # Qui il tempo **e' il soggetto** della prova, quindi un numero al
+          # posto di una condizione e' legittimo -- e' l'eccezione scritta
+          # nella regola sull'attesa fissa. In produzione questa variabile non
+          # e' impostata da nessuna parte e vale sempre venti minuti; il banco
+          # la abbassa a pochi secondi e prova lo scatto in mezzo minuto.
+          SECONDI_DI_TETTO="${SECONDI_DI_TETTO:-$((20 * 60))}"
+          SCADENZA=$(( $(date +%s) + SECONDI_DI_TETTO ))
+
+          perse=0
+          riuscite=0
+          di_fila=0
+          fermata_per_rete=false
+
+          # **Quanto ha fatto il giro, dichiarato mentre lo fa.** Questi due
+          # numeri non servono a decidere niente qui dentro: servono a poterlo
+          # rileggere fra due settimane. Il righello con cui si verifica che
+          # la data di modifica non si muova piu' a vuoto **si consuma**:
+          # `import_synced_at` dice "l'ultima volta che l'ho vista", quindi
+          # ogni giro sovrascrive quello prima, e la finestra di stamattina
+          # riletta stasera da' un numero piu' piccolo -- misurato il
+          # 21/09/2026, 71 diventate 48 senza che nessuno avesse sbagliato
+          # niente. Il riepilogo di GitHub resta novanta giorni e nessuno lo
+          # sovrascrive. La definizione delle due parole -- riletta, riscritta
+          # -- sta in supabase/MIGRAZIONI.md, e "riscritte" e' un
+          # sottoinsieme di "rilette", mai un insieme a parte.
+          rilette_tot=0
+          riscritte_tot=0
+          conteggi_leggibili=true
+          # Quando non sono leggibili, il riepilogo deve dire **chi** non ha
+          # dichiarato e **a quale giro**: un "non e' leggibile" senza
+          # colpevole, fra due settimane, non dice dove guardare.
+          conteggi_primo_giro=""
+          conteggi_primo_colpevole=""
+          conteggi_giri_illeggibili=0
+
+
+          # **Tre cadute di fila e si smette.** Non e' una cautela in piu':
+          # senza, la correzione che fa proseguire il giro introduce un
+          # difetto suo. Il conto: una chiamata che viene accettata e mai
+          # risposta costa i 180 secondi di `--max-time` piu' la pausa, e
+          # venti cosi' fanno **sessantacinque minuti** -- oltre il
+          # `timeout-minutes: 30` di questo lavoro, che verrebbe ucciso da
+          # GitHub **senza scrivere il riepilogo**, cioe' tornando esattamente
+          # al muto da cui si parte.
+          #
+          # La distinzione che questo numero traccia e' quella giusta: una
+          # caduta isolata e' un pacchetto perso e il giro continua; tre di
+          # fila non sono sfortuna, sono la piattaforma che non c'e', e
+          # insistere altre diciassette volte non serve a niente se non a
+          # ritardare il rosso.
+          MAX_PERSE_DI_FILA=3
+
           # Chi preme "Run workflow" lo fa per sapere come stanno le cose
           # adesso: in quel caso i siti fermi si segnalano tutti, senza
           # aspettare il giro di mezzanotte.
@@ -83,26 +417,237 @@ jobs:
           echo "## Sincronizzazione stock" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
+          # ---------------------------------------------------------------
+          # **UN GIRO PERSO SI DICHIARA IN UN POSTO SOLO.**
+          #
+          # In tre ore sono spuntati tre modi diversi di perdere un giro -- la
+          # chiamata che non arriva, la risposta che non torna, la risposta che
+          # arriva e non si lascia leggere -- e ogni volta il modo nuovo
+          # nasceva **scollegato dai contatori**: niente soglia, niente
+          # fermata dopo tre di fila, e un lavoro **verde** su un giro che non
+          # aveva prodotto niente. Tre volte la stessa cosa non e'
+          # distrazione, e' la forma del codice: **una decisione presa in
+          # quattro posti ne dimentica il quinto.**
+          #
+          # Correggere le tre occorrenze e lasciare la forma avrebbe fatto
+          # nascere scollegato anche il quarto modo, che arrivera'. Qui la
+          # decisione sta in un posto: chi trova un giro perso chiama questa,
+          # e i conti si aggiornano perche' non c'e' un altro modo di farlo.
+          #
+          # Restituisce 0 se il giro deve continuare, 1 se deve fermarsi --
+          # una funzione non puo' fare `break` nel ciclo di chi la chiama,
+          # quindi chi la chiama scrive `giro_perso "..." || break`.
+          giro_perso() {
+            perche="$1"; dettaglio="$2"
+            perse=$((perse + 1))
+            di_fila=$((di_fila + 1))
+            # Non sappiamo se restava altro da fare: nessuno ha risposto in
+            # modo utilizzabile. Tenere il valore di prima vorrebbe dire
+            # rispondere con un dato scaduto.
+            ancora="non_so"
+            echo "::warning::Giro $giro perso: $perche. Il giro continua."
+            {
+              echo "### :warning: Giro $giro perso"
+              echo ""
+              echo "**$perche**$dettaglio"
+              echo ""
+              echo "Il giro **prosegue** con la chiamata successiva: le schede da ripassare le sceglie il"
+              echo "database, quindi non si perde niente, si arriva solo un po' meno lontano."
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "$di_fila" -ge "$MAX_PERSE_DI_FILA" ]; then
+              errore "$di_fila giri persi di fila: la piattaforma non risponde in modo utilizzabile. Il giro si ferma qui."
+              {
+                echo "**$di_fila giri persi di fila: il giro si ferma qui.**"
+                echo ""
+                echo "Una caduta isolata e' un pacchetto perso e non ferma niente. Tre di fila no: vuol dire"
+                echo "che la piattaforma non risponde, e insistere altre volte ritarderebbe soltanto questo"
+                echo "messaggio."
+                echo ""
+              } >> "$GITHUB_STEP_SUMMARY"
+              fermata_per_rete=true
+              return 1
+            fi
+            # Una pausa piu' lunga del solito: dall'altra parte qualcosa non
+            # sta bene, e insistere subito e' la cosa che non si fa.
+            sleep 15
+            return 0
+          }
+
+          # **E un giro riuscito si dichiara in un posto solo, per la stessa
+          # ragione.** `giro_perso` era la meta' della simmetria: l'altra --
+          # azzerare le cadute di fila e contare le riuscite -- era rimasta
+          # sparsa, e per giunta **troppo presto**, subito dopo il controllo
+          # del codice HTTP.
+          #
+          # Misurato con un finto endpoint che risponde 200 con dell'HTML:
+          #
+          #     18 giri illeggibili su 20, e nessuna fermata dopo tre di fila
+          #     ::error::Su 20 chiamate ne sono arrivate solo 20
+          #
+          # Due bugie in una riga. Il contatore delle consecutive veniva
+          # azzerato **da qualunque risposta**, anche da una illeggibile,
+          # quindi non arrivava mai a tre; e `riuscite` contava come arrivate
+          # venti chiamate di cui diciotto non avevano prodotto niente.
+          #
+          # Un giro e' riuscito quando ha prodotto qualcosa di utilizzabile,
+          # non quando il server ha risposto qualcosa.
+          giro_riuscito() {
+            riuscite=$((riuscite + 1))
+            di_fila=0
+
+            # I conteggi si sommano **qui**, per la stessa ragione per cui
+            # `giro_perso` e' uno solo: un modo nuovo di riuscire, aggiunto
+            # domani, o passa di qui o non esiste. E si sommano solo i giri
+            # riusciti, che e' l'unico insieme di cui abbiamo i numeri.
+            local quante quali chi
+            quante=$(printf '%s' "$letto" | sed -n 3p)
+            quali=$(printf '%s' "$letto" | sed -n 4p)
+            chi=$(printf '%s' "$letto" | sed -n 5p)
+            if [ -n "$quante" ] && [ -n "$quali" ]; then
+              rilette_tot=$((rilette_tot + quante))
+              riscritte_tot=$((riscritte_tot + quali))
+            else
+              conteggi_leggibili=false
+              conteggi_giri_illeggibili=$((conteggi_giri_illeggibili + 1))
+              if [ -z "$conteggi_primo_giro" ]; then
+                conteggi_primo_giro="$giro"
+                conteggi_primo_colpevole="${chi:-nessuna voce dice cosa manca}"
+              fi
+            fi
+
+          }
+
           risposta=$(mktemp)
+          # **L'ultima risposta buona si tiene da parte.** Dopo un curl
+          # fallito `$risposta` non e' utilizzabile, e in che modo **dipende
+          # dal tipo di caduta**: con un tempo scaduto curl lo svuota e resta
+          # di **zero byte** (misurato), con una connessione rifiutata non lo
+          # tocca e ci resta dentro **la risposta del giro precedente** --
+          # che e' peggio, perche' e' JSON valido e sbagliato. Tutto cio' che
+          # lo legge o muore o mente: il riepilogo dei siti, il conto dei
+          # siti fermi, e con `bash -e` lo script intero, **portandosi via il
+          # messaggio rosso appena scritto**. E' lo stesso difetto che questa
+          # modifica esiste per chiudere, un passo piu' in la': l'esito che si
+          # perde proprio quando serve.
+          #
+          # La prima versione sembrava reggere, ma reggeva **per fortuna**: con
+          # una connessione rifiutata curl non svuota il file, e restava dentro
+          # la risposta del giro prima. Con una connessione accettata e mai
+          # risposta lo svuota, e li' e' caduta.
+          ultima_buona=$(mktemp)
+          ho_una_risposta=false
           cursore='null'
           giro=0
-          ancora="true"
 
-          while [ "$ancora" = "true" ] && [ "$giro" -lt "$MAX_CHIAMATE" ]; do
+          # **`ancora` ha tre stati, non due, e il terzo e' quello che serviva.**
+          #
+          # Dice se resta lavoro da fare, e la risposta arriva dall'endpoint a
+          # ogni chiamata. Era un si'/no, e **un si'/no non sa dire "non lo
+          # so"**: quando una chiamata si perde, l'endpoint non ha risposto e
+          # noi non sappiamo se restava altro -- ma la variabile conservava la
+          # risposta del giro **precedente**, cioe' rispondeva a una domanda
+          # nuova con un dato scaduto.
+          #
+          # E' la stessa forma gia' pagata nel database con `vat_exposed`
+          # (`20260915020000_il_regime_iva_arriva_dal_sito.sql`): un si'/no
+          # che doveva dire "l'IVA e' esposta" e non sapeva dire "nessuno
+          # l'ha ancora detto". Vale la pena scrivere che **si e' ripresentata
+          # fuori dal database**, in una variabile di shell, dove nessuno la
+          # stava cercando: la famiglia non e' delle colonne, e' delle
+          # domande a cui si puo' non sapere rispondere.
+          #
+          #   si      -> l'endpoint ha detto che resta lavoro
+          #   no      -> l'endpoint ha detto che ha finito
+          #   non_so  -> l'ultima chiamata si e' persa: nessuno ha risposto
+          #
+          # Il ciclo va avanti su "si" **e** su "non_so", e sono due ragioni
+          # diverse: nel primo caso perche' sappiamo che serve, nel secondo
+          # perche' non sappiamo che non serva -- e continuare e' gratis e
+          # innocuo, visto che le schede da ripassare le sceglie il database.
+          ancora="si"
+
+          # **La condizione del ciclo e la ragione per cui e' finito sono la
+          # stessa cosa, quindi stanno in un posto solo.** Il ciclo puo'
+          # fermarsi per tre motivi -- ha finito, ha esaurito le chiamate, e'
+          # scaduto il tempo -- e il riepilogo deve dire quale. Scrivere le
+          # tre condizioni nel `while` e poi rileggerle sotto per capire quale
+          # ha ceduto sarebbe la stessa decisione presa in due posti: il
+          # giorno che qualcuno ne aggiunge una quarta al ciclo, il riepilogo
+          # annuncerebbe la ragione sbagliata senza che niente diventi rosso.
+          #
+          # E non e' un'ipotesi: prima di questa funzione lo scatto
+          # dell'orologio finiva nello stesso ramo del tetto delle chiamate, e
+          # un giro fermato dal tempo al settimo tentativo annunciava
+          # **"Fermata al tetto di 20 chiamate"**. Trovato scrivendo il caso
+          # di prova che fa scattare l'orologio: le due condizioni davano lo
+          # stesso esito, quindi nessuna prova poteva distinguerle.
+          motivo_fine=""
+          si_continua() {
+            [ "$ancora" != "no" ]                  || { motivo_fine="fatto";     return 1; }
+            [ "$giro" -lt "$MAX_CHIAMATE" ]        || { motivo_fine="chiamate";  return 1; }
+            [ "$(date +%s)" -lt "$SCADENZA" ]      || { motivo_fine="tempo";     return 1; }
+            return 0
+          }
+
+          while si_continua; do
             giro=$((giro + 1))
 
-            codice=$(curl -s -o "$risposta" -w "%{http_code}" --max-time 180 \
+            # **Una chiamata caduta non butta via il giro.** Il 21/09/2026 il
+            # giro delle 12:00 si e' fermato al settimo tentativo su venti:
+            # un pacchetto perso, la connessione mai stabilita, e le altre
+            # tredici chiamate non sono mai partite. La causa e' fisiologica --
+            # un giro sano ne fa venti, otto volte al giorno, e una che si
+            # impianta ogni tanto e' normale -- ma la conseguenza no.
+            #
+            # `codice=$(curl ...)` da solo, con la shell `bash -e`, faceva
+            # morire lo script sulla riga stessa: niente riepilogo, niente
+            # messaggio, solo "exit code 28". Il `|| uscita=$?` toglie a curl
+            # il potere di uccidere il giro e ci consegna il suo codice.
+            #
+            # **Ritentare e' sicuro, e non e' nemmeno un ritentativo.** Le
+            # schede da ripassare le sceglie il database -- le venticinque
+            # ricontrollate meno di recente -- quindi una chiamata ripetuta
+            # non rifa' il lavoro di prima: prende le successive. E cio' che
+            # scrive e' idempotente per tre strade indipendenti: un indice
+            # unico su `(dealer_id, import_source, import_source_id)` impedisce
+            # i doppioni, `updated_at` si muove solo se un valore e' cambiato
+            # davvero, e il contatore delle notifiche scatta sull'inserimento,
+            # che non avviene due volte.
+            uscita=0
+            codice=$(curl -s -o "$risposta" -w "%{http_code}" \
+              --connect-timeout "$ATTESA_CONNESSIONE" --max-time 180 \
               -X POST -H "content-type: application/json" \
               -H "x-cron-secret: $CRON_SECRET" \
               --data "{\"cursore\": $cursore, \"aMano\": $A_MANO}" \
-              "$BASE_URL/api/cron/sincronizza-siti")
+              "$BASE_URL/api/cron/sincronizza-siti") || uscita=$?
+
+            if [ "$uscita" != "0" ]; then
+              # **Perche' e' caduta, in italiano.** Prima diceva un numero e
+              # basta, e tre guasti diversi -- un pacchetto perso, un nome che
+              # non si risolve, una risposta vuota -- producevano lo stesso
+              # rosso muto. E' la stessa famiglia della distinzione fra
+              # "non sono riuscito a leggere" e "la regola non regge".
+              case "$uscita" in
+                6)  perche="il nome $BASE_URL non si e' risolto (DNS)" ;;
+                7)  perche="la connessione e' stata rifiutata: la piattaforma non ha risposto sulla porta" ;;
+                28) perche="tempo scaduto: la piattaforma non ha risposto in tempo, o la connessione non si e' mai stabilita" ;;
+                35) perche="la stretta di mano cifrata (TLS) non e' riuscita" ;;
+                52) perche="la piattaforma ha chiuso senza rispondere niente" ;;
+                56) perche="la connessione si e' interrotta mentre arrivava la risposta" ;;
+                *)  perche="guasto di rete, codice curl $uscita" ;;
+              esac
+              giro_perso "$perche" " (codice curl \`$uscita\`). Non e' un difetto della piattaforma: la chiamata non e' arrivata, o la risposta non e' tornata." || break
+              continue
+            fi
 
             if [ "$codice" = "403" ]; then
               # Tre cause, e sono state tutte e tre vere il 27/08/2026 nel giro
               # di mezz'ora. La terza e' la piu' insidiosa perche' non somiglia
               # a un errore: la variabile su Vercel c'e' e si legge giusta, ma
               # la pubblicazione in linea porta ancora quella vecchia.
-              echo "::error::La piattaforma ha rifiutato la chiamata (403). Vedi il riepilogo per le tre cause possibili."
+              errore "La piattaforma ha rifiutato la chiamata (403). Vedi il riepilogo per le tre cause possibili."
               {
                 echo "La piattaforma ha rifiutato la chiamata (403). Tre cause possibili, in ordine di frequenza:"
                 echo ""
@@ -116,7 +661,7 @@ jobs:
             fi
 
             if [ "$codice" != "200" ]; then
-              echo "::error::La sincronizzazione non e' riuscita (HTTP $codice) al giro $giro."
+              errore "La sincronizzazione non e' riuscita (HTTP $codice) al giro $giro."
               {
                 echo "La chiamata numero $giro e' fallita con codice **$codice**."
                 echo ""
@@ -138,25 +683,192 @@ jobs:
               echo ""
             } >> "$GITHUB_STEP_SUMMARY"
 
-            ancora=$(python3 -c "import json; print(str(json.load(open('$risposta')).get('ancoraDaFare', False)).lower())")
-            cursore=$(python3 -c "import json; print(json.dumps(json.load(open('$risposta')).get('cursore')))")
+            # **Anche queste due possono uccidere il giro, ed e' lo stesso
+            # potere che si e' appena tolto a curl.** Una risposta 200 che non
+            # e' JSON valido -- una pagina di errore della rete, una risposta
+            # troncata -- fa uscire python con un errore, e `bash -e` si porta
+            # via lo script prima di qualunque riepilogo. Non e' un'ipotesi:
+            # e' la stessa riga con un altro comando davanti.
+            #
+            # E `ancoraDaFare` assente non vuol dire "ho finito": vuol dire
+            # che l'endpoint non l'ha detto. Il valore predefinito era `False`,
+            # cioe' il vuoto appiattito su una delle due risposte -- lo stesso
+            # difetto che il terzo stato di `ancora` chiude qui sopra.
+            #
+            # Le tre righe in piu' sono i conteggi del giro e, se mancano, chi
+            # non li ha dichiarati. **Non hanno un valore predefinito**: se
+            # `esiti` non e' una lista, o se una sola voce non dichiara quel
+            # conteggio, le due righe dei numeri escono **vuote** e la quinta
+            # dice il nome del sito e il conteggio che manca. Una somma a cui
+            # manca una voce non e' un totale parziale, e' un totale sbagliato
+            # -- e qui sarebbe per giunta un numero piu' basso del vero, cioe'
+            # la correzione che sembra funzionare meglio di quanto funzioni.
+            #
+            # **Uno zero dichiarato e' un numero, e si somma.** Un sito senza
+            # novita' risponde `rilette: 0`, ed e' un dato: appiattirlo su
+            # "non dichiarato" marchierebbe illeggibile un giro sano. E' lo
+            # stesso confine di `null` e `0` nel conto economico.
+            #
+            # **E si accetta solo un intero vero, non negativo: e' un
+            # corridoio, non una porta.** Il primo intruso trovato era un
+            # `true` -- che per Python e' un intero, e sommato varrebbe uno
+            # in silenzio -- ma escludere i booleani avrebbe chiuso una porta
+            # sola: una stringa `"5"`, un decimale, un `null`, un `-1`
+            # arrivano dalla stessa strada, e un `-1` sommato abbasserebbe
+            # il totale, cioe' la direzione peggiore. Provato con dieci
+            # risposte costruite prima di fidarsi, e il banco ne manda
+            # quattro in un giro solo (`conteggi-non-leggibili`).
+            letto=$(python3 -c "import json;d=json.load(open('$risposta'));a=d.get('ancoraDaFare');e=d.get('esiti');print('non_so' if a is None else ('si' if a else 'no'));print(json.dumps(d.get('cursore')));g=lambda x,k:(x.get(k) if isinstance(x,dict) else None);ok=lambda v:isinstance(v,int) and not isinstance(v,bool) and v>=0;m=['la risposta non ha la lista esiti'] if not isinstance(e,list) else [str(g(x,'sito') or 'una voce senza nome')+' non dichiara '+k for x in e for k in ('rilette','riscritte') if not ok(g(x,k))];print('' if m else sum(g(x,'rilette') for x in e));print('' if m else sum(g(x,'riscritte') for x in e));print('; '.join(m))" 2>/dev/null) || letto=""
+            if [ -z "$letto" ]; then
+              giro_perso "la piattaforma ha risposto 200, ma il contenuto non si e' lasciato leggere" " Puo' essere una pagina di errore della rete arrivata al posto della risposta vera." || break
+              continue
+            fi
+
+            # **La copia si fa qui, non appena arriva un 200.** Nella prima
+            # versione stava venti righe piu' su, subito dopo il controllo del
+            # codice HTTP: una risposta 200 con dentro una pagina di errore
+            # della rete finiva in `ultima_buona`, e il riepilogo finale la
+            # leggeva. Misurato mettendo un finto endpoint che risponde 200
+            # con dell'HTML:
+            #
+            #     json.decoder.JSONDecodeError: Expecting value: line 1 column 1
+            #     ::error::Sincronizzazione ferma da piu' di 24 ore per: . Vedi il riepilogo.
+            #
+            # Cioe' un errore di python nel log e un rosso che **nomina dei
+            # siti e non ne elenca nessuno**. "Ultima risposta buona" adesso
+            # vuol dire buona davvero: 200 **e** leggibile.
+            cp "$risposta" "$ultima_buona"
+            ho_una_risposta=true
+            giro_riuscito
+
+            ancora=$(printf '%s' "$letto" | sed -n 1p)
+            cursore=$(printf '%s' "$letto" | sed -n 2p)
+            [ -z "$cursore" ] && cursore='null'
 
             # Una pausa fra un giro e l'altro: dall'altra parte ci sono i siti
             # delle concessionarie, non i nostri server.
-            [ "$ancora" = "true" ] && sleep 5
+            [ "$ancora" = "si" ] && sleep 5
           done
 
-          if [ "$ancora" = "true" ]; then
-            echo "Fermata al tetto di $MAX_CHIAMATE chiamate: il resto lo prende il giro successivo." >> "$GITHUB_STEP_SUMMARY"
+          # **Com'e' finito il giro: quattro esiti, e li dice il codice da
+          # solo.** Dirli con la stessa frase -- come faceva la prima versione
+          # di questa modifica, che dopo una fermata annunciava "il resto del
+          # giro e' stato fatto" -- e' il difetto di un riepilogo che
+          # rassicura su cio' che non e' successo.
+          #
+          # Il quarto -- "non so dove sono arrivato" -- **non e' un caso
+          # speciale aggiunto a mano**: e' quello che `ancora` vale quando
+          # l'ultima chiamata si e' persa. Prima che avesse tre stati avrei
+          # dovuto scrivere una condizione apposta per riconoscerlo, e sarebbe
+          # stata una toppa sopra il difetto invece della sua cura: la
+          # variabile avrebbe continuato a dire "si'" per una domanda a cui
+          # nessuno aveva risposto, e io avrei aggiunto un'eccezione per non
+          # crederle.
+          if [ "$fermata_per_rete" = "true" ]; then
+            esito="rete"
+          elif [ "$motivo_fine" = "tempo" ]; then
+            esito="tempo"
           else
-            echo "Allineamento completo in $giro giri." >> "$GITHUB_STEP_SUMMARY"
+            esito="$ancora"
+          fi
+
+          case "$esito" in
+            rete)
+              echo "Il giro si e' fermato dopo $giro chiamate: la piattaforma non rispondeva. Riprende fra tre ore." >> "$GITHUB_STEP_SUMMARY" ;;
+            tempo)
+              # Non dice "il resto lo prende il giro successivo" come fa il
+              # tetto delle chiamate: li' sappiamo che il resto c'e', qui
+              # l'ultima chiamata puo' essersi persa e non saperlo. La frase
+              # regge in tutti e due i casi.
+              #
+              # E dice "dopo N chiamate", non "al N-esimo tentativo": la
+              # seconda forma si legge come "durante la N-esima", cioe' N-1
+              # finite, e non torna con il totale dichiarato due righe sotto.
+              echo "Il giro si e' fermato dopo $giro chiamate per non sfondare il tempo massimo del lavoro. Il giro successivo riparte da dove trova: le schede da ripassare le sceglie il database, non questo lavoro." >> "$GITHUB_STEP_SUMMARY" ;;
+            non_so)
+              echo "L'ultima chiamata si e' persa, quindi **non sappiamo se restava altro da fare**. Il giro successivo riparte da dove trova: le schede da ripassare le sceglie il database, non questo lavoro." >> "$GITHUB_STEP_SUMMARY" ;;
+            si)
+              echo "Fermata al tetto di $MAX_CHIAMATE chiamate: il resto lo prende il giro successivo." >> "$GITHUB_STEP_SUMMARY" ;;
+            no)
+              echo "Allineamento completo in $giro giri." >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+
+          if [ "$perse" != "0" ] && [ "$fermata_per_rete" != "true" ]; then
+            # Il singolare e il plurale: questa riga la legge una persona, e
+            # "1 chiamate" e' il genere di sciatteria che fa dubitare del
+            # resto del riepilogo.
+            if [ "$perse" = "1" ]; then
+              frase="**Una chiamata su $giro e' andata persa per strada** ed e' stata saltata."
+            else
+              frase="**$perse chiamate su $giro sono andate perse per strada** e sono state saltate."
+            fi
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "$frase Il resto del giro e' stato fatto." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # **Se piu' della meta' delle chiamate non arriva, il giro e' rosso.**
+          #
+          # La soglia non e' zero, ed e' una scelta con due lati.
+          #
+          # **Perche' non "nessuna".** Il primo tentativo diceva rosso solo se
+          # nessuna chiamata era arrivata, appoggiandosi all'allarme dei siti
+          # fermi da 24 ore per tutto il resto. Ma ventiquattro ore sono
+          # **otto giri**: se la rete peggiorasse e ogni giro ne perdesse
+          # diciannove su venti, il sistema resterebbe quasi fermo per un
+          # giorno intero mostrando **otto spunte verdi**, e il rosso
+          # arriverebbe il giorno dopo. Un allarme che arriva otto giri tardi
+          # non e' un allarme.
+          #
+          # **Perche' non piu' stretta.** Un giro sano fa venti chiamate, otto
+          # volte al giorno: centosessanta. Una persa ogni tanto e'
+          # fisiologica -- il 21/09/2026 e' stato un pacchetto perso su
+          # internet, niente di riparabile. Con la meta' come soglia servono
+          # undici cadute nello stesso giro perche' scatti: non diventa il
+          # rosso che si impara a ignorare, che e' il modo in cui un allarme
+          # muore davvero.
+          # **Una fermata per rete e' sempre rossa, qualunque sia il conto.**
+          # La soglia da sola non bastava, e l'aritmetica lo dice: fermandosi
+          # dopo tre cadute di fila al sesto giro, `perse=3` e `meta=3`, quindi
+          # `3 > 3` e' falso e il lavoro sarebbe uscito **verde** -- con dentro
+          # un `::error::` che dice "la piattaforma non risponde". Un
+          # `::error::` non colora niente: il colore lo fa il codice di uscita.
+          #
+          # Sarebbe stato esattamente il difetto che questa modifica esiste per
+          # chiudere, con il segno girato: non piu' un rosso muto, ma **un
+          # verde su un giro interrotto**. Trovato da una rilettura ostile
+          # dopo che le prove erano gia' passate -- le prove coprivano i casi
+          # in cui il conto veniva rosso da solo.
+          if [ "$fermata_per_rete" = "true" ]; then
+            exit 1
+          fi
+
+          meta=$((giro / 2))
+          if [ "$perse" -gt "$meta" ]; then
+            errore "Su $giro chiamate ne sono arrivate solo $riuscite: la sincronizzazione non ha fatto quasi niente. Vedi il riepilogo."
+            {
+              echo ""
+              echo "## :red_circle: Sincronizzazione quasi ferma"
+              echo ""
+              echo "Su **$giro** chiamate ne sono arrivate **$riuscite**: piu' della meta' si e' persa per strada,"
+              echo "e lo stock e' stato riallineato solo in minima parte."
+              echo ""
+              echo "Le cause sono scritte qui sopra, una per giro. **Se dicono tutte la stessa cosa** il guasto"
+              echo "e' li' -- per esempio la piattaforma che non risponde. **Se dicono cose diverse** e' la rete"
+              echo "fra GitHub e la piattaforma, e di solito passa da sola: il giro successivo riprende da dove"
+              echo "questo si e' fermato, perche' le schede da ripassare le sceglie il database."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
 
           # Il riepilogo che si legge: un sito per riga, con l'ultimo
           # aggiornamento. E il rosso, se un sito e' fermo da piu' di 24 ore:
           # un lavoro verde che non aggiorna un sito da tre giorni e' peggio
           # di uno rosso, perche' lo si crede fatto.
-          python3 - "$risposta" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          if [ "$ho_una_risposta" != "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Nessuna risposta utile da cui ricavare lo stato dei siti: nessuna chiamata e' arrivata._" >> "$GITHUB_STEP_SUMMARY"
+          else
+          python3 - "$ultima_buona" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, sys
           from datetime import datetime, timezone
           dati = json.load(open(sys.argv[1]))
@@ -191,13 +903,17 @@ jobs:
               print("limita le letture automatiche: va chiesto al fornitore del sito (MotorK/DealerK) di")
               print("consentire le letture di KeyAuto, identificate dallo User-Agent `KeyAuto/1.0`.")
           PY
+          fi
 
           # Il rosso guarda "sitiDaSegnalare", non "sitiInRitardo": chi e' fermo
           # sta sempre nel riepilogo, ma si grida al massimo una volta al
           # giorno per sito. La regola sta nell'endpoint, con i suoi test.
-          da_segnalare=$(python3 -c "import json; print(len(json.load(open('$risposta')).get('sitiDaSegnalare', [])))")
+          da_segnalare=0
+          if [ "$ho_una_risposta" = "true" ]; then
+            da_segnalare=$(python3 -c "import json; print(len(json.load(open('$ultima_buona')).get('sitiDaSegnalare', [])))")
+          fi
           if [ "$da_segnalare" != "0" ]; then
-            elenco=$(python3 -c "import json; print(', '.join(s['sito'] for s in json.load(open('$risposta')).get('sitiDaSegnalare', [])))")
-            echo "::error::Sincronizzazione ferma da piu' di 24 ore per: $elenco. Vedi il riepilogo."
+            elenco=$(python3 -c "import json; print(', '.join(s['sito'] for s in json.load(open('$ultima_buona')).get('sitiDaSegnalare', [])))")
+            errore "Sincronizzazione ferma da piu' di 24 ore per: $elenco. Vedi il riepilogo."
             exit 1
           fi
