@@ -223,6 +223,44 @@ freno), e un sito che ha appena frenato si legge con una **pausa lunga**
 (`PAUSA_DOPO_IL_FRENO_MS`). Quel numero si corregge guardando quante schede
 passano davvero: le risposte di un sito che limita non sono una soglia netta.
 
+**E la forma che questa protezione ha insegnato, che vale su tutte le altre:
+una protezione che si disattiva proprio nella condizione in cui servirebbe.**
+
+Il caso, trovato il 23/09/2026 rileggendo il giro periodico. Fra una chiamata
+e l'altra c'e' una pausa, e la pausa esiste per non insistere su una
+piattaforma affaticata. La riga che la applica e'
+`[ "$ancora" = "si" ] && sleep 5` -- cioe' la pausa c'e' **solo** quando la
+risposta precedente ha detto chiaramente "ce n'e' ancora".
+
+Ma gli stati sono tre, non due, e il terzo e' `non_so`: quello in cui si
+finisce **quando una chiamata e' appena andata male**. In `non_so` il ciclo
+continua e la pausa **sparisce**: venti chiamate partono di fila, verso una
+piattaforma che ha appena dato segno di non farcela. **Piu' le cose vanno
+male, meno la protezione protegge.**
+
+E' parente del difetto del 21/09 -- la fermata che lasciava il lavoro verde --
+ma non e' lo stesso, e la differenza vale la pena tenerla: **li' l'allarme
+non suonava, qui la cintura si sgancia nell'urto.** Il primo e' un guardiano
+muto, il secondo e' una difesa che si toglie da sola nel momento del bisogno.
+
+La domanda da farsi su **ogni** protezione, e costa dieci secondi:
+
+> *In quale stato questa protezione smette di funzionare, e quello stato
+> assomiglia al guasto da cui protegge?*
+
+Se le due cose si somigliano, la protezione e' decorativa proprio quando
+conta. E il modo in cui nasce e' sempre lo stesso e sembra innocuo: si scrive
+la condizione per il caso normale (`= "si"`), e il caso anomalo -- che e'
+esattamente il bersaglio -- cade nel ramo che non fa niente. **Un terzo stato
+appiattito su "no" dentro una protezione non e' un dettaglio di stile: e' la
+protezione che si spegne.**
+
+Vale oltre le pause: un tentativo che si ripete solo quando l'errore e'
+"conosciuto", un limite di velocita' che si applica solo alle richieste
+"valide", un `catch` che rilancia solo gli errori che sa nominare. In tutti
+questi casi il sottoinsieme che sfugge e' **il piu' vicino al guasto**, perche'
+e' quello che il codice non ha saputo classificare.
+
 **Un contatto senza `dealer_id` non lo vede nessuno.** Oggi i contatti nascono
 in un posto solo -- `/api/marketplace/lead`, che imposta sempre la
 concessionaria -- e **il gestionale non ne crea a mano**. Il giorno che si
@@ -524,6 +562,36 @@ e' stato trovato:
 
 > **"Zero differenze li' vuol dire non guardato, non tutto a posto."**
 
+**E la forma gemella: un'impronta dice che una cosa non e' cambiata, non che
+funziona.** Un controllo sull'**identita'** e uno sul **comportamento** danno
+tutti e due verde e rispondono a due domande diverse; scambiarli e' lo stesso
+difetto di "zero differenze", con il segno girato -- li' il conteggio non
+diceva cosa aveva contato, qui l'impronta non dice cosa ha verificato.
+
+I due casi che l'hanno prodotta, il 21/09/2026, sono lontanissimi fra loro e
+sono lo stesso difetto:
+
+1. **il banco di prova che non era cambiato e funzionava male.** Provando la
+   correzione della sincronizzazione, ogni prova firmava i file che eseguiva
+   e si dichiarava valida se l'impronta reggeva. Reggeva. Intanto il finto
+   endpoint **moriva dopo la prima chiusura forzata**, quindi cadevano anche
+   i giri che dovevano riuscire, e i risultati sembravano difetti del
+   workflow. Il file era identico a se stesso e sbagliato;
+2. **le impronte delle funzioni nell'inventario dello schema.** Il confronto
+   fra produzione e file usa `md5` del corpo di ogni funzione, ed e' quello
+   che ha permesso di dire *"tutte e quindici uguali, nessuna deriva"*.
+   Dice che **il testo combacia**, non che la funzione fa la cosa giusta: una
+   funzione sbagliata allo stesso modo in tutti e due i posti ha l'impronta
+   uguale e il confronto resta verde. Non e' un difetto dell'inventario --
+   e' cio' per cui e' fatto -- ma va saputo quando lo si cita come prova.
+
+La regola: **davanti a un verde, si chiede se il controllo guardava
+l'identita' o il comportamento**, e si aggiunge quello che manca invece di
+credere che uno faccia il lavoro dell'altro. Nel banco ne sono serviti tre --
+*sto provando la cosa giusta?*, *e' cambiata mentre giravo?*, *ha prodotto il
+caso che volevo?* -- e ognuno e' nato da un errore che i precedenti non
+prendevano.
+
 Un conteggio a zero e' una risposta solo se si sa **cosa** e' stato contato.
 Prima di riportarlo come rassicurazione si apre la regola e si guarda il suo
 filtro: una famiglia che non viene interrogata risponde zero esattamente come
@@ -672,7 +740,54 @@ I difetti erano due, e sono diversi:
    `vitest.config.ts` e non versionato): chi la osserva puo' filtrare quanto
    vuole senza perdere niente. Vale oltre i test -- **qualunque misura che
    verra' citata piu' tardi si scrive su disco mentre si fa**, non si legge e
-   basta;
+   basta.
+
+   **E prima dei gradini viene una domanda, altrimenti la regola dice una
+   cosa falsa:** *la misura si puo' rifare?*
+
+   Se si puo' rifare, **di quella misura si conserva lo strumento, non il
+   risultato** -- e lo strumento sta nel repository perche' e' codice. Il file
+   degli esiti diventa una comodita', e perderlo costa quanto costa rifarlo.
+   Se **non** si puo' rifare, il risultato e' l'unica copia che esistera' mai
+   e va scritto subito dove vive il progetto.
+
+   La differenza, con i casi di questo progetto:
+
+   | misura | rifacibile? | dove va |
+   |---|---|---|
+   | gli esiti del banco della sincronizzazione | **si'**, il banco e' nel repository con i suoi casi e il colore assertato | lo strumento nel repository; gli esiti al gradino di mezzo |
+   | le Statistiche di scansione di Search Console | **no**: e' una finestra che scorre, fra quattro giorni quei numeri non esistono piu' | nel repository, subito, con la data |
+   | `import_synced_at` prima che la sincronizzazione lo sovrascriva | **no**: il posto in cui sta si riscrive da solo | nel repository, o fatto dichiarare a chi lo produce |
+
+   Senza questa domanda la regola si legge come *"tutto nel repository"*, che
+   e' falso e ingombrante: riempirebbe il progetto di esiti che si rifanno in
+   undici minuti. **Il costo di perdere una misura rifacibile e' un numero, e
+   va misurato, non temuto**: i sette casi persi in `/tmp` il 23/09/2026 sono
+   stati rieseguiti in undici minuti, e quello -- non un principio -- e' cio'
+   che ha detto che il gradino di mezzo bastava.
+
+   **E "su disco" ha tre gradini, non due**, perche' ognuno sopravvive a una
+   cosa diversa:
+
+   | dove | dura fino a |
+   |---|---|
+   | `/tmp` | il prossimo **riavvio** della macchina |
+   | `~/` | la prossima **ricreazione** dell'ambiente |
+   | il repository, o un riepilogo di GitHub | **oltre la sessione** |
+
+   La domanda che sceglie il gradino non e' "dove e' comodo scrivere?" ma
+   **"quando verra' riletta questa misura?"**. Una citata fra dieci minuti sta
+   bene in `/tmp`; una citata **la settimana prossima si scrive dove vive il
+   progetto**, non dove vive la sessione. Il 22/09/2026 gli esiti di un banco
+   da trentasei minuti sono stati persi due volte: la prima in `/tmp`, la seconda
+   spostandoli in `~/` -- che e' un gradino piu' su e non quello giusto.
+
+   **Ed e' lo stesso gradino mancato con `import_synced_at`, visto
+   dall'altra faccia.** Li' il dato viveva in un posto che si sovrascrive, e
+   la cura e' stata farlo dichiarare a chi lo produce, in un archivio che dura
+   novanta giorni. Qui il dato vive in un posto che si cancella. In tutti e
+   due i casi il difetto non e' nel numero: e' nella **durata del posto in cui
+   sta**, confrontata con quando qualcuno tornera' a leggerlo;
 2. **i due rossi si somigliavano.** Un controllo che legge qualcosa fuori da
    se' -- un file, un database, una rete -- fallisce allo stesso modo quando
    *non ha potuto guardare* e quando *ha guardato e la regola non regge*. Le
@@ -712,6 +827,41 @@ elenca ogni porta trovata, e ognuna passa dalla libreria o finisce in un
 elenco esplicito con il perche'. Poi un test sul testo dei sorgenti fissa
 l'elenco, come `il telaio ha una casa sola` in `src/lib/telaio.test.ts`: il
 difetto arrivera' dalla porta che nessuno ha contato.
+
+**E il gemello, che si legge al contrario: una decisione presa in quattro
+posti ne dimentica il quinto.** La regola qui sopra guarda le porte da cui
+si entra; questa guarda i posti in cui si decide la stessa cosa. Il difetto
+non e' che una porta non chiami la regola: e' che **non esiste una regola**,
+esistono quattro copie di un ragionamento, e la quinta occasione nasce senza
+nessuna di loro.
+
+Il caso, 21/09/2026, in tre ore e tre volte di fila. Nel lavoro periodico
+della sincronizzazione un giro puo' perdersi in modi diversi, e ogni modo
+nuovo e' nato **scollegato dai contatori** -- quelli che decidono se il
+lavoro e' verde o rosso:
+
+1. **la chiamata non arriva** (curl fallisce): il primo ramo scritto,
+   aggiornava i conti;
+2. **si ferma dopo tre cadute di fila**: usciva **verde** da sei giri in poi,
+   perche' la soglia contava e la fermata no. Un `::error::` non colora
+   niente: il colore lo fa il codice di uscita;
+3. **la risposta arriva 200 e non si lascia leggere**: il ramo nuovo faceva
+   venti avvisi e un lavoro **verde**, perche' non toccava nessun contatore.
+
+Tre volte la stessa cosa non e' distrazione: e' la forma del codice. E la
+tentazione, dopo la terza, e' correggere la terza -- lasciando in piedi
+esattamente cio' che genererebbe la quarta. **Il quinto modo di fallire
+arrivera', e nascerebbe scollegato come gli altri.**
+
+La cura e' strutturale e sta in una frase: **chi trova un giro perso chiama
+una funzione sola, e i conti si aggiornano perche' non c'e' un altro modo di
+farlo.** I rami diventano una riga (`giro_perso "..." || break`), e un modo
+di fallire aggiunto domani o passa di li' o non esiste.
+
+Come si riconosce prima di pagarla tre volte: **si contano i posti in cui la
+stessa decisione viene presa**, non le righe che la sbagliano. Se sono piu'
+di uno, il difetto non e' in nessuno di loro -- e' nel fatto che siano piu'
+di uno.
 
 **La verifica di sicurezza sulle targhe lette dai siti** (14/09/2026, 126
 pagine): la targa si prende **solo** dal blocco dati il cui identificativo
@@ -983,6 +1133,186 @@ l'ha scritta non interessavano. Si fissa **la proprieta'**, non il testo:
 "l'elemento che contiene il nome e' uno `span`", non `<span
 className="truncate">{dealerName}</span>`.
 
+**La copertura di un banco non si conta in casi, si conta in meccanismi.**
+
+Quindici casi, quindici verdi. Il banco della sincronizzazione sembrava
+finito. Contando invece **le uscite rosse dello script** -- cioe' i modi in
+cui il lavoro puo' diventare rosso -- ne risultavano cinque, e i quindici casi
+ne provavano **tre**. Due non erano mai state eseguite da nessuno: il rifiuto
+della piattaforma (403) e il **sito fermo da piu' di 24 ore**.
+
+La seconda e' la piu' istruttiva di tutto il giro: e' la guardia nata
+dall'incidente di Autogepy, quattro giorni con zero schede aggiornate e un
+lavoro verde. E' stata costruita **dopo** quel guasto, per non ripeterlo, ed
+e' l'unica del passo che **nessuno ha mai visto funzionare**. La protezione
+costruita dopo un incidente e' esattamente quella che nessuno prova, perche'
+il caso che la giustifica e' gia' passato e sembra gia' capito.
+
+Un banco puo' avere cento casi che bussano tutti alla stessa porta. Il numero
+di casi misura quanto si e' scritto, non quanto si e' coperto -- e cresce
+proprio nella direzione sbagliata, perche' un caso nuovo si aggiunge
+somigliando a quelli che ci sono.
+
+**Come si conta davvero**, ed e' la stessa forma di *"si cerca cio' che chi
+scrive il codice non puo' variare"*:
+
+1. **si enumera dalla sorgente, non dai casi.** Qui: ogni `exit 1`. Contare
+   guardando i casi gia' scritti fa trovare esattamente i meccanismi che i
+   casi gia' provano -- e' un cerchio, e in una giornata sola ci sono cascato
+   due volte;
+2. **accanto a ogni caso si scrive quale meccanismo prova**, non solo quale
+   colore attende. Due casi che attendono lo stesso colore per ragioni diverse
+   sono due prove; due casi che lo attendono per la stessa ragione sono una
+   prova scritta due volte;
+3. **i meccanismi senza nessun caso si elencano**, e l'elenco sta nel banco,
+   non in una nota. Un banco che stampa "15/15" tacendo che prova tre porte su
+   cinque dice una cosa falsa con la faccia di un conto.
+
+**E una via d'uscita mai provata trova anche i difetti di chi la sta
+provando.** E' la ragione per cui scrivere il caso mancante rende piu' di
+quanto sembri: non aggiunge una riga verde a un elenco, **mette in moto un
+pezzo di codice che non si era mai mosso**, e con lui tutto quello che gli sta
+intorno.
+
+Il 22/09/2026, aggiungendo i tre casi che mancavano, **due dei quattro difetti
+della giornata sono usciti cosi'** -- e nessuno dei due stava nella via
+d'uscita che il caso doveva provare:
+
+- il caso del **sito fermo da 24 ore** ha fatto comparire *"Allineamento
+  completo in 1 giri"* e *"non e' arrivato in fondo"* nella stessa schermata.
+  La frase l'avevo scritta io trentasei minuti prima, ed era falsa proprio li': quella
+  guardia colora il lavoro **dopo** che l'allineamento e' finito, e nessuna
+  delle altre vie d'uscita ha quella forma;
+- il caso **sano**, che e' verde e sembra decorazione, ha preso il banco che
+  aveva smesso di avviare il finto endpoint: la condizione guardava *"il sesto
+  parametro e' vuoto"* e il sesto era diventato la colonna del meccanismo.
+  Senza un caso che **deve** restare verde, tutti gli altri sarebbero stati
+  rossi per la ragione sbagliata, ognuno con una spiegazione plausibile.
+
+I casi verdi non sono decorazione: sono l'unica cosa che distingue "il
+controllo ha funzionato" da "il banco e' rotto e risponde rosso a tutto".
+
+E il difetto piu' istruttivo dei quattro e' quello che lo strumento ha trovato
+**su se stesso**: l'impronta che doveva accorgersi se il banco si muoveva
+confrontava la copia con l'**originale**, cioe' rispondeva a *"la copia e'
+uguale all'originale?"* invece che a *"il file che sto eseguendo e' cambiato
+mentre girava?"*. Le due domande davano la stessa risposta finche' nessun caso
+toccava la propria copia -- e il primo che l'ha toccata e' stato proprio il
+caso scritto per provare l'ultima rete. E' *lo strumento non coincide con il
+soggetto* nella sua forma piu' pura, trovata dallo strumento stesso.
+
+**E il conto va rifatto con due domande, non una, se lo script gira con
+`bash -e`.** Le uscite *volute* si trovano cercando `exit`; le uscite
+*involontarie* no. Con `-e` qualunque comando non protetto -- da un `if`, da
+un `|| ...`, da una cattura del codice -- termina lo script senza passare da
+nessun `exit`, e quelle non si enumerano cercando una parola.
+
+Misurato il 22/09/2026 iniettando un comando qualsiasi che fallisce in mezzo
+al giro, e il risultato non e' quello che ci si aspetta:
+
+| | giro sano | morte non dichiarata | le cinque uscite volute |
+|---|---|---|---|
+| codice di uscita | 0 | **1** | 1 |
+| `::error::` | 0 | **0** | **almeno 1** |
+| riga di chiusura nel riepilogo | 1 | **0** | 1 |
+| tabella "Stato dei siti" | c'e' | **no** | c'e' |
+
+**Non muore muto, ed e' peggio**: il `trap ... EXIT` -- che con `-e` viene
+eseguito, verificato -- scrive comunque *"In 2 chiamate riuscite: 10 schede
+ripassate"*. Chi apre il lavoro trova un rosso senza nessuna annotazione e un
+riepilogo che si legge come una sincronizzazione parziale riuscita. Non
+manca l'informazione: c'e' un'informazione **che somiglia a quella buona**.
+
+Da qui la guardia, che vale piu' dell'elenco dei comandi non protetti perche'
+prende anche il comando che qualcuno aggiungera' domani:
+
+> **Un lavoro rosso senza nemmeno un `::error::` e' un'uscita non
+> dichiarata.**
+
+Verificato che regga: tutti e cinque gli `exit 1` del passo hanno un
+`::error::` nel log, e la morte non dichiarata ne ha zero. E' una **proprieta'**
+e non un elenco, quindi non invecchia quando lo script cresce.
+
+**E un invariante si scrive in coppia, perche' da solo copre una direzione
+sola.** Questa e' la lezione piu' utile della giornata, e si e' pagata
+**sull'invariante appena scritto**: il giorno dopo averlo messo, una rilettura
+ostile ha trovato un caso che non prendeva -- `SECONDI_DI_TETTO` non validata
+fa cadere `SCADENZA` nel passato, il ciclo non parte, e il passo esce **verde
+avendo fatto niente**. Nessun `::error::`, quindi la guardia taceva: guardava
+i rossi che non si spiegano, non i verdi che non hanno lavorato.
+
+Il gemello e' la stessa frase con il segno girato, e sta nello stesso posto,
+nella stessa trappola:
+
+> **Un lavoro rosso senza nemmeno un `::error::` e' un'uscita non dichiarata.
+> Un lavoro verde con zero chiamate riuscite e' un successo non guadagnato.**
+
+**E il secondo colora, non si limita a dirlo.** Un `::error::` non colora
+niente -- il colore lo fa il codice di uscita, lezione gia' pagata il
+21/09/2026 con la fermata per rete che lasciava il lavoro verde. La trappola
+quindi cambia il verdetto con un `exit 1`, **per ultimo**, quando il riepilogo
+e' gia' scritto: verificato che un `exit` dentro una trappola in uscita
+sostituisca davvero il codice del passo, e verificato anche il contrario --
+che un giro sano resti a zero.
+
+**La differenza fra chiudere il caso e chiudere la famiglia**, ed e' il motivo
+per cui la riga vale piu' della correzione puntuale: validare
+`SECONDI_DI_TETTO` chiude *quel* caso; l'invariante chiude **ogni futura
+ragione per cui il ciclo non parte**, comprese quelle che nessuno ha ancora
+immaginato. Le due cose non si escludono, e la seconda non rende inutile la
+prima -- ma se se ne fa una sola, si fa questa.
+
+**Ed e' anche il gemello dello `0/0`**, visto dall'altro lato: li' era *"zero
+schede ripassate con il rosso"*, cioe' una frase che aveva la forma del
+successo dentro un fallimento; qui e' *"zero chiamate riuscite con il verde"*,
+cioe' un fallimento che ha la forma del successo nel codice di uscita. Stessa
+forma, lati opposti, e nessuno dei due si vede guardando l'altro.
+
+**La regola generale, e vale ben oltre questo passo:** quando si scrive un
+verdetto -- un invariante, una guardia, un controllo che dice si' o no -- lo
+si prova **nei due versi**, e si scrive anche il verso che non si sta
+chiudendo. Un invariante che copre una direzione sola non e' sbagliato: e'
+meta', e la meta' mancante non si vede da dentro quella scritta. Il caso di
+prova che lo dimostra vive nel banco come coppia -- `successo-non-guadagnato`
+e `sano` -- perche' un invariante che colorasse di rosso qualunque cosa
+passerebbe il primo e romperebbe il secondo.
+
+L'elenco dei comandi non protetti serve lo stesso, ma per un'altra ragione --
+sapere **dove** puo' succedere. Nel passo "Riallinea lo stock" sono pochi e si
+dividono in due zone, e la riga che le separa e' il `trap`: **prima** del trap
+si muore davvero muti, e li' l'unico comando che puo' fallire e' il `date` di
+`SCADENZA=$(( $(date +%s) + ... ))` -- tutto il resto sono assegnazioni
+letterali e definizioni di funzione. **Dopo** il trap il riepilogo parziale si
+scrive sempre, e i candidati sono `mktemp` (due volte), i tre `sed -n Np` che
+leggono la risposta, le scritture su `$GITHUB_STEP_SUMMARY`, e soprattutto il
+**programma Python** che stampa la tabella dei siti: un `json.load` su un
+corpo inatteso lo fa uscire diverso da zero e porta giu' tutto il passo. Che
+sia gia' successo lo dice il banco stesso, che cerca `Traceback` nei log.
+
+**E quello che resta scritto si corregge quando la misura lo smentisce, anche
+se e' gia' agli atti.**
+
+Un commento si puo' rileggere, un messaggio di commit no: entra nella storia
+del progetto e chi lo trovera' fra un anno lo leggera' come un fatto
+verificato, perche' e' firmato e datato. Un'affermazione falsa li' e' una
+lezione sbagliata **con la firma della verita'**.
+
+Il caso, 22/09/2026. La correzione dei 500 sugli identificativi malformati era
+stata scritta -- commit e pull request -- come un lavoro di indicizzazione,
+sulla base di una regola vera: Google scansiona meno un sito che risponde
+5xx. Le Statistiche di scansione, lette il giorno dopo, non avevano **nessuna
+riga 5xx**: Googlebot su quegli indirizzi non ci arriva. La correzione restava
+giusta e cambiava natura -- una cortesia verso chi apre un link condiviso
+male, non un lavoro di indicizzazione -- e anche l'ambito del commit era
+sbagliato, `seo` invece di `marketplace`.
+
+Il messaggio e' stato riscritto prima di unire, e **l'ipotesi smentita e'
+rimasta dentro**, con chi l'ha smentita: cancellarla avrebbe fatto rifare a
+qualcun altro lo stesso ragionamento fra sei mesi. Le tre cose da fare, in
+quest'ordine: **correggere** cio' che la misura smentisce, **tenere** il
+ragionamento sbagliato con accanto la misura che lo chiude, e **dire** a chi
+aveva letto la versione di prima che e' cambiata.
+
 **Un guardiano si rilegge quando una tabella comincia a essere usata, non
 solo quando viene creata.** E' la terza faccia di "zero differenze li' vuol
 dire non guardato", e si presenta sempre allo stesso modo: un controllo che
@@ -1021,6 +1351,61 @@ La prova che serve e' sempre la stessa: **si pianta un caso finto che la
 regex dovrebbe trovare** -- qui un campo nuovo chiamato `euro6_ready` -- e si
 guarda che il test diventi rosso. Se resta verde, non e' il codice a essere
 sano: e' il controllo a non guardare.
+
+**E vale anche quando a cercare non e' un test, ma chi indaga -- con la
+differenza che li' non c'e' nessun rosso a smentirti.** Un guardiano che
+guarda male almeno vive nel repository e prima o poi qualcuno lo rilegge. Una
+ricerca fatta a mano durante un'indagine produce **un numero**, il numero
+finisce in un resoconto, e da quel momento e' un fatto.
+
+Il caso, 22/09/2026. Per dire quanto costasse rendere visibile il sito di una
+concessionaria sospesa, ho contato i punti del codice che filtrano lo stato
+cercando `dealers.status`. Erano quindici, e quindici ho riportato. Ma quattro
+punti interrogano la tabella delle concessionarie **direttamente** e si
+scrivono `.in("status", ...)`, senza il prefisso: sono **diciannove**. E i
+quattro mancanti erano proprio quelli che decidono se una concessionaria
+*esiste* per il pubblico -- i piu' importanti per la decisione che quel numero
+doveva sostenere.
+
+**Una ricerca testuale trova le forme che si e' pensato di cercare.** Non e'
+un difetto della ricerca: e' cio' che fa. Il difetto e' riportarne il
+risultato come se fosse l'insieme.
+
+Le due contromisure, e costano secondi:
+
+1. **si cerca il concetto da due lati che non si somigliano.** Qui: una volta
+   il nome della colonna, una volta il nome della costante
+   (`MARKETPLACE_PUBLISHABLE_DEALER_STATUS_VALUES`) -- che e' la ricerca che
+   li avrebbe presi tutti e diciannove, perche' la costante e' scritta uguale
+   dappertutto mentre la colonna no. In generale: si cerca **cio' che chi
+   scrive il codice non puo' variare**, non cio' che gli viene comodo;
+2. **prima di scrivere un numero, ci si chiede da quale ricerca viene e cosa
+   quella ricerca non poteva vedere.** Se la risposta non sta in una riga, il
+   numero non e' pronto per essere scritto.
+
+**E la famiglia che tiene insieme questa e l'oggetto adiacente ha un nome
+solo: lo strumento di misura non coincide con il soggetto.** Si presenta in
+due versi, e nello stesso giorno -- il 22/09/2026 -- sono capitati tutti e
+due:
+
+| verso | il caso | cosa e' uscito |
+|---|---|---|
+| lo strumento **comprende piu'** del soggetto | `awk '/Riallinea lo stock/,0'` va dalla riga trovata **fino a fine file**, quindi comprendeva anche il passo successivo | "sei uscite rosse" invece di cinque: la sesta stava in un passo che il banco non esegue nemmeno |
+| lo strumento **comprende meno**, o altro | il banco eseguiva `bash file` mentre GitHub esegue `bash -e {0}`, e `bash file` **ignora lo shebang** | una risposta 200 che in produzione fa rosso usciva verde, e nessun commento del passo era mai stato esercitato |
+
+Sono lo stesso difetto, e la domanda che li prende tutti e due si fa **prima**
+di leggere il risultato:
+
+> *Il mio strumento guarda esattamente il soggetto -- non un pezzo in piu',
+> non un pezzo in meno, non una sua copia?*
+
+E' la stessa domanda dell'oggetto adiacente spostata dal **quando** al
+**quanto**: li' si guardava la cosa giusta nel momento sbagliato, qui si
+guarda nel momento giusto una cosa piu' grande o piu' piccola. Un `awk` che
+finisce a fine file, un `grep -A` con un numero scelto a occhio, una copia
+del file invece del file, una shell diversa da quella di produzione: sono
+tutti lo stesso errore con quattro facce, e nessuno di loro fallisce -- danno
+tutti un risultato, e il risultato ha l'aria di una misura.
 
 **E la stessa famiglia comprende una riga di codice che sembra giusta
 leggendola e non fa niente eseguendola.** Un controllo che non diventa mai
@@ -1109,6 +1494,27 @@ La regola in una riga: **se la decisione conta, si misura che sia stata
 presa.** Se non conta abbastanza da misurarla, allora non serviva scrivere
 l'attributo.
 
+**E non riguarda solo il browser: `export const maxDuration = 60` e' la
+stessa cosa con un altro nome.** Il 21/09/2026, cercando perche' la
+sincronizzazione fosse caduta, quel numero e' stato usato per escludere
+un'ipotesi -- *"la funzione non puo' restare appesa piu' di sessanta
+secondi, quindi il blocco e' altrove"*. E' un ragionamento che si appoggia a
+una **richiesta alla piattaforma**, non a una serratura del nostro codice:
+`maxDuration` dice a Vercel quanto vorremmo che duri al massimo
+un'esecuzione, e chi decide davvero e' Vercel, con criteri suoi che cambiano
+col piano, con il tipo di funzione e con la versione.
+
+Si riconosce con la stessa domanda della regola qui sopra: **la riga
+descrive com'e' fatta la cosa, o promette un comportamento?** `runtime`,
+`dynamic` e `revalidate` descrivono; `maxDuration` promette. Le prime si
+leggono, le seconde si misurano -- e in questo caso la misura non ce
+l'avevamo: a chiudere la questione sono stati i log di Vercel, che ha solo il
+titolare.
+
+Nello stesso elenco, e per la stessa ragione: `timeout-minutes` di un lavoro
+di GitHub, i limiti di velocita' dichiarati in un `robots.txt`, ogni
+`Retry-After` che si spera sia rispettato. Sono richieste.
+
 **E la quinta forma, la peggiore di tutte: una prova falsa.** Le prime
 quattro sono cose che **non fanno quello che dichiarano** -- un controllo
 che non si accende, una regola senza effetto, un attributo ignorato, una
@@ -1166,6 +1572,253 @@ resoconto senza che nessuno la guardasse.** E' esattamente lo stesso errore
 di misura, con l'unica differenza che nessuno lo avrebbe mai scoperto.
 
 Non serve un rituale: **due letture uguali bastano**, e costano secondi.
+
+**E un numero da solo si puo' solo credere; un numero dentro una serie si
+controlla da se'.** E' la forma tecnica della regola qui sopra, e vale per
+qualunque banco di prova: non basta che un caso dia il numero giusto, perche'
+un numero giusto e uno sbagliato hanno lo stesso aspetto. Se pero' i casi sono
+costruiti perche' i loro risultati stiano in **relazione fra loro**, la
+relazione e' un controllo che nessuno ha dovuto scrivere.
+
+Come si costruisce, ed e' una scelta di disegno: **i casi si fanno variare
+lungo una dimensione sola**, e il finto avversario risponde sempre lo stesso.
+Allora l'atteso di ciascuno e' una **funzione** di quella dimensione, e i casi
+smettono di essere numeri indipendenti: chi sommasse male romperebbe la
+proporzione in tutta la colonna, non in una riga sola. Un elenco di numeri
+scritti a mano non ha questa proprieta', ed e' esattamente il posto dove si
+copia l'errore che si sta cercando.
+
+**In questo paragrafo non ci sono cifre, e la ragione vale oltre il paragrafo:
+AGENTS.md tiene le regole, MIGRAZIONI.md tiene le misure con la data.** Un
+numero dentro una regola non ha nessuno che lo rilegge quando il mondo cambia.
+La prima stesura di queste righe, il 22/09/2026, citava "tredici casi" e cinque
+coppie di numeri presi da una tabella: due ore dopo i casi erano quindici e le
+coppie non corrispondevano piu' a niente -- e la frase "ogni caso dichiara
+quante schede ha ripassato" non era vera nemmeno quando e' stata scritta, perche'
+lo dichiaravano tre casi su quindici. Correggere le cifre non sarebbe bastato:
+sarebbero invecchiate di nuovo al sedicesimo caso. Se una misura serve come
+prova, sta in [MIGRAZIONI.md](supabase/MIGRAZIONI.md) con la data e il modo in
+cui e' stata ottenuta, e qui ci va il rimando.
+
+**E il terzo stato sparisce piu' facilmente dentro lo strumento che lo
+cerca.** Il 22/09/2026 una rilettura ostile a piu' revisori ha prodotto
+cinquantasette rilievi; il limite di sessione ha ucciso quasi tutti i
+verificatori, e il codice che tirava le somme diceva
+`regge = (voti > 0 && smentite === 0)`. Zero voti da' `regge = false`, quindi
+ogni rilievo **non giudicato** e' finito nell'elenco degli **smentiti**, con
+scritto accanto *"nessuno scettico ha risposto"*. Chi legge un elenco intitolato
+"smentiti" non apre la colonna della motivazione.
+
+E' il terzo stato appiattito -- lo stesso chiuso quel giorno nei conteggi del
+riepilogo e nello `0/0` -- comparso **nell'attrezzo costruito per cercarlo
+altrove**. Le due regole:
+
+1. **un giudizio ha tre esiti, e il terzo non si ricava sottraendo**: retto,
+   smentito, non giudicato. "Non giudicato" e' un elenco suo, non il resto di
+   una divisione fra gli altri due;
+2. **il conto dei non giudicati si stampa in cima**, insieme a quanti
+   verificatori sono morti. Un numero che chi legge deve dedurre contando le
+   righe e' un numero che non leggera'.
+
+La forma generale, ed e' la ragione per cui questa voce sta qui e non fra le
+note: **quando uno strumento riassume, il riassunto e' codice come un altro e
+ha gli stessi difetti del codice che sta esaminando.** La tentazione e' il
+contrario -- trattare la parte che aggrega come "solo presentazione" -- ed e'
+la stessa scorciatoia gia' pagata con *"il righello legge bene, e a mentire
+e' la trascrizione"*.
+
+**E un banco di prova che si modifica mentre gira non misura il codice:
+misura se stesso.**
+
+Il 21/09/2026, provando la correzione della sincronizzazione, due esecuzioni
+sono cadute con un messaggio che sembrava gravissimo:
+
+    passo.sh: line 187: syntax error near unexpected token `('
+    passo.sh: line 187: `N_SECRET\` non esiste (Settings -> ...)."'
+
+Bash stava eseguendo **mezza riga**: `N_SECRET` invece di `CRON_SECRET`. Non
+era un errore di sintassi -- `bash -n` sullo stesso file passava -- era bash
+che legge un file **mentre qualcuno glielo riscrive sotto**. Quel qualcuno
+ero io: a ogni modifica del workflow riestraevo lo script nello stesso
+percorso, e le prove avviate in secondo piano lo stavano ancora leggendo.
+Bash tiene una posizione nel file e la riprende dov'era: se il contenuto e'
+cambiato, quella posizione cade in mezzo a un'altra riga.
+
+**Il costo che si stava per pagare.** Il verdetto era "uscita 2, errore di
+sintassi nel workflow": un difetto attribuito al codice, che sarebbe finito
+in un resoconto e forse in una correzione di qualcosa che non era rotto. Si
+e' evitato solo aprendo il log invece di fermarsi al codice di uscita -- ed
+e' la stessa abitudine che in questo file compare gia' come *"si legge quale
+dei tre esiti ha risposto"*.
+
+Le due regole:
+
+1. **una prova lavora su una copia sua.** Non sul file che si sta
+   modificando, non su quello che un'altra prova sta leggendo. Costa una
+   riga (`cp`) e toglie di mezzo una classe intera di risultati falsi;
+2. **davanti a un errore assurdo, si sospetta il banco prima del codice.**
+   Mezza riga eseguita, un file che "non esiste piu'", un numero che cambia
+   fra due esecuzioni identiche: sono firme di uno strumento che si muove,
+   non di un difetto. La domanda e' *"che cosa e' cambiato sotto i piedi
+   della prova mentre girava?"*.
+
+**E lo strumento di un'operazione che finisce dentro l'insieme su cui
+l'operazione lavora.**
+
+La domanda, ed e' il verbo generale che le tiene insieme tutte: **lo
+strumento dell'operazione finisce dentro l'insieme su cui opera?** Vale per
+contare, uccidere, cancellare, filtrare, sostituire -- ogni volta che il
+criterio che sceglie i bersagli descrive anche chi lo sta eseguendo.
+
+**Prima forma: si conta.** Il 21/09/2026, per sapere se il banco fosse fermo
+prima di rilanciarlo:
+
+    pgrep -cf 'tutte.sh|finto-server|provasinc/p-'   ->  2
+
+Due processi vivi, quindi qualcosa girava. **Erano il `pgrep` stesso e la
+shell che lo eseguiva**: il comando cercava il proprio testo nella propria
+riga di comando. Il banco era fermo da un pezzo.
+
+Il costo non e' stato il numero: e' stata **la spiegazione costruita sopra**.
+Poco prima il banco aveva segnalato `*** BANCO MOSSO ***`, giustamente, e
+quel "2" ha prodotto una causa diversa e falsa -- *"erano due esecuzioni in
+parallelo"* -- che stava per finire agli atti. Un numero sbagliato che
+sostiene una diagnosi sbagliata.
+
+**Seconda forma: si uccide. Ed e' piu' cattiva.** Poche ore dopo, per
+ripulire prima di rilanciare:
+
+    pkill -f finto-endpoint.py ; bash prova.sh > esiti.txt
+
+Il comando e' morto sul posto. Il modello `finto-endpoint.py` **compare
+nella riga di comando che lo contiene**, quindi `pkill` ha ucciso la shell
+che lo stava eseguendo -- e con lei il `bash prova.sh` che veniva dopo.
+
+La differenza fra le due forme, ed e' la ragione per cui la seconda va
+temuta di piu': **contare male produce un numero sbagliato**, che si puo'
+rileggere e correggere. **Uccidere male fa morire l'operazione a meta'**, e
+quello che resta non e' un dato falso: e' uno stato incompleto -- file
+scritti a meta', processi orfani, un banco fermo che sembra finito. Lo
+stesso vale per un `rm` il cui filtro descrive lo script che lo esegue, o per
+un `sed -i` su un elenco di file che comprende se stesso.
+
+**E' la stessa forma gia' scritta per il conteggio delle scritture di
+`updated_at`** (`src/lib/updated-at-si-muove-solo-se-cambia.test.ts`, *"una
+misura che non puo' contraddire cio' che controlla non e' una misura"*): li'
+lo strumento era il codice stesso che decideva se scrivere.
+
+**La cura e' sempre la stessa: si guarda l'elenco prima di agirci sopra.**
+`pgrep -af` invece di `pgrep -cf`, e i due intrusi si vedono a occhio;
+`pkill` preceduto dall'elenco di cio' che sta per morire. E' la stessa regola
+gia' scritta due volte in questo file -- *una misura stampa il valore
+grezzo* -- estesa da "misurare" a "fare".
+
+**E il verdetto sulla regola, dopo la terza volta nello stesso giorno.**
+Terza volta con la regola qui sopra gia' scritta: l'elenco era stato letto
+(`pgrep -af | grep -v pgrep`, tre processi, tutti giusti), e la riga dopo
+faceva `for q in $(pgrep -f 'finto-endpoint.py|…'); do kill $q`. Il
+`grep -v pgrep` aveva nascosto la mia shell **dall'elenco**, non dal `kill`:
+il secondo `pgrep` l'ha ritrovata, e la shell e' morta a meta' comando.
+
+Tre volte in un giorno non e' distrazione, ed e' il verdetto sulla regola:
+**il suo unico test e' venire in mente al momento giusto, e l'ha fallito tre
+volte su tre.** Riscriverla piu' chiara non cambia l'esito; toglierle
+l'occasione si'. Il banco adesso scrive il proprio PID in un file all'avvio
+(`/tmp/prova-sincronizzazione.pid`), rifiuta di partire se quel PID e' ancora
+vivo, e tiene i suoi due figli per numero: fermarlo e'
+`kill "$(cat /tmp/prova-sincronizzazione.pid)"`, e la pulizia uccide i figli
+con i numeri che ha, non con un modello. Non c'e' piu' nessun insieme in cui
+lo strumento possa finire dentro.
+
+E' lo stesso movimento della riga che il giro di sincronizzazione scrive nel
+riepilogo, deciso lo stesso giorno: invece di leggere meglio un numero che si
+consuma, farlo dichiarare a chi lo produce. Qui, invece di cercare il
+processo, farselo dichiarare da chi lo avvia. **Quando una regola fallisce il
+suo unico test piu' di una volta, la risposta non e' la quarta stesura: e'
+togliere il momento in cui serve.**
+
+**E la stessa lezione in un mestiere diverso: un vincolo scritto in un prompt
+non e' un vincolo applicato.** Lo stesso giorno, una rilettura ostile a piu'
+revisori aveva in cima una riga chiarissima -- *lavora solo dentro
+`/tmp/claude-1000/`, non modificare nessun file del repository*. Alla fine
+nella radice del progetto c'erano **sei file** che non c'entravano niente:
+scarti di prova, due vuoti, uno con dentro un PID. Sarebbero finiti nel commit
+se il `git status` non li avesse mostrati -- cioe' li ha fermati
+un'abitudine, non una serratura.
+
+E' esattamente la forma del file del PID qui sopra, spostata da **chi esegue
+un comando** a **chi esegue un'istruzione**: la regola era scritta bene, era
+in cima, ed e' stata letta. Non e' bastato. Riscriverla piu' forte non cambia
+niente; **dare all'esecutore un posto dove non puo' sbagliare** si' -- una
+copia di lavoro, una cartella sola, i permessi giusti.
+
+**La riga da tenere, ed e' quella che deve suonare nel momento in cui si sta
+per scriverla:** ogni volta che in un prompt si sta per scrivere *"ricordati
+di…"*, *"mi raccomando non…"*, *"fai attenzione a…"*, quella frase e' la
+confessione che il vincolo **non e' costruito**. Vale per un agente, per un
+collega, e per se stessi fra un'ora. La domanda che la sostituisce e'
+**"come faccio a rendere impossibile la cosa che sto per chiedere di
+evitare?"**.
+
+**E la postilla, senza la quale questa regola costa piu' del difetto che
+chiude: a volte la risposta onesta e' "costa piu' di quanto vale".** Un
+revisore che gira in una cartella dove non puo' scrivere sono cinque minuti e
+va fatto; un banco che verifichi di essere se stesso in ogni modo possibile e'
+una giornata e non la vale.
+
+**La terza via non e' tornare al "ricordati di": e' scrivere che si e' scelto
+di non costruire la serratura, e perche'.** Cosi' chi la incontra fra sei mesi
+sa che e' una **decisione** e non una dimenticanza -- e puo' cambiarla quando
+il prezzo cambia, invece di scoprire il buco e rifare il ragionamento da capo.
+
+E' la stessa forma gia' usata in questo progetto per i riepiloghi di GitHub:
+non sono stati resi eterni, e' stato scritto **novanta giorni** accanto, con
+cosa fare oltre quel termine. Un limite dichiarato e' una serratura che
+qualcuno ha misurato; un limite taciuto e' un buco che qualcuno trovera'.
+
+**La nota che rende questa voce diversa dalle altre:** la seconda forma e'
+stata riconosciuta **subito**, senza costruirci sopra una spiegazione, lo
+stesso giorno in cui la prima era stata scritta qui. E' l'unica prova che
+una regola di questo file funzioni: non che sia vera, ma che venga in mente
+al momento giusto.
+
+E la conseguenza sugli esiti gia' riportati, che e' la parte scomoda: **i
+risultati raccolti mentre il banco si muoveva non valgono e vanno rifatti**,
+anche quelli che sembravano buoni. Un banco che ha sbagliato una volta non
+ha sbagliato solo quella volta: ha smesso di essere una fonte.
+
+**E quando due condizioni possono decidere lo stesso esito, serve un caso in
+cui divergono.** Altrimenti la prova verifica **l'esito**, non quale dei due
+meccanismi lo produce -- e il giorno che si separano, uno dei due puo' non
+esserci affatto.
+
+Due casi, lo stesso giorno e la stessa forma:
+
+1. **la soglia scritta in due modi.** Il caso di prova aveva undici cadute su
+   venti, e usciva rosso sia con `-gt` (piu' della meta') sia con `-ge`
+   (meta' o piu'): verificava che **una** soglia esistesse, non **quale**.
+   L'unico numero che le distingue e' dieci esatte, ed e' li' che stava la
+   decisione di prodotto;
+2. **due meccanismi che decidono lo stesso colore.** Dieci prove verdi non
+   hanno preso un difetto grosso: la fermata per rete lasciava il lavoro
+   **verde** da sei giri in poi. Nei casi costruiti la fermata e la soglia
+   davano **sempre lo stesso esito**, quindi le prove guardavano il colore e
+   non chi glielo dava. Quando si sono separati -- fermata attiva, soglia
+   sotto -- il colore lo dava la soglia, e la fermata non colorava niente.
+
+La regola pratica: **per ogni esito, si elencano le condizioni che possono
+produrlo e si costruisce un caso in cui una c'e' e l'altra no.** Se non si
+riesce a costruirlo, le due condizioni sono la stessa condizione scritta due
+volte, e allora una va tolta.
+
+**E una nota che vale piu' del caso: la stessa famiglia si e' ripresentata
+nel valore predefinito della riga che la stava correggendo.** Nello stesso
+giro in cui `ancora` riceveva il terzo stato per non appiattire "non lo so"
+su "si'", due righe piu' sotto la lettura diceva
+`.get('ancoraDaFare', False)` -- cioe' appiattiva l'assenza su "ho finito".
+Il difetto non sta nella disattenzione: sta nel fatto che **il valore
+predefinito e' il posto dove il vuoto diventa qualcos'altro senza che
+nessuno lo scriva**, ed e' l'ultimo posto in cui si va a guardare.
 
 **E c'e' un modo di sbagliare misura che le tre domande qui sopra non
 prendono: il righello legge bene, e a mentire e' la trascrizione.**
@@ -1274,6 +1927,57 @@ tre sviste le ho prese io, non me le ha segnalate nessuno, e le ho prese
 **guardando una seconda volta** -- il `robots.txt` l'ho riaperto per
 abitudine, non per sospetto. Non serve diffidare di tutto: serve che la
 seconda occhiata cada sull'oggetto vero.
+
+**E la forma piu' frequente di "momento comodo" ha un nome suo: un tempo
+fisso al posto di una condizione verificata.**
+
+Il primo dei tre casi qui sopra e' un `sleep 60`, e non e' un caso isolato:
+e' lo stesso gesto che ha prodotto, lo stesso giorno, un secondo risultato
+falso in un posto che non c'entra niente.
+
+| l'attesa | cosa doveva garantire | cosa e' successo |
+|---|---|---|
+| `sleep 60` prima di leggere la home, nel controllo dell'indicizzazione | *"a quest'ora la rete avra' la copia nuova"* | **verde** su una pagina che tre minuti dopo era vuota |
+| `sleep 1` dopo aver avviato il finto endpoint, nel banco della sincronizzazione | *"a quest'ora sara' in ascolto"* | il caso **sano** risultava con una caduta: curl si era preso "connessione rifiutata" |
+
+Le due attese sono lontanissime -- una aspetta una rete di distribuzione,
+l'altra un processo che parte sulla stessa macchina -- e sono lo stesso
+errore. In tutti e due i casi il numero era **ragionevole**: sessanta secondi
+sono tanti per una cache, un secondo e' tanto per un server che apre una
+porta. Il difetto non e' che il numero fosse troppo piccolo: e' che **un
+numero non e' una garanzia**, e su una macchina carica, o con una copia
+servita da un altro nodo, diventa sbagliato senza avvisare.
+
+**La scorciatoia comune sta nella domanda che ci si e' fatti.** *"Quanto ci
+vorra'?"* porta a un numero, e un numero e' sempre una scommessa. *"Com'e'
+fatto quando e' pronto?"* porta a una condizione, e una condizione si
+verifica:
+
+    # invece di: sleep 1
+    until curl -s -o /dev/null --max-time 2 --connect-timeout 1 "$URL"; do sleep 0.2; done
+
+**E la sonda non usa il verbo vero.** La prima stesura di questa riga
+sondava con `-X POST`, cioe' **faceva una sincronizzazione** per sapere se il
+server era in ascolto: una chiamata vera, con i suoi effetti, prima ancora che
+la prova cominciasse. Una sonda di prontezza chiede *"ci sei?"*, non *"fai il
+tuo lavoro"* -- ed e' la stessa distinzione fra guardare e agire che questo
+file ripete altrove. Il banco usa la forma senza verbo; il documento adesso
+anche.
+
+    # invece di: sleep 60
+    # si legge la pagina tre volte, a 1, 6 e 12 minuti, e si pretende
+    # che sia piena tutte e tre
+
+**E il costo e' della famiglia peggiore**: non un guasto, un **risultato
+falso**. Un'attesa troppo corta non fa fallire la prova con un messaggio
+chiaro -- fa passare la prova sbagliata, o fallire quella giusta, e in tutti
+e due i casi si guarda il codice invece dell'orologio.
+
+La regola, in una riga: **un `sleep` che precede una verifica e' quasi
+sempre una condizione non scritta.** Le eccezioni vere sono poche e si
+riconoscono perche' il tempo **e' la cosa che si sta provando** (una pausa
+fra due chiamate a un sito di terzi, per esempio): li' il numero non
+sostituisce niente, e' il soggetto.
 
 **E c'e' una quarta variante, che le tre qui sopra non coprono: un
 controllo che cerca una stringa nel sorgente non distingue il codice dal
