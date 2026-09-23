@@ -6,10 +6,11 @@ import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-
 import { messaggioDelTetto, STATO_OLTRE_IL_TETTO } from "@/lib/tetto-del-piano";
 import { applicaTettoDelPiano, limiteDelPiano, postiLiberi } from "@/lib/tetto-del-piano-db";
 import {
-  elencoStock,
+  elencoStockConEsito,
   leggiPagina,
   normalizzaSitoConcessionaria,
   PAUSA_FRA_SCHEDE_MS,
+  spiegaElencoNonLetto,
 } from "@/lib/dealer-site-fetch";
 import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-site-import";
 import { leggiBloccoMotork } from "@/lib/blocco-motork";
@@ -239,13 +240,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Dealer non associato al profilo utente." }, { status: 400 });
     }
 
-    const voci = await elencoStock(host);
-    if (!voci) {
-      return NextResponse.json(
-        { error: `Non siamo riusciti a leggere l'elenco veicoli di ${host}. Verifica l'indirizzo.` },
-        { status: 502 },
-      );
+    // Tre motivi diversi per non aver letto l'elenco, e tre frasi diverse:
+    // in due casi su tre l'indirizzo e' giusto, e dirgli di verificarlo lo
+    // manda via (`spiegaElencoNonLetto`, con la misura del 23/09/2026).
+    const elenco = await elencoStockConEsito(host);
+    if (!elenco.ok) {
+      return NextResponse.json({ error: spiegaElencoNonLetto(elenco, host), motivo: elenco.motivo }, { status: 502 });
     }
+    const voci = elenco.voci;
 
     if (body?.action === "analyze") {
       return NextResponse.json({
