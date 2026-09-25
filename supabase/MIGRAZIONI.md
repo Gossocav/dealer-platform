@@ -565,6 +565,449 @@ piu' di un utente**, Elite compreso, e finche' ogni piano ha un utente solo
 non fanno danni. Vanno guardate tutte e tre insieme il giorno che quella
 condizione si avvera.
 
+**Fuori dall'ordine, con la stessa forma: prima del primo abbonamento
+venduto.** Voci legate a una condizione, non a una data.
+
+1. **Una riga nei termini di servizio sulle fotografie** (25/09/2026). Il
+   concessionario autorizza KeyAuto a copiare nel proprio archivio le foto
+   dei veicoli che porta sulla piattaforma -- dal suo sito, da un feed o da
+   un file -- e a servirle da li'. Oggi non si pone: i quattro conti sono
+   del titolare. Con clienti veri serve **una clausola nei termini**, non
+   una richiesta caso per caso. Il motivo per cui le foto si copiano sta in
+   *"Le foto stanno su un server non nostro"*, piu' sotto.
+2. **`vehicle_images.origine_url` e' leggibile da chiunque** (25/09/2026,
+   quando la colonna entrera'). Il pubblico legge tutte le colonne di
+   `vehicle_images`, e l'indirizzo d'origine di una foto dice quale
+   gestionale usa ogni concessionario: non e' un segreto tecnico, e'
+   un'informazione commerciale sui nostri clienti. La cura e' il permesso di
+   lettura colonna per colonna, come su `vehicles`; prima si controlla che
+   nessuna interrogazione del sito chieda tutte le colonne di quella tabella.
+
+## Le foto stanno su un server non nostro (25/09/2026)
+
+Misurato sulla produzione, in sola lettura:
+
+- **4.825 foto su 4.831** vivono su `cdn.dealerk.it`; le altre 6 sono nel
+  nostro archivio (due auto inserite a mano). 373 auto su 373 hanno almeno
+  una foto.
+- **Passano tutte dal nostro proxy** (`/api/image-proxy?url=`): in una scheda
+  in vetrina, 68 indirizzi su 68. Vercel tiene la foto rimpicciolita per 30
+  giorni, ma solo dopo la prima richiesta in quella misura: la prima foto
+  della scheda provata era `MISS`. Non e' un'assicurazione.
+- **Peso**: 693,4 MB alla misura da 1600 px (mediana 133 KB, massimo 635 KB,
+  tutte JPEG); quelle delle 269 auto in vetrina sono 3.245, 464,6 MB.
+- **Foto gia' morte: zero** su 4.825 (una richiesta HEAD ciascuna, 6 alla
+  volta, 400 s). Limite: le risposte venivano tutte dalla memoria di
+  Cloudflare di DealerK -- ma il nostro proxy legge lo stesso indirizzo.
+- **Scaricarle**: 60 foto in 0,6 s, due letture uguali; tutte in meno di un
+  minuto. Il caricamento nel nostro archivio **non e' misurato**: misurarlo
+  vorrebbe dire copiarle.
+
+**Piano approvato il 25/09/2026.** Il progetto e' sul piano Pro di Supabase
+(verificato dal titolare sul pannello): i 693 MB stanno nei 100 GB inclusi,
+nessun costo in piu'. **Niente e' ancora stato copiato.**
+
+### Prima della prima copia, in quest'ordine
+
+**1. "Duplica" deve smettere di condividere il file dell'originale.**
+Verificato il 25/09/2026 sul codice e sullo schema ricostruito, dopo un
+rilievo di chi ha letto il piano. "Duplica"
+(`src/components/vehicles/vehicles-management-page.tsx`, righe 1163-1182)
+scrive le foto della copia prendendo dall'originale soltanto `image_url`,
+posizione e copertina, con il `vehicle_id` della copia.
+
+- **Oggi non si rompe niente.** L'originale ha un indirizzo DealerK, la copia
+  lo eredita, e la rete del programma le da' l'origine: entra in coda e
+  verra' copiata sotto il suo id. Provato: `UPDATE 1`, in coda.
+- **Dopo la copia, "Duplica" non fallisce: riesce, ed e' peggio.** La riga
+  della copia nasce con il percorso dell'originale
+  (`<concessionaria>/<id dell'originale>/<impronta>.jpg`), senza origine e
+  senza esito: nessun vincolo la tocca, perche' valgono solo per le foto
+  "copiate" (provato: `INSERT 0 1`). Da quel momento la copia **dipende
+  dall'originale** in tre modi, e nessuno si vede:
+  - il proxy decide se mostrare una foto guardando l'auto il cui id sta nel
+    percorso (`fotoDiUnAnnuncioPubblico`), cioe' l'originale. **Quando
+    l'originale viene venduto o tolto dalla vetrina, le foto della copia
+    pubblicata rispondono "non trovata"** -- e duplicare un'auto venduta per
+    pubblicarne una uguale e' esattamente l'uso normale del pulsante;
+  - il file e' uno solo: togliere quella foto dalla copia, nell'editor,
+    cancella il file dell'originale;
+  - la riga non ha origine e ha un percorso nostro: il programma di copia non
+    la guarda mai.
+- **Il vincolo mordera' solo una "Duplica" che copiasse anche le colonne
+  della copia** (per esempio con un `select("*")` sulle foto): quella verrebbe
+  rifiutata. Provato: `violates check constraint "vehicle_images_copia_verificabile"`.
+
+**Vale gia' oggi per le foto caricate a mano** (6 foto, 2 auto di Autogepy):
+il loro percorso e' `<utente>/<id dell'auto>/...`, e una copia di quelle auto
+ha gia' oggi le tre dipendenze qui sopra. La copia delle foto lo estende da 6
+a 4.825.
+
+**La via scelta: "Duplica" copia il file sotto l'id della copia.** Le regole
+dell'archivio lo permettono dal browser: chi ha fatto login legge un file
+nominato da una riga della sua concessionaria e carica sotto la cartella col
+proprio identificativo, quindi la copia va in
+`<utente>/<id della copia>/<nome>`, che il proxy serve e il vincolo accetta
+(provato: `INSERT 0 1`). Per ogni foto dell'originale:
+
+| la foto dell'originale | cosa scrive "Duplica" |
+|---|---|
+| copiata | il file copiato sotto l'id della copia, con la stessa origine, impronta e peso, esito `copiata` |
+| non ancora copiata (indirizzo esterno) | l'indirizzo e l'origine, esito vuoto: la copia la fa il programma |
+| caricata a mano (nessuna origine) | il file copiato sotto l'id della copia |
+
+Perche' questa e non l'altra ("la copia riparte dall'origine e il programma
+la ricopia"): l'altra costa meno ma **copre solo le foto che hanno
+un'origine**, quindi lascerebbe in piedi il difetto sulle foto caricate a
+mano; e fra la duplicazione e il giro successivo la copia tornerebbe a
+dipendere da DealerK. Il prezzo di questa: circa 2,7 MB di archivio per ogni
+auto duplicata. Il file si copia sul server dell'archivio (`copy`), senza
+passare dal browser.
+
+**E "Duplica" oggi non guarda l'esito della scrittura delle foto** (riga
+1170, nessun controllo dell'errore): se fallisse, la copia nascerebbe senza
+foto e senza nessun messaggio. Si corregge insieme.
+
+**Quando:** prima del primo giro di copia, non prima della migration. La
+migration si puo' eseguire subito: finche' nessuna foto e' "copiata", per
+"Duplica" non cambia niente.
+
+### Come funziona la copia
+
+Ogni foto ricorda da dove viene (`origine_url`) e com'e' andata la copia. Il
+programma di copia legge la coda, scarica ogni foto dall'origine, la salva nel
+nostro archivio e **solo dopo** scrive sulla riga che e' copiata -- e solo se
+l'origine e' ancora quella letta all'inizio (se nel frattempo la
+sincronizzazione ha cambiato la galleria, la scrittura tocca zero righe: vuol
+dire "superata", non "fallita"). Interrotto a meta', si rilancia e riprende. Il
+database rifiuta una "copiata" che non porti la prova (impronta sha256, peso,
+origine) **e** che non sia servita dal nostro archivio, nella forma che il
+proxy sa servire: `<concessionaria>/<id dell'auto>/<impronta>.jpg`.
+
+**L'identita' di una foto non e' il suo indirizzo.** Per una foto DealerK e' il
+pezzo dopo `/dealer/datafiles/vehicle/images/<misura>/`: cartella e nome del
+file, senza dominio e senza misura (la stessa chiave che il lettore dei siti
+usa gia'); per gli altri server, il percorso senza parametri. La
+sincronizzazione confronta le gallerie **foto per foto su quella chiave**: tiene
+le righe la cui foto c'e' ancora (aggiorna posizione, copertina e, se e'
+cambiato solo il dominio o la misura, `origine_url` sul posto: la copia
+resta), toglie solo le sparite, inserisce solo le nuove. Il file di una foto
+tolta si cancella **solo se nessun'altra riga lo usa**, la stessa regola
+dell'editor. Il perche' e' gia'
+successo una volta, per mano nostra: il 22/08/2026 la misura e' passata da
+800 a 1600 px e il ripasso ha riscritto tutte le gallerie. Con il confronto
+sull'indirizzo intero, a copia finita, avrebbe buttato via 3.233 copie e
+rimesso DealerK al loro posto -- cioe' esattamente il guasto da cui la copia
+protegge. E oggi basta spostare una copertina: `sostituisciFoto` confronta per
+posizione e rifa' la galleria intera. **Rete in piu':** se in un giro perde la
+propria chiave piu' della meta' delle foto copiate di una concessionaria, non
+si tocca niente e il lavoro diventa rosso (la stessa forma di "sparizione
+sospetta" per le auto).
+
+**Le porte che scrivono le foto, e cosa confronta ognuna:**
+
+| porta | cosa fa |
+|---|---|
+| `sostituisciFoto` (sincronizzazione e importazione dal sito) | confronta sulla chiave, come sopra |
+| `upsertVehicleImages` (importazione da feed) | la stessa chiave: oggi confronta su `image_url`, e dopo una copia reinserirebbe le stesse foto come doppioni |
+| l'editor del gestionale | carica foto nostre, senza origine; toglie un file solo se nessun'altra riga lo usa |
+| "Duplica" | copia il file sotto l'id della copia: vedi *"Prima della prima copia"*, qui sopra |
+| `/api/vehicles/feed` | fuori, in un elenco esplicito: non la chiama nessuno, scarica per conto suo con un percorso che il proxy non serve (vedi sotto, "trovato leggendo") |
+
+Un test sul testo dei sorgenti fissa l'elenco, come per il telaio. **E ogni
+giro, per prima cosa, riempie `origine_url` sulle righe esterne che non l'hanno**
+(la stessa condizione della migration): e' la rete per la porta che nessuno ha
+contato, e rende innocuo l'ordine delle cose -- la migration va **prima** del
+codice, e le righe scritte dal vecchio codice nel frattempo entrano in coda al
+primo giro.
+
+**Come scarica.** Direttamente dall'origine, **mai attraverso
+`/api/image-proxy`**, che trasforma ogni fallimento in un 404 e renderebbe
+inutile la regola 2. Chiede la misura normalizzata (1600 px), la stessa che
+interrogano le sentinelle. Prima di scrivere "copiata" controlla che sia
+davvero la foto: dopo gli eventuali rimbalzi l'indirizzo ha lo stesso
+percorso; il tipo e' un'immagine; si decodifica e larga almeno 400 px; e se la
+stessa impronta c'e' gia' su tre o piu' origini diverse dello stesso server, e'
+un segnaposto ("hotlink vietato", dominio parcheggiato): conta come
+fallimento, frena il server e non marca niente. Oggi DealerK risponde 404
+vero ai file mancanti, non un segnaposto: e' un difetto che aspetta, e con la
+copia diventerebbe definitivo. Due richieste alla volta, con una pausa: il
+numero sta nello stesso file delle altre soglie.
+
+**Quando gira.** Dopo ogni sincronizzazione, **anche quando la sincronizzazione
+esce rossa** (`if: always()`), con un verdetto suo e lo stesso gruppo di
+concorrenza, cosi' due giri non si sovrappongono. "Un giro" e' il lavoro
+intero, non la singola chiamata da 60 secondi: i conteggi del freno passano da
+una chiamata all'altra come il cursore della sincronizzazione.
+
+**Cosa si accetta, e perche'.** I file rimasti senza riga (auto cancellata,
+foto sostituita, una copia rifatta) restano nell'archivio: circa 2,7 MB per
+auto contro 100 GB di spazio. Il riepilogo li conta, cosi' la crescita si
+vede. L'impronta non rende la ricopia identica: secondo la misura di un
+revisore la stessa foto pesa 127.211 byte dalla memoria di Cloudflare e
+130.432 dall'origine (non rifatta da me). E ogni giro interroga qualche foto
+copiata **dal nostro archivio**: la sentinella del nostro lato.
+
+### Le regole, e perche' ognuna c'e'
+
+"Server" qui e' **il server delle foto**, non il sito del concessionario:
+`cdn.dealerk.it` serve tutte e tre le concessionarie di oggi.
+
+1. **L'ordine della coda.** Prima le foto mai provate: le copertine delle auto
+   in vetrina, poi il resto della vetrina, poi le altre. Poi quelle rinviate
+   da un giro frenato, poi quelle gia' fallite, dalla meno recente. Senza
+   questo, poche foto difettose in testa alla coda verrebbero riprovate per
+   prime a ogni giro, farebbero scattare il freno, e il resto non verrebbe mai
+   copiato: e' il difetto di Autogepy dell'11/09/2026, *"un sito che frena perde
+   il turno, non il lavoro"*. Le foto delle auto **uscite dal sito**
+   (`import_missing_since`) escono dalla coda, non dalla tabella, e ci
+   rientrano se l'auto ricompare: DealerK cancella le loro foto, e i loro 404
+   veri consumerebbero il tetto delle morte per auto che nessuno vede.
+2. **Solo 404 e 410 vogliono dire "non esiste".** Letti dall'origine, e
+   **riconfermati con un parametro casuale nell'indirizzo** prima di essere
+   scritti, perche' Cloudflare tiene in memoria anche un 404 (circa tre
+   minuti, misurato da un revisore). Un rifiuto (403), un errore del server,
+   un tempo scaduto, un dominio che non si trova: la foto **non e' stata
+   raggiunta**. **Il primo 429, o un 403 con `Retry-After`,** ferma il server
+   per il giro: e' una richiesta esplicita di smettere, non uno dei dieci
+   fallimenti da contare. Nessuna marcatura, nessun tentativo consumato.
+3. **Le sentinelle: la prova che il server risponde non dipende dalla coda.**
+   Dieci foto **gia' copiate**, di **dieci auto diverse** ancora sul sito,
+   interrogate (solo intestazioni) **con un parametro casuale nell'indirizzo**:
+   verificato il 25/09/2026 che senza parametro risponde la memoria di
+   Cloudflare (`HIT`) e DealerK non viene nemmeno interpellato, con il
+   parametro la richiesta arriva all'origine (`MISS`). Conta solo una risposta
+   che non viene dalla memoria. Tre esiti, e il terzo ha un nome:
+   **sano** (almeno 10 disponibili, rispondono almeno 9); **non risponde**
+   (almeno 10 disponibili, ne rispondono meno di 9): su quel server il giro
+   **non conta**, qualunque sia la lunghezza della coda; **sconosciuto** (meno
+   di 10 disponibili: il primo giro, un server piccolo).
+4. **Il freno di giro**, per i server sconosciuti e come seconda rete: dopo
+   almeno 20 tentativi su un server, se falliscono piu' del 5% e almeno 10
+   foto, ci si ferma: nessuna marcatura, **nessun tentativo consumato**, le
+   foto provate prendono solo la data (cosi' ruotano in coda), lavoro rosso.
+   Il freno misura **le novita'**: non contano i fallimenti delle foto gia'
+   fallite prima, ne' i 404 su un server sano. Altrimenti venti foto bloccate
+   per sempre in fondo alla coda farebbero frenare ogni giro, per sempre.
+5. **Morta.** "Non esiste" in **due tentativi consecutivi** di quella foto, a
+   **almeno 24 ore** di distanza, con il server **sano** in tutti e due.
+   Qualunque altra risposta nel mezzo azzera il conto. **Al massimo 20 morte
+   ogni 24 ore per server**: una foto che avrebbe tutte le condizioni ma e'
+   trattenuta dal tetto **aspetta senza consumare tentativi**, e toccare il
+   tetto fa diventare rosso il lavoro. La foto morta esce dalla galleria
+   pubblica **in un posto solo**, la regola di lettura del pubblico
+   (`copia_esito is distinct from 'sorgente-morta'`), non nelle otto
+   interrogazioni delle pagine: si aggiunge con la migration del programma,
+   oggi di morte non ce ne sono. Non si cancella.
+6. **Esaurita: il ciclo finisce.** Dopo 16 tentativi validi e almeno 7 giorni
+   dal primo, la foto esce dalla coda con `tentativi-esauriti`, che vuol dire
+   **"non lo so"**: resta visibile dall'origine come oggi e si conta a parte
+   nel gestionale. I 404 su server sano non avanzano verso l'esaurimento:
+   quelle foto aspettano il tetto delle morte, perche' "lo so, ma ho finito i
+   posti" non e' "non lo so". Ci finiscono le foto dei server senza
+   sentinelle dopo un guasto lungo e quelle che non rispondono mai con un
+   "non esiste" (un 403 perenne). **Accettato, con la ragione:** per un server
+   che non si puo' mettere alla prova, "non lo so" e' la risposta onesta.
+7. **Il ritorno.** Morte ed esaurite tornano in coda in tre modi:
+   - il **"riprova"** del gestionale, o la riga SQL, che **azzera tutti i
+     contatori** -- altrimenti il riprova varrebbe un tentativo solo, e un
+     intoppo in quel momento rimetterebbe la foto dov'era:
+
+     ```sql
+     update public.vehicle_images
+        set copia_esito = null, copia_tentativi = 0,
+            copia_primo_tentativo = null, copia_ultimo_tentativo = null,
+            copia_primo_non_esiste = null, copia_ultimo_motivo = null
+      where copia_esito in ('sorgente-morta', 'tentativi-esauriti')
+        and ...;
+     ```
+
+     Il filtro sull'esito non e' prudenza in piu': una foto copiata ha
+     l'indirizzo nostro, e il database rifiuta di rimetterla in coda senza
+     che `image_url` torni all'origine;
+   - un **controllo settimanale**: una richiesta con parametro casuale per ogni
+     morta ed esaurita di un'auto ancora sul sito. Se risponde, la foto torna
+     in coda con i contatori azzerati. **E' un ciclo che non finisce, e lo e'
+     apposta**: costa al massimo una richiesta a settimana per foto, finisce
+     quando la riga sparisce o l'auto esce dal sito, e senza di lui una foto
+     dichiarata morta durante un guasto parziale resterebbe nascosta per
+     sempre anche dopo il ritorno;
+   - una **origine diversa** portata dalla sincronizzazione, cioe' una foto
+     nuova.
+
+   *Corretto il 25/09/2026: una prima versione diceva "se un giro dopo
+   risponde, torna in coda", ma nessun giro riprovava una foto fuori dalla
+   coda. Il controllo settimanale e' quel giro.*
+
+I numeri stanno in **un file solo del codice**, non nel database: un vincolo
+che ripete un valore di prodotto rifiuta la scrittura il giorno che il valore
+cambia.
+
+### Le due note del 25/09/2026, chiuse
+
+- **"Il caso che non si chiude mai"** -- un server con poche foto non arriva
+  mai alla prova che risponde, e le sue foto restano in coda per sempre. Chiuso
+  in due pezzi: la prova non si cerca piu' nella coda ma nelle sentinelle
+  (foto gia' copiate), quindi a fine coda di un server grande si arriva; dove
+  le sentinelle non ci sono, il **tetto ai tentativi** (regola 6) fa uscire la
+  foto con "non lo so". La rilettura ha trovato altri tre cicli della stessa
+  forma, chiusi insieme: le foto di un giro frenato che restavano in testa
+  alla coda per sempre (regola 4: la data le fa ruotare, il freno conta solo
+  le novita'); il freno cieco sotto i 20 tentativi, che a fine coda faceva
+  esaurire le copertine durante un guasto (regola 3: l'esito "non risponde"
+  vale a qualunque lunghezza di coda); e le morte senza ritorno (regola 7).
+- **I numeri hanno un appuntamento**, qui sotto.
+
+### L'appuntamento: i numeri si rileggono contro il tasso vero
+
+I numeri delle regole sono una proposta costruita su una misura sola (zero
+foto morte su 4.825, il 25/09/2026, e quella misura interrogava la memoria di
+Cloudflare, non DealerK). La prima copia completa da' il tasso di fallimento
+vero, e **quel giorno si rileggono**. La data e' **sette giorni dopo il primo
+giro**, perche' prima nessuna foto puo' arrivare a `tentativi-esauriti` e la
+fotografia non e' completa.
+
+**Che l'appuntamento non si perda:** il programma di copia legge la data di
+verifica dal file delle soglie e, **da quel giorno in poi, la ricorda in ogni
+riepilogo** con il rimando a questo paragrafo, finche' chi compila la tabella
+non la toglie. Un avviso che compare un giorno solo salta proprio il giorno in
+cui il lavoro non gira.
+
+**Da dove vengono i numeri.** Ogni giro scrive nel suo riepilogo su GitHub, per
+server: tentativi, copiate, 404/410, 403, 429, errori del server, tempi
+scaduti, "non era la foto", sentinelle riuscite su totale (e quante dalla
+memoria), frenato si' o no e a che quota, morte, trattenute dal tetto. GitHub
+tiene i riepiloghi **novanta giorni**, l'appuntamento cade al settimo: quel
+giorno le cifre si copiano qui, come quelle della sincronizzazione. Sulle
+righe copiate `copia_tentativi` e `copia_primo_non_esiste` non si azzerano:
+servono a dire quante foto hanno avuto un 404 e poi un 200.
+
+| | |
+|---|---|
+| primo giro di copia | ____ |
+| **data di verifica** (primo giro + 7 giorni) | ____ |
+
+| numero | oggi | cosa si misura quel giorno | cosa lo censura | misurato | nuovo valore |
+|---|---|---|---|---|---|
+| freno: quota di fallimenti | 5% | la quota piu' alta in un giro senza guasti, per server | conta solo sopra i 200 tentativi per giro: si misura solo nella prima copia | ____ | ____ |
+| freno: minimo di fallite | 10 | quante foto fallisce, al massimo, un giro senza guasti | fra 20 e 199 tentativi e' questo il numero che decide, non il 5% | ____ | ____ |
+| freno: tentativi prima di giudicare | 20 | quante foto ha un giro, per server | dopo la prima copia i giri sono piccoli: qui decidono le sentinelle | ____ | ____ |
+| distanza fra i due "non esiste" | 24 ore | quante foto hanno avuto un 404 e poi un 200 | non scendere sotto la memoria del 404 di Cloudflare (circa 3 minuti, misurato da un revisore) | ____ | ____ |
+| tetto delle morte | 20 ogni 24 ore per server | quante foto sono state **trattenute** dal tetto | le morte al giorno non possono superare 20: si legge la fila d'attesa, non le morte | ____ | ____ |
+| sentinelle | 10, sano se 9 | quante volte una sentinella ha fallito con il server sano | | ____ | ____ |
+| tentativi per esaurire | 16 | quanti tentativi ha avuto l'ultima foto copiata dopo dei fallimenti | con 8 giri al giorno decidono sempre i 7 giorni | ____ | ____ |
+| giorni per esaurire | 7 | quanto e' durato il guasto piu' lungo | in 7 giorni non si vede un guasto piu' lungo di 7: "nessun guasto" non e' un valore | ____ | ____ |
+| richieste alla volta | 2 | se DealerK ha mai risposto 429 | | ____ | ____ |
+| controllo delle morte | una volta a settimana | quante morte ed esaurite sono tornate vive | | ____ | ____ |
+
+I quattro numeri concordati per primi sono il 5%, il 10, le 24 ore e le 20
+morte; gli altri sono nati chiudendo i cicli che non finivano, e valgono la
+stessa regola.
+
+### Com'e' stata riletta
+
+Il 25/09/2026, prima di consegnare la migration, quattro revisori indipendenti
+l'hanno attaccata insieme alle regole: stati senza uscita, guasti di DealerK,
+concorrenza, migration contro lo schema vero. **Due hanno finito**, con 28
+rilievi; gli altri due si sono fermati con la sessione. Dei 28, **due
+toccavano la migration** e sono entrati nel testo prima della consegna (una
+"copiata" ancora servita da DealerK passava; un percorso che il proxy non sa
+servire passava), gli altri sono le regole qui sopra. Le due lenti mancanti
+sono coperte cosi': la migration e' stata provata sullo schema ricostruito da
+zero con tutti e quattro i ruoli (postgres, service_role, un utente di
+un'altra concessionaria, il pubblico); della concorrenza resta scritta la
+regola dello stesso gruppo di concorrenza, e **non e' stata attaccata da
+nessuno**. I rilievi gravi non sono passati dallo scettico: quelli su cui si
+costruisce -- la memoria di Cloudflare, il parametro casuale, la forma del
+percorso che il proxy pretende -- sono stati rifatti a mano; gli altri sono
+scritti come misure del revisore.
+
+### Foto condivise fra auto diverse: misurato il 25/09/2026, non da "Duplica"
+
+La domanda era se "Duplica" avesse gia' morso. **No**: in produzione nessuna
+auto nata a mano o da una duplicazione condivide foto con un'altra, e nessun
+percorso del nostro archivio e' usato da due righe.
+
+**Ma la misura ha trovato un'altra cosa.** 79 indirizzi DealerK compaiono
+nelle gallerie di piu' auto: 264 righe, 99 auto (88 De Lorenzi, 9 Ponginibbi,
+2 Autogepy), **85 in vetrina**, 14 fuori (7 sparite dal sito). Sono tutte auto
+importate dal sito, ognuna con il suo identificativo, e ogni gruppo sta dentro
+una concessionaria sola. Un indirizzo solo sta in 15 gallerie, e in 7 e' la
+copertina. Le righe non sono un residuo di prima della regola delle due misure
+(22/08): sono state scritte a ogni giro, fino al 24/09.
+
+Due casi guardati sulla pagina vera, e sono di natura diversa:
+
+- **Peugeot 208 km 0** (`ponginibbigroup.it`, 10502399): la foto condivisa con
+  un'altra 208 sta nella galleria della pagina del concessionario, in tre
+  misure. E' il concessionario che usa le stesse foto per due auto gemelle:
+  scelta sua, non un nostro errore. Ma il nostro lettore, da quella pagina,
+  restituisce **41 foto** (se ne tengono 20): da capire se le schede delle
+  vetture simili passano la regola delle due misure.
+- **Mitsubishi Outlander** (`delorenziauto.it`, 1000457559): in galleria ha due
+  immagini da catalogo di una Citroen C5 Aircross, condivise con altre 9 auto
+  (anche una Honda ZR-V). Sulla pagina di oggi quella foto compare una volta
+  sola, in piccolo, dentro la scheda di **un'altra** auto. E oggi il nostro
+  lettore da' `senza-foto` per quella pagina, quindi la galleria scritta il
+  28/08 alle 10:12 **non viene piu' rinfrescata**. Come ci sia arrivata quel
+  giorno, non e' noto.
+
+**Non corretto, ed e' un lavoro a se'**: e' un difetto a video oggi (un'auto in
+vetrina con le foto di un'altra), non una conseguenza della copia. La copia
+non lo peggiora -- ogni auto avra' la sua copia della foto sbagliata -- ma lo
+rende nostro. E tocca una regola della copia: "la stessa impronta su tre o
+piu' origini diverse e' un segnaposto" scatterebbe anche su auto gemelle, se
+il concessionario ricaricasse la stessa foto con nomi diversi. Va misurato
+prima di fidarsi di quella soglia.
+
+### Trovato leggendo, annotato e non corretto
+
+**`/api/vehicles/feed` salva foto che il proxy non mostrerebbe.** Scarica le
+foto di un feed nel nostro archivio con il percorso
+`<id dell'auto>/<data>-<indice>.jpg`: due pezzi, e il proxy legge l'id
+dell'auto dal secondo, quindi risponde "non trovata" a tutte. Non costa niente
+oggi perche' quella porta non la chiama nessuno. Da decidere insieme alla sua
+sorte, non dentro la copia.
+
+**"Duplica" condivide il file della foto con l'originale.** Spostato in cima,
+in *"Prima della prima copia"*: dopo la copia non e' piu' un caso raro ma il
+comportamento di ogni duplicazione.
+
+Il trigger `enforce_vehicle_image_dealer_id` confronta la concessionaria
+dell'auto con `current_dealer_id()` usando `<>`. Senza sessione -- l'editor
+SQL, la chiave di servizio -- `current_dealer_id()` e' vuoto, il confronto con
+il vuoto non da' ne' vero ne' falso, e il trigger **lascia passare**. E'
+quello che permette oggi alla sincronizzazione di scrivere le foto, e che
+permettera' al programma di copia di fare lo stesso: funziona, ma **per
+combinazione, non per costruzione** -- la stessa forma del vincolo della
+migration che accettava una foto "copiata" senza impronta. Verificato sullo
+schema ricostruito il 25/09/2026. Se un giorno si vuole che il trigger dica
+esplicitamente "senza sessione passa", va scritto (`v_dealer_id is not null
+and ...`) e provato con tutti e quattro i ruoli.
+
+## Il lettore dei siti e' tarato su DealerK, non generico (25/09/2026)
+
+Da tenere accanto al preventivo del lettore generico, quando si scrivera'.
+Provato su una scheda vera di `robertoferrariauto.it` (sito GestionaleAuto),
+passandola al nostro lettore (`parseDealerStockVehicle`): esce
+**`nessun-dato-strutturato`**. Le barriere sono tre, una dietro l'altra, e
+togliere la prima non basterebbe:
+
+1. **l'elenco**: cerchiamo `auto_usate_0-sitemap.xml`, il nome che usa
+   DealerK; su quel sito risponde 404 (e dal 25/09 il messaggio lo dice);
+2. **i dati**: il lettore cerca il blocco dati di DealerK/MotorK nella
+   pagina; GestionaleAuto non ce l'ha, e non pubblica nemmeno dati
+   schema.org;
+3. **le foto**: una foto si riconosce solo se l'indirizzo contiene
+   `/dealer/datafiles/vehicle/images/`. Le foto di GestionaleAuto stanno su
+   `graphics.gestionaleauto.com/gonline_graphics/<id>_E_<impronta>.jpg`:
+   anche con i dati letti, ogni scheda uscirebbe `senza-foto` e verrebbe
+   scartata.
+
+Quindi "leggere un sito nuovo" non e' un ritocco del lettore di oggi: e' un
+lettore per ogni fornitore, oppure uno generico che non si appoggi a nessuna
+delle tre forme.
+
 ## Dove siamo rimasti (10/09/2026)
 
 > **Sezione storica, superata.** I passi del suo *"Da dove riprendere"* che
