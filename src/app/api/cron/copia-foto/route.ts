@@ -57,10 +57,27 @@ function fuoriDallaMemoria(url: string) {
   return `${url}${url.includes("?") ? "&" : "?"}kv=${randomUUID().slice(0, 8)}`;
 }
 
+/**
+ * Si chiedono JPEG e PNG, non webp ne' avif.
+ *
+ * Fino al 25/09/2026 qui c'era "image/avif,image/webp,...", e la rete di
+ * DealerK (Cloudflare) rispondeva convertendo: il primo giro ha salvato in webp
+ * 692 foto su 2.016, e 177 delle 265 copertine in vetrina. Il compositore
+ * delle anteprime social legge solo JPEG e PNG, e quelle auto avevano
+ * l'anteprima senza foto. La copia serve a non dipendere da DealerK: deve
+ * tenere un formato che legge chiunque.
+ *
+ * Non e' comunque il file originale, e non va scritto che lo sia: Cloudflare
+ * ricomprime anche i JPEG (`cf-polished: ok, orig_size=...`, misurato quel
+ * giorno: 163 KB consegnati per un originale di 183). E' lo stesso formato,
+ * non gli stessi byte.
+ */
+const ACCETTA = "image/jpeg,image/png;q=0.9,image/*;q=0.8";
+
 async function chiedi(url: string, metodo: "GET" | "HEAD" = "GET") {
   return fetchWithSsrfProtection(url, {
     method: metodo,
-    headers: { "User-Agent": USER_AGENT, Accept: "image/avif,image/webp,image/jpeg,image/png,image/*;q=0.8" },
+    headers: { "User-Agent": USER_AGENT, Accept: ACCETTA },
     signal: AbortSignal.timeout(TEMPO_PER_FOTO_MS),
     cache: "no-store",
   });
@@ -69,6 +86,8 @@ async function chiedi(url: string, metodo: "GET" | "HEAD" = "GET") {
 function estensione(tipo: string) {
   if (/png/i.test(tipo)) return "png";
   if (/webp/i.test(tipo)) return "webp";
+  // Un avif chiamato ".jpg" sarebbe un file che dice di essere un'altra cosa.
+  if (/avif/i.test(tipo)) return "avif";
   return "jpg";
 }
 
