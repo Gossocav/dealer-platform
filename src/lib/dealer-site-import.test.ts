@@ -11,6 +11,7 @@ import {
   parseDealerStockSitemap,
   parseDealerStockVehicle,
   scegliDescrizione,
+  schedaNuovaDaImportare,
   type DealerSiteEntry,
 } from "@/lib/dealer-site-import";
 
@@ -147,6 +148,8 @@ describe("nella galleria finiscono solo le foto dell'auto", () => {
     <img src="https://cdn.dealerk.it/cars/make/brand/64/white/subaru.png">
     <img src="https://cdn.dealerk.it/cars/placeholder/nessuna-foto.png">
     <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/primo.jpeg">
+    <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/480x0/33890/primo.jpeg">
+    <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/800x0/33890/secondo.jpeg">
     <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/480x0/33890/secondo.jpeg">
     <script type="application/ld+json">${JSON.stringify({
       "@type": "Vehicle",
@@ -181,6 +184,8 @@ describe("nella galleria finiscono solo le foto dell'auto", () => {
   // da 1440x716 o resta piccola o si sgrana. A 1600 l'archivio ne serve 1281x721.
   it("ogni foto viene chiesta nella misura buona, qualunque fosse in pagina", () => {
     if (!esito.ok) throw new Error("scheda non letta");
+    // Su una galleria vuota il ciclo qui sotto passerebbe senza guardare niente.
+    expect(esito.vehicle.images.length).toBeGreaterThan(0);
     for (const url of esito.vehicle.images) {
       expect(url).toContain("/vehicle/images/1600x0/");
     }
@@ -230,7 +235,7 @@ describe("nella galleria finiscono solo le foto dell'auto", () => {
       <img src="https://cdn.dealerk.it/dealer/datafiles/vehicle/images/0x250/33890/altra-due.jpeg">
       <script type="application/ld+json">${JSON.stringify({ "@type": "Vehicle", name: "Fiat Panda", offers: { price: 8500 } })}</script>`;
 
-    const esitoAltrui = parseDealerStockVehicle(soloAltrui, VOCE);
+    const esitoAltrui = schedaNuovaDaImportare(parseDealerStockVehicle(soloAltrui, VOCE));
     expect(esitoAltrui.ok).toBe(false);
     if (!esitoAltrui.ok) expect(esitoAltrui.reason).toBe("senza-foto");
   });
@@ -332,9 +337,25 @@ describe("quello che non si puo' pubblicare viene scartato, con il motivo", () =
       offers: { price: 8500 },
       mileageFromOdometer: { value: 60000 },
     })}</script>`;
-    const esito = parseDealerStockVehicle(html, VOCE);
+    const esito = schedaNuovaDaImportare(parseDealerStockVehicle(html, VOCE));
     expect(esito.ok).toBe(false);
     if (!esito.ok) expect(esito.reason).toBe("senza-foto");
+  });
+
+  // L'altra meta' della regola: un'auto gia' in archivio la cui pagina oggi
+  // non ha foto proprie si legge lo stesso, cosi' prezzo e chilometri
+  // continuano ad aggiornarsi. E' chi scrive a lasciare intatta la galleria.
+  it("senza foto proprie la scheda si legge lo stesso, per aggiornare un'auto gia' in archivio", () => {
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "Vehicle",
+      name: "Fiat Panda 1.2",
+      offers: { price: 8500 },
+    })}</script>`;
+    const esito = parseDealerStockVehicle(html, VOCE);
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    expect(esito.vehicle.price).toBe(8500);
+    expect(esito.vehicle.images).toEqual([]);
   });
 
   it("i loghi di marca non bastano a far passare una scheda per fotografata", () => {
@@ -346,7 +367,7 @@ describe("quello che non si puo' pubblicare viene scartato, con il motivo", () =
         name: "Fiat Panda 1.2",
         offers: { price: 8500 },
       })}</script>`;
-    const esito = parseDealerStockVehicle(html, VOCE);
+    const esito = schedaNuovaDaImportare(parseDealerStockVehicle(html, VOCE));
     expect(esito.ok).toBe(false);
     if (!esito.ok) expect(esito.reason).toBe("senza-foto");
   });
@@ -553,18 +574,25 @@ describe("nella galleria non finiscono le foto delle vetture simili", () => {
     expect(esito.vehicle.images[0]).toContain("sua.jpg");
   });
 
-  // Se nessuna fotografia comparisse in piu' misure il criterio non saprebbe
-  // distinguere niente: meglio una galleria con qualche intrusa che una scheda
-  // senza foto, che verrebbe scartata del tutto.
-  it("se nessuna compare in piu' misure, non lascia la scheda senza foto", () => {
+  // Fino al 25/09/2026 questo caso diceva il contrario: "meglio una galleria
+  // con qualche intrusa che una scheda senza foto". La scelta era scritta e
+  // motivata, ed era sbagliata: su una scheda senza foto proprie le sole foto
+  // in pagina sono le miniature delle vetture simili, che su delorenziauto
+  // sono larghe 400 come quelle vere. Controllato quel giorno pagina per
+  // pagina: 31 auto in vetrina mostravano soltanto foto di altre auto -- una
+  // Mitsubishi Outlander con la Citroen C5 Aircross, una Honda ZR-V con otto
+  // foto non sue. Una scheda senza foto e' onesta; una con le foto di
+  // un'altra auto e' un annuncio ingannevole che nessuno nota.
+  it("se nessuna compare in piu' misure, la scheda resta senza foto", () => {
     const esito = parseDealerStockVehicle(
-      scheda(`<img src="${CDN}/800/2396/unica.jpg"><img src="${CDN}/800/2396/altra.jpg">`),
+      scheda(`<img src="${CDN}/400/2396/di-un-altra.jpg"><img src="${CDN}/400/2396/di-un-altra-ancora.jpg">`),
       VOCE_ALTRO_SITO
     );
 
     expect(esito.ok).toBe(true);
     if (!esito.ok) return;
-    expect(esito.vehicle.images).toHaveLength(2);
+    expect(esito.vehicle.images).toEqual([]);
+    expect(schedaNuovaDaImportare(esito).ok).toBe(false);
   });
 
   // Su autogepy le miniature altrui sono 0x250: la regola della larghezza le

@@ -1021,6 +1021,15 @@ Due casi guardati sulla pagina vera, e sono di natura diversa:
   scelta sua, non un nostro errore. Ma il nostro lettore, da quella pagina,
   restituisce **41 foto** (se ne tengono 20): da capire se le schede delle
   vetture simili passano la regola delle due misure.
+
+  > **Questa lettura era sbagliata, e la smentita e' dello stesso giorno.**
+  > Le tre foto "condivise" **non sono nel blocco dati della 208 10502399**:
+  > sono nel blocco della 208 gemella (9939322), e sulla pagina della prima
+  > compaiono in cinque misure perche' ci passano attraverso il **carosello**
+  > di Ponginibbi -- lo stesso che porta il lettore a 41 foto. "In tre misure"
+  > era vero e non provava niente: su Ponginibbi anche le foto altrui ci sono
+  > in piu' misure. La lettura resta qui perche' e' da questa che e' nata la
+  > regola "stessa marca e stesso modello = riuso legittimo", smentita sotto.
 - **Mitsubishi Outlander** (`delorenziauto.it`, 1000457559): in galleria ha due
   immagini da catalogo di una Citroen C5 Aircross, condivise con altre 9 auto
   (anche una Honda ZR-V). Sulla pagina di oggi quella foto compare una volta
@@ -1044,6 +1053,106 @@ rende nostro. E tocca una regola della copia: "la stessa impronta su tre o
 piu' origini diverse e' un segnaposto" scatterebbe anche su auto gemelle, se
 il concessionario ricaricasse la stessa foto con nomi diversi. Va misurato
 prima di fidarsi di quella soglia.
+
+### Il controllo pagina per pagina (25/09/2026), e le due porte da cui entrano
+
+**Come e' stato fatto, e si rifa' allo stesso modo.** Per ognuna delle 371
+auto importate dai tre siti si e' aperta la sua pagina sul sito del
+concessionario (una ogni quattro secondi per sito, con l'intestazione di
+KeyAuto) e si e' preso l'elenco delle foto **di quella scheda**: quello del
+blocco dati della pagina (`"image800"`) quando c'e', le foto in piu' misure
+quando non c'e'. Poi, per ogni foto in archivio: sta in quell'elenco? E, come
+seconda prova indipendente: sta anche nella galleria di un'altra auto? 294
+pagine lette, 75 auto non piu' sul sito, 2 pagine andate in timeout (nessuna
+delle loro foto e' condivisa con altre auto).
+
+**Il risultato: 34 auto portano foto che non sono loro, 32 in vetrina, 175
+righe**, e per ognuna le due prove dicono la stessa cosa -- ogni foto non sua
+sta nella galleria di un'altra auto, e sulla pagina di quell'altra auto c'e'.
+Di queste righe, **88 erano gia' state copiate** nel nostro archivio quando
+sono state lette (14:33 UTC), dal primo giro cominciato alle 14:11: la copia
+parte dalle copertine in vetrina, e 31 delle auto in vetrina qui sotto hanno
+per copertina una foto non loro.
+
+**La regola "stessa marca e stesso modello = riuso del concessionario" non
+regge.** Degli 81 indirizzi presenti in piu' gallerie, **nessuno** sta sulla
+pagina di tutte le auto che lo portano: 66 stanno sulla pagina di una sola --
+38 fra modelli diversi, **28 fra auto dello stesso modello** -- e 15 non si
+possono controllare del tutto perche' una delle auto non e' piu' sul sito.
+Il motivo e' nel meccanismo: il carosello delle "vetture simili" mostra
+proprio lo stesso modello, quindi una foto presa da li' somiglia a un riuso.
+Con la sola regola della marca le due Hyundai Tucson di Autogepy, due Peugeot
+208 di De Lorenzi e la 208 di Ponginibbi sarebbero passate per legittime.
+
+**Le due porte.**
+
+1. **Il ripiego del lettore** -- "se nessuna foto compare in piu' misure,
+   prendile tutte". Porta 32 delle 34 auto: 29 De Lorenzi, 2 Autogepy, e una
+   De Lorenzi fuori vetrina, tutte con **zero** foto proprie sulla pagina.
+   **Spento il 25/09/2026**: un'auto nuova senza foto proprie non entra, una
+   gia' in archivio continua ad aggiornarsi nei dati e la sua galleria resta
+   com'e'. Resta com'e' **anche con le foto sbagliate**: la sincronizzazione non
+   le toglie, perche' da una pagina senza foto proprie non ha niente con cui
+   sostituirle. Vanno tolte sulle righe.
+2. **Il carosello di Ponginibbi.** Su ogni pagina di `ponginibbigroup.it` ci
+   sono 24 foto di altre auto **in piu' misure**, e passano la regola. Il
+   lettore vero, eseguito sulle 74 pagine lette: prende sempre tutte le foto
+   del blocco dati, piu' 24 (in tre pagine 3 o 23) che nel blocco non ci sono.
+   Finche' un'auto ha almeno venti foto sue non si vede, perche' se ne tengono
+   venti e le sue vengono prima; sotto le venti il carosello riempie i posti.
+   Oggi sono due auto: la Citroen Ami (2 foto sue, 18 del carosello) e la
+   Peugeot 208 10502399 (17 e 3). **Non corretto**: pulire le loro righe
+   adesso non serve, la sincronizzazione le rimetterebbe al giro dopo. La
+   strada e' leggere l'elenco del blocco dati della scheda, dove c'e': sugli
+   altri due siti il lettore di oggi e quell'elenco coincidono su tutte le 188
+   pagine che lo hanno (nessuna foto in piu', nessuna in meno), quindi li' non
+   cambierebbe niente. Da fare prima: legare il blocco alla scheda con il suo
+   identificativo, come fa gia' `bloccoDellaScheda` per la targa -- l'elenco
+   delle foto sta in un altro oggetto della pagina, non in `vehicleData`.
+
+**L'elenco, com'era il 25/09/2026 prima di qualunque pulizia.** Non si puo'
+rifare dopo, ed e' per questo che sta qui.
+
+| | concessionaria | auto | id sul sito | foto non sue | di cui copiate il 25/09 |
+|---|---|---|---|---|---|
+| in vetrina | Autogepy | Hyundai tucson | 9468503 | 6 su 6 (tutte, copertina compresa) | 1 |
+| in vetrina | Autogepy | Hyundai tucson | 9719376 | 6 su 6 (tutte, copertina compresa) | 6 |
+| in vetrina | De Lorenzi | Citroën Berlingo | 1000267768 | 3 su 3 (tutte, copertina compresa) | 3 |
+| in vetrina | De Lorenzi | Citroën Berlingo | 1000368530 | 3 su 3 (tutte, copertina compresa) | 3 |
+| in vetrina | De Lorenzi | Citroën C3 | 1000368534 | 4 su 4 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C3 | 1000442833 | 3 su 3 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C3 | 1000442834 | 3 su 3 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C3 | 1000442835 | 3 su 3 (tutte, copertina compresa) | 3 |
+| in vetrina | De Lorenzi | Citroën C3 | 1000442839 | 2 su 2 (tutte, copertina compresa) | 2 |
+| in vetrina | De Lorenzi | Citroën C3 | 1000461589 | 4 su 4 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C3 Aircross | 1000442836 | 4 su 4 (tutte, copertina compresa) | 4 |
+| in vetrina | De Lorenzi | Citroën C3 Aircross | 1000442837 | 4 su 4 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C3 Aircross | 1000461592 | 4 su 4 (tutte, copertina compresa) | 4 |
+| in vetrina | De Lorenzi | Citroën C4 | 1000253204 | 4 su 4 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C5 Aircross | 1000059569 | 5 su 5 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën C5 Aircross | 1000123693 | 4 su 4 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Citroën E-C4 | 1000059567 | 4 su 4 (tutte, copertina compresa) | 4 |
+| in vetrina | De Lorenzi | Citroën JUMPER LCV | 10502408 | 5 su 5 (tutte, copertina compresa) | 5 |
+| in vetrina | De Lorenzi | Citroën JUMPER LCV | 10725142 | 5 su 5 (tutte, copertina compresa) | 5 |
+| in vetrina | De Lorenzi | FIAT Pandina | 1000410695 | 6 su 6 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | FIAT Pandina | 1000410696 | 6 su 6 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Fiat Professional Ducato | 10109843 | 1 su 1 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Honda ZR-V | 1000500726 | 8 su 8 (tutte, copertina compresa) | 8 |
+| in vetrina | De Lorenzi | Mitsubishi Outlander | 1000457559 | 6 su 6 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Opel Corsa | 1000181517 | 4 su 4 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Opel Corsa | 1000461590 | 6 su 6 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Opel Frontera | 1000516148 | 8 su 8 (tutte, copertina compresa) | 8 |
+| in vetrina | De Lorenzi | Opel Mokka | 1000382739 | 7 su 7 (tutte, copertina compresa) | 7 |
+| in vetrina | De Lorenzi | Peugeot 2008 | 1000337175 | 8 su 8 (tutte, copertina compresa) | 4 |
+| in vetrina | De Lorenzi | Peugeot 208 | 1000044302 | 7 su 7 (tutte, copertina compresa) | 1 |
+| in vetrina | De Lorenzi | Peugeot 208 | 1000313074 | 8 su 8 (tutte, copertina compresa) | 6 |
+| in vetrina | Ponginibbi | Citroën ami | 9798062 | 18 su 20 (carosello) | 0 |
+| fuori | De Lorenzi | Citroën C3 | 1000442838 | 3 su 3 (tutte, copertina compresa) | 0 |
+| fuori | Ponginibbi | Peugeot 208 | 10502399 | 3 su 20 (carosello) | 0 |
+
+Le auto "tutte, copertina compresa" non hanno sul sito nemmeno una foto
+propria: tolte le righe restano senza foto, e ne riprendono da sole quando il
+concessionario le mette sul suo sito.
 
 ### Trovato leggendo, annotato e non corretto
 

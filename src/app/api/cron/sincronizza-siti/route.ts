@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { elencoStock, leggiPaginaConEsito, PAUSA_FRA_SCHEDE_MS } from "@/lib/dealer-site-fetch";
-import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
+import { parseDealerStockVehicle, schedaNuovaDaImportare, type DealerSiteEntry } from "@/lib/dealer-site-import";
 import { nuovoTettoCopieTolte, sostituisciFoto, type EsitoGalleria } from "@/lib/dealer-site-photos";
 import {
   COLONNE_DA_RILEGGERE,
@@ -343,10 +343,10 @@ async function importaNuove(
     pausa: () => attendi(pausaMs),
     leggi: (voce) => leggiPaginaConEsito(voce.url),
     elabora: async (voce, html) => {
-      const letto = parseDealerStockVehicle(html, voce);
+      const letto = schedaNuovaDaImportare(parseDealerStockVehicle(html, voce));
       if (!letto.ok) {
-        // Senza prezzo, senza foto, o e' un noleggio: sono gli stessi scarti
-        // dell'importazione a mano, e non sono errori.
+        // Senza prezzo, senza foto proprie, o e' un noleggio: sono gli stessi
+        // scarti dell'importazione a mano, e non sono errori.
         return "saltata";
       }
 

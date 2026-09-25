@@ -12,7 +12,7 @@ import {
   PAUSA_FRA_SCHEDE_MS,
   spiegaElencoNonLetto,
 } from "@/lib/dealer-site-fetch";
-import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-site-import";
+import { parseDealerStockVehicle, schedaNuovaDaImportare, type DealerSiteVehicle } from "@/lib/dealer-site-import";
 import { leggiBloccoMotork } from "@/lib/blocco-motork";
 import { scriviDalSito, dalSito } from "@/lib/provenienza-dati";
 import { indirizzoDellaScheda, segnalaAIndexNow } from "@/lib/indexnow";
@@ -334,6 +334,17 @@ export async function POST(request: Request) {
         .eq("import_source_id", veicolo.sourceId)
         .limit(1)
         .maybeSingle<RigaDaRileggere>();
+
+      // Un'auto nuova senza foto proprie non entra; una gia' in archivio si
+      // aggiorna nei dati, e la sua galleria resta com'e'.
+      if (!esistente) {
+        const nuova = schedaNuovaDaImportare(letto);
+        if (!nuova.ok) {
+          esiti.push({ sourceId: voce.sourceId, url: voce.url, esito: "saltato", motivo: nuova.reason });
+          await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
+          continue;
+        }
+      }
 
       let vehicleId = esistente?.id ?? null;
 
