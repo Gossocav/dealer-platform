@@ -9,7 +9,7 @@ import { VehiclesKpiGrid } from "@/components/vehicles/vehicles-kpi-grid";
 import { VehiclesPagination } from "@/components/vehicles/vehicles-pagination";
 import { VehiclesTable } from "@/components/vehicles/vehicles-table";
 import { VehiclesToolbar } from "@/components/vehicles/vehicles-toolbar";
-import { copiaDelVeicolo } from "@/lib/duplica-veicolo";
+import { copiaDelVeicolo, pianoFotoDellaCopia, type RigaFotoDellaCopia } from "@/lib/duplica-veicolo";
 import { getActiveDealerId } from "@/lib/active-tenant";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
@@ -186,6 +186,73 @@ function applicaFiltriVeicoli<
   if (typeof maxPrice === "number") q = q.lte("price", maxPrice);
 
   return q;
+}
+
+/**
+ * Copia le foto dell'originale sulla copia appena nata. Restituisce la frase
+ * da mostrare se qualcosa non e' riuscito, o null se sono passate tutte.
+ *
+ * Nessun passo si ignora: prima di oggi la scrittura delle foto non guardava
+ * il proprio esito, e una duplicazione con le foto fallite finiva in silenzio,
+ * con una copia senza foto e nessun messaggio.
+ */
+async function duplicaLeFoto(client: typeof supabase, idOriginale: string, idCopia: string, dealerId: string): Promise<string | null> {
+  const { data: fotoOriginale, error: letturaError } = await client
+    .from("vehicle_images")
+    .select("image_url, position, is_cover, origine_url, copia_esito, copia_sha256, copia_byte")
+    .eq("vehicle_id", idOriginale)
+    .eq("dealer_id", dealerId)
+    .order("position", { ascending: true });
+
+  if (letturaError) {
+    return "Auto duplicata in bozza, ma senza foto: non siamo riusciti a leggere quelle dell'originale. Aprila e aggiungile.";
+  }
+  if (!Array.isArray(fotoOriginale) || fotoOriginale.length === 0) return null;
+
+  const { data: authData } = await client.auth.getUser();
+  const idUtente = authData.user?.id;
+  if (!idUtente) {
+    return "Auto duplicata in bozza, ma senza foto: la sessione non e' piu' valida. Rientra, apri la copia e aggiungile.";
+  }
+
+  const passi = pianoFotoDellaCopia(fotoOriginale, { idCopia, idUtente, dealerId });
+  const righe: RigaFotoDellaCopia[] = [];
+  const fileCopiati: string[] = [];
+  let nonCopiate = 0;
+
+  for (const passo of passi) {
+    if (passo.tipo === "non-copiabile") {
+      nonCopiate += 1;
+      continue;
+    }
+    if (passo.tipo === "copia-file") {
+      const { error: copiaError } = await client.storage.from("vehicle-images").copy(passo.da, passo.a);
+      if (copiaError) {
+        // Non si ripiega sul file dell'originale: condividerlo e' il difetto.
+        nonCopiate += 1;
+        continue;
+      }
+      fileCopiati.push(passo.a);
+    }
+    righe.push(passo.riga);
+  }
+
+  if (righe.length > 0) {
+    const { error: scritturaError } = await client.from("vehicle_images").insert(righe);
+    if (scritturaError) {
+      // I file appena copiati non hanno piu' una riga che li nomini: si
+      // tolgono, altrimenti restano nell'archivio senza che nessuno li veda.
+      if (fileCopiati.length > 0) {
+        await client.storage.from("vehicle-images").remove(fileCopiati);
+      }
+      return "Auto duplicata in bozza, ma le sue foto non sono state salvate. Aprila e aggiungile.";
+    }
+  }
+
+  if (nonCopiate > 0) {
+    return `Auto duplicata in bozza. ${nonCopiate} foto su ${passi.length} non sono state copiate: apri la copia e aggiungile.`;
+  }
+  return null;
 }
 
 export function VehiclesManagementPage() {
@@ -1159,27 +1226,13 @@ export function VehiclesManagementPage() {
       return;
     }
 
-    const { data: sourceImages } = await supabase
-      .from("vehicle_images")
-      .select("image_url, position, is_cover")
-      .eq("vehicle_id", vehicleId)
-      .eq("dealer_id", currentDealerId)
-      .order("position", { ascending: true });
-
-    if (Array.isArray(sourceImages) && sourceImages.length > 0) {
-      await supabase.from("vehicle_images").insert(
-        sourceImages.map((image, index) => ({
-          vehicle_id: inserted.id,
-          // Le copie nascono con la concessionaria scritta sopra: una
-          // fotografia senza proprietario non e' di nessuno, e da quando le
-          // regole del database legano la lettura al proprietario non
-          // sarebbe piu' visibile nemmeno a chi l'ha duplicata.
-          dealer_id: currentDealerId,
-          image_url: image.image_url,
-          position: typeof image.position === "number" ? image.position : index,
-          is_cover: Boolean(image.is_cover) && index === 0,
-        }))
-      );
+    // Le foto: ognuna della copia, mai il file dell'originale. Cosa si fa per
+    // ogni foto, e perche', sta in `pianoFotoDellaCopia` (duplica-veicolo).
+    // Qui ogni passo si guarda: la copia dell'auto e' gia' nata, e una foto
+    // persa per strada si dice, non si lascia intendere che ci sia.
+    const esitoFoto = await duplicaLeFoto(supabase, vehicleId, inserted.id, currentDealerId);
+    if (esitoFoto) {
+      setError(esitoFoto);
     }
 
     setBusyVehicleId(null);
