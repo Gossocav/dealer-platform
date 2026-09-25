@@ -74,7 +74,8 @@ export const SOGLIE_COPIA_FOTO = {
   /**
    * La data dell'appuntamento sui numeri (primo giro + 7 giorni). Da quel
    * giorno ogni riepilogo lo ricorda. Si scrive quando parte il primo giro, si
-   * toglie quando la tabella in MIGRAZIONI.md e' compilata.
+   * toglie quando la tabella in MIGRAZIONI.md e' compilata. Il primo giro e'
+   * partito il 25/09/2026 alle 14:11 UTC.
    */
-  dataVerifica: null as string | null,
+  dataVerifica: "2026-10-02" as string | null,
 } as const;

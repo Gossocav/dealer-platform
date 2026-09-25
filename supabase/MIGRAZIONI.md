@@ -19,6 +19,13 @@ Il controllo **legge soltanto**. Non applica niente.
 
 ## Da dove si riprende (19/09/2026)
 
+> **Un appuntamento con la data: 02/10/2026, i numeri della copia delle
+> foto.** Il primo giro e' del 25/09/2026. Quel giorno si compila la tabella
+> in "L'appuntamento: i numeri si rileggono contro il tasso vero", e si toglie
+> `dataVerifica` da `src/lib/copia-foto-soglie.ts`. Scritto qui perche' il
+> promemoria del programma compare solo quando il programma gira, e oggi lo
+> avvia soltanto il titolare.
+
 **Questo e' il punto di ripartenza buono.** L'ordine e' stato deciso dal
 titolare il 19/09/2026 e scritto qui apposta: la prossima volta si riparte da
 questo elenco, non ricostruendolo da un riepilogo.
@@ -960,8 +967,37 @@ servono a dire quante foto hanno avuto un 404 e poi un 200.
 
 | | |
 |---|---|
-| primo giro di copia | ____ |
-| **data di verifica** (primo giro + 7 giorni) | ____ |
+| primo giro di copia | **25/09/2026**, 14:11-14:39 UTC (lavoro 36145815728, verde, fermato dal suo tetto di 25 minuti) |
+| **data di verifica** (primo giro + 7 giorni) | **02/10/2026** |
+
+**Come ha lasciato le cose il primo giro**, letto sulla produzione alle 15:06 UTC
+del 25/09 (sola lettura, chiave di servizio): 2.016 foto copiate, tutte di auto
+in vetrina, 265 MB; **265 copertine in vetrina su 268**; 38 non riuscite -- 27
+prese per segnaposto, 9 tempi scaduti, 2 errori 500 di DealerK; 2.777 mai
+provate, per il tetto dei 25 minuti. **Il lavoro non e' ancora periodico**: se
+non gira di nuovo, il 02/10 queste cifre saranno ancora queste, e nessuna foto
+avra' avuto i tentativi che l'appuntamento deve misurare.
+
+**Le tre copertine mancanti sono il difetto previsto qui sopra.** Sono di tre
+Peugeot 2008 di De Lorenzi, e l'immagine e' la stessa -- un'immagine da
+catalogo della 2008, grigia su fondo bianco -- caricata dal concessionario con
+tre nomi diversi, sulla pagina di ognuna. La regola "la stessa impronta su due
+altre origini e' un segnaposto" l'ha scartata. Non e' un danno a video: quelle
+tre copertine restano servite da DealerK, come prima. Dei 27 scarti, 18 sono
+foto che stanno davvero sulla pagina della loro auto (immagini da catalogo come
+questa) e 9 sono foto di altre auto; fra i 27 c'e' anche uno scarto giusto, un
+cartello pubblicitario ("Planetauto concessionaria Jeep Modena", con il
+telefono) nella galleria di una Jeep Compass. Si decide all'appuntamento se la
+regola va ristretta, con questi casi davanti.
+
+**La prova che la pagina pubblica le mostra dal nostro archivio**, fatta il
+25/09 con un browser vero, senza sessione: la scheda della Hyundai Bayon di
+Autogepy (19 foto, tutte copiate) chiede ogni immagine a
+`/api/image-proxy?foto=<concessionaria>/<auto>/<impronta>`, cioe' il percorso
+nel nostro archivio, che il proxy firma e scarica da li'; nessuna immagine con
+`url=` DealerK. La foto grande si vede, ed e' la Bayon blu con la targa del
+concessionario. Chiesta a parte, la stessa foto risponde 200, webp 1280x720,
+116 KB, e la seconda volta dalla cache di Vercel.
 
 | numero | oggi | cosa si misura quel giorno | cosa lo censura | misurato | nuovo valore |
 |---|---|---|---|---|---|
