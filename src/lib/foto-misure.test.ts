@@ -6,6 +6,7 @@ import {
   motivoFotoIntera,
   qualitaFotoRichiesta,
   rimpicciolisciFoto,
+  vaTrasformata,
 } from "@/lib/foto-misure";
 
 /**
@@ -65,18 +66,53 @@ describe("le misure che una pagina puo' chiedere", () => {
 describe("il ridimensionamento", () => {
   it("consegna la foto nella larghezza chiesta, in webp", async () => {
     const ridotta = await rimpicciolisciFoto(await fotoDiProva(1200, 800), 640, 75, true);
-    const misure = await sharp(ridotta).metadata();
+    const misure = await sharp(ridotta.corpo).metadata();
 
     expect(misure.width).toBe(640);
     expect(misure.format).toBe("webp");
+    expect(ridotta.tipo).toBe("image/webp");
   });
 
-  it("a chi non legge il webp lascia il formato di partenza", async () => {
+  it("a chi non legge il webp, un JPEG resta JPEG", async () => {
     const ridotta = await rimpicciolisciFoto(await fotoDiProva(1200, 800), 640, 75, false);
-    const misure = await sharp(ridotta).metadata();
+    const misure = await sharp(ridotta.corpo).metadata();
 
     expect(misure.width).toBe(640);
     expect(misure.format).toBe("jpeg");
+    expect(ridotta.tipo).toBe("image/jpeg");
+  });
+
+  /**
+   * Il difetto del 25/09/2026: la copia ha salvato in webp 692 foto, e a chi non
+   * legge il webp -- il compositore delle anteprime social -- si consegnava
+   * "il formato di partenza", cioe' un webp. 177 auto in vetrina avevano
+   * l'anteprima senza foto.
+   */
+  it("a chi non legge il webp, un webp arriva in JPEG", async () => {
+    const webp = await sharp(await fotoDiProva(1200, 800)).webp().toBuffer();
+    const ridotta = await rimpicciolisciFoto(webp, 640, 75, false);
+
+    expect((await sharp(ridotta.corpo).metadata()).format).toBe("jpeg");
+    expect(ridotta.tipo).toBe("image/jpeg");
+  });
+
+  // L'anteprima chiede la foto senza misura: la si converte, non la si
+  // rimpicciolisce.
+  it("senza misura converte soltanto, e la larghezza resta quella", async () => {
+    const webp = await sharp(await fotoDiProva(1200, 800)).webp().toBuffer();
+    const convertita = await rimpicciolisciFoto(webp, null, 75, false);
+    const misure = await sharp(convertita.corpo).metadata();
+
+    expect(misure.format).toBe("jpeg");
+    expect(misure.width).toBe(1200);
+  });
+
+  it("un PNG resta PNG", async () => {
+    const png = await sharp(await fotoDiProva(1200, 800)).png().toBuffer();
+    const ridotta = await rimpicciolisciFoto(png, 640, 75, false);
+
+    expect((await sharp(ridotta.corpo).metadata()).format).toBe("png");
+    expect(ridotta.tipo).toBe("image/png");
   });
 
   /**
@@ -87,7 +123,7 @@ describe("il ridimensionamento", () => {
   it("non ingrandisce una foto piu' piccola di quanto e' stata chiesta", async () => {
     const ridotta = await rimpicciolisciFoto(await fotoDiProva(1200, 800), 3840, 75, true);
 
-    expect((await sharp(ridotta).metadata()).width).toBe(1200);
+    expect((await sharp(ridotta.corpo).metadata()).width).toBe(1200);
   });
 
   /**
@@ -103,7 +139,7 @@ describe("il ridimensionamento", () => {
       .jpeg()
       .toBuffer();
 
-    const misure = await sharp(await rimpicciolisciFoto(coricata, 640, 75, true)).metadata();
+    const misure = await sharp((await rimpicciolisciFoto(coricata, 640, 75, true)).corpo).metadata();
 
     expect(misure.width).toBe(640);
     expect(misure.height).toBeGreaterThan(misure.width!);
@@ -153,5 +189,20 @@ describe("perche' una foto e' stata consegnata intera", () => {
 
     expect(motivo).toBe("modulo-assente");
     expect(motivo).not.toContain("/var/task");
+  });
+});
+
+describe("quando una foto passa dalla libreria", () => {
+  it("sempre, quando e' chiesta una misura", () => {
+    expect(vaTrasformata({ larghezza: 640, webp: true, tipo: "image/jpeg" })).toBe(true);
+    expect(vaTrasformata({ larghezza: 640, webp: false, tipo: "image/jpeg" })).toBe(true);
+  });
+
+  it("senza misura, solo se chi chiede non legge il suo formato", () => {
+    expect(vaTrasformata({ larghezza: null, webp: true, tipo: "image/webp" })).toBe(false);
+    expect(vaTrasformata({ larghezza: null, webp: false, tipo: "image/jpeg" })).toBe(false);
+    expect(vaTrasformata({ larghezza: null, webp: false, tipo: "image/png" })).toBe(false);
+    expect(vaTrasformata({ larghezza: null, webp: false, tipo: "image/webp" })).toBe(true);
+    expect(vaTrasformata({ larghezza: null, webp: false, tipo: "image/avif" })).toBe(true);
   });
 });

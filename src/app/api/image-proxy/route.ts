@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { firmaFotoVeicolo, fotoDiUnAnnuncioPubblico } from "@/lib/marketplace-foto-firmate";
 import { assertHostPubblico, IndirizzoNonAmmesso } from "@/lib/ssrf-protection";
-import { accettaWebp, larghezzaFotoRichiesta, motivoFotoIntera, qualitaFotoRichiesta, rimpicciolisciFoto } from "@/lib/foto-misure";
+import { accettaWebp, larghezzaFotoRichiesta, motivoFotoIntera, qualitaFotoRichiesta, rimpicciolisciFoto, vaTrasformata } from "@/lib/foto-misure";
 
 export const runtime = "nodejs";
 
@@ -223,12 +223,15 @@ export async function GET(request: NextRequest) {
     // distinguono solo pesandole, e il motivo si puo' solo indovinare.
     let esito = larghezza ? "ridimensionata" : "senza-misura-chiesta";
 
-    if (larghezza) {
+    // Senza misura una foto si consegna com'e', tranne quando chi chiede non
+    // legge il suo formato: l'anteprima social, per esempio, con le foto che
+    // la copia ha salvato in webp. Vedi `vaTrasformata`.
+    if (vaTrasformata({ larghezza, webp, tipo: contentType })) {
       try {
-        corpo = await rimpicciolisciFoto(buffer, larghezza, qualita, webp);
-        if (webp) {
-          tipo = "image/webp";
-        }
+        const pronta = await rimpicciolisciFoto(buffer, larghezza, qualita, webp);
+        corpo = pronta.corpo;
+        tipo = pronta.tipo;
+        if (!larghezza) esito = "convertita";
       } catch (errore) {
         // Un formato che la libreria non sa leggere -- l'HEIC dei telefoni
         // Apple, per esempio -- si consegna come e' arrivato: la foto intera
