@@ -609,7 +609,7 @@ nessun costo in piu'. **Niente e' ancora stato copiato.**
 
 ### Prima della prima copia, in quest'ordine
 
-**1. "Duplica" deve smettere di condividere il file dell'originale.**
+**1. "Duplica" deve smettere di condividere il file dell'originale.** *Fatto il 25/09/2026, vedi in fondo a questo punto.*
 Verificato il 25/09/2026 sul codice e sullo schema ricostruito, dopo un
 rilievo di chi ha letto il piano. "Duplica"
 (`src/components/vehicles/vehicles-management-page.tsx`, righe 1163-1182)
@@ -671,6 +671,20 @@ foto e senza nessun messaggio. Si corregge insieme.
 **Quando:** prima del primo giro di copia, non prima della migration. La
 migration si puo' eseguire subito: finche' nessuna foto e' "copiata", per
 "Duplica" non cambia niente.
+
+**Fatto il 25/09/2026.** La regola sta in `pianoFotoDellaCopia`
+(`src/lib/duplica-veicolo.ts`), la pagina la esegue e guarda l'esito di ogni
+passo. Il guardiano e' `src/lib/duplica-veicolo.test.ts`, provato rosso sulla
+pagina com'era e su un piano che tornasse a condividere il file. Le regole
+dell'archivio sono state provate sullo schema ricostruito **come un utente
+vero della concessionaria**: legge il file dell'originale, carica la copia
+nella sua cartella, scrive la riga; un'altra concessionaria non vede il
+file; caricare fuori dalla propria cartella e' rifiutato; togliere la copia
+lascia l'originale. Due limiti della prova, detti: i permessi di base che
+Supabase concede da se' su `storage.objects` sono stati concessi a mano nel
+banco (l'impalcatura non li regala, apposta); e il servizio dell'archivio,
+che per copiare usa quelle regole, non e' stato messo in moto -- lo fara' la
+prima duplicazione vera.
 
 ### Come funziona la copia
 
