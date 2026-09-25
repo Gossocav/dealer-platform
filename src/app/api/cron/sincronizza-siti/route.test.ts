@@ -26,7 +26,7 @@ vi.mock("@/lib/dealer-site-import", () => ({
   parseDealerStockVehicle: mocks.parseMock,
 }));
 
-vi.mock("@/lib/dealer-site-photos", () => ({ sostituisciFoto: mocks.sostituisciFotoMock }));
+vi.mock("@/lib/dealer-site-photos", () => ({ sostituisciFoto: mocks.sostituisciFotoMock, nuovoTettoCopieTolte: () => ({ restanti: 20 }) }));
 
 // La concessionaria di prova non e' in demo: il freno della demo ha i suoi
 // test altrove, qui interessa la sincronizzazione.
@@ -310,6 +310,9 @@ describe("le auto nuove", () => {
       "d1",
       "nuovo-1",
       ["https://www.autogepy.it/foto/9-800x0.jpg"],
+      // Il tetto delle foto copiate tolte, uno per concessionaria e per
+      // chiamata: senza, un cambio di nomi dei file butterebbe tutte le copie.
+      expect.objectContaining({ restanti: expect.any(Number) }),
     );
   });
 

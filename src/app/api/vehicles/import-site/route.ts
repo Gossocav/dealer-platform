@@ -16,7 +16,7 @@ import { parseDealerStockVehicle, type DealerSiteVehicle } from "@/lib/dealer-si
 import { leggiBloccoMotork } from "@/lib/blocco-motork";
 import { scriviDalSito, dalSito } from "@/lib/provenienza-dati";
 import { indirizzoDellaScheda, segnalaAIndexNow } from "@/lib/indexnow";
-import { sostituisciFoto } from "@/lib/dealer-site-photos";
+import { nuovoTettoCopieTolte, sostituisciFoto } from "@/lib/dealer-site-photos";
 import { segnalaErrore } from "@/lib/segnala-errore";
 import {
   COLONNE_DA_RILEGGERE,
@@ -288,6 +288,9 @@ export async function POST(request: Request) {
     // a piacere.
     const lotto = voci.slice(offset, offset + limit);
     const esiti: EsitoScheda[] = [];
+    // Il tetto delle foto copiate tolte vale per questo lotto: la stessa rete
+    // della sincronizzazione, per la stessa ragione.
+    const tettoFoto = nuovoTettoCopieTolte();
     // Chi chiede "pubblicata" ne ha diritto finche' c'e' posto; le altre
     // entrano lo stesso, in fila per il tetto (`src/lib/tetto-del-piano.ts`):
     // a fine lotto la regola decide chi sta in vetrina, usate per prime.
@@ -390,7 +393,12 @@ export async function POST(request: Request) {
       }
 
       if (vehicleId && veicolo.images.length > 0) {
-        await sostituisciFoto(supabase, dealerId, vehicleId, veicolo.images);
+        const galleria = await sostituisciFoto(supabase, dealerId, vehicleId, veicolo.images, tettoFoto);
+        // "Meglio se riesce": la scheda e' gia' scritta. Ma una galleria
+        // fermata o fallita si dice, non si lascia intendere che sia a posto.
+        if (galleria.esito === "fermata-dal-tetto" || galleria.esito === "non-letta" || (galleria.esito === "aggiornata" && galleria.errore)) {
+          segnalaErrore("import-site: galleria non aggiornata", new Error(galleria.esito), { vehicleId, galleria });
+        }
       }
 
       await new Promise((r) => setTimeout(r, PAUSA_FRA_SCHEDE_MS));
