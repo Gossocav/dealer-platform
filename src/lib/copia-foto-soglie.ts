@@ -24,4 +24,57 @@ export const SOGLIE_COPIA_FOTO = {
    * la seconda rimandata alla chiamata dopo: rimandata, non persa.
    */
   copieTolteMassimePerGiro: 20,
+
+  /** Regola 3: quante sentinelle si interrogano, e quante devono rispondere per dire "sano". */
+  sentinelle: 10,
+  sentinelleSane: 9,
+
+  /**
+   * Regola 4, il freno di giro: dopo almeno `frenoTentativiMinimi` tentativi su
+   * un server, se falliscono piu' di `frenoQuota` e almeno `frenoFalliteMinime`
+   * foto nuove, su quel server ci si ferma.
+   */
+  frenoTentativiMinimi: 20,
+  frenoFalliteMinime: 10,
+  frenoQuota: 0.05,
+
+  /** Regola 5: distanza minima fra i due "non esiste", e morte al massimo in 24 ore per server. */
+  oreFraIDueNonEsiste: 24,
+  morteMassimeIn24Ore: 20,
+
+  /** Regola 6: dopo quanti tentativi validi, e quanti giorni dal primo, una foto e' esaurita. */
+  tentativiPerEsaurire: 16,
+  giorniPerEsaurire: 7,
+
+  /** Quante richieste alla volta verso il server delle foto, e la pausa fra l'una e l'altra. */
+  richiesteInParallelo: 2,
+  pausaFraRichiesteMs: 150,
+
+  /**
+   * La stessa impronta su almeno tante origini diverse dello stesso server e'
+   * un segnaposto. **La larghezza invece non e' un criterio**, ed era nel piano:
+   * "almeno 400 px, la soglia del lettore dei siti". La prova sui dati veri del
+   * 25/09/2026 l'ha fatta cadere alla terza foto della coda: la copertina di
+   * una Peugeot 208 in vetrina e' un'immagine da catalogo larga 220 px, vera e
+   * voluta dal concessionario. Rifiutarla avrebbe lasciato proprio quella
+   * copertina su DealerK. Contro i segnaposto restano le prove che su
+   * un'immagine vera e piccola non sbagliano: il tipo, il percorso dopo i
+   * rimbalzi, e questa.
+   */
+  originiPerSegnaposto: 3,
+
+  /**
+   * **Le morte sono spente** finche' la regola di lettura del pubblico non le
+   * nasconde (serve una migration). Senza, una foto segnata morta resterebbe
+   * visibile e rotta, e il segno sarebbe una bugia. Intanto le foto con due
+   * "non esiste" su server sano aspettano, senza consumare tentativi.
+   */
+  morteAbilitate: false,
+
+  /**
+   * La data dell'appuntamento sui numeri (primo giro + 7 giorni). Da quel
+   * giorno ogni riepilogo lo ricorda. Si scrive quando parte il primo giro, si
+   * toglie quando la tabella in MIGRAZIONI.md e' compilata.
+   */
+  dataVerifica: null as string | null,
 } as const;

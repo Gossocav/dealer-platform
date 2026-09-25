@@ -686,6 +686,53 @@ banco (l'impalcatura non li regala, apposta); e il servizio dell'archivio,
 che per copiare usa quelle regole, non e' stato messo in moto -- lo fara' la
 prima duplicazione vera.
 
+**2. La sincronizzazione confronta le foto per identita'.** *Fatto il
+25/09/2026, PR #371:* senza, la sincronizzazione avrebbe buttato via le copie
+al primo ritocco del concessionario. Vedi sotto, "Come funziona la copia".
+
+**3. Il programma di copia.** *Scritto il 25/09/2026, e per ora parte solo a
+mano.* Le regole in codice stanno in `src/lib/copia-foto.ts` e
+`src/lib/copia-foto-giro.ts` (provate senza rete), i numeri in
+`src/lib/copia-foto-soglie.ts`, le operazioni vere in
+`src/app/api/cron/copia-foto/route.ts`, il lavoro periodico in
+`.github/workflows/copia-foto.yml`.
+
+**Il primo giro lo avvia il titolare:** *Actions* → *Copia delle foto nel
+nostro archivio* → *Run workflow*. Quel giorno si scrivono qui sotto, in
+"L'appuntamento", la data del primo giro e la data di verifica (piu' 7
+giorni), e la stessa data va in `dataVerifica` nel file dei numeri: da quel
+giorno ogni riepilogo la ricorda.
+
+**La prova a secco sui dati veri, 25/09/2026, senza scrivere niente.** La
+lettura della coda come la fa il programma: 4.825 righe, nessun errore, nessun
+troncamento. In coda **3.726**; fuori coda **1.099** foto di auto uscite dal
+sito e fuori vetrina. Le copertine delle auto in vetrina sono **267**, le foto in
+vetrina **3.230**: non 269 e 3.245 come scritto prima, perche' delle 269 auto
+pubblicate una ha le foto caricate a mano (gia' nostre) e una -- l'Alfa Romeo
+Tonale qui sopra -- era esclusa per errore dalla regola 1, corretta. Scaricate
+e verificate tre foto vere: tre immagini, stessa foto dopo i rimbalzi. Da
+quella prova sono cadute due regole del piano (vedi la regola 1 e "Come
+scarica"). **Ed e' un'anomalia a se', annotata e non corretta:** un'auto
+segnata uscita dal sito dal 29/08 non dovrebbe essere ancora in vetrina.
+
+**Il banco del lavoro periodico**, sei casi con un finto endpoint, tutti col
+colore atteso e ogni rosso con il suo `::error::`: sano (tre chiamate finche'
+c'e' altro da fare), chiamate cadute, server fermato, successo non
+guadagnato, promemoria dell'appuntamento, segreto mancante. Due volte il banco
+ha sbagliato da solo prima di dire il vero -- la sonda che aspettava il finto
+server faceva una chiamata vera, e `${3:-...}` sostituiva anche il segreto
+vuoto -- ed e' stato corretto il banco, non il lavoro.
+
+**Cosa non c'e' ancora, e va fatto prima delle date scritte accanto:**
+
+| cosa | quando |
+|---|---|
+| la regola di lettura del pubblico che nasconde le morte (una migration), e poi `morteAbilitate` acceso | prima che servano: oggi le foto con due "non esiste" aspettano, senza consumare tentativi |
+| il controllo settimanale che rimette in coda morte ed esaurite che tornano a rispondere | entro sette giorni dal primo giro: prima non esiste nessuna esaurita |
+| il riquadro nel gestionale con i conti della copia | quando c'e' qualcosa da mostrare |
+| la sentinella del nostro lato (qualche foto copiata riletta dal nostro archivio) | con il riquadro |
+| l'avvio automatico dopo ogni sincronizzazione | dopo il primo giro verificato |
+
 ### Come funziona la copia
 
 Ogni foto ricorda da dove viene (`origine_url`) e com'e' andata la copia. Il
@@ -749,10 +796,13 @@ primo giro.
 inutile la regola 2. Chiede la misura normalizzata (1600 px), la stessa che
 interrogano le sentinelle. Prima di scrivere "copiata" controlla che sia
 davvero la foto: dopo gli eventuali rimbalzi l'indirizzo ha lo stesso
-percorso; il tipo e' un'immagine; si decodifica e larga almeno 400 px; e se la
-stessa impronta c'e' gia' su tre o piu' origini diverse dello stesso server, e'
-un segnaposto ("hotlink vietato", dominio parcheggiato): conta come
-fallimento, frena il server e non marca niente. Oggi DealerK risponde 404
+percorso; il tipo e' un'immagine; si decodifica; e se la stessa impronta c'e'
+gia' su tre o piu' origini diverse dello stesso server, e' un segnaposto ("hotlink vietato", dominio parcheggiato): conta come
+fallimento, frena il server e non marca niente. *La larghezza minima di 400 px
+era nel piano ed e' caduta alla prova sui dati veri, 25/09/2026*: la terza
+foto della coda e' la copertina di una Peugeot 208 in vetrina, un'immagine da
+catalogo larga 220 px, vera e voluta dal concessionario. Rifiutarla avrebbe
+lasciato proprio quella copertina su DealerK. Oggi DealerK risponde 404
 vero ai file mancanti, non un segnaposto: e' un difetto che aspetta, e con la
 copia diventerebbe definitivo. Due richieste alla volta, con una pausa: il
 numero sta nello stesso file delle altre soglie.
@@ -782,10 +832,13 @@ copiata **dal nostro archivio**: la sentinella del nostro lato.
    questo, poche foto difettose in testa alla coda verrebbero riprovate per
    prime a ogni giro, farebbero scattare il freno, e il resto non verrebbe mai
    copiato: e' il difetto di Autogepy dell'11/09/2026, *"un sito che frena perde
-   il turno, non il lavoro"*. Le foto delle auto **uscite dal sito**
-   (`import_missing_since`) escono dalla coda, non dalla tabella, e ci
-   rientrano se l'auto ricompare: DealerK cancella le loro foto, e i loro 404
-   veri consumerebbero il tetto delle morte per auto che nessuno vede.
+   il turno, non il lavoro"*. Le foto delle auto **uscite dal sito e fuori
+   vetrina** escono dalla coda, non dalla tabella, e ci rientrano se l'auto
+   ricompare: DealerK cancella le loro foto, e i loro 404 veri consumerebbero
+   il tetto delle morte per auto che nessuno vede. *"E fuori vetrina" l'ha
+   aggiunto la prova sui dati veri del 25/09/2026*: un'Alfa Romeo Tonale
+   segnata uscita dal sito dal 29/08 e' ancora in vetrina, e le sue foto sono
+   visibili a tutti.
 2. **Solo 404 e 410 vogliono dire "non esiste".** Letti dall'origine, e
    **riconfermati con un parametro casuale nell'indirizzo** prima di essere
    scritti, perche' Cloudflare tiene in memoria anche un 404 (circa tre
