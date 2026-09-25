@@ -22,7 +22,10 @@ vi.mock("@/lib/dealer-site-fetch", () => ({
   PAUSA_FRA_SCHEDE_MS: 0,
 }));
 
-vi.mock("@/lib/dealer-site-import", () => ({
+// Il lettore della pagina e' finto; la regola che decide se un'auto nuova
+// entra -- senza foto proprie no -- resta quella vera.
+vi.mock("@/lib/dealer-site-import", async (importOriginal) => ({
+  schedaNuovaDaImportare: (await importOriginal<typeof import("@/lib/dealer-site-import")>()).schedaNuovaDaImportare,
   parseDealerStockVehicle: mocks.parseMock,
 }));
 
@@ -319,6 +322,34 @@ describe("le auto nuove", () => {
   // Il tetto di annunci del piano si presenta cosi': se non c'e' posto per
   // una, non ce n'e' per nessuna. Si smette e lo si riporta, invece di
   // ritentare per ognuna delle centocinquanta.
+  // Fino al 25/09/2026 una scheda senza foto proprie entrava con le miniature
+  // delle vetture simili: una Mitsubishi Outlander in vetrina mostrava una
+  // Citroen C5 Aircross. Adesso un'auto nuova senza foto proprie non entra.
+  it("un'auto nuova senza foto proprie non entra, e non e' un errore", async () => {
+    const { client, insert } = supabaseFinto({
+      sorgenti: [{ dealer_id: "d1", import_source: "delorenziauto.it" }],
+      archivio: [],
+      daRileggere: [],
+    });
+    mocks.createClientMock.mockReturnValue(client);
+    mocks.elencoStockMock.mockResolvedValue([
+      { sourceId: "9", url: "https://www.delorenziauto.it/auto/usate/x/9/", condition: "Usato" },
+    ]);
+    mocks.leggiPaginaMock.mockResolvedValue("<html></html>");
+    mocks.parseMock.mockReturnValue({
+      ok: true,
+      vehicle: { sourceId: "9", brand: "Mitsubishi", model: "Outlander", price: 38900, images: [] },
+    });
+
+    const risposta = await GET(richiesta("GET", { authorization: `Bearer ${SEGRETO}` }));
+    const corpo = (await risposta.json()) as { esiti: Array<{ importate: number; errori?: string[] }> };
+
+    expect(corpo.esiti[0].importate).toBe(0);
+    expect(corpo.esiti[0].errori ?? []).toEqual([]);
+    expect(insert).not.toHaveBeenCalled();
+    expect(mocks.sostituisciFotoMock).not.toHaveBeenCalled();
+  });
+
   it("se il database rifiuta l'inserimento si ferma e lo dice", async () => {
     const { client } = supabaseFinto({
       sorgenti: [{ dealer_id: "d1", import_source: "autogepy.it" }],
@@ -336,7 +367,9 @@ describe("le auto nuove", () => {
     mocks.leggiPaginaMock.mockResolvedValue("<html></html>");
     mocks.parseMock.mockReturnValue({
       ok: true,
-      vehicle: { sourceId: "9", brand: "Jeep", model: "Avenger", price: 1, images: [] },
+      // Con una foto propria: senza, l'auto nuova si fermerebbe prima
+      // dell'inserimento e questo caso non proverebbe niente.
+      vehicle: { sourceId: "9", brand: "Jeep", model: "Avenger", price: 1, images: ["https://www.autogepy.it/foto/9-800x0.jpg"] },
     });
 
     const risposta = await GET(richiesta("GET", { authorization: `Bearer ${SEGRETO}` }));

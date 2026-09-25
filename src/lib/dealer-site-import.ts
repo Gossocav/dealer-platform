@@ -758,16 +758,47 @@ function leggiFoto(html: string): string[] {
     (voce) => voce.larghezzaMassima >= LARGHEZZA_MINIMA_GALLERIA
   );
 
+  // **Solo le foto che la pagina pubblica in piu' misure, e nessun ripiego.**
+  //
+  // Fino al 25/09/2026 qui c'era: "se nessuna fotografia comparisse in piu'
+  // misure... meglio una galleria con qualche intrusa che una scheda senza
+  // foto". Su una scheda senza foto proprie le intruse sono proprio le
+  // miniature delle vetture simili, e su delorenziauto quelle sono larghe 400
+  // come le foto vere: una Mitsubishi Outlander in vetrina mostrava le
+  // immagini da catalogo di una Citroen C5 Aircross. Non e' una galleria
+  // imperfetta, e' un annuncio ingannevole -- un compratore guarda un'auto e ne
+  // comprerebbe un'altra -- e non se ne accorge nessuno. Una scheda senza foto
+  // e' onesta e si corregge; una con le foto di un'altra auto no.
+  //
+  // **Un limite noto, non corretto:** su ponginibbigroup.it anche le foto del
+  // carosello delle altre auto compaiono in piu' misure, e questa regola le
+  // tiene. Si vede solo sulle auto con meno di venti foto proprie. Misure e
+  // strada in supabase/MIGRAZIONI.md, "Il controllo pagina per pagina".
   const inPiuMisure = abbastanzaGrandi.filter((voce) => voce.misure.size >= MISURE_MINIME_GALLERIA);
 
-  // Se nessuna fotografia comparisse in piu' misure il criterio non
-  // saprebbe distinguere niente: meglio una galleria con qualche intrusa che
-  // una scheda senza foto, che verrebbe scartata del tutto.
-  const scelte = inPiuMisure.length > 0 ? inPiuMisure : abbastanzaGrandi;
-
-  return scelte
+  return inPiuMisure
     .sort((a, b) => a.ordine - b.ordine)
     .map((voce) => normalizzaMisuraFoto(voce.url));
+}
+
+/**
+ * Una scheda che entra per la prima volta: senza foto proprie non entra.
+ *
+ * Su un marketplace di automobili la foto e' la prima cosa che si guarda e
+ * spesso l'unica prima del clic: una scheda senza immagini occupa un posto in
+ * griglia, abbassa la fiducia in tutte le altre e non porta contatti. Ed e' un
+ * buon segnale d'allarme: se una scheda non ha foto, quasi sempre non e'
+ * pronta nemmeno sul sito della concessionaria.
+ *
+ * Vale solo per le auto **nuove**. Un'auto gia' in archivio si aggiorna nei
+ * dati anche quando la sua pagina oggi non ha foto proprie, e la sua galleria
+ * resta com'e'.
+ */
+export function schedaNuovaDaImportare(letto: ParsedVehicle): ParsedVehicle {
+  if (letto.ok && letto.vehicle.images.length === 0) {
+    return { ok: false, reason: "senza-foto", url: letto.vehicle.url };
+  }
+  return letto;
 }
 
 export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): ParsedVehicle {
@@ -803,20 +834,12 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
   const senzaChilometriDiFabbrica = entry.condition === "Km/0" || entry.condition === "Nuovo";
   const mileage = mileageGrezzo === null && senzaChilometriDiFabbrica ? 0 : mileageGrezzo;
 
+  // Le foto proprie, anche nessuna. La scheda esce lo stesso con i suoi dati:
+  // un'auto gia' in archivio va aggiornata nel prezzo e nei chilometri anche
+  // quando la sua pagina oggi non ha foto proprie. Scartarla qui, come si
+  // faceva, fermava il ripasso dei dati proprio sulle auto senza foto. Lo
+  // scarto "senza foto" vale per le auto nuove, in `schedaNuovaDaImportare`.
   const images = leggiFoto(html);
-
-  // Un annuncio senza fotografie non e' un annuncio.
-  //
-  // Su un marketplace di automobili la foto e' la prima cosa che si guarda e
-  // spesso l'unica prima del clic: una scheda senza immagini occupa un posto
-  // in griglia, abbassa la fiducia in tutte le altre e non porta contatti.
-  // Meglio non averla che averla vuota.
-  //
-  // E' anche un buon segnale d'allarme: se una scheda non ha foto, quasi
-  // sempre non e' pronta nemmeno sul sito della concessionaria.
-  if (images.length === 0) {
-    return { ok: false, reason: "senza-foto", url: entry.url };
-  }
 
   return {
     ok: true,

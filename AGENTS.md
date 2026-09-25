@@ -1352,6 +1352,33 @@ regex dovrebbe trovare** -- qui un campo nuovo chiamato `euro6_ready` -- e si
 guarda che il test diventi rosso. Se resta verde, non e' il codice a essere
 sano: e' il controllo a non guardare.
 
+**E la regex che toglie i commenti prima di cercare e' parte del controllo
+anche lei -- e quando sbaglia, sbaglia a favore dei "non deve contenere".**
+Il 25/09/2026 `sincronizzazioni-veicoli.test.ts` non trovava piu' una frase
+che nel file c'era. Il test toglieva i commenti con `/\*[\s\S]*?\*/`, che vede
+l'inizio di un commento in **ogni** `/*` -- anche dentro la stringa
+`"text/xml, */*"` dell'intestazione `Accept` -- e lo chiude al primo `*/` che
+trova, centinaia di righe piu' avanti. Il giorno in cui dopo quella stringa e'
+comparso un commento vero, il test ha buttato via **516 righe di codice**
+prima di guardare.
+
+Quel test cercava una frase che doveva esserci, e quindi e' diventato rosso:
+e' l'unico motivo per cui ce ne siamo accorti. **Un test che pretende che
+una cosa non ci sia, su un codice mangiato, passa sempre** -- e nessuno ha
+motivo di guardarlo. Le stringhe che innescano lo stesso difetto ci sono gia'
+in `src/proxy.ts` (la politica di sicurezza), in `src/app/robots.ts` (`/*_rsc`)
+e in `src/lib/og-card.tsx` (`*/*`).
+
+Quello e' stato corretto: il commento comincia a inizio riga o dopo uno spazio
+(`/(^|\s)\/\*[\s\S]*?\*\//g`), e il test e' stato riprovato rosso su un
+difetto vero. **Gli altri venti test che tolgono i commenti, ognuno con la sua
+copia dell'espressione, non sono stati toccati**: l'elenco e il perche' stanno
+in [MIGRAZIONI.md](supabase/MIGRAZIONI.md), sotto "Trovato leggendo". Vanno
+rivisti tutti insieme, con una funzione sola al posto di ventuno copie. Fino
+ad allora, chi scrive un test che toglie i commenti prima di un
+`not.toContain` controlli che cio' che resta sia ancora il file: basta
+stamparne la lunghezza prima e dopo.
+
 **E vale anche quando a cercare non e' un test, ma chi indaga -- con la
 differenza che li' non c'e' nessun rosso a smentirti.** Un guardiano che
 guarda male almeno vive nel repository e prima o poi qualcuno lo rilegge. Una
