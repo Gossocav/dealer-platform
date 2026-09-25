@@ -25,6 +25,7 @@
  * `dealer-site-import.ts`: si puo' provare su pagine vere senza rischi.
  */
 
+import { chiaveDellaFoto } from "@/lib/identita-foto";
 import { esitoTarga } from "@/lib/targa";
 import { telaioDaSalvare } from "@/lib/telaio";
 
@@ -218,6 +219,47 @@ export function ingressoAttendibile(
 
   const km0 = String(categoria ?? "").toUpperCase().includes("KM0");
   return scarto >= (km0 ? -60 : -31);
+}
+
+/**
+ * Le foto che il blocco di **questa** scheda dichiara sue, come identita'
+ * (`chiaveDellaFoto`: cartella e nome del file, senza misura).
+ *
+ * Tre risposte, e non si confondono:
+ * - `null`: la pagina non ha un blocco che parli di questa vettura. Non si sa,
+ *   e chi chiama fa come prima.
+ * - insieme vuoto: il blocco c'e' e non dichiara nessuna foto. Su De Lorenzi
+ *   e' il caso delle auto senza foto: al posto dell'elenco c'e' solo il
+ *   segnaposto di DealerK (`/cars/placeholder/`).
+ * - le foto dell'elenco `vehicleData.imageList`.
+ *
+ * **Perche' serve.** Il lettore riconosce le foto dell'auto perche' la pagina
+ * le pubblica in piu' misure. Su ponginibbigroup.it anche le 24 foto del
+ * carosello delle altre auto compaiono in piu' misure, e passavano: un'auto con
+ * meno di venti foto proprie si riempiva di foto altrui (la Citroen Ami, 2 sue
+ * e 18 di altre auto, 25/09/2026). L'elenco del blocco e' legato alla scheda
+ * dall'identificativo, come la targa. Misurato quel giorno su 294 pagine dei
+ * tre siti: ogni pagina ha il blocco della sua scheda; dove l'elenco c'e',
+ * contiene tutte le foto che il lettore prende, nello stesso ordine, e su
+ * Ponginibbi nessuna di quelle del carosello.
+ */
+export function fotoDelBlocco(html: string, sourceId: string): Set<string> | null {
+  const dati = bloccoDellaScheda(html, sourceId);
+  if (!dati) return null;
+
+  const dichiarate = new Set<string>();
+  const elenco = Array.isArray(dati.imageList) ? dati.imageList : [];
+  for (const voce of elenco) {
+    if (!voce || typeof voce !== "object") continue;
+    // Ogni voce porta la stessa foto in piu' misure: ne basta una qualsiasi,
+    // l'identita' non dipende dalla misura.
+    for (const valore of Object.values(voce as Grezzo)) {
+      if (typeof valore === "string" && valore.includes("/dealer/datafiles/vehicle/images/")) {
+        dichiarate.add(chiaveDellaFoto(valore));
+      }
+    }
+  }
+  return dichiarate;
 }
 
 /**

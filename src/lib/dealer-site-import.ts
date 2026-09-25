@@ -1,3 +1,5 @@
+import { fotoDelBlocco } from "@/lib/blocco-motork";
+import { chiaveDellaFoto } from "@/lib/identita-foto";
 import { normalizeVehicleTraction } from "@/lib/vehicles";
 
 /**
@@ -719,7 +721,7 @@ export function normalizzaMisuraFoto(url: string) {
   return `${prima}${PERCORSO_FOTO_VEICOLO}${pezzi.join("/")}`;
 }
 
-function leggiFoto(html: string): string[] {
+function leggiFoto(html: string, sourceId: string): string[] {
   const trovate = Array.from(html.matchAll(/https:\/\/cdn\.dealerk\.it\/[^"'\s)]+?\.(?:jpe?g|png|webp)/gi)).map((m) => m[0]);
 
   // Una voce per fotografia, riconosciuta dal nome del file: e' l'unica parte
@@ -769,14 +771,20 @@ function leggiFoto(html: string): string[] {
   // imperfetta, e' un annuncio ingannevole -- un compratore guarda un'auto e ne
   // comprerebbe un'altra -- e non se ne accorge nessuno. Una scheda senza foto
   // e' onesta e si corregge; una con le foto di un'altra auto no.
-  //
-  // **Un limite noto, non corretto:** su ponginibbigroup.it anche le foto del
-  // carosello delle altre auto compaiono in piu' misure, e questa regola le
-  // tiene. Si vede solo sulle auto con meno di venti foto proprie. Misure e
-  // strada in supabase/MIGRAZIONI.md, "Il controllo pagina per pagina".
   const inPiuMisure = abbastanzaGrandi.filter((voce) => voce.misure.size >= MISURE_MINIME_GALLERIA);
 
-  return inPiuMisure
+  // **E fra quelle, solo le foto che il blocco della scheda dichiara sue.**
+  // Su ponginibbigroup.it anche le 24 foto del carosello delle altre auto
+  // compaiono in piu' misure, e la regola qui sopra le teneva: un'auto con
+  // meno di venti foto proprie si riempiva di foto altrui. Il blocco e' legato
+  // alla scheda dall'identificativo (`fotoDelBlocco`); dove la pagina non ne
+  // ha uno, si resta alla regola delle misure. Un blocco che non dichiara
+  // nessuna foto vuol dire un'auto senza foto, anche se la pagina ne mostra
+  // altre in piu' misure.
+  const dichiarate = fotoDelBlocco(html, sourceId);
+  const sue = dichiarate === null ? inPiuMisure : inPiuMisure.filter((voce) => dichiarate.has(chiaveDellaFoto(voce.url)));
+
+  return sue
     .sort((a, b) => a.ordine - b.ordine)
     .map((voce) => normalizzaMisuraFoto(voce.url));
 }
@@ -839,7 +847,7 @@ export function parseDealerStockVehicle(html: string, entry: DealerSiteEntry): P
   // quando la sua pagina oggi non ha foto proprie. Scartarla qui, come si
   // faceva, fermava il ripasso dei dati proprio sulle auto senza foto. Lo
   // scarto "senza foto" vale per le auto nuove, in `schedaNuovaDaImportare`.
-  const images = leggiFoto(html);
+  const images = leggiFoto(html, entry.sourceId);
 
   return {
     ok: true,
