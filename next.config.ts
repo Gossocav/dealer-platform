@@ -51,6 +51,10 @@ const nextConfig: NextConfig = {
   // aggiungere file che il tracciamento non puo' dedurre da solo.
   outputFileTracingIncludes: {
     "/api/image-proxy": ["./node_modules/@img/sharp-libvips-linux-x64/**/*"],
+    // La copia delle foto nel nostro archivio usa sharp per verificare che
+    // l'immagine scaricata sia davvero una foto: senza la libreria, ogni foto
+    // risulterebbe illeggibile.
+    "/api/cron/copia-foto": ["./node_modules/@img/sharp-libvips-linux-x64/**/*"],
   },
 };
 

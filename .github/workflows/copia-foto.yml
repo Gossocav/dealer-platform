@@ -1,0 +1,153 @@
+name: Copia delle foto nel nostro archivio
+
+# Copia le foto dei veicoli da DealerK al nostro archivio. Perche', e le
+# regole: supabase/MIGRAZIONI.md, "Le foto stanno su un server non nostro".
+#
+# **Per ora parte solo a mano** (Actions -> "Copia delle foto nel nostro
+# archivio" -> Run workflow). Il primo giro lo avvia il titolare: quel giorno si
+# scrive in src/lib/copia-foto-soglie.ts la data dell'appuntamento (primo giro
+# + 7 giorni). Dopo il primo giro verificato, si aggiunge l'avvio automatico
+# dopo ogni sincronizzazione (workflow_run), anche quando la sincronizzazione
+# esce rossa: la copia ha un verdetto suo.
+#
+# Lo stesso gruppo di concorrenza della sincronizzazione: le due non girano
+# mai insieme sulle stesse gallerie.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sincronizza-siti
+  cancel-in-progress: false
+
+jobs:
+  copia:
+    name: copia
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Copia le foto
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # L'indirizzo pubblico della piattaforma: non e' riservato, e' il sito.
+          BASE_URL: https://www.keyauto.it
+        # Python e non bash: le trappole gia' pagate con `bash -e` -- una
+        # pipeline che non fallisce, un'uscita senza nessun messaggio -- qui
+        # non esistono. E il verdetto si decide in un posto solo, alla fine.
+        shell: python
+        run: |
+          import json, os, sys, time, urllib.error, urllib.request
+          from datetime import datetime, timezone
+
+          errori = []          # ogni uscita rossa ha qui la sua ragione, scritta come ::error::
+          avvisi = []
+          risposte = []
+          cadute = 0
+          cadute_di_fila = 0
+          inizio = time.time()
+          iniziato_il = datetime.now(timezone.utc).isoformat()
+
+          def scrivi_riepilogo(testo):
+              percorso = os.environ.get("GITHUB_STEP_SUMMARY")
+              if not percorso:
+                  return
+              try:
+                  with open(percorso, "a", encoding="utf-8") as f:
+                      f.write(testo + "\n")
+              except OSError as e:
+                  avvisi.append(f"riepilogo non scritto: {e}")
+
+          segreto = os.environ.get("CRON_SECRET", "")
+          if not segreto:
+              print("::error::Il segreto CRON_SECRET non esiste (Settings -> Secrets and variables -> Actions).")
+              sys.exit(1)
+
+          # Un giro = una chiamata. Si richiama finche' il tempo del giro e' finito
+          # con foto ancora da provare, entro 25 minuti e 60 chiamate.
+          for numero in range(1, 61):
+              if time.time() - inizio > 25 * 60:
+                  avvisi.append("fermato dopo 25 minuti: il resto al prossimo lavoro")
+                  break
+              richiesta = urllib.request.Request(
+                  os.environ["BASE_URL"] + "/api/cron/copia-foto",
+                  data=json.dumps({"iniziatoIl": iniziato_il}).encode(),
+                  headers={"content-type": "application/json", "x-cron-secret": segreto},
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(richiesta, timeout=75) as r:
+                      corpo = json.loads(r.read().decode("utf-8"))
+                  risposte.append(corpo)
+                  cadute_di_fila = 0
+              except urllib.error.HTTPError as e:
+                  cadute += 1
+                  cadute_di_fila += 1
+                  try:
+                      spiegazione = json.loads(e.read().decode("utf-8")).get("error", "")
+                  except Exception:
+                      spiegazione = ""
+                  avvisi.append(f"chiamata {numero}: HTTP {e.code} {spiegazione}".strip())
+              except Exception as e:
+                  cadute += 1
+                  cadute_di_fila += 1
+                  avvisi.append(f"chiamata {numero}: {type(e).__name__} {e}")
+              if cadute_di_fila >= 3:
+                  errori.append("tre chiamate di fila non sono riuscite: il giro si ferma")
+                  break
+              if risposte and cadute_di_fila == 0 and not risposte[-1].get("ancoraDaFare"):
+                  break
+
+          # I conti, sommati su tutte le chiamate, server per server.
+          campi = ["tentativi", "copiate", "superate", "nonEsiste", "nonRaggiunte", "nonEraLaFoto", "archivio", "morte", "inAttesa"]
+          per_server = {}
+          fermate = {}
+          for corpo in risposte:
+              for host, s in (corpo.get("server") or {}).items():
+                  somma = per_server.setdefault(host, {c: 0 for c in campi})
+                  for c in campi:
+                      somma[c] += int(s.get(c) or 0)
+                  if s.get("fermata") or s.get("sentinelle") == "non-risponde":
+                      fermate.setdefault(host, set()).add(s.get("fermata") or "le sentinelle dicono che non risponde")
+
+          coda_iniziale = risposte[0].get("coda") if risposte else None
+          provate = sum(int(c.get("provate") or 0) for c in risposte)
+          copiate = sum(v["copiate"] for v in per_server.values())
+          promemoria = next((c.get("promemoria") for c in reversed(risposte) if c.get("promemoria")), None)
+
+          # Il verdetto, in coppia: un rosso senza ragione e' un'uscita non
+          # dichiarata; un verde che non ha lavorato e' un successo non guadagnato.
+          if not risposte:
+              errori.append(f"nessuna chiamata e' riuscita ({cadute} cadute)")
+          elif coda_iniziale and provate == 0:
+              errori.append(f"successo non guadagnato: {coda_iniziale} foto in coda e nessuna provata")
+          for host, motivi in fermate.items():
+              errori.append(f"{host}: il giro si e' fermato ({', '.join(sorted(motivi))}). Le foto non provate aspettano il prossimo giro.")
+
+          righe = [
+              "## Copia delle foto nel nostro archivio",
+              "",
+              f"In **{len(risposte)} chiamate riuscite** ({cadute} cadute): **{copiate} foto copiate**, {provate} provate, coda all'inizio {coda_iniziale if coda_iniziale is not None else 'non letta'}.",
+              "",
+              "| server | tentativi | copiate | superate | non esiste | non raggiunte | non era la foto | nostro archivio | in attesa | morte |",
+              "|---|---|---|---|---|---|---|---|---|---|",
+          ]
+          for host, v in sorted(per_server.items()):
+              righe.append(f"| {host} | {v['tentativi']} | {v['copiate']} | {v['superate']} | {v['nonEsiste']} | {v['nonRaggiunte']} | {v['nonEraLaFoto']} | {v['archivio']} | {v['inAttesa']} | {v['morte']} |")
+          if risposte and not risposte[-1].get("morteAbilitate", False):
+              righe += ["", "_Le morte sono spente: una foto con due \"non esiste\" su un server sano aspetta, senza consumare tentativi._"]
+          if promemoria:
+              righe += ["", f"> [!IMPORTANT]\n> {promemoria}"]
+              print(f"::notice::{promemoria}")
+          for a in avvisi:
+              print(f"::warning::{a}")
+          if avvisi:
+              righe += ["", "**Avvisi**", *[f"- {a}" for a in avvisi]]
+          if errori:
+              righe += ["", "**Perche' e' rosso**", *[f"- {e}" for e in errori]]
+          scrivi_riepilogo("\n".join(righe))
+
+          for e in errori:
+              print(f"::error::{e}")
+          sys.exit(1 if errori else 0)
