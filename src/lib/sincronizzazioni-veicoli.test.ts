@@ -84,9 +84,15 @@ describe("riepilogo delle sincronizzazioni", () => {
  * inventati. I dati di esempio stanno in questo file, e solo qui.
  */
 describe("niente dati inventati sul percorso vero", () => {
+  // Un commento a blocchi comincia a inizio riga o dopo uno spazio. Senza
+  // questa condizione l'espressione vedeva l'inizio di un commento anche
+  // dentro una stringa -- l'intestazione `Accept: "..., text/xml, */*"` della
+  // rotta -- e il 25/09/2026, il giorno che dopo quella riga e' comparso un
+  // commento vero, ha tolto 516 righe di codice: il test cercava una frase
+  // che c'era, non la trovava, e diventava rosso per colpa sua.
   const senzaCommenti = (percorso: string) =>
     readFileSync(resolve(process.cwd(), percorso), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|\s)\/\*[\s\S]*?\*\//g, "$1")
       .replace(/^\s*\/\/.*$/gm, "")
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
 

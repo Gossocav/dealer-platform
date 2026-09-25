@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { caricaTutto } from "@/lib/carica-tutto";
 import { elencoStock, leggiPaginaConEsito, PAUSA_FRA_SCHEDE_MS } from "@/lib/dealer-site-fetch";
 import { parseDealerStockVehicle, type DealerSiteEntry } from "@/lib/dealer-site-import";
-import { sostituisciFoto } from "@/lib/dealer-site-photos";
+import { nuovoTettoCopieTolte, sostituisciFoto, type EsitoGalleria } from "@/lib/dealer-site-photos";
 import {
   COLONNE_DA_RILEGGERE,
   campiDalBloccoRicco,
@@ -307,6 +307,21 @@ async function allinea(
  * si vedano. Il tetto di annunci del piano resta a fare da freno -- se non c'e'
  * piu' posto il database rifiuta, e si smette invece di ritentare per ognuna.
  */
+/**
+ * Cosa dire di una galleria che non e' andata come doveva. Una galleria
+ * fermata dal tetto delle foto copiate tolte non e' un errore della scheda: e'
+ * la rete che scatta, e si dice con il suo nome.
+ */
+function notaGalleria(sourceId: string, esito: EsitoGalleria | undefined): string | null {
+  if (!esito) return null;
+  if (esito.esito === "fermata-dal-tetto") {
+    return `${sourceId}: galleria non aggiornata, toglierebbe ${esito.tolteCopiate} foto copiate e il tetto di questa chiamata ne lascia ${esito.restanti}`;
+  }
+  if (esito.esito === "non-letta") return `${sourceId}: galleria non letta (${esito.errore})`;
+  if (esito.esito === "aggiornata" && esito.errore) return `${sourceId}: galleria (${esito.errore})`;
+  return null;
+}
+
 async function importaNuove(
   supabase: ApiSupabaseClient,
   sorgente: Sorgente,
@@ -316,6 +331,7 @@ async function importaNuove(
   pausaMs: number,
 ): Promise<{ fila: EsitoFila; errori: string[] }> {
   const errori: string[] = [];
+  const tettoFoto = nuovoTettoCopieTolte();
   // Quante possono entrare pubblicate adesso. Le altre entrano lo stesso, in
   // fila per il tetto: al prossimo giro la regola decide chi sale, e a un'usata
   // arrivata dopo non tocca restare fuori solo perche' e' arrivata dopo.
@@ -382,7 +398,8 @@ async function importaNuove(
       if (inVetrina && posti !== null) posti -= 1;
 
       if (letto.vehicle.images.length > 0) {
-        await sostituisciFoto(supabase, sorgente.dealer_id, inserito.id, letto.vehicle.images);
+        const nota = notaGalleria(letto.vehicle.sourceId, await sostituisciFoto(supabase, sorgente.dealer_id, inserito.id, letto.vehicle.images, tettoFoto));
+        if (nota && errori.length < 5) errori.push(nota);
       }
       return "fatta";
     },
@@ -432,6 +449,7 @@ async function rileggi(
 
   const daRileggere = (data ?? []) as unknown as RigaDaRileggere[];
   const errori: string[] = [];
+  const tettoFoto = nuovoTettoCopieTolte();
 
   // La voce dell'indice e non il solo indirizzo: da li' arriva anche la
   // condizione (usata o km 0), che sta nel percorso e non nella pagina.
@@ -532,7 +550,8 @@ async function rileggi(
       // Le fotografie seguono i dati: sul sito cambiano, e una galleria vecchia
       // e' visibile quanto un prezzo vecchio.
       if (letto.ok && letto.vehicle.images.length > 0) {
-        await sostituisciFoto(supabase, sorgente.dealer_id, voce.rigaId, letto.vehicle.images);
+        const nota = notaGalleria(voce.sourceId, await sostituisciFoto(supabase, sorgente.dealer_id, voce.rigaId, letto.vehicle.images, tettoFoto));
+        if (nota && errori.length < 5) errori.push(nota);
       }
 
       return "fatta";

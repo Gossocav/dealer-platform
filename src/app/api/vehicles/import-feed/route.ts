@@ -13,6 +13,7 @@ import {
   validateVehicleImportRow,
 } from "@/lib/vehicle-import";
 import { caricaTutto } from "@/lib/carica-tutto";
+import { chiaveDellaFoto, eFotoEsterna } from "@/lib/identita-foto";
 import { resolveDealerIdFromTenantSources } from "@/lib/dealer-id-resolution";
 import { riepilogaSincronizzazioni, type RigaVeicoloImportato } from "@/lib/sincronizzazioni-veicoli";
 import { getDemoFeatureBlockReason, resolveDemoAccessContext } from "@/lib/demo-access";
@@ -702,35 +703,58 @@ export async function findDuplicateVehicleId(supabase: ApiSupabaseClient, dealer
   return match?.id ? String(match.id) : null;
 }
 
+/**
+ * Le foto di un'auto importata da feed: si aggiungono, non si sostituiscono.
+ *
+ * **Si riconoscono per identita', non per indirizzo** (25/09/2026). Il
+ * confronto era su `image_url`: dopo la copia di una foto nel nostro archivio
+ * l'indirizzo diventa un percorso nostro, e la stessa foto rimandata dal feed
+ * non si riconosceva piu' -- una galleria da 8 foto arrivava a 20 righe in tre
+ * importazioni, la prima ripetuta tre volte (misurato da un revisore con la
+ * funzione vera). Ora il confronto e' sull'origine, con la stessa chiave della
+ * sincronizzazione dai siti (`chiaveDellaFoto`), e ogni foto nuova entra con la
+ * sua origine: la copia la fa il programma.
+ */
 export async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId: string, vehicleId: string, imageUrls: string[]) {
-  const urls = Array.from(new Set(imageUrls.map((url) => String(url ?? "").trim()).filter(Boolean)));
+  // Una voce per foto: la stessa foto in due misure e' una.
+  const urls: string[] = [];
+  const chiaviNuove = new Set<string>();
+  for (const url of imageUrls.map((u) => String(u ?? "").trim()).filter(Boolean)) {
+    const chiave = chiaveDellaFoto(url);
+    if (chiaviNuove.has(chiave)) continue;
+    chiaviNuove.add(chiave);
+    urls.push(url);
+  }
   if (urls.length === 0) {
     return;
   }
 
+  const riga = (url: string, position: number, is_cover: boolean) => ({
+    dealer_id: dealerId,
+    vehicle_id: vehicleId,
+    image_url: url,
+    ...(eFotoEsterna(url) ? { origine_url: url } : {}),
+    position,
+    is_cover,
+  });
+
   const { data: existing } = await supabase
     .from("vehicle_images")
-    .select("id, image_url")
+    .select("id, image_url, origine_url")
     .eq("vehicle_id", vehicleId)
     .order("position", { ascending: true });
 
   const existingCount = Array.isArray(existing) ? existing.length : 0;
 
   if (existingCount === 0) {
-    await supabase.from("vehicle_images").insert(
-      urls.slice(0, MAX_VEHICLE_IMAGES).map((url, index) => ({
-        dealer_id: dealerId,
-        vehicle_id: vehicleId,
-        image_url: url,
-        position: index,
-        is_cover: index === 0,
-      }))
-    );
+    await supabase.from("vehicle_images").insert(urls.slice(0, MAX_VEHICLE_IMAGES).map((url, index) => riga(url, index, index === 0)));
     return;
   }
 
-  const existingUrls = new Set((existing ?? []).map((row: Record<string, unknown>) => String(row.image_url ?? "").trim()));
-  const toInsert = urls.filter((url) => !existingUrls.has(url));
+  const chiaviPresenti = new Set(
+    (existing ?? []).map((row: Record<string, unknown>) => chiaveDellaFoto(String(row.origine_url ?? row.image_url ?? ""))),
+  );
+  const toInsert = urls.filter((url) => !chiaviPresenti.has(chiaveDellaFoto(url)));
 
   // A repeated feed sync must not let the total creep past the cap even
   // though each run's own list is already capped -- new URLs only fill
@@ -739,15 +763,7 @@ export async function upsertVehicleImages(supabase: ApiSupabaseClient, dealerId:
   const cappedToInsert = toInsert.slice(0, availableSlots);
 
   if (cappedToInsert.length > 0) {
-    await supabase.from("vehicle_images").insert(
-      cappedToInsert.map((url, index) => ({
-        dealer_id: dealerId,
-        vehicle_id: vehicleId,
-        image_url: url,
-        position: existingCount + index,
-        is_cover: false,
-      }))
-    );
+    await supabase.from("vehicle_images").insert(cappedToInsert.map((url, index) => riga(url, existingCount + index, false)));
   }
 }
 

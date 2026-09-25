@@ -713,10 +713,19 @@ successo una volta, per mano nostra: il 22/08/2026 la misura e' passata da
 sull'indirizzo intero, a copia finita, avrebbe buttato via 3.233 copie e
 rimesso DealerK al loro posto -- cioe' esattamente il guasto da cui la copia
 protegge. E oggi basta spostare una copertina: `sostituisciFoto` confronta per
-posizione e rifa' la galleria intera. **Rete in piu':** se in un giro perde la
-propria chiave piu' della meta' delle foto copiate di una concessionaria, non
-si tocca niente e il lavoro diventa rosso (la stessa forma di "sparizione
-sospetta" per le auto).
+posizione e rifa' la galleria intera. **Rete in piu': al massimo 20 foto
+copiate tolte per concessionaria in una chiamata della sincronizzazione**;
+oltre, la galleria di quell'auto resta com'e' e il riepilogo lo dice. E' la
+rete per un cambio dei nomi dei file da parte di DealerK, che cambierebbe
+l'identita' di tutte le copie insieme. *Cambiato il 25/09/2026 scrivendo il
+codice:* la prima stesura diceva "se in un giro perde la chiave piu' della
+meta' delle foto copiate di una concessionaria, non si tocca niente", ma il
+ripasso legge le pagine a poco a poco e quella meta' non si conosce in
+anticipo. Un tetto si conta mentre si va; una proporzione no. Una galleria
+vera ha al massimo 20 foto, quindi chi rinnova le foto di due auto nella
+stessa chiamata vede la seconda rimandata alla chiamata dopo: rimandata, non
+persa. **Fatto il 25/09/2026**, con il guardiano
+`src/lib/dealer-site-photos.test.ts`, provato rosso sulla versione di prima.
 
 **Le porte che scrivono le foto, e cosa confronta ognuna:**
 
@@ -912,6 +921,7 @@ servono a dire quante foto hanno avuto un 404 e poi un 200.
 | tentativi per esaurire | 16 | quanti tentativi ha avuto l'ultima foto copiata dopo dei fallimenti | con 8 giri al giorno decidono sempre i 7 giorni | ____ | ____ |
 | giorni per esaurire | 7 | quanto e' durato il guasto piu' lungo | in 7 giorni non si vede un guasto piu' lungo di 7: "nessun guasto" non e' un valore | ____ | ____ |
 | richieste alla volta | 2 | se DealerK ha mai risposto 429 | | ____ | ____ |
+| foto copiate tolte per chiamata, per concessionaria | 20 | quante gallerie sono state fermate dal tetto, e perche' | le gallerie fermate si rimandano: si contano le rimandate, non le perse | ____ | ____ |
 | controllo delle morte | una volta a settimana | quante morte ed esaurite sono tornate vive | | ____ | ____ |
 
 I quattro numeri concordati per primi sono il 5%, il 10, le 24 ore e le 20
@@ -964,7 +974,15 @@ Due casi guardati sulla pagina vera, e sono di natura diversa:
   sola, in piccolo, dentro la scheda di **un'altra** auto. E oggi il nostro
   lettore da' `senza-foto` per quella pagina, quindi la galleria scritta il
   28/08 alle 10:12 **non viene piu' rinfrescata**. Come ci sia arrivata quel
-  giorno, non e' noto.
+  giorno non e' provato, ma il meccanismo c'e' ed e' scritto nel lettore
+  (`leggiFoto`, `src/lib/dealer-site-import.ts`): se nessuna foto della
+  pagina compare in piu' misure, il lettore prende tutte quelle larghe almeno
+  400 px, *"meglio una galleria con qualche intrusa che una scheda senza
+  foto"*. Su una scheda senza foto proprie le intruse sono proprio le
+  miniature delle vetture simili, e su delorenziauto quelle miniature sono
+  larghe 400. E' un ripiego che produce **le foto di un'altra auto con la
+  faccia delle foto di questa** -- la terza forma della famiglia del dato
+  mancante, in AGENTS.md.
 
 **Non corretto, ed e' un lavoro a se'**: e' un difetto a video oggi (un'auto in
 vetrina con le foto di un'altra), non una conseguenza della copia. La copia
@@ -975,6 +993,22 @@ il concessionario ricaricasse la stessa foto con nomi diversi. Va misurato
 prima di fidarsi di quella soglia.
 
 ### Trovato leggendo, annotato e non corretto
+
+**Ventuno test tolgono i commenti con un'espressione che vede un commento
+anche dentro una stringa** (25/09/2026). `/\*[\s\S]*?\*/` apre un commento a
+ogni `/*`, compreso quello di `"text/xml, */*"`, e lo chiude al primo `*/`
+che trova piu' avanti -- anche centinaia di righe dopo. Si e' visto su
+`sincronizzazioni-veicoli.test.ts`: il giorno che dopo l'intestazione
+`Accept` della rotta del feed e' comparso un commento vero, il test ha tolto
+516 righe di codice e non trovava piu' una frase che c'era. Quello e' stato
+corretto (il commento comincia a inizio riga o dopo uno spazio). Gli altri
+venti no: stringhe che innescano lo stesso difetto ci sono in `src/proxy.ts`
+(la politica di sicurezza), `src/app/robots.ts` (`/*_rsc`) e
+`src/lib/og-card.tsx` (`*/*`). **Il rischio vero sono i test "non deve
+contenere"**: su un codice mangiato passano sempre, e nessuno se ne accorge.
+Da rivedere tutti e ventuno insieme, con una funzione sola al posto di
+ventuno copie.
+
 
 **`/api/vehicles/feed` salva foto che il proxy non mostrerebbe.** Scarica le
 foto di un feed nel nostro archivio con il percorso
