@@ -823,7 +823,9 @@ una chiamata all'altra come il cursore della sincronizzazione.
 **Cosa si accetta, e perche'.** I file rimasti senza riga (auto cancellata,
 foto sostituita, una copia rifatta) restano nell'archivio: circa 2,7 MB per
 auto contro 100 GB di spazio. Il riepilogo li conta, cosi' la crescita si
-vede. L'impronta non rende la ricopia identica: secondo la misura di un
+vede. *(Non e' vero, verificato il 25/09/2026: nessun codice conta i file
+senza riga, ne' il riepilogo della copia ne' altro. Vedi "Le foto copiate di
+un'auto che esce dalla vetrina". La crescita oggi non si vede.)* L'impronta non rende la ricopia identica: secondo la misura di un
 revisore la stessa foto pesa 127.211 byte dalla memoria di Cloudflare e
 130.432 dall'origine (non rifatta da me). E ogni giro interroga qualche foto
 copiata **dal nostro archivio**: la sentinella del nostro lato.
@@ -1045,6 +1047,41 @@ I quattro numeri concordati per primi sono il 5%, il 10, le 24 ore e le 20
 morte; gli altri sono nati chiudendo i cicli che non finivano, e valgono la
 stessa regola.
 
+**Da portare all'appuntamento, scritto il 25/09/2026: la regola dei
+segnaposto va rivista, non tarata.** ("La stessa impronta su due altre
+origini dello stesso server e' un segnaposto", `copia-foto/route.ts`.)
+
+Il primo giro l'ha fatta scattare **27 volte, su 11 immagini distinte**,
+guardate una per una: 8 immagini da catalogo di Peugeot 208 e 2008, 2 copie
+di un cartello pubblicitario ("Planetauto concessionaria Jeep Modena", con il
+telefono) e una foto vera di una Panda. **Nessuna e' cio' che la regola
+esiste per fermare** -- l'immagine che un server consegna al posto della foto,
+"hotlink vietato" o dominio parcheggiato: sono tutti file che i concessionari
+hanno pubblicato davvero, 18 sulla pagina della loro auto e 9 arrivati dal
+ripiego del lettore. Misurata sul suo scopo, **27 sbagliate su 27**.
+
+Il "71%" circolato quel giorno (27 su 38) era un'altra cosa: la parte dei
+fallimenti del giro dovuta a quella regola, non il suo tasso d'errore. Il
+verdetto -- da rivedere, non da tarare -- regge, e con il numero giusto regge
+di piu'.
+
+Altre due cose che la rendono inservibile cosi' com'e':
+
+- **non e' coerente con se stessa.** Delle stesse immagini ne erano gia'
+  state **copiate 28**, 11 come copertina: la regola lascia passare le prime
+  due origini e scarta dalla terza, quindi la stessa immagine e' una foto per
+  due auto e un segnaposto per la terza. Per il caso vero a cui serve -- un
+  server che consegna lo stesso cartello per ogni foto -- farebbe il contrario
+  del suo scopo: le prime due copie diventerebbero definitive;
+- **l'impronta dipende da come chiedi.** Lo stesso file DealerK arriva webp o
+  jpeg a seconda della copia che Cloudflare ha in memoria (visto su 3 delle 11
+  immagini), e ricompresso da Polish anche in jpeg: "la stessa impronta" misura
+  anche lo stato della rete di DealerK, non solo la foto.
+
+Le **3 copertine di Peugeot 2008 rimaste su DealerK** (De Lorenzi) sono lo
+stesso difetto: un'immagine da catalogo che il concessionario usa per tre
+2008, scartata come segnaposto. Si vedono, servite da DealerK come prima.
+
 ### Com'e' stata riletta
 
 Il 25/09/2026, prima di consegnare la migration, quattro revisori indipendenti
@@ -1236,6 +1273,104 @@ rifare dopo, ed e' per questo che sta qui.
 Le auto "tutte, copertina compresa" non hanno sul sito nemmeno una foto
 propria: tolte le righe restano senza foto, e ne riprendono da sole quando il
 concessionario le mette sul suo sito.
+
+### Le foto copiate di un'auto che esce dalla vetrina (25/09/2026)
+
+**La domanda e' nata da un falso allarme, e vale la pena dirlo.** La scheda
+usata come prova che la copia funziona -- la Hyundai Bayon di Autogepy,
+`2a778952-...` -- un'ora dopo risultava "non piu' disponibile" al titolare.
+Misurato: la riga non era stata toccata (pubblicata, nessuna data di
+sparizione, ultima modifica 23/09, 19 foto copiate), l'auto era ancora nella
+mappa del sito di Autogepy, nessuna voce nel registro, e la pagina rispondeva
+con l'auto e le foto sia dalla copia in cache sia da una richiesta nuova. La
+frase "non e' piu' disponibile" il sito la dice in un posto solo, la pagina
+"non trovata", e ci si arriva anche con un indirizzo che non e' esattamente
+l'identificativo: provato, un punto, una parentesi, un trattino o uno spazio
+attaccati in fondo mostrano proprio quella pagina. Quale indirizzo abbia
+aperto il titolare non lo so: e' la spiegazione compatibile con tutto quello
+che si e' misurato, non una prova. Da allora le schede da guardare si danno
+su una riga da sola, senza niente attaccato.
+
+**Com'e' stato risposto.** Tre lettori indipendenti hanno ripercorso il codice
+di ogni via d'uscita -- sincronizzazione, gestionale e pannello, lato pubblico
+-- e un quarto ha provato a smentirli riga per riga: **52 affermazioni su 52
+confermate**, con sei vie d'uscita in piu' trovate da lui. Poi le parti che
+esistono gia' si sono misurate sulla produzione, in sola lettura: nessuna foto
+copiata appartiene oggi a un'auto fuori vetrina (la copia e' partita solo
+oggi, e solo dalle auto in vetrina); l'archivio ha 2.017 file (269,5 MB), tre
+senza nessuna riga -- caricamenti a mano del 28/07, non della copia -- e
+nessuna riga che punta a un file che non c'e'.
+
+| come esce dalla vetrina | le righe | i file copiati | se torna |
+|---|---|---|---|
+| sparisce dal sito del concessionario | restano, e la galleria non si rilegge piu' | restano, collegati | stesse righe, foto subito |
+| tetto del piano, bozza, "Segna venduta", concessionaria sospesa | restano | restano, collegati | foto subito |
+| **Elimina** dal gestionale (singola o di gruppo) | cancellate a cascata | **orfani**: nessuno li toglie | se e' ancora sul sito rientra come auto **nuova**, con un altro id, e le foto si ricopiano: i file vecchi restano orfani per sempre |
+| il concessionario la ripubblica sul suo sito con un altro id | la vecchia resta nascosta con le sue copie | restano sotto il vecchio id | e' un'altra auto, e le foto si copiano due volte |
+
+**Il ritorno e' immediato, perche' il "no" non resta in memoria.** Per la foto
+di un annuncio non pubblico il proxy risponde 404 senza conservarlo: misurato,
+due richieste di fila entrambe fresche. Il verso opposto invece resta: **una
+foto gia' servita con 200 resta nella cache di Vercel fino a 30 giorni** a quel
+preciso indirizzo, anche quando l'auto e' uscita. Nessuna pagina la mostra
+piu', ma chi ha l'indirizzo la scarica.
+
+**Cio' che la tabella non dice e va saputo.** "Il riepilogo li conta", scritto
+piu' sopra a proposito dei file orfani dell'Elimina, **non e' vero**: nessun
+codice conta i file senza riga. Oggi l'unico modo di saperlo e' confrontare
+l'intero archivio con la tabella, come e' stato fatto qui.
+
+**Difetti trovati lungo la strada, letti nel codice e confermati da un
+secondo lettore, non provati su dati veri.** Nessuno e' stato corretto; in
+ordine di quanto e' probabile incontrarli:
+
+1. **"Importa dal sito" parte da "Bozza" e toglie dalla vetrina le auto gia'
+   pubblicate del lotto** (`import-site/route.ts:282` e `payloadVeicolo`,
+   scritto sopra la riga esistente senza leggerne lo stato). Chi la usa per
+   far entrare due auto nuove spegne in silenzio quelle gia' in vetrina, e
+   nessun meccanismo le rimette. Riletto a mano il 25/09: confermato. Con
+   "Pubblicato" e il piano pieno, invece, un'auto gia' in vetrina puo' essere
+   retrocessa in revisione.
+2. **Una foto caricata a mano su un'auto importata sparisce a ogni
+   sincronizzazione.** `sostituisciFoto` non la riconosce fra quelle del sito
+   (la sua identita' e' `archivio:<percorso>`) e la toglie. Succedeva anche
+   prima (#199 cancellava tutte le righe e rimetteva quelle del sito), ma il
+   file restava nell'archivio; **dalla #371 del 25/09 si toglie anche il
+   file**, e la perdita diventa definitiva. In produzione oggi: zero casi (le
+   6 foto a mano stanno su auto inserite a mano, che la sincronizzazione non
+   tocca). Una foto del concessionario e' un suo dato, e un suo dato non si
+   sovrascrive: va decisa anche la copertina, se la sceglie lui o il sito.
+3. **Un'auto venduta o in bozza che ricompare sul sito torna in vetrina da
+   sola** (`dealer-site-sync.ts`, `daRipristinare` non guarda lo stato:
+   riletto a mano, confermato). Lo stato "venduta" o "bozza" viene
+   sovrascritto da "in revisione", e il tetto la ripubblica. Se sia giusto --
+   il sito dice che l'auto c'e' di nuovo -- o sbagliato -- il concessionario
+   aveva deciso altro -- e' una scelta di prodotto da fare.
+4. **La scadenza o la revoca di una demo non tolgono le auto dalla vetrina**:
+   cambiano solo `demo_status`, che la regola della vetrina non legge. Il
+   verso opposto si': attivare una demo su una concessionaria esistente porta
+   il tetto a 10, e le pubblicate oltre la decima escono.
+5. **Togliere a mano una foto copiata dalla scheda in modifica non toglie mai
+   il file** (la regola del secchio lo vieta, perche' la riga e' gia' stata
+   cancellata), e per un'auto importata la foto ricompare al ripasso dopo.
+6. **La foto di un annuncio uscito resta servita fino a 30 giorni** dalla
+   cache (qui sopra), e le foto non ancora copiate passano dal proxy senza
+   nessun controllo di pubblicazione.
+7. **Una pagina di auto che non c'e' risponde 200 con `noindex`, non 404**,
+   come dicono due commenti in `auto/[id]/page.tsx` e `not-found.tsx`: con
+   `loading.tsx` nella cartella la risposta parte prima di sapere com'e'.
+8. **L'anteprima social resta in cache un giorno, piu' una settimana di
+   tolleranza, nei due versi**: dice "non disponibile" su un'auto tornata, e
+   mostra foto e prezzo di un'auto uscita.
+9. Minori: la copia carica il file prima di scrivere la riga (un orfano se la
+   riga sparisce nel mezzo -- possibile solo con "Importa dal sito", Elimina o
+   una chiamata a mano, perche' copia e sincronizzazione non girano mai
+   insieme); `sostituisciFoto` toglie i file prima delle righe (foto rotte
+   fino al ripasso dopo, almeno 6 ore); la sparizione dal sito dichiara
+   "nascoste N" senza guardare l'esito delle scritture; le auto in revisione
+   senza `import_source` (feed, file) non risalgono mai col tetto; il feed in
+   entrata aggancia qualunque auto per telaio o per marca, modello, versione e
+   anno, e ne riscrive lo stato.
 
 ### Trovato leggendo, annotato e non corretto
 
