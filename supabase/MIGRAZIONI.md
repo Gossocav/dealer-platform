@@ -26,6 +26,11 @@ Il controllo **legge soltanto**. Non applica niente.
 > promemoria del programma compare solo quando il programma gira, e oggi lo
 > avvia soltanto il titolare.
 
+> **Un appuntamento senza data: al terzo cliente pagante, quali schermate
+> aprono davvero.** E' la domanda aperta *"Si paga per la vetrina o per il
+> gestionale?"*, piu' sotto. Scritta qui perche' nessun avviso la
+> ricordera': i conti li converte il titolare dal pannello.
+
 **Questo e' il punto di ripartenza buono.** L'ordine e' stato deciso dal
 titolare il 19/09/2026 e scritto qui apposta: la prossima volta si riparte da
 questo elenco, non ricostruendolo da un riepilogo.
@@ -692,6 +697,59 @@ venduto.** Voci legate a una condizione, non a una data.
    un'informazione commerciale sui nostri clienti. La cura e' il permesso di
    lettura colonna per colonna, come su `vehicles`; prima si controlla che
    nessuna interrogazione del sito chieda tutte le colonne di quella tabella.
+
+## Si paga per la vetrina o per il gestionale? Domanda aperta (26/09/2026)
+
+**La domanda.** Il listino distingue i piani per quante auto stanno in
+vetrina, quanti utenti usano il gestionale, le funzioni di gestione (conti
+economici, perizie, documenti, promemoria) e i posti in evidenza in home.
+Non per il modo in cui le auto entrano: l'importazione resta a tutti i piani,
+deciso dal titolare il 26/09/2026. Se i concessionari pagassero per la
+vetrina e non per il gestionale, questa divisione andrebbe ripensata.
+
+**Da dove nasce.** Righe scritte da ogni concessionaria, lette in produzione
+in sola lettura il 26/09/2026:
+
+| concessionaria | piano | auto (in vetrina) | dal proprio sito | conti economici | documenti | perizie | promemoria | appuntamenti | conversazioni email |
+|---|---|---|---|---|---|---|---|---|---|
+| Autogepy | Elite | 171 (127) | 169 | 10 | 3 | 4 | 3 | 0 | 1 |
+| De Lorenzi | Elite | 118 (92) | 118 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Ponginibbi | Base | 84 (50) | 84 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Ferrari Automobili | Pro | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+De Lorenzi e' Elite e non usa nessuna funzione di gestione: usa vetrina e
+importazione, le stesse di Ponginibbi, che e' Base. Autogepy e' l'unico che
+usa il gestionale.
+
+**Perche' oggi quei numeri non si usano.** I quattro conti sono del titolare
+(confermato per iscritto il 21/09/2026), e Autogepy e' quello usato di piu'
+per provare. Il numero dice come ha lavorato lui, non come lavora un
+concessionario. Si scrive qui, non si usa.
+
+**Due cose da sapere prima dell'appuntamento, perche' decidono cosa si potra'
+leggere quel giorno:**
+
+1. **Oggi nessuno strumento registra quali schermate apre un
+   concessionario.** Le misure di Analytics stanno solo nelle pagine
+   pubbliche (`src/app/(marketplace)/layout.tsx`), e il gestionale non ne ha.
+   Si possono contare soltanto le **righe scritte**, come nella tabella qui
+   sopra, ed e' un'altra cosa: chi apre la giacenza ogni mattina e non scrive
+   niente non lascia traccia. Se quel giorno serve la risposta vera, prima va
+   costruito un modo di contare le aperture. Se si usano le righe scritte, va
+   detto che sono quelle.
+2. **Uno zero dove il piano non lascia scrivere non vuol dire "non gli
+   serve".** Un Base non puo' scrivere un conto economico: il suo zero dice
+   che il piano glielo chiude, non che non lo userebbe.
+
+**L'appuntamento**, nella stessa forma delle due date dell'indicizzazione:
+
+| quando | cosa si guarda | cosa direbbe |
+|---|---|---|
+| **al terzo cliente pagante**, cioe' il terzo conto che non e' del titolare | per ogni piano, quali schermate del gestionale si aprono davvero: conto economico, giacenza, perizie, documenti, promemoria, agenda, email, accanto a vetrina e importazione | se Pro ed Elite aprono solo vetrina e importazione, si paga per la vetrina e il listino va ripensato; se aprono il gestionale, la divisione regge |
+
+**Chi se ne accorge.** Non c'e' nessun avviso automatico. La conversione dei
+conti la fa il titolare dal pannello, e gli unici promemoria sono questa
+sezione e la riga in cima al file.
 
 ## Le foto stanno su un server non nostro (25/09/2026)
 
@@ -1710,7 +1768,19 @@ di trenta giorni**: non con un valore predefinito che si possa scavalcare, ma
 con un vincolo, `dealer_demo_subscriptions_extension_guard_check`, che
 pretende una scadenza esattamente sette giorni dopo l'inizio.
 
-**Da applicare:** `20260921120000_la_prova_dura_trenta_giorni.sql`.
+**Applicata in produzione lunedi' 21/09/2026:**
+`20260921120000_la_prova_dura_trenta_giorni.sql`. Verificato il 26/09/2026 in
+due modi che non si somigliano:
+
+- **com'e' fatta**: il controllo *Lo schema di produzione combacia con i
+  file* partito con l'unione di #364 (21/09/2026 alle 12:35 UTC) ha
+  ricostruito lo schema da tutti i file, questa migration compresa, e ha
+  risposto *"Nessuna differenza."*: quel giorno la produzione l'aveva gia';
+- **cosa fa**: `public.durata_della_prova()`, chiamata sulla produzione,
+  risponde `"30 days"`.
+
+Fino al 26/09/2026 qui c'era scritto *"Da applicare"*: era falso da cinque
+giorni, in un file che si rilegge come riferimento.
 
 ### Cosa è stato verificato prima di consegnarla
 
