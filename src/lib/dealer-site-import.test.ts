@@ -607,6 +607,79 @@ describe("nella galleria non finiscono le foto delle vetture simili", () => {
 });
 
 /**
+ * Su ponginibbigroup.it ogni pagina porta 24 foto di altre auto -- il carosello
+ * delle vetture simili -- e le porta in piu' misure, quindi passavano la regola.
+ * Un'auto con meno di venti foto proprie si riempiva di foto altrui: la Citroen
+ * Ami 9798062 ne aveva 2 sue e 18 di altre auto (25/09/2026).
+ *
+ * L'elenco giusto sta nel blocco dati della pagina, `vehicleData.imageList`,
+ * legato alla scheda dall'identificativo come la targa. La forma qui sotto e'
+ * quella delle pagine vere: lo script `dataLayer.push`, le barre scritte `\/`.
+ */
+describe("le foto le dichiara il blocco della scheda", () => {
+  const VOCE_PONGINIBBI: DealerSiteEntry = {
+    url: "https://www.ponginibbigroup.it/auto/usate/perugia/citroen/ami/elettrica/my-pack/9798062/",
+    sourceId: "9798062",
+    condition: "Usato",
+  };
+  const CDN = "https://cdn.dealerk.it/dealer/datafiles/vehicle/images";
+
+  function blocco(id: string, foto: string[] | null) {
+    const vehicleData: Record<string, unknown> = {
+      vehicleId: id,
+      image800: foto?.length ? `${CDN}/800/35447/${foto[0]}` : "https://cdn.dealerk.it/cars/placeholder/placeholder-800.png",
+    };
+    if (foto) {
+      vehicleData.imageList = foto.map((f) => ({
+        image100: `${CDN}/100/35447/${f}`,
+        image800: `${CDN}/800/35447/${f}`,
+        imageOriginal: `${CDN}/$original$/35447/${f}`,
+      }));
+    }
+    const json = JSON.stringify({ dynx_itemid: id, vehicleData }).replace(/\//g, "\\/");
+    return `<script>var dataLayer = window.dataLayer || []; dataLayer.push(${json});</script>`;
+  }
+  const inPiuMisure = (f: string) => `<img src="${CDN}/800x0/35447/${f}"><img src="${CDN}/480x0/35447/${f}">`;
+  const scheda = (corpo: string) => `
+    <script type="application/ld+json">${JSON.stringify({ "@type": "Car", name: "Citroen Ami", brand: "Citroen", offers: { price: 7900 } })}</script>
+    ${corpo}`;
+  const carosello = ["altra-uno.jpeg", "altra-due.jpeg", "altra-tre.jpeg"].map(inPiuMisure).join("");
+
+  it("il carosello non entra, anche se la pagina lo mostra in piu' misure", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(blocco("9798062", ["sua-uno.jpeg", "sua-due.jpeg"]) + inPiuMisure("sua-uno.jpeg") + inPiuMisure("sua-due.jpeg") + carosello),
+      VOCE_PONGINIBBI
+    );
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.images).toHaveLength(2);
+    expect(esito.vehicle.images[0]).toContain("sua-uno.jpeg");
+    expect(esito.vehicle.images.some((u) => u.includes("altra"))).toBe(false);
+  });
+
+  // Su De Lorenzi le auto senza foto hanno il blocco senza elenco, con il solo
+  // segnaposto di DealerK. Il carosello in piu' misure non deve prenderne il
+  // posto: l'auto resta senza foto, e da nuova non entra.
+  it("un blocco senza elenco vuol dire un'auto senza foto, qualunque cosa mostri la pagina", () => {
+    const esito = parseDealerStockVehicle(scheda(blocco("9798062", null) + carosello), VOCE_PONGINIBBI);
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.images).toEqual([]);
+    expect(schedaNuovaDaImportare(esito).ok).toBe(false);
+  });
+
+  // Il blocco conta solo se parla di questa scheda: e' la stessa regola della
+  // targa. Il blocco di un'altra auto non toglie niente, e la pagina resta alla
+  // regola delle misure.
+  it("il blocco di un'altra auto non conta", () => {
+    const esito = parseDealerStockVehicle(
+      scheda(blocco("1234567", ["altra-uno.jpeg"]) + inPiuMisure("sua-uno.jpeg") + inPiuMisure("altra-uno.jpeg")),
+      VOCE_PONGINIBBI
+    );
+    if (!esito.ok) throw new Error("scheda non letta");
+    expect(esito.vehicle.images.some((u) => u.includes("sua-uno.jpeg"))).toBe(true);
+  });
+});
+
+/**
  * Senza carrozzeria un veicolo importato non compare ne' in "Esplora per
  * categoria" ne' nel filtro della ricerca avanzata: era il caso di dodici dei
  * quattordici veicoli pubblicati.

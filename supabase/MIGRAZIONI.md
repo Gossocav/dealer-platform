@@ -1174,6 +1174,25 @@ Con la sola regola della marca le due Hyundai Tucson di Autogepy, due Peugeot
    identificativo, come fa gia' `bloccoDellaScheda` per la targa -- l'elenco
    delle foto sta in un altro oggetto della pagina, non in `vehicleData`.
 
+   > **Chiusa lo stesso giorno, e la frase qui sopra sull'oggetto era
+   > sbagliata.** L'elenco sta proprio in `vehicleData.imageList`, dentro lo
+   > script `dataLayer.push({"dynx_itemid": <id della scheda>, ...})`: la prima
+   > ricerca l'aveva cercato con una regex che guardava il primo gruppo di
+   > `"image800"` della pagina, non l'oggetto JSON. Letto per intero su tutte le
+   > 294 pagine: ogni pagina ha il blocco della sua scheda (`vehicleId` e
+   > `dynx_itemid` uguali all'identificativo); su Autogepy e De Lorenzi l'elenco
+   > coincide con il lettore, stesse foto e stesso ordine, su 188 pagine, e
+   > sulle altre 32 manca -- sono le auto senza foto, dove il blocco porta solo
+   > il segnaposto di DealerK; su Ponginibbi contiene tutte le foto dell'auto e
+   > nessuna delle 24 del carosello. Adesso il lettore tiene solo le foto che
+   > il blocco della scheda dichiara (`fotoDelBlocco` in
+   > `src/lib/blocco-motork.ts`), e dove il blocco manca resta alla regola
+   > delle misure. Rieseguito sulle stesse 294 pagine: identico a prima su
+   > Autogepy e De Lorenzi, senza carosello su Ponginibbi, stessa copertina
+   > ovunque; le prime venti foto -- quelle che si conservano -- cambiano solo
+   > per l'Ami e la 208. La sincronizzazione successiva al rilascio toglie da
+   > sola le loro righe del carosello: non serve pulirle a mano.
+
 **L'elenco, com'era il 25/09/2026 prima di qualunque pulizia.** Non si puo'
 rifare dopo, ed e' per questo che sta qui.
 
