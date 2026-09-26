@@ -73,11 +73,20 @@ questo progetto leggono il *testo* dei file SQL: dicono che la regola e'
 scritta, non che il database la applichi. Docker c'e':
 
 ```bash
-docker run -d --name prova -e POSTGRES_PASSWORD=postgres postgres:17   # la stessa versione della produzione
+docker run -d --rm --name prova -e POSTGRES_PASSWORD=postgres postgres:17   # la stessa versione della produzione
 # ricostruire i ruoli anon/authenticated/service_role, auth.uid() da
 # request.jwt.claim.sub, le tabelle coinvolte, poi applicare la migration e
-# interrogare come ciascun ruolo
+# interrogare come ciascun ruolo; alla fine: docker stop prova
 ```
+
+**Il `--rm` non e' un dettaglio.** Postgres tiene i dati in un volume, e un
+contenitore avviato senza `--rm` e poi tolto con `docker rm` lascia il volume
+sul disco: 40 MB a ogni prova. Il 26/09/2026 erano **150 volumi, 6,3 GB**, la
+voce piu' grossa del disco del Codespace -- e nascevano a grappoli proprio nei
+giorni delle prove, uno ogni pochi minuti. Con `--rm` lo `stop` toglie
+contenitore e volume insieme (provato quel giorno: 157 volumi con il
+contenitore acceso, 156 dopo lo stop). Quelli gia' rimasti li toglie
+`scripts/libera-il-disco.sh`.
 
 E' cosi' che si e' verificato l'isolamento fra concessionarie prima di toccare
 la produzione, ed e' l'unico modo per sapere davvero cosa fa una politica.

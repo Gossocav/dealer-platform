@@ -478,10 +478,12 @@ tre, nessuna con un tetto:
 | cosa | misura del 23/09/2026 | ritmo |
 |---|---|---|
 | **versioni di Claude Code** in `~/.local/share/claude/versions/` | 4 versioni, ~215M l'una, **una sola in uso** | 4 in 13 giorni (10, 11, 17, 23 settembre): **~500M al mese** |
-| trascritti di sessione in `~/.claude/projects/` | 305M, 17 file, il piu' vecchio del 27 agosto | nessuna rotazione |
+| trascritti di sessione in `~/.claude/projects/` | 305M, 17 file, il piu' vecchio del 27 agosto | nessuna rotazione *(sbagliato, verificato il 26/09: qualcosa li toglie gia' -- le sessioni di luglio non hanno piu' il trascritto, il piu' vecchio rimasto e' del 28/08. Probabilmente Claude Code, che di serie ne tiene trenta giorni; ma mancano anche due sessioni del 10/09, quindi non e' tutta la spiegazione)* |
 | cache `npx` in `~/.npm/_npx` | 543M in 9 pacchetti | mai ripulita |
 
-**La prima da sola spiega quasi tutto**, ed e' la piu' facile da chiudere:
+**La prima da sola spiega quasi tutto** *(sbagliato: vedi "Riaperto il
+26/09/2026" qui sotto -- la voce piu' grossa era un'altra, e quel giorno non
+era stata guardata)*, ed e' la piu' facile da chiudere:
 tenere l'ultima versione e togliere le altre e' un comando, e va fatto quando
 il disco scende -- non c'e' nessun automatismo che lo faccia.
 
@@ -502,6 +504,107 @@ Claude Code, i trascritti degli ultimi trenta giorni e niente cache, e che
 **stampa cosa sta per togliere prima di toglierlo**. Mezz'ora, e toglie
 l'occasione invece di ricordarla. **Non fatto**: annotato qui il 23/09/2026
 perche' sia una decisione e non una dimenticanza.
+
+**Riaperto il 26/09/2026, dai fatti: tre giorni fra una pulizia e la
+successiva.** Il 23/09 la pulizia aveva portato il disco dal 90% all'85%; il
+26/09 era all'89%, 3,3G liberi su 32. Il prezzo di non avere un tetto, scritto
+qui sopra come previsione, e' stato pagato, e la decisione si e' rovesciata.
+
+**E' la prima volta che una decisione scritta nella forma "non lo facciamo,
+ecco perche'" viene rovesciata dai fatti**, ed e' esattamente cio' che quella
+forma serve a permettere (AGENTS.md, la postilla a "un vincolo scritto in un
+prompt non e' un vincolo applicato"): la ragione e il prezzo erano scritti,
+quindi riaprirla non ha richiesto di rifare il ragionamento -- e' bastato
+misurare che il prezzo era cambiato.
+
+**Ma riaprire la decisione ha riaperto anche la sua diagnosi, e la diagnosi
+era sbagliata.** Prima di scrivere lo script "come descritto" si e' misurato
+cosa fosse cresciuto in quei tre giorni:
+
+| cosa | cresciuto dal 23/09 al 26/09 |
+|---|---|
+| **volumi Docker anonimi**, tutti nati il 25/09 | 18, circa 770 MB |
+| una nuova versione dell'estensione Claude Code (la vecchia resta finche' VS Code non si riavvia) | circa 240 MB |
+| trascritti di sessione | 58 MB |
+
+E il totale: **150 volumi Docker anonimi senza contenitore, 6,3 GB**, su 16 GB
+di `/var/lib/docker`. Sono le prove su Postgres vero: il comando di AGENTS.md
+era `docker run -d --name prova ...` **senza `--rm`**, e ogni contenitore tolto
+senza `-v` lascia il suo volume da 40 MB. Nascevano a grappoli nei giorni delle
+prove -- 36 il 14/09, uno ogni pochi minuti. Il 23/09 non erano stati visti
+perche' la misura guardava la casa e le cache (`du ~`), non Docker: e' "zero
+differenze li' vuol dire non guardato", con il righello che non comprendeva il
+soggetto. **Uno script scritto solo sulla diagnosi del 23/09 avrebbe mancato
+la voce che pesava di piu'.**
+
+Cosa e' stato fatto quel giorno:
+
+- **la sorgente**: il comando di AGENTS.md ha `--rm` (provato: con `--rm` lo
+  `stop` toglie contenitore e volume insieme);
+- **il tetto**: `scripts/libera-il-disco.sh`. Senza argomenti guarda soltanto
+  e stampa cosa toglierebbe; con `--togli` stampa lo stesso elenco e lo toglie.
+  Toglie le versioni vecchie di Claude Code da terminale (tenendo la piu'
+  recente, quella a cui punta `claude` e ogni versione che un processo sta
+  usando) e, dell'estensione di VS Code, solo le versioni che VS Code stesso ha
+  dichiarato obsolete, i trascritti oltre i trenta giorni con la loro cartella, le
+  cache di npm, npx e Playwright, e i volumi Docker **anonimi** che nessun
+  contenitore usa. Non tocca mai niente sotto il repository, fuori dalla casa,
+  dentro `memory/`, ne' un volume con un nome (il database locale di Supabase
+  ne ha uno, e oggi nessun contenitore lo usa: lo toglierebbe un
+  `docker volume prune -a`, non questo script). Il test
+  (`src/lib/libera-il-disco.test.ts`) lo prova in una casa finta con le
+  trappole, e ogni serratura e' stata provata rossa togliendola;
+- **cosa resta fuori, apposta**: `node_modules` e `.next` (stanno nel
+  repository, e `.next` si toglie a mano quando serve: 275 MB il 26/09), le
+  immagini Docker del Supabase locale (6,8 GB, in uso), `/usr`, e
+  `~/.codex` (435 MB, di un altro strumento: non e' nostro deciderlo).
+
+- **cosa resta fuori, apposta, anche questo misurato il 26/09**: la cache
+  del Claude SDK di VS Code in `~/.vscode-remote/data/agent-host/sdk-cache`
+  (306 MB, una versione sola dal 20/08: la gestisce VS Code), e i log dei
+  contenitori del Supabase locale (229 MB, crescono di circa 3 MB al giorno
+  perche' alcuni servizi si riavviano in continuazione: e' un guasto
+  dell'ambiente locale, non una cosa da cancellare a caso. E non ruotano:
+  Docker li tiene senza limite, perche' manca una sua configurazione dei log).
+
+**Com'e' andata la pulizia del 26/09/2026**: dall'89% al **66%**, da 3,3G a
+**11G** liberi. 6,3 GB dai 150 volumi, 659 MB dai browser di Playwright,
+275 MB da `.next` (a mano), 239 MB dall'estensione obsoleta, 61 MB dalle cache
+di npm e npx; zero dalle versioni da terminale (ce n'era gia' una sola) e zero
+dai trascritti (nessuno oltre i trenta giorni). Prima e dopo: `git status`
+identico, i tre volumi con un nome ancora li', l'estensione in uso, il comando
+`claude`, i 56 file della memoria, i 10 contenitori accesi.
+
+**Lo script prima di usarlo e' stato attaccato**, e ne valeva la pena. Due
+riletture ostili hanno riprodotto, sulle prime stesure, cose che avrebbero
+fatto danno vero: **un file chiamato `.jsonl` faceva cancellare l'intera
+cartella del progetto, memoria compresa**, con uscita verde; un nome con un
+"a capo" faceva lo stesso; la regola "memoria" riconosciuta dal nome avrebbe
+bloccato ogni pulizia il giorno in cui il pacchetto `next` (che ha due
+cartelle `memory`) fosse finito nella cache di npx; e "Docker non risponde"
+usciva come "niente da togliere", verde -- il terzo stato appiattito, un'altra
+volta. E una serratura scritta per proteggere l'estensione in uso **non
+funzionava affatto**: `awk` sui file delle mappe si ferma al primo che non puo'
+aprire, e leggeva 139 righe su 1.336. L'ha trovato il test scritto per
+isolarla, dopo due tentativi in cui a trovare l'estensione era un'altra
+serratura: prima la riga di comando del processo di prova, poi il file che
+Python tiene aperto per conto suo. Alla fine **28 serrature, ognuna provata
+rossa togliendola**; l'unica senza test e' la seconda occhiata ai processi
+subito prima di cancellare, perche' il caso e' una gara fra due processi, ed
+e' scritto nello script.
+
+**E le prove rosse le ho fatte male la prima volta**, ed e' una regola gia'
+scritta in AGENTS.md: *una prova lavora su una copia sua*. Toglievo una
+serratura modificando il file vero dello script, nel repository; per qualche
+istante lo script aveva `--togli` come comportamento di serie, e chi l'avesse
+lanciato senza argomenti in quel momento avrebbe cancellato. L'ha notato il
+verificatore della rilettura, non io. Adesso il test accetta una copia
+(`LIBERA_IL_DISCO_SCRIPT`), e le 28 prove sono state rifatte cosi', con
+l'impronta del file vero uguale prima e dopo.
+
+Il tetto non e' automatico: si lancia quando il disco scende. Farlo partire da
+solo all'avvio del Codespace e' possibile, ma il repository non ha una
+configurazione del Codespace, e aggiungerla e' una scelta diversa da questa.
 
 **Un ramo scartato, tenuto apposta.**
 `prova/filtri-al-server-costano-l-indicizzazione` (20/09/2026) porta i
