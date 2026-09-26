@@ -41,9 +41,9 @@ export function qualitaFotoRichiesta(valore: string | null | undefined) {
 
 /**
  * Ogni browser dichiara "image/webp" fra i formati che accetta. Chi non lo fa
- * si tiene il formato di partenza: il compositore delle anteprime social legge
- * soltanto JPEG e PNG, e servirgli webp gli faceva sollevare "Unsupported
- * image type" -- cioe' un errore al posto dell'anteprima.
+ * riceve JPEG o PNG: il compositore delle anteprime social legge soltanto
+ * quelli, e servirgli webp gli faceva sollevare "Unsupported image type" --
+ * cioe' un errore al posto dell'anteprima. Vedi `vaTrasformata`.
  */
 export function accettaWebp(intestazioneAccept: string | null | undefined) {
   return /image\/webp/i.test(String(intestazioneAccept ?? ""));
@@ -78,8 +78,38 @@ export function motivoFotoIntera(errore: unknown): MotivoFotoIntera {
   return "altro";
 }
 
+/** I formati che legge chiunque: ogni browser, il compositore delle anteprime. */
+const LEGGIBILE_DA_TUTTI = /^image\/(jpeg|jpg|png)\b/i;
+
 /**
- * Rimpicciolisce la foto prima di consegnarla.
+ * Se una foto va passata dalla libreria prima di consegnarla.
+ *
+ * Quando e' chiesta una misura, sempre. Senza misura, solo quando chi chiede
+ * non legge il webp e la foto non e' in un formato che legge chiunque.
+ *
+ * **Perche' il secondo caso.** Il 25/09/2026 la copia delle foto nel nostro
+ * archivio ha salvato in webp 692 foto su 2.016: le chiedeva dicendo di
+ * accettare il webp, e la rete di DealerK le convertiva. L'anteprima social
+ * chiede la foto senza misura e sa leggere solo JPEG e PNG: 177 auto in
+ * vetrina su 265 con la copertina copiata avevano l'anteprima senza foto --
+ * visto aprendo quella della Hyundai Bayon di Autogepy, solo testo, mentre una
+ * copertina ancora su DealerK l'aveva.
+ */
+export function vaTrasformata(richiesta: { larghezza: number | null; webp: boolean; tipo: string }) {
+  if (richiesta.larghezza) return true;
+  return !richiesta.webp && !LEGGIBILE_DA_TUTTI.test(richiesta.tipo);
+}
+
+/**
+ * Prepara la foto da consegnare: la rimpicciolisce se e' chiesta una misura, e
+ * la porta in un formato che chi chiede sa leggere. Restituisce anche il tipo,
+ * perche' puo' non essere quello di partenza.
+ *
+ * - chi legge il webp riceve webp;
+ * - chi non lo legge riceve JPEG e PNG come sono arrivati, e ogni altro
+ *   formato -- webp, avif -- convertito in JPEG. Fino al 25/09/2026 riceveva
+ *   "il formato di partenza", che andava bene finche' le partenze erano tutte
+ *   JPEG: con le foto copiate in webp gli arrivava un webp.
  *
  * Solleva un errore sui formati che la libreria non sa leggere: chi la chiama
  * serve allora la foto come e' arrivata, perche' l'originale intero e'
@@ -87,21 +117,33 @@ export function motivoFotoIntera(errore: unknown): MotivoFotoIntera {
  */
 export async function rimpicciolisciFoto(
   buffer: Buffer,
-  larghezza: number,
+  larghezza: number | null,
   qualita: number,
   inWebp: boolean,
-) {
+): Promise<{ corpo: Buffer; tipo: string }> {
   const { default: sharp } = await import("sharp");
 
-  const trasformazione = sharp(buffer, { failOn: "none" })
-    // Le foto scattate col telefono portano l'orientamento in una nota a
-    // parte invece che nei pixel: senza questa riga, ridimensionandole
-    // arriverebbero coricate.
-    .rotate()
+  // Le foto scattate col telefono portano l'orientamento in una nota a parte
+  // invece che nei pixel: senza questa riga, ridimensionandole arriverebbero
+  // coricate.
+  let trasformazione = sharp(buffer, { failOn: "none" }).rotate();
+  if (larghezza) {
     // "withoutEnlargement" perche' la srcset chiede anche misure piu' grandi
     // dell'originale: ingrandire una foto non aggiunge dettaglio, aggiunge
     // soltanto peso da scaricare.
-    .resize({ width: larghezza, withoutEnlargement: true });
+    trasformazione = trasformazione.resize({ width: larghezza, withoutEnlargement: true });
+  }
 
-  return inWebp ? trasformazione.webp({ quality: qualita }).toBuffer() : trasformazione.toBuffer();
+  if (inWebp) return { corpo: await trasformazione.webp({ quality: qualita }).toBuffer(), tipo: "image/webp" };
+
+  // JPEG e PNG escono nel loro formato, esattamente come prima.
+  const { format } = await sharp(buffer, { failOn: "none" }).metadata();
+  if (format === "jpeg" || format === "png") return { corpo: await trasformazione.toBuffer(), tipo: `image/${format}` };
+
+  // Webp, avif e il resto: un JPEG, su fondo bianco dove l'immagine era
+  // trasparente -- il JPEG la trasparenza non la conosce.
+  return {
+    corpo: await trasformazione.flatten({ background: "#ffffff" }).jpeg({ quality: qualita }).toBuffer(),
+    tipo: "image/jpeg",
+  };
 }

@@ -999,6 +999,34 @@ nel nostro archivio, che il proxy firma e scarica da li'; nessuna immagine con
 concessionario. Chiesta a parte, la stessa foto risponde 200, webp 1280x720,
 116 KB, e la seconda volta dalla cache di Vercel.
 
+> **Quella prova guardava la pagina, e la pagina era giusta. L'anteprima
+> no.** Un'ora dopo, rileggendo i percorsi delle foto, l'anteprima che
+> compare quando si condivide la scheda (`/og/veicolo/<id>`) della stessa
+> Bayon era **solo testo**, mentre quella di una Peugeot 2008 con la copertina
+> ancora su DealerK aveva la foto. La causa sta in due punti. La copia
+> chiedeva le foto dicendo di accettare webp e avif, e la rete di DealerK le
+> convertiva: **692 foto copiate su 2.016 sono webp, e 177 delle 265 copertine
+> in vetrina**. E il proxy, a chi non legge il webp, consegnava "il formato di
+> partenza" -- giusto finche' le partenze erano JPEG, sbagliato con le copie.
+> Il compositore delle anteprime legge solo JPEG e PNG, e scarta il resto in
+> silenzio: 177 auto in vetrina senza foto nell'anteprima, e nella stessa
+> immagine dichiarata a Google nei dati strutturati.
+>
+> Corretto il 25/09/2026: il proxy converte in JPEG per chi non legge il
+> webp, con o senza misura (`vaTrasformata` in `src/lib/foto-misure.ts`), e
+> la copia chiede JPEG e PNG. Le 692 copie in webp restano come sono: si
+> vedono ovunque, perche' la conversione la fa il proxy. **Non sono comunque
+> gli originali, e nemmeno le copie in JPEG lo sono**: su cdn.dealerk.it e'
+> attivo Cloudflare Polish, che ricomprime anche i JPEG (`cf-polished: ok,
+> orig_size=183077` per un file consegnato da 163.517 byte). La copia tiene
+> quello che DealerK serve, non quello che il concessionario ha caricato.
+>
+> La lezione e' quella dell'oggetto adiacente, nella forma piu' semplice: la
+> verifica "la scheda mostra le foto dal nostro archivio" era vera, e
+> guardava uno solo dei posti in cui la foto compare. Gli altri sono
+> l'anteprima social, i dati strutturati e le email -- queste ultime oggi non
+> portano foto (`coverImageUrl = null` in `send-to-client`).
+
 | numero | oggi | cosa si misura quel giorno | cosa lo censura | misurato | nuovo valore |
 |---|---|---|---|---|---|
 | freno: quota di fallimenti | 5% | la quota piu' alta in un giro senza guasti, per server | conta solo sopra i 200 tentativi per giro: si misura solo nella prima copia | ____ | ____ |
