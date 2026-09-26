@@ -66,10 +66,14 @@ describe("per-plan vehicle listing limits", () => {
     expect(migrationSql).not.toMatch(/set\s+limits_snapshot\s*=/i);
   });
 
+  // Il 26/09/2026 il catalogo diceva che l'Elite tiene online il parco "senza
+  // limiti pratici", contro un tetto di 300, e questo controllo era verde:
+  // cercava solo "senza limiti operativi", cioe' la frase tolta il giorno in
+  // cui e' nato. Adesso basta "senza limiti", in qualunque forma.
   it("no longer promises unlimited listings anywhere", () => {
     for (const path of copyFiles) {
       expect(readCopy(path), `${path} still promises unlimited listings`).not.toMatch(
-        /illimitat|senza limiti operativi/i,
+        /illimitat|senza limiti/i,
       );
     }
   });

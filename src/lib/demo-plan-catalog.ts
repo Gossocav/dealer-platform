@@ -172,7 +172,7 @@ const ELITE_SERVICES: DemoPlanService[] = [
     slot: "capienza",
     title: "Fino a 300 annunci veicolo attivi",
     description:
-      "La capienza massima della piattaforma, per le concessionarie che tengono online l'intero parco senza limiti pratici.",
+      "La capienza massima della piattaforma: fino a 300 auto in vetrina insieme.",
   },
   {
     title: "Scheda consegna veicolo",

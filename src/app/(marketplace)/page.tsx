@@ -340,7 +340,7 @@ export default async function MarketplaceHomePage() {
         <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 text-center">
           <span className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300">
             <CheckIcon className="text-cyan-300" />
-            Solo concessionarie verificate · Km e storico certificati
+            Solo concessionarie verificate · Km e storico dichiarati dal venditore
           </span>
 
           <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl" style={{ textWrap: "balance" }}>
