@@ -183,7 +183,7 @@ export async function renderOgCard({ eyebrow, title, subtitle, photoUrl }: OgCar
           </div>
 
           <div style={{ display: "flex", fontSize: 24, color: COLORS.muted }}>
-            Concessionarie verificate · Km e storico certificati
+            Concessionarie verificate · Km e storico dichiarati dal venditore
           </div>
         </div>
 
